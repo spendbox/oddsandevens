@@ -71,8 +71,8 @@ export async function GET(
       description:
         c.reward_type === "loyalty_discount"
           ? `${c.discount_percent ?? DISCOUNT_PERCENT}% loyalty discount`
-          : ((c.rewards as { description: string } | null)?.description ??
-            "Tile reward"),
+          : ((c.rewards as unknown as { description: string } | null)
+              ?.description ?? "Tile reward"),
       status: c.status,
       expiresAt: c.expires_at,
     })),

@@ -1,0 +1,10 @@
+# Minimal Supabase CLI config so `supabase link` / `db push` / local `start`
+# work from a fresh clone. Extend as needed (auth, storage, etc.).
+project_id = "tilehunt"
+
+[db]
+port = 54322
+major_version = 17
+
+[auth]
+site_url = "http://localhost:3000"
