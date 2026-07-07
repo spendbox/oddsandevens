@@ -78,6 +78,9 @@ interface Snapshot {
   rewards: RewardRow[];
   unlocks: UnlockRow[];
   customers: CustomerSummary[];
+  // Set when the merchant query itself failed (e.g. schema out of date) —
+  // never show onboarding in that case, the merchant may well exist.
+  loadError: string | null;
 }
 
 interface RewardDraft {
@@ -110,6 +113,7 @@ export default function DashboardPage() {
   const [rewards, setRewards] = useState<RewardRow[]>([]);
   const [unlocks, setUnlocks] = useState<UnlockRow[]>([]);
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showGridForm, setShowGridForm] = useState(false);
 
   // Pure fetcher (no setState) so the mount effect can apply the snapshot in
@@ -129,14 +133,23 @@ export default function DashboardPage() {
       rewards: [],
       unlocks: [],
       customers: [],
+      loadError: null,
     };
 
-    const { data: m } = await supabase
+    const { data: m, error: merchantError } = await supabase
       .from("merchants")
       .select(
         "id, business_name, slug, subscription_tier, logo_url, tagline, brand_color, points_per_discount, discount_percent"
       )
       .maybeSingle();
+    if (merchantError) {
+      console.error("[dashboard] merchants query failed:", merchantError);
+      snap.loadError =
+        merchantError.code === "42703"
+          ? "Your database schema is out of date — apply the latest migration (supabase/migrations/0003) and reload."
+          : "Couldn't load your business profile. Reload to try again.";
+      return snap;
+    }
     snap.merchant = m as Merchant | null;
     if (!m) return snap;
 
@@ -192,6 +205,7 @@ export default function DashboardPage() {
       setRewards(snap.rewards);
       setUnlocks(snap.unlocks);
       setCustomers(snap.customers);
+      setLoadError(snap.loadError);
       setLoading(false);
     },
     []
@@ -264,7 +278,9 @@ export default function DashboardPage() {
           </button>
         </header>
 
-        {!merchant ? (
+        {loadError ? (
+          <div className="alert-error mt-6 max-w-xl px-4 py-3">{loadError}</div>
+        ) : !merchant ? (
           <OnboardingForm onCreated={load} />
         ) : (
           <>
