@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Puzzle } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { PasswordInput } from "@/components/password-input";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -60,13 +61,11 @@ export default function LoginPage() {
           </label>
           <label className="mt-4 block">
             <span className="field-label">Password</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
             />
           </label>
           {error && <p className="alert-error mt-4">{error}</p>}

@@ -11,6 +11,7 @@ import {
   Shield,
   Upload,
 } from "lucide-react";
+import { PasswordInput } from "@/components/password-input";
 
 interface AdminImage {
   id: string;
@@ -200,13 +201,11 @@ export default function AdminPage() {
           </label>
           <label className="mt-4 block">
             <span className="field-label">Password</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
               placeholder="••••••••"
-              className="input-field"
             />
           </label>
           {loginError && <p className="alert-error mt-4">{loginError}</p>}
