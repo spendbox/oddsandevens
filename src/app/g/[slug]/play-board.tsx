@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  BadgePercent,
+  Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Gift,
   Hourglass,
   Mail,
@@ -12,6 +15,7 @@ import {
   PartyPopper,
   Plus,
   Puzzle,
+  RefreshCw,
   Star,
   Target,
   Ticket,
@@ -24,6 +28,15 @@ import type {
   PublicBoardState,
   PublicGrid,
 } from "@/lib/types";
+import {
+  allEdgeCombos,
+  curvedPathD,
+  edgesFor,
+  edgesKey,
+  interlockSliceStyle,
+  isOutTile,
+  sharpClipPolygon,
+} from "@/lib/tile-shapes";
 
 const EMAIL_STORAGE_KEY = "tilehunt_email";
 const SPLASH_MS = 1600;
@@ -38,13 +51,31 @@ function useCountdown(target: string | null): string | null {
   if (!target) return null;
   const ms = new Date(target).getTime() - now;
   if (ms <= 0) return null;
-  const h = Math.floor(ms / 3_600_000);
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3_600_000);
   const m = Math.floor((ms % 3_600_000) / 60_000);
   const s = Math.floor((ms % 60_000) / 1000);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
   return h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-// What the reveal popup shows after a tile is tapped (or points are traded).
+// Points about to lapse (under a day left) get the amber treatment.
+function expiringSoon(iso: string): boolean {
+  return new Date(iso).getTime() - Date.now() < 24 * 3_600_000;
+}
+
+// "3d 4h" / "5h" — coarse span for the points-expiry hint (no ticking).
+function formatSpan(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "now";
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3_600_000);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h`;
+  return `${Math.max(Math.ceil(ms / 60_000), 1)}m`;
+}
+
+// What the reveal popup shows after a tile is tapped.
 type Reveal =
   | { kind: "hit"; description: string; code: string; expiresAt: string }
   | { kind: "miss"; points: number };
@@ -138,6 +169,9 @@ export default function PlayBoard({ slug }: { slug: string }) {
   const grid: PublicGrid | null =
     board?.grids[Math.min(gridIndex, (board?.grids.length ?? 1) - 1)] ?? null;
 
+  const resetCountdown = useCountdown(grid?.resetsAt ?? null);
+  const gridResting = grid?.completedAt != null;
+
   const revealedMap = useMemo(() => {
     const map = new Map<string, boolean>();
     for (const t of grid?.revealed ?? []) map.set(`${t.row}:${t.col}`, t.hit);
@@ -145,7 +179,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
   }, [grid]);
 
   async function clickTile(row: number, col: number) {
-    if (!email || busy || cooldownLeft || !grid) return;
+    if (!email || busy || cooldownLeft || !grid || gridResting) return;
     setBusy(true);
     setFlash(null);
     try {
@@ -167,42 +201,16 @@ export default function PlayBoard({ slug }: { slug: string }) {
         setReveal({ kind: "miss", points: result.loyalty_points });
       } else if (result.result === "cooldown") {
         setFlash("You've already played recently. Come back when the timer ends!");
+      } else if (result.result === "grid_completed") {
+        setFlash(
+          "All rewards on this grid have been found — it's resting before the next round."
+        );
       } else if (result.error === "tile_taken") {
         setFlash("Someone got to that tile first — pick another one!");
       } else {
         setFlash("Something went wrong. Refresh and try again.");
       }
       await refreshAll();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function redeemPoints() {
-    if (!email || busy || !board) return;
-    setBusy(true);
-    setFlash(null);
-    try {
-      const res = await fetch(`/api/play/${slug}/points`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const result = await res.json();
-      if (result.result === "discount_issued") {
-        setReveal({
-          kind: "hit",
-          description: `${result.discount_percent}% loyalty discount`,
-          code: result.code,
-          expiresAt: result.expires_at,
-        });
-      } else {
-        setFlash(
-          `You need at least ${board.pointsPerDiscount} points to redeem a discount.`
-        );
-      }
-      const state = await fetchMe();
-      if (state) setMe(state);
     } finally {
       setBusy(false);
     }
@@ -327,22 +335,38 @@ export default function PlayBoard({ slug }: { slug: string }) {
     <main className="min-h-screen p-4 pb-28 sm:p-8 sm:pb-28" style={brandStyle}>
       {splash}
       <div className="animate-fade-up mx-auto max-w-3xl">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+        <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <BusinessMark board={board} size="md" />
-            <p className="mt-1 text-sm text-zinc-500">
-              {grid.rewardsRemaining > 0
-                ? `${grid.rewardsRemaining} reward${grid.rewardsRemaining === 1 ? "" : "s"} still hidden — good luck!`
-                : "All rewards found on this grid — earn loyalty points or try another!"}
+            <p className="mt-1.5 text-sm leading-relaxed text-zinc-500">
+              {gridResting
+                ? "All rewards found — the grid is resting before the next round."
+                : grid.rewardsRemaining > 0
+                  ? `${grid.rewardsRemaining} reward${grid.rewardsRemaining === 1 ? "" : "s"} still hidden — good luck!`
+                  : "All rewards found on this grid — earn loyalty points or try another!"}
             </p>
           </div>
-          <div className="card flex items-center gap-1.5 px-4 py-2 text-sm text-zinc-700">
-            <Star className="size-4 fill-amber-400 text-amber-400" aria-hidden />
-            <span className="font-semibold">{me?.loyaltyPoints ?? 0}</span>
-            point{(me?.loyaltyPoints ?? 0) === 1 ? "" : "s"}
+          <div className="card flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2.5 text-sm text-zinc-700">
+            <span className="flex items-center gap-1.5">
+              <Star className="size-4 fill-amber-400 text-amber-400" aria-hidden />
+              <span className="font-semibold">{me?.loyaltyPoints ?? 0}</span>
+              point{(me?.loyaltyPoints ?? 0) === 1 ? "" : "s"}
+            </span>
             <span className="text-zinc-400">
               · {board.pointsPerDiscount} pts = {board.discountPercent}% off
             </span>
+            {me?.pointsExpireAt && (me?.loyaltyPoints ?? 0) > 0 && (
+              <span
+                className={
+                  "text-xs " +
+                  (expiringSoon(me.pointsExpireAt)
+                    ? "font-medium text-amber-600"
+                    : "text-zinc-400")
+                }
+              >
+                · expire in {formatSpan(me.pointsExpireAt)}
+              </span>
+            )}
           </div>
         </header>
 
@@ -388,7 +412,20 @@ export default function PlayBoard({ slug }: { slug: string }) {
           </div>
         )}
 
-        {cooldownLeft && (
+        {gridResting && (
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
+            <RefreshCw className="size-4 shrink-0" aria-hidden />
+            <span>
+              All rewards found — this grid resets with fresh rewards in{" "}
+              <strong className="font-semibold tabular-nums">
+                {resetCountdown ?? "a moment"}
+              </strong>
+              .
+            </span>
+          </div>
+        )}
+
+        {cooldownLeft && !gridResting && (
           <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             <Hourglass className="size-4 shrink-0" aria-hidden />
             <span>
@@ -409,30 +446,35 @@ export default function PlayBoard({ slug }: { slug: string }) {
           grid={grid}
           revealedMap={revealedMap}
           lastMiss={lastMiss}
-          disabled={busy || !!cooldownLeft}
-          cooldown={!!cooldownLeft}
+          disabled={busy || !!cooldownLeft || gridResting}
+          cooldown={!!cooldownLeft && !gridResting}
+          resting={gridResting}
           onTileClick={clickTile}
         />
 
-        {canRedeemPoints && (
-          <button
-            onClick={redeemPoints}
-            disabled={busy}
-            className="mt-6 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-400 px-4 py-3 font-semibold text-amber-950 shadow-sm transition hover:brightness-105 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Star className="size-5 fill-current" aria-hidden />
-            Redeem {board.pointsPerDiscount} points for {board.discountPercent}% off
-          </button>
+        {canRedeemPoints && me?.loyaltyCode && (
+          <div className="mt-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <BadgePercent className="size-5 shrink-0 text-amber-600" aria-hidden />
+            <p className="text-sm leading-relaxed text-amber-800">
+              You have enough points! Show your{" "}
+              <strong className="font-semibold">loyalty code</strong> below at
+              the counter for {board.discountPercent}% off.
+            </p>
+          </div>
+        )}
+
+        {(me?.loyaltyCode || me?.rewardCode) && (
+          <CodesCard me={me} />
         )}
 
         {(me?.codes.length ?? 0) > 0 && (
           <section className="mt-8">
-            <h2 className="section-title">Your active codes</h2>
+            <h2 className="section-title">Your active rewards</h2>
             <ul className="mt-3 space-y-2">
               {me!.codes.map((c) => (
                 <li
                   key={c.code}
-                  className="card flex items-center justify-between gap-3 px-4 py-3"
+                  className="card flex flex-wrap items-center justify-between gap-3 px-4 py-3"
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium text-zinc-800">
@@ -448,6 +490,10 @@ export default function PlayBoard({ slug }: { slug: string }) {
                 </li>
               ))}
             </ul>
+            <p className="mt-2 text-xs text-zinc-400">
+              Or just show your reward code above — staff can see everything
+              you&apos;ve won.
+            </p>
           </section>
         )}
 
@@ -484,14 +530,77 @@ export default function PlayBoard({ slug }: { slug: string }) {
   );
 }
 
+// The customer's two persistent counter codes: the cycling loyalty code and
+// the fixed reward code.
+function CodesCard({ me }: { me: CustomerState }) {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const entries = [
+    me.loyaltyCode
+      ? {
+          key: "loyalty",
+          code: me.loyaltyCode,
+          title: "Loyalty code",
+          hint: "Show at the counter to spend your points. It changes after each use.",
+          icon: <BadgePercent className="size-4" aria-hidden />,
+        }
+      : null,
+    me.rewardCode
+      ? {
+          key: "reward",
+          code: me.rewardCode,
+          title: "Reward code",
+          hint: "Show to claim rewards you've won. This one never changes.",
+          icon: <Gift className="size-4" aria-hidden />,
+        }
+      : null,
+  ].filter((e) => e !== null);
+
+  return (
+    <section className="mt-8">
+      <h2 className="section-title">Your codes</h2>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {entries.map((e) => (
+          <div key={e.key} className="card p-4">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
+              <span className="text-[var(--brand)]">{e.icon}</span>
+              {e.title}
+            </p>
+            <button
+              onClick={async () => {
+                await navigator.clipboard.writeText(e.code);
+                setCopied(e.key);
+                setTimeout(() => setCopied(null), 1500);
+              }}
+              className="mt-3 flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-[color-mix(in_oklab,var(--brand),transparent_60%)] bg-[color-mix(in_oklab,var(--brand),transparent_92%)] px-4 py-3 font-mono text-xl tracking-[0.25em] text-[var(--brand)] transition hover:brightness-95"
+              aria-label={`Copy ${e.title}`}
+            >
+              {e.code}
+              {copied === e.key ? (
+                <Check className="size-4 shrink-0" aria-hidden />
+              ) : (
+                <Copy className="size-4 shrink-0 opacity-60" aria-hidden />
+              )}
+            </button>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-500">{e.hint}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // The board itself. Revealed tiles uncover their slice of the grid's puzzle
-// image (if it has one); unrevealed tiles are brand-colored.
+// image (if it has one); unrevealed tiles are brand-colored. Interlocking
+// shapes render each tile as an oversized clipped box so tabs reach into the
+// neighbouring cells (see src/lib/tile-shapes.ts).
 function TileGrid({
   grid,
   revealedMap,
   lastMiss,
   disabled,
   cooldown,
+  resting,
   onTileClick,
 }: {
   grid: PublicGrid;
@@ -499,12 +608,30 @@ function TileGrid({
   lastMiss: { gridId: string; row: number; col: number } | null;
   disabled: boolean;
   cooldown: boolean;
+  resting: boolean;
   onTileClick: (row: number, col: number) => void;
 }) {
-  const shapeClass =
-    grid.tileShape === "square" ? "rounded-lg" : `tile-shape-${grid.tileShape}`;
+  const interlock =
+    grid.tileShape === "interlock-sharp" || grid.tileShape === "interlock-curved";
 
-  function imageSliceStyle(row: number, col: number): React.CSSProperties {
+  // One SVG clipPath per distinct silhouette on this board (curved only).
+  const curvedCombos = useMemo(
+    () =>
+      grid.tileShape === "interlock-curved"
+        ? allEdgeCombos(grid.rows, grid.cols)
+        : [],
+    [grid.tileShape, grid.rows, grid.cols]
+  );
+
+  function clipStyle(row: number, col: number): React.CSSProperties {
+    const edges = edgesFor(row, col, grid.rows, grid.cols);
+    if (grid.tileShape === "interlock-sharp") {
+      return { clipPath: sharpClipPolygon(edges) };
+    }
+    return { clipPath: `url(#jig-${grid.id}-${edgesKey(edges)})` };
+  }
+
+  function squareSliceStyle(row: number, col: number): React.CSSProperties {
     if (!grid.imageUrl) return {};
     return {
       backgroundImage: `url(${grid.imageUrl})`,
@@ -515,69 +642,162 @@ function TileGrid({
     };
   }
 
-  return (
-    <div
-      className="mt-6 grid gap-1.5 sm:gap-2"
-      style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
-    >
-      {Array.from({ length: grid.rows * grid.cols }, (_, i) => {
-        const row = Math.floor(i / grid.cols);
-        const col = i % grid.cols;
-        const state = revealedMap.get(`${row}:${col}`);
-        const isRevealed = state !== undefined;
-        const isMyMiss =
-          lastMiss?.gridId === grid.id &&
-          lastMiss.row === row &&
-          lastMiss.col === col;
+  // Deterministic per-tile "randomness" so cooldown tiles twinkle out of sync.
+  function twinkleStyle(i: number): React.CSSProperties {
+    if (!cooldown) return {};
+    return {
+      "--twinkle-delay": `${(i * 137) % 3000}ms`,
+      "--twinkle-duration": `${2400 + ((i * 97) % 1900)}ms`,
+    } as React.CSSProperties;
+  }
 
-        if (isRevealed) {
-          // Revealed: show the puzzle-image slice (or a plain marker without
-          // an image). Hits get a small gift badge on top of the slice.
+  const liveClasses = cooldown
+    ? "tile-cooldown cursor-not-allowed"
+    : resting
+      ? "cursor-not-allowed bg-zinc-100 ring-1 ring-zinc-200 opacity-70"
+      : interlock
+        ? "tile-live tile-live-shaped cursor-pointer hover:brightness-110 active:brightness-95"
+        : "tile-live cursor-pointer hover:scale-105 active:scale-95";
+
+  return (
+    <div className={"mx-auto mt-6 w-full max-w-[540px]" + (resting ? " opacity-80" : "")}>
+      {curvedCombos.length > 0 && (
+        <svg width="0" height="0" className="absolute" aria-hidden>
+          <defs>
+            {curvedCombos.map((edges) => (
+              <clipPath
+                key={edgesKey(edges)}
+                id={`jig-${grid.id}-${edgesKey(edges)}`}
+                clipPathUnits="objectBoundingBox"
+              >
+                <path d={curvedPathD(edges)} />
+              </clipPath>
+            ))}
+          </defs>
+        </svg>
+      )}
+      <div
+        className={"grid " + (interlock ? "gap-0" : "gap-2 sm:gap-2.5")}
+        style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
+      >
+        {Array.from({ length: grid.rows * grid.cols }, (_, i) => {
+          const row = Math.floor(i / grid.cols);
+          const col = i % grid.cols;
+          const state = revealedMap.get(`${row}:${col}`);
+          const isRevealed = state !== undefined;
+          const isMyMiss =
+            lastMiss?.gridId === grid.id &&
+            lastMiss.row === row &&
+            lastMiss.col === col;
+
+          if (!interlock) {
+            if (isRevealed) {
+              // Revealed: show the puzzle-image slice (or a plain marker without
+              // an image). Hits get a small gift badge on top of the slice.
+              return (
+                <div
+                  key={i}
+                  aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+                  className={
+                    "relative flex aspect-square items-center justify-center rounded-lg " +
+                    (isMyMiss ? "animate-tile-reveal " : "") +
+                    (grid.imageUrl
+                      ? "ring-1 ring-zinc-200"
+                      : state === true
+                        ? "bg-emerald-100 text-emerald-600 ring-1 ring-emerald-300"
+                        : "bg-zinc-100 text-zinc-300 ring-1 ring-zinc-200")
+                  }
+                  style={squareSliceStyle(row, col)}
+                >
+                  {grid.imageUrl ? (
+                    state === true && (
+                      <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow">
+                        <Gift className="size-3" aria-hidden />
+                      </span>
+                    )
+                  ) : state === true ? (
+                    <Gift className="size-1/2 max-h-6 max-w-6" aria-hidden />
+                  ) : (
+                    <X className="size-1/2 max-h-5 max-w-5" aria-hidden />
+                  )}
+                </div>
+              );
+            }
+            return (
+              <button
+                key={i}
+                disabled={disabled}
+                onClick={() => onTileClick(row, col)}
+                aria-label={`Tile ${row + 1}, ${col + 1}`}
+                className={`aspect-square rounded-lg transition ${liveClasses}`}
+                style={twinkleStyle(i)}
+              />
+            );
+          }
+
+          // Interlocking shapes: the cell stays in the grid flow; the visible
+          // tile is an oversized clipped box whose tabs overhang the cell.
+          // "Out" tiles draw above their notched neighbours.
+          const boxStyle: React.CSSProperties = {
+            inset: "-22%",
+            zIndex: isOutTile(row, col) ? 2 : 1,
+            ...clipStyle(row, col),
+          };
+
           return (
-            <div
-              key={i}
-              aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
-              className={
-                `relative flex aspect-square items-center justify-center ${shapeClass} ` +
-                (isMyMiss ? "animate-tile-reveal " : "") +
-                (grid.imageUrl
-                  ? "ring-1 ring-zinc-200"
-                  : state === true
-                    ? "bg-emerald-100 text-emerald-600 ring-1 ring-emerald-300"
-                    : "bg-zinc-100 text-zinc-300 ring-1 ring-zinc-200")
-              }
-              style={imageSliceStyle(row, col)}
-            >
-              {grid.imageUrl ? (
-                state === true && (
-                  <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow">
-                    <Gift className="size-3" aria-hidden />
-                  </span>
-                )
-              ) : state === true ? (
-                <Gift className="size-1/2 max-h-6 max-w-6" aria-hidden />
+            <div key={i} className="relative aspect-square">
+              {isRevealed ? (
+                <>
+                  <div
+                    aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+                    className={
+                      "absolute flex items-center justify-center " +
+                      (isMyMiss ? "animate-tile-reveal " : "") +
+                      (grid.imageUrl
+                        ? ""
+                        : state === true
+                          ? "bg-emerald-100 text-emerald-600"
+                          : "bg-zinc-100 text-zinc-300")
+                    }
+                    style={{
+                      ...boxStyle,
+                      ...(grid.imageUrl
+                        ? interlockSliceStyle(
+                            row,
+                            col,
+                            grid.rows,
+                            grid.cols,
+                            grid.imageUrl
+                          )
+                        : {}),
+                    }}
+                  >
+                    {!grid.imageUrl &&
+                      (state === true ? (
+                        <Gift className="size-1/3 max-h-6 max-w-6" aria-hidden />
+                      ) : (
+                        <X className="size-1/3 max-h-5 max-w-5" aria-hidden />
+                      ))}
+                  </div>
+                  {grid.imageUrl && state === true && (
+                    <span className="absolute -right-1 -top-1 z-10 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow">
+                      <Gift className="size-3" aria-hidden />
+                    </span>
+                  )}
+                </>
               ) : (
-                <X className="size-1/2 max-h-5 max-w-5" aria-hidden />
+                <button
+                  disabled={disabled}
+                  onClick={() => onTileClick(row, col)}
+                  aria-label={`Tile ${row + 1}, ${col + 1}`}
+                  className={`absolute transition ${liveClasses}`}
+                  style={{ ...boxStyle, ...twinkleStyle(i) }}
+                />
               )}
             </div>
           );
-        }
-
-        return (
-          <button
-            key={i}
-            disabled={disabled}
-            onClick={() => onTileClick(row, col)}
-            aria-label={`Tile ${row + 1}, ${col + 1}`}
-            className={
-              `aspect-square transition ${shapeClass} ` +
-              (cooldown
-                ? "cursor-not-allowed bg-zinc-100 ring-1 ring-zinc-200"
-                : "tile-live cursor-pointer hover:scale-105 active:scale-95")
-            }
-          />
-        );
-      })}
+        })}
+      </div>
     </div>
   );
 }
@@ -769,14 +989,16 @@ function RevealModal({
                 "This code has expired."
               )}
             </p>
-            <p className="mt-1 text-xs text-zinc-400">We also emailed it to you.</p>
+            <p className="mt-1 text-xs text-zinc-400">
+              We also emailed it to you — or just show your reward code.
+            </p>
           </>
         ) : (
           <>
             <p className="mt-1 text-sm text-zinc-500">
               No reward under that tile, but you&apos;re{" "}
               {reveal.points >= board.pointsPerDiscount
-                ? "ready to redeem a discount!"
+                ? `ready for ${board.discountPercent}% off — show your loyalty code at the counter!`
                 : `${board.pointsPerDiscount - pointsInCycle} point${board.pointsPerDiscount - pointsInCycle === 1 ? "" : "s"} from ${board.discountPercent}% off.`}
             </p>
             {/* Progress dots toward the next discount */}
@@ -796,7 +1018,8 @@ function RevealModal({
             </div>
             <p className="mt-2 text-xs text-zinc-400">
               {reveal.points} point{reveal.points === 1 ? "" : "s"} total ·{" "}
-              {board.pointsPerDiscount} pts = {board.discountPercent}% off
+              {board.pointsPerDiscount} pts = {board.discountPercent}% off ·
+              points last 7 days from your latest play
             </p>
           </>
         )}

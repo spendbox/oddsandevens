@@ -6,9 +6,10 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { DEFAULT_PREMIUM_PRICE_KOBO } from "@/lib/constants";
 import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
 
-// Report the premium price so the dashboard can show it on the upsell card.
+// Report the premium price (per year) and the merchant's current expiry so
+// the dashboard can show the upsell / renewal card.
 export async function GET() {
-  const { userId } = await getAuthedMerchant();
+  const { userId, merchant } = await getAuthedMerchant();
   if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -20,11 +21,12 @@ export async function GET() {
   return NextResponse.json({
     premiumPriceKobo: Number(data?.value ?? DEFAULT_PREMIUM_PRICE_KOBO),
     paymentsEnabled: paystackConfigured(),
+    premiumExpiresAt: merchant?.premium_expires_at ?? null,
   });
 }
 
-// Start a Paystack checkout for the premium upgrade. Returns the hosted
-// payment page URL; the dashboard redirects the merchant there.
+// Start a Paystack checkout for the yearly premium plan. Also used to renew:
+// a payment while premium is still running extends the expiry by a year.
 export async function POST(req: Request) {
   const { userId, merchant } = await getAuthedMerchant();
   if (!userId) {
@@ -32,9 +34,6 @@ export async function POST(req: Request) {
   }
   if (!merchant) {
     return NextResponse.json({ error: "no_merchant_profile" }, { status: 404 });
-  }
-  if (merchant.subscription_tier === "premium") {
-    return NextResponse.json({ error: "already_premium" }, { status: 409 });
   }
   if (!paystackConfigured()) {
     return NextResponse.json({ error: "payments_not_configured" }, { status: 503 });

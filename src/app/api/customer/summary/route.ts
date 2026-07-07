@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     db
       .from("customer_merchant_state")
       .select(
-        "merchant_id, last_played_at, loyalty_points, merchants(business_name, slug, logo_url, brand_color, points_per_discount, discount_percent)"
+        "merchant_id, last_played_at, loyalty_points, points_expire_at, loyalty_code, reward_code, merchants(business_name, slug, logo_url, brand_color, points_per_discount, discount_percent)"
       )
       .eq("customer_id", customer.id),
     db
@@ -74,15 +74,22 @@ export async function GET(req: Request) {
           new Date(s.last_played_at).getTime() + COOLDOWN_HOURS * 3600 * 1000;
         if (until > now) cooldownUntil = new Date(until).toISOString();
       }
+      // Rolling expiry: a lapsed balance reads as zero.
+      const pointsExpired =
+        s.points_expire_at != null &&
+        new Date(s.points_expire_at).getTime() <= now;
       return {
         businessName: m.business_name,
         slug: m.slug,
         logoUrl: m.logo_url,
         brandColor: m.brand_color,
-        loyaltyPoints: s.loyalty_points,
+        loyaltyPoints: pointsExpired ? 0 : s.loyalty_points,
+        pointsExpireAt: pointsExpired ? null : (s.points_expire_at ?? null),
         pointsPerDiscount: m.points_per_discount,
         discountPercent: m.discount_percent,
         cooldownUntil,
+        loyaltyCode: s.loyalty_code ?? null,
+        rewardCode: s.reward_code ?? null,
         codes: codesByMerchant.get(s.merchant_id) ?? [],
       };
     })

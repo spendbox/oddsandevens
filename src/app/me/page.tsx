@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  BadgePercent,
   ExternalLink,
+  Gift,
   Hourglass,
   Puzzle,
   Star,
@@ -204,6 +206,9 @@ export default function CustomerPortalPage() {
                         />
                         {a.loyaltyPoints} point{a.loyaltyPoints === 1 ? "" : "s"} ·{" "}
                         {a.pointsPerDiscount} pts = {a.discountPercent}% off
+                        {a.pointsExpireAt && a.loyaltyPoints > 0 && (
+                          <> · points expire {formatEta(a.pointsExpireAt)}</>
+                        )}
                         {a.cooldownUntil && (
                           <>
                             {" "}
@@ -245,6 +250,39 @@ export default function CustomerPortalPage() {
                     />
                   ))}
                 </div>
+
+                {(a.loyaltyCode || a.rewardCode) && (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {a.loyaltyCode && (
+                      <div className="flex items-center justify-between gap-2 rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2.5">
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-zinc-600">
+                          <BadgePercent
+                            className="size-3.5 text-[var(--brand)]"
+                            aria-hidden
+                          />
+                          Loyalty code
+                        </p>
+                        <span className="shrink-0 rounded-lg border border-[color-mix(in_oklab,var(--brand),transparent_60%)] bg-white px-2.5 py-1 font-mono tracking-widest text-[var(--brand)]">
+                          {a.loyaltyCode}
+                        </span>
+                      </div>
+                    )}
+                    {a.rewardCode && (
+                      <div className="flex items-center justify-between gap-2 rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2.5">
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-zinc-600">
+                          <Gift
+                            className="size-3.5 text-[var(--brand)]"
+                            aria-hidden
+                          />
+                          Reward code
+                        </p>
+                        <span className="shrink-0 rounded-lg border border-[color-mix(in_oklab,var(--brand),transparent_60%)] bg-white px-2.5 py-1 font-mono tracking-widest text-[var(--brand)]">
+                          {a.rewardCode}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {a.codes.length > 0 && (
                   <ul className="mt-3 space-y-2">

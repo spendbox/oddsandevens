@@ -70,29 +70,6 @@ export async function sendRewardUnlockedEmail(params: {
   );
 }
 
-export async function sendDiscountCodeEmail(params: {
-  to: string;
-  businessName: string;
-  slug: string;
-  discountPercent: number;
-  code: string;
-  expiresAt: string;
-}) {
-  const { to, businessName, slug, discountPercent, code, expiresAt } = params;
-  await send(
-    to,
-    `Your ${discountPercent}% discount at ${businessName}`,
-    `<div style="font-family:sans-serif;max-width:480px">
-      <h2>Loyalty pays off!</h2>
-      <p>You traded your points for <strong>${discountPercent}% off</strong> at ${businessName}.</p>
-      <p>Show this code to staff to redeem it:</p>
-      <p style="font-size:28px;letter-spacing:6px;font-weight:bold;background:#f4f4f5;padding:12px 16px;border-radius:8px;text-align:center">${code}</p>
-      <p>⏳ Expires <strong>${formatExpiry(expiresAt)}</strong>.</p>
-      ${boardLink(slug)}
-    </div>`
-  );
-}
-
 export async function sendMerchantHitEmail(params: {
   to: string;
   businessName: string;

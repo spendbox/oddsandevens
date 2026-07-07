@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
+import type { SubscriptionTier } from "@/lib/constants";
 
 export interface MerchantRow {
   id: string;
@@ -7,6 +8,7 @@ export interface MerchantRow {
   business_name: string;
   slug: string;
   subscription_tier: "free" | "premium";
+  premium_expires_at: string | null;
   logo_url: string | null;
   tagline: string | null;
   brand_color: string;
@@ -14,6 +16,26 @@ export interface MerchantRow {
   discount_percent: number;
   whatsapp: string | null;
   contact_email: string | null;
+}
+
+// Premium is a yearly plan: the tier only counts while it hasn't lapsed.
+// Lapsed merchants act as free for new actions (existing grids keep playing).
+export function isPremium(merchant: {
+  subscription_tier: string;
+  premium_expires_at: string | null;
+}): boolean {
+  return (
+    merchant.subscription_tier === "premium" &&
+    merchant.premium_expires_at !== null &&
+    new Date(merchant.premium_expires_at).getTime() > Date.now()
+  );
+}
+
+export function effectiveTier(merchant: {
+  subscription_tier: string;
+  premium_expires_at: string | null;
+}): SubscriptionTier {
+  return isPremium(merchant) ? "premium" : "free";
 }
 
 // Resolves the logged-in merchant for /api/merchant/* routes. Auth comes from
@@ -32,7 +54,7 @@ export async function getAuthedMerchant(): Promise<
   const { data: merchant } = await supabaseAdmin()
     .from("merchants")
     .select(
-      "id, owner_id, business_name, slug, subscription_tier, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
+      "id, owner_id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
     )
     .eq("owner_id", user.id)
     .maybeSingle();

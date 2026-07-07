@@ -165,17 +165,44 @@ body {
       0 0 18px color-mix(in oklab, var(--brand), transparent 55%);
   }
 
-  /* Premium tile shapes (default is the rounded square). clip-path swallows
-     box-shadow, so shaped tiles lean on their fill alone. */
-  .tile-shape-circle {
-    border-radius: 9999px;
+  /* Interlocking (clipped) tiles: clip-path swallows box-shadow, but
+     filter: drop-shadow follows the clipped silhouette, so shaped tiles get
+     their glow from a drop-shadow instead. */
+  .tile-live-shaped {
+    filter: drop-shadow(
+      0 2px 5px color-mix(in oklab, var(--brand), transparent 65%)
+    );
   }
-  .tile-shape-hexagon {
-    border-radius: 0;
-    clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
+  .tile-live-shaped:hover {
+    filter: drop-shadow(
+      0 0 10px color-mix(in oklab, var(--brand), transparent 50%)
+    );
   }
-  .tile-shape-diamond {
-    border-radius: 0;
-    clip-path: polygon(50% 2%, 98% 50%, 50% 98%, 2% 50%);
+
+  /* Tiles locked by the play cooldown twinkle on and off. Each tile gets its
+     own --twinkle-delay / --twinkle-duration so the board sparkles randomly
+     rather than pulsing in unison. Drop-shadow works on clipped shapes too. */
+  .tile-cooldown {
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--brand), white 60%),
+      color-mix(in oklab, var(--brand), white 40%)
+    );
+    animation: tile-twinkle var(--twinkle-duration, 3s) ease-in-out
+      var(--twinkle-delay, 0s) infinite;
+  }
+}
+
+@keyframes tile-twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+    filter: none;
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(
+      0 0 9px color-mix(in oklab, var(--brand), transparent 45%)
+    );
   }
 }

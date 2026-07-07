@@ -22,7 +22,9 @@ export async function GET() {
   const [{ data: states }, { data: unlocks }] = await Promise.all([
     db
       .from("customer_merchant_state")
-      .select("customer_id, last_played_at, loyalty_points, customers(email)")
+      .select(
+        "customer_id, last_played_at, loyalty_points, points_expire_at, total_plays, customers(email)"
+      )
       .eq("merchant_id", merchant.id)
       .order("last_played_at", { ascending: false })
       .limit(200),
@@ -66,10 +68,16 @@ export async function GET() {
     const nextPlayAt =
       cooldownEnd && cooldownEnd > now ? new Date(cooldownEnd).toISOString() : null;
 
+    // Rolling expiry: a lapsed balance reads as zero.
+    const pointsExpired =
+      s.points_expire_at != null &&
+      new Date(s.points_expire_at).getTime() <= now;
+    const loyaltyPoints = pointsExpired ? 0 : s.loyalty_points;
+
     // One loyalty point per play, one play per cooldown window: the soonest a
     // customer can afford a discount is pointsToDiscount plays from now.
     const pointsToDiscount = Math.max(
-      merchant.points_per_discount - s.loyalty_points,
+      merchant.points_per_discount - loyaltyPoints,
       0
     );
     let discountReadyAt: string | null = null;
@@ -84,7 +92,9 @@ export async function GET() {
     return {
       email:
         (s.customers as unknown as { email: string } | null)?.email ?? "—",
-      loyaltyPoints: s.loyalty_points,
+      loyaltyPoints,
+      pointsExpireAt: pointsExpired ? null : (s.points_expire_at ?? null),
+      totalPlays: s.total_plays ?? 0,
       lastPlayedAt: s.last_played_at,
       nextPlayAt,
       pointsToDiscount,

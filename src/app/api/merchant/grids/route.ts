@@ -17,7 +17,9 @@ export async function GET() {
   const db = supabaseAdmin();
   const { data: grids, error } = await db
     .from("grids")
-    .select("id, title, image_url, tile_shape, rows, cols, status, created_at")
+    .select(
+      "id, title, image_url, tile_shape, rows, cols, status, created_at, reset_days, completed_at, cycle"
+    )
     .eq("merchant_id", merchant.id)
     .order("created_at", { ascending: false });
   if (error) {
@@ -74,6 +76,9 @@ export async function GET() {
     cols: g.cols,
     status: g.status,
     createdAt: g.created_at,
+    resetDays: g.reset_days,
+    completedAt: g.completed_at,
+    cycle: g.cycle,
     ...stats.get(g.id)!,
   }));
   return NextResponse.json({ grids: result });

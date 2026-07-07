@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getAuthedMerchant } from "@/lib/merchant-auth";
+import { getAuthedMerchant, isPremium } from "@/lib/merchant-auth";
 import { verifyTransaction } from "@/lib/paystack";
+import { PREMIUM_TERM_DAYS } from "@/lib/constants";
 
 // Called by the dashboard when Paystack redirects back with ?payment_ref=.
-// Verifies the transaction server-side and flips the merchant to premium.
+// Verifies the transaction server-side and grants a year of premium —
+// renewing early stacks on top of the time that's still left.
 export async function POST(req: Request) {
   const { userId, merchant } = await getAuthedMerchant();
   if (!userId) {
@@ -48,18 +50,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "payment_not_successful" }, { status: 402 });
   }
 
+  // A year on top of whatever is left (or from now, if lapsed/new).
+  const base = isPremium(merchant)
+    ? new Date(merchant.premium_expires_at!).getTime()
+    : Date.now();
+  const premiumExpiresAt = new Date(
+    base + PREMIUM_TERM_DAYS * 86400_000
+  ).toISOString();
+
   const { error: payError } = await db
     .from("payments")
     .update({ status: "success", paid_at: new Date().toISOString() })
     .eq("id", payment.id);
   const { error: tierError } = await db
     .from("merchants")
-    .update({ subscription_tier: "premium" })
+    .update({
+      subscription_tier: "premium",
+      premium_expires_at: premiumExpiresAt,
+    })
     .eq("id", merchant.id);
   if (payError || tierError) {
     console.error("[upgrade verify] update failed:", payError ?? tierError);
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 
-  return NextResponse.json({ result: "upgraded" });
+  return NextResponse.json({ result: "upgraded", premiumExpiresAt });
 }

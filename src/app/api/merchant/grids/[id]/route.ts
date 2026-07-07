@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getAuthedMerchant } from "@/lib/merchant-auth";
+import { effectiveTier, getAuthedMerchant } from "@/lib/merchant-auth";
 import { TIER_LIMITS } from "@/lib/constants";
 
 // Archive or re-activate one of the merchant's grids. Re-activation counts
-// against the tier's active-grid cap (free 1 / premium 5).
+// against the tier's active-grid cap (free 1 / premium 10).
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -41,7 +41,7 @@ export async function PATCH(
       .select("id", { count: "exact", head: true })
       .eq("merchant_id", merchant.id)
       .eq("status", "active");
-    const cap = TIER_LIMITS[merchant.subscription_tier].maxActiveGrids;
+    const cap = TIER_LIMITS[effectiveTier(merchant)].maxActiveGrids;
     if ((count ?? 0) >= cap) {
       return NextResponse.json({ error: "too_many_active_grids" }, { status: 409 });
     }

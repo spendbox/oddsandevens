@@ -118,7 +118,7 @@ export async function POST(req: Request) {
     .update(patch)
     .eq("id", merchant.id)
     .select(
-      "id, business_name, slug, subscription_tier, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
+      "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
     )
     .single();
   if (error) {
