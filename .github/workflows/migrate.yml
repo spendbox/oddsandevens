@@ -1,5 +1,5 @@
 # Applies supabase/migrations/*.sql to the production Supabase project
-# whenever a migration lands on main (plus a manual trigger for reruns).
+# whenever a migration lands on develop (plus a manual trigger for reruns).
 #
 # Required repository secrets (GitHub -> Settings -> Secrets and variables -> Actions):
 #   SUPABASE_ACCESS_TOKEN  - personal access token from supabase.com/dashboard/account/tokens
@@ -9,7 +9,7 @@ name: Apply Supabase migrations
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
     paths:
       - "supabase/migrations/**"
   workflow_dispatch:
