@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
   Check,
   Eye,
   EyeOff,
   ImagePlus,
   Landmark,
+  LogOut,
   Shield,
   Upload,
 } from "lucide-react";
@@ -33,6 +33,10 @@ export default function AdminPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loggingIn, setLoggingIn] = useState(false);
 
   // Pure fetcher (no setState) so the mount effect can apply the result in an
   // async callback — required by the react-hooks/set-state-in-effect rule.
@@ -151,16 +155,65 @@ export default function AdminPage() {
   if (!authorized) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
-        <div className="card max-w-sm p-6 text-center">
-          <Shield className="mx-auto size-8 text-zinc-300" aria-hidden />
-          <h1 className="mt-3 text-lg font-bold text-zinc-900">Admins only</h1>
+        <form
+          className="card animate-fade-up w-full max-w-sm p-6 sm:p-8"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setLoggingIn(true);
+            setLoginError(null);
+            const res = await fetch("/api/admin/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+            });
+            setLoggingIn(false);
+            if (!res.ok) {
+              setLoginError(
+                res.status === 503
+                  ? "Admin login isn't configured — set ADMIN_EMAIL and ADMIN_PASSWORD in your Vercel environment variables."
+                  : "Wrong email or password."
+              );
+              return;
+            }
+            setLoginPassword("");
+            await load();
+          }}
+        >
+          <div className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-900">
+            <Shield className="size-5 text-emerald-600" aria-hidden />
+            Admin login
+          </div>
           <p className="mt-2 text-sm text-zinc-500">
-            Sign in with an admin account to manage TileHunt.{" "}
-            <Link href="/login" className="font-medium text-emerald-600 underline">
-              Log in
-            </Link>
+            Sign in with the admin email and password from your Vercel
+            environment variables.
           </p>
-        </div>
+          <label className="mt-5 block">
+            <span className="field-label">Admin email</span>
+            <input
+              type="email"
+              required
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              placeholder="admin@tilehunt.app"
+              className="input-field"
+            />
+          </label>
+          <label className="mt-4 block">
+            <span className="field-label">Password</span>
+            <input
+              type="password"
+              required
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              placeholder="••••••••"
+              className="input-field"
+            />
+          </label>
+          {loginError && <p className="alert-error mt-4">{loginError}</p>}
+          <button type="submit" disabled={loggingIn} className="btn-primary mt-6 w-full">
+            {loggingIn ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
       </main>
     );
   }
@@ -168,10 +221,22 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen p-4 pb-16 sm:p-8">
       <div className="animate-fade-up mx-auto max-w-3xl">
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-zinc-900">
-          <Shield className="size-6 text-emerald-600" aria-hidden />
-          TileHunt admin
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-zinc-900">
+            <Shield className="size-6 text-emerald-600" aria-hidden />
+            TileHunt admin
+          </h1>
+          <button
+            onClick={async () => {
+              await fetch("/api/admin/login", { method: "DELETE" });
+              setAuthorized(false);
+            }}
+            className="btn-ghost"
+          >
+            <LogOut className="size-4" aria-hidden />
+            Sign out
+          </button>
+        </div>
 
         {error && <p className="alert-error mt-4">{error}</p>}
 
