@@ -50,10 +50,30 @@ export type CreateGridResult =
 // positions — only what has already been revealed.
 export interface PublicGridState {
   businessName: string;
+  logoUrl: string | null;
+  tagline: string | null;
+  brandColor: string;
+  pointsPerDiscount: number;
+  discountPercent: number;
   rows: number;
   cols: number;
   revealed: { row: number; col: number; hit: boolean }[];
   rewardsRemaining: number;
+}
+
+// Per-customer summary for the merchant dashboard's customers list.
+export interface CustomerSummary {
+  email: string;
+  loyaltyPoints: number;
+  lastPlayedAt: string | null;
+  // Cooldown end, if the customer is currently in cooldown.
+  nextPlayAt: string | null;
+  // Points still missing for a loyalty discount, and the soonest wall-clock
+  // time they could have them (one point per play, one play per cooldown).
+  pointsToDiscount: number;
+  discountReadyAt: string | null;
+  activeCodes: { description: string; expiresAt: string }[];
+  totalUnlocks: number;
 }
 
 export interface CustomerState {

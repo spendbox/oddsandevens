@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
-  --foreground: #fafafa;
+  --background: #ffffff;
+  --foreground: #18181b;
+  /* Default brand accent; the play page overrides this per merchant. */
+  --brand: #059669;
 }
 
 @theme inline {
@@ -14,6 +16,7 @@
   --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-pop-in: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   --animate-tile-reveal: tile-reveal 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-bounce-soft: bounce-soft 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 
   @keyframes fade-up {
     from {
@@ -28,7 +31,7 @@
   @keyframes pop-in {
     from {
       opacity: 0;
-      transform: scale(0.9);
+      transform: scale(0.88);
     }
     to {
       opacity: 1;
@@ -45,38 +48,63 @@
       opacity: 1;
     }
   }
+  @keyframes bounce-soft {
+    0% {
+      transform: scale(0.3) rotate(-12deg);
+      opacity: 0;
+    }
+    55% {
+      transform: scale(1.15) rotate(4deg);
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+  }
+}
+
+/* Expanding celebration ring behind the reveal-popup icon. */
+@keyframes burst-ring {
+  from {
+    transform: scale(0.4);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
 }
 
 body {
   background-color: var(--background);
   background-image:
-    radial-gradient(60rem 40rem at 85% -10%, rgb(16 185 129 / 0.08), transparent 60%),
-    radial-gradient(50rem 35rem at -10% 30%, rgb(20 184 166 / 0.06), transparent 60%);
+    radial-gradient(50rem 30rem at 90% -5%, color-mix(in oklab, var(--brand), transparent 94%), transparent 60%),
+    radial-gradient(40rem 28rem at -5% 40%, color-mix(in oklab, var(--brand), transparent 96%), transparent 60%);
   background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer components {
-  /* Surface panels used across every screen. */
   .card {
-    @apply rounded-2xl border border-white/10 bg-zinc-900/70 shadow-[0_8px_30px_rgb(0_0_0/0.25)] backdrop-blur-sm;
+    @apply rounded-2xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.04)];
   }
 
   .btn-primary {
-    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-500 px-5 py-2.5 font-semibold text-emerald-950 shadow-[0_4px_16px_rgb(16_185_129/0.35),inset_0_1px_0_rgb(255_255_255/0.35)] transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100;
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-2.5 font-semibold text-white shadow-sm transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100;
+    background-color: var(--brand);
   }
 
   .btn-secondary {
-    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 font-medium text-zinc-200 transition hover:border-white/20 hover:bg-white/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-5 py-2.5 font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-ghost {
-    @apply cursor-pointer rounded-lg px-3 py-1.5 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white;
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900;
   }
 
   .input-field {
-    @apply w-full rounded-xl border border-white/10 bg-zinc-950/60 px-3.5 py-2.5 text-white placeholder-zinc-600 shadow-inner outline-none transition focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60;
+    @apply w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--brand),transparent_80%)] disabled:bg-zinc-50 disabled:opacity-70;
   }
 
   .field-label {
@@ -84,6 +112,31 @@ body {
   }
 
   .section-title {
-    @apply text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500;
+    @apply flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500;
+  }
+
+  .alert-error {
+    @apply rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700;
+  }
+
+  .alert-success {
+    @apply rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700;
+  }
+
+  /* Unclicked, playable tile: gradient built from the merchant's brand color. */
+  .tile-live {
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--brand), white 18%),
+      color-mix(in oklab, var(--brand), black 22%)
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.3),
+      0 2px 6px color-mix(in oklab, var(--brand), transparent 70%);
+  }
+  .tile-live:hover {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.3),
+      0 0 18px color-mix(in oklab, var(--brand), transparent 55%);
   }
 }

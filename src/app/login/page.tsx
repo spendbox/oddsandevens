@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Puzzle } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -34,12 +35,13 @@ export default function LoginPage() {
       <div className="animate-fade-up w-full max-w-sm">
         <Link
           href="/"
-          className="mb-6 block text-center text-lg font-bold tracking-tight text-white"
+          className="mb-6 flex items-center justify-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
         >
-          🧩 Tile<span className="text-emerald-400">Hunt</span>
+          <Puzzle className="size-5 text-emerald-600" aria-hidden />
+          Tile<span className="-ml-2 text-emerald-600">Hunt</span>
         </Link>
         <form onSubmit={onSubmit} className="card p-6 sm:p-8">
-          <h1 className="text-xl font-bold tracking-tight text-white">
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900">
             Merchant login
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
@@ -67,11 +69,7 @@ export default function LoginPage() {
               className="input-field"
             />
           </label>
-          {error && (
-            <p className="mt-4 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
-              {error}
-            </p>
-          )}
+          {error && <p className="alert-error mt-4">{error}</p>}
           <button type="submit" disabled={busy} className="btn-primary mt-6 w-full">
             {busy ? "Signing in…" : "Sign in"}
           </button>
@@ -79,7 +77,7 @@ export default function LoginPage() {
             New here?{" "}
             <Link
               href="/signup"
-              className="font-medium text-emerald-400 hover:text-emerald-300"
+              className="font-medium text-emerald-600 hover:text-emerald-500"
             >
               Create an account
             </Link>

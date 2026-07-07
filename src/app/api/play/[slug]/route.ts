@@ -13,7 +13,9 @@ export async function GET(
 
   const { data: merchant } = await db
     .from("merchants")
-    .select("id, business_name")
+    .select(
+      "id, business_name, logo_url, tagline, brand_color, points_per_discount, discount_percent"
+    )
     .eq("slug", slug.toLowerCase())
     .single();
   if (!merchant) {
@@ -73,6 +75,11 @@ export async function GET(
 
   const state: PublicGridState = {
     businessName: merchant.business_name,
+    logoUrl: merchant.logo_url,
+    tagline: merchant.tagline,
+    brandColor: merchant.brand_color,
+    pointsPerDiscount: merchant.points_per_discount,
+    discountPercent: merchant.discount_percent,
     rows: grid.rows,
     cols: grid.cols,
     revealed,

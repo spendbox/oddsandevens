@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Puzzle } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 export default function SignupPage() {
@@ -40,17 +41,18 @@ export default function SignupPage() {
       <div className="animate-fade-up w-full max-w-sm">
         <Link
           href="/"
-          className="mb-6 block text-center text-lg font-bold tracking-tight text-white"
+          className="mb-6 flex items-center justify-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
         >
-          🧩 Tile<span className="text-emerald-400">Hunt</span>
+          <Puzzle className="size-5 text-emerald-600" aria-hidden />
+          Tile<span className="-ml-2 text-emerald-600">Hunt</span>
         </Link>
         <form onSubmit={onSubmit} className="card p-6 sm:p-8">
-          <h1 className="text-xl font-bold tracking-tight text-white">
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900">
             Create merchant account
           </h1>
           {needsConfirm ? (
-            <p className="mt-5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-3 text-sm leading-relaxed text-emerald-300">
-              📬 Check your inbox to confirm your email, then{" "}
+            <p className="alert-success mt-5 leading-relaxed">
+              Check your inbox to confirm your email, then{" "}
               <Link href="/login" className="font-medium underline">
                 sign in
               </Link>
@@ -84,11 +86,7 @@ export default function SignupPage() {
                   className="input-field"
                 />
               </label>
-              {error && (
-                <p className="mt-4 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
-                  {error}
-                </p>
-              )}
+              {error && <p className="alert-error mt-4">{error}</p>}
               <button
                 type="submit"
                 disabled={busy}
@@ -100,7 +98,7 @@ export default function SignupPage() {
                 Already registered?{" "}
                 <Link
                   href="/login"
-                  className="font-medium text-emerald-400 hover:text-emerald-300"
+                  className="font-medium text-emerald-600 hover:text-emerald-500"
                 >
                   Sign in
                 </Link>
