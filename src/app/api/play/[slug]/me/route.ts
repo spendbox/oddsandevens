@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { COOLDOWN_HOURS, DISCOUNT_PERCENT, EMAIL_REGEX } from "@/lib/constants";
+import {
+  COOLDOWN_HOURS,
+  DEFAULT_DISCOUNT_PERCENT,
+  EMAIL_REGEX,
+} from "@/lib/constants";
 import type { CustomerState } from "@/lib/types";
 
 // Per-customer state for a merchant's grid: points balance, cooldown, and the
@@ -70,7 +74,7 @@ export async function GET(
       code: c.redemption_code,
       description:
         c.reward_type === "loyalty_discount"
-          ? `${c.discount_percent ?? DISCOUNT_PERCENT}% loyalty discount`
+          ? `${c.discount_percent ?? DEFAULT_DISCOUNT_PERCENT}% loyalty discount`
           : ((c.rewards as unknown as { description: string } | null)
               ?.description ?? "Tile reward"),
       status: c.status,
