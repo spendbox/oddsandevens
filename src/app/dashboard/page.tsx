@@ -171,25 +171,31 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-400">
-        Loading dashboard…
+      <main className="flex min-h-screen items-center justify-center text-zinc-500">
+        <span className="animate-pulse">Loading dashboard…</span>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 p-4 pb-16 text-white sm:p-8">
-      <div className="mx-auto max-w-4xl">
+    <main className="min-h-screen p-4 pb-16 text-white sm:p-8">
+      <div className="animate-fade-up mx-auto max-w-4xl">
         <header className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">
-            🧩 TileHunt {merchant ? `· ${merchant.business_name}` : ""}
+          <h1 className="text-2xl font-bold tracking-tight">
+            🧩 Tile<span className="text-emerald-400">Hunt</span>
+            {merchant && (
+              <span className="font-medium text-zinc-400">
+                {" "}
+                · {merchant.business_name}
+              </span>
+            )}
           </h1>
           <button
             onClick={async () => {
               await supabaseBrowser().auth.signOut();
               router.push("/login");
             }}
-            className="text-sm text-zinc-400 underline hover:text-white"
+            className="btn-ghost"
           >
             Sign out
           </button>
@@ -262,40 +268,42 @@ function OnboardingForm({ onCreated }: { onCreated: () => Promise<void> }) {
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="mt-6 max-w-md rounded-2xl bg-zinc-900 p-6 ring-1 ring-zinc-800"
-    >
-      <h2 className="text-lg font-semibold">Set up your business</h2>
-      <label className="mt-4 block text-sm text-zinc-400">
-        Business name
+    <form onSubmit={submit} className="card mt-6 max-w-md p-6">
+      <h2 className="text-lg font-semibold tracking-tight">
+        Set up your business
+      </h2>
+      <p className="mt-1 text-sm text-zinc-500">
+        Pick a name and the link your customers will visit.
+      </p>
+      <label className="mt-5 block">
+        <span className="field-label">Business name</span>
         <input
           required
           value={businessName}
           onChange={(e) => setBusinessName(e.target.value)}
           placeholder="Mama Put Kitchen"
-          className="mt-1 w-full rounded-lg bg-zinc-800 px-3 py-2 text-white ring-1 ring-zinc-700 focus:ring-emerald-500"
+          className="input-field"
         />
       </label>
-      <label className="mt-3 block text-sm text-zinc-400">
-        Shareable link name
-        <div className="mt-1 flex items-center rounded-lg bg-zinc-800 ring-1 ring-zinc-700 focus-within:ring-emerald-500">
-          <span className="pl-3 text-zinc-500">/g/</span>
+      <label className="mt-4 block">
+        <span className="field-label">Shareable link name</span>
+        <div className="flex items-center rounded-xl border border-white/10 bg-zinc-950/60 shadow-inner transition focus-within:border-emerald-500/60 focus-within:ring-2 focus-within:ring-emerald-500/20">
+          <span className="pl-3.5 text-zinc-600">/g/</span>
           <input
             required
             value={slug}
             onChange={(e) => setSlug(e.target.value.toLowerCase())}
             placeholder="mama-put-kitchen"
-            className="w-full bg-transparent px-1 py-2 text-white outline-none"
+            className="w-full bg-transparent px-1 py-2.5 text-white placeholder-zinc-600 outline-none"
           />
         </div>
       </label>
-      {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
-      <button
-        type="submit"
-        disabled={busy}
-        className="mt-4 rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 hover:bg-emerald-400 disabled:opacity-50"
-      >
+      {error && (
+        <p className="mt-4 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+          {error}
+        </p>
+      )}
+      <button type="submit" disabled={busy} className="btn-primary mt-5">
         {busy ? "Creating…" : "Create profile"}
       </button>
     </form>
@@ -307,12 +315,15 @@ function ShareLink({ slug, tier }: { slug: string; tier: SubscriptionTier }) {
   const url =
     typeof window !== "undefined" ? `${window.location.origin}/g/${slug}` : `/g/${slug}`;
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800">
+    <div className="card mt-6 flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
       <div className="min-w-0">
-        <p className="text-xs uppercase tracking-wide text-zinc-500">
-          Your customer link · {tier} tier
+        <p className="section-title">
+          Your customer link ·{" "}
+          <span className="text-emerald-400/80">{tier} tier</span>
         </p>
-        <p className="truncate font-mono text-emerald-400">{url}</p>
+        <p className="mt-1 truncate font-mono text-sm text-emerald-400 sm:text-base">
+          {url}
+        </p>
       </div>
       <button
         onClick={async () => {
@@ -320,9 +331,9 @@ function ShareLink({ slug, tier }: { slug: string; tier: SubscriptionTier }) {
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         }}
-        className="rounded-lg bg-zinc-800 px-4 py-2 text-sm hover:bg-zinc-700"
+        className="btn-secondary px-4 py-2 text-sm"
       >
-        {copied ? "Copied!" : "Copy link"}
+        {copied ? "✓ Copied!" : "Copy link"}
       </button>
     </div>
   );
@@ -366,31 +377,32 @@ function RedeemBox() {
   }
 
   return (
-    <form
-      onSubmit={redeem}
-      className="mt-4 rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800"
-    >
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
-        Redeem a customer code
-      </h2>
-      <div className="mt-2 flex gap-2">
+    <form onSubmit={redeem} className="card mt-4 p-4 sm:p-5">
+      <h2 className="section-title">Redeem a customer code</h2>
+      <div className="mt-3 flex gap-2">
         <input
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="e.g. K7M2XQ"
+          placeholder="K7M2XQ"
           maxLength={6}
-          className="w-40 rounded-lg bg-zinc-800 px-3 py-2 font-mono text-lg tracking-widest text-white ring-1 ring-zinc-700 focus:ring-emerald-500"
+          className="input-field w-40 text-center font-mono text-lg tracking-[0.25em]"
         />
         <button
           type="submit"
           disabled={busy || code.length !== 6}
-          className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 hover:bg-emerald-400 disabled:opacity-50"
+          className="btn-primary px-4 py-2"
         >
           {busy ? "Checking…" : "Redeem"}
         </button>
       </div>
       {result && (
-        <p className={`mt-2 text-sm ${ok ? "text-emerald-300" : "text-rose-400"}`}>
+        <p
+          className={`mt-3 rounded-lg px-3 py-2 text-sm ${
+            ok
+              ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+              : "border border-rose-500/20 bg-rose-500/10 text-rose-300"
+          }`}
+        >
           {result}
         </p>
       )}
@@ -412,24 +424,21 @@ function GridPreview({
   const tileMap = new Map(tiles.map((t) => [`${t.row_index}:${t.col_index}`, t]));
   const revealedCount = tiles.filter((t) => t.is_revealed).length;
   return (
-    <section className="mt-4 rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800">
+    <section className="card mt-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+        <h2 className="section-title">
           Active grid · {grid.rows}×{grid.cols} · {revealedCount}/{tiles.length}{" "}
           tiles revealed
         </h2>
-        <button
-          onClick={onReset}
-          className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700"
-        >
+        <button onClick={onReset} className="btn-secondary px-3 py-1.5 text-sm">
           Reset grid
         </button>
       </div>
-      <p className="mt-1 text-xs text-zinc-500">
+      <p className="mt-1.5 text-xs text-zinc-500">
         💰 marks your hidden reward tiles — only you can see this map.
       </p>
       <div
-        className="mt-3 grid max-w-xl gap-1"
+        className="mt-4 grid max-w-xl gap-1"
         style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
       >
         {Array.from({ length: grid.rows * grid.cols }, (_, i) => {
@@ -440,12 +449,12 @@ function GridPreview({
             <div
               key={i}
               className={
-                "flex aspect-square items-center justify-center rounded text-xs sm:text-sm " +
+                "flex aspect-square items-center justify-center rounded-md text-xs sm:text-sm " +
                 (t?.is_revealed
-                  ? "bg-zinc-800 text-zinc-500"
+                  ? "bg-zinc-900 text-zinc-600 ring-1 ring-white/5"
                   : t?.reward_id
-                    ? "bg-amber-500/20 ring-1 ring-amber-500/40"
-                    : "bg-zinc-800/50 ring-1 ring-zinc-800")
+                    ? "bg-amber-500/20 shadow-[0_0_10px_rgb(245_158_11/0.25)] ring-1 ring-amber-500/40"
+                    : "bg-zinc-800/50 ring-1 ring-white/5")
               }
             >
               {t?.is_revealed ? "✕" : t?.reward_id ? "💰" : ""}
@@ -453,7 +462,7 @@ function GridPreview({
           );
         })}
       </div>
-      <ul className="mt-3 space-y-1 text-sm text-zinc-300">
+      <ul className="mt-4 space-y-1.5 text-sm text-zinc-300">
         {rewards.map((r) => (
           <li key={r.id}>
             🎁 {r.description}{" "}
@@ -518,22 +527,21 @@ function GridForm({
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="mt-4 rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800"
-    >
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+    <form onSubmit={submit} className="card mt-4 p-4 sm:p-5">
+      <h2 className="section-title">
         {hasActiveGrid ? "Reset grid" : "Create your grid"}
       </h2>
       {hasActiveGrid && (
-        <p className="mt-1 text-xs text-amber-300">
+        <p className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
           Resetting archives the current grid; already-issued codes stay valid.
         </p>
       )}
-      <div className="mt-3 flex flex-wrap gap-3">
+      <div className="mt-4 flex flex-wrap gap-3">
         {(["rows", "cols"] as const).map((dim) => (
-          <label key={dim} className="text-sm text-zinc-400">
-            {dim === "rows" ? "Rows" : "Columns"}
+          <label key={dim} className="block">
+            <span className="field-label">
+              {dim === "rows" ? "Rows" : "Columns"}
+            </span>
             <input
               type="number"
               min={limits.minGrid}
@@ -543,7 +551,7 @@ function GridForm({
               onChange={(e) =>
                 (dim === "rows" ? setRows : setCols)(Number(e.target.value))
               }
-              className="mt-1 block w-24 rounded-lg bg-zinc-800 px-3 py-2 text-white ring-1 ring-zinc-700 focus:ring-emerald-500 disabled:opacity-60"
+              className="input-field w-24"
             />
           </label>
         ))}
@@ -554,34 +562,34 @@ function GridForm({
         </p>
       </div>
 
-      <h3 className="mt-4 text-sm text-zinc-400">
+      <h3 className="field-label mt-5">
         Rewards ({drafts.length}/{limits.maxRewards})
       </h3>
       {drafts.map((d, i) => (
         <div key={i} className="mt-2 flex flex-wrap items-end gap-2">
-          <label className="grow text-xs text-zinc-500">
-            Description
+          <label className="block grow">
+            <span className="field-label">Description</span>
             <input
               required
               value={d.description}
               onChange={(e) => setDraft(i, { description: e.target.value })}
               placeholder="Free plate of jollof rice"
-              className="mt-1 w-full rounded-lg bg-zinc-800 px-3 py-2 text-white ring-1 ring-zinc-700 focus:ring-emerald-500"
+              className="input-field"
             />
           </label>
-          <label className="text-xs text-zinc-500">
-            Expires (hours)
+          <label className="block">
+            <span className="field-label">Expires (hours)</span>
             <input
               type="number"
               min={1}
               max={720}
               value={d.expiryHours}
               onChange={(e) => setDraft(i, { expiryHours: Number(e.target.value) })}
-              className="mt-1 block w-24 rounded-lg bg-zinc-800 px-3 py-2 text-white ring-1 ring-zinc-700 focus:ring-emerald-500"
+              className="input-field w-24"
             />
           </label>
-          <label className="text-xs text-zinc-500">
-            Winners
+          <label className="block">
+            <span className="field-label">Winners</span>
             <input
               type="number"
               min={1}
@@ -590,14 +598,14 @@ function GridForm({
               onChange={(e) =>
                 setDraft(i, { maxRedemptions: Number(e.target.value) })
               }
-              className="mt-1 block w-20 rounded-lg bg-zinc-800 px-3 py-2 text-white ring-1 ring-zinc-700 focus:ring-emerald-500"
+              className="input-field w-20"
             />
           </label>
           {drafts.length > 1 && (
             <button
               type="button"
               onClick={() => setDrafts((ds) => ds.filter((_, j) => j !== i))}
-              className="rounded-lg bg-zinc-800 px-3 py-2 text-sm text-rose-400 hover:bg-zinc-700"
+              className="btn-secondary px-3 py-2.5 text-sm text-rose-400"
             >
               ✕
             </button>
@@ -613,27 +621,23 @@ function GridForm({
               { description: "", expiryHours: 48, maxRedemptions: 1 },
             ])
           }
-          className="mt-2 rounded-lg bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700"
+          className="btn-secondary mt-3 px-3 py-1.5 text-sm"
         >
           + Add reward
         </button>
       )}
 
-      {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
-      <div className="mt-4 flex gap-2">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 hover:bg-emerald-400 disabled:opacity-50"
-        >
+      {error && (
+        <p className="mt-4 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+          {error}
+        </p>
+      )}
+      <div className="mt-5 flex gap-2">
+        <button type="submit" disabled={busy} className="btn-primary">
           {busy ? "Building…" : hasActiveGrid ? "Archive & create new grid" : "Create grid"}
         </button>
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg bg-zinc-800 px-4 py-2 text-sm hover:bg-zinc-700"
-          >
+          <button type="button" onClick={onCancel} className="btn-secondary">
             Cancel
           </button>
         )}
@@ -645,43 +649,45 @@ function GridForm({
 function UnlocksList({ unlocks }: { unlocks: UnlockRow[] }) {
   if (unlocks.length === 0) return null;
   return (
-    <section className="mt-4 rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
-        Recent unlocks
-      </h2>
-      <div className="mt-2 overflow-x-auto">
+    <section className="card mt-4 p-4 sm:p-5">
+      <h2 className="section-title">Recent unlocks</h2>
+      <div className="mt-3 overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="text-xs uppercase text-zinc-500">
+          <thead className="text-xs uppercase tracking-wider text-zinc-500">
             <tr>
-              <th className="py-2 pr-4">Reward</th>
-              <th className="py-2 pr-4">Customer</th>
-              <th className="py-2 pr-4">Code</th>
-              <th className="py-2 pr-4">Status</th>
-              <th className="py-2">Expires</th>
+              <th className="py-2 pr-4 font-medium">Reward</th>
+              <th className="py-2 pr-4 font-medium">Customer</th>
+              <th className="py-2 pr-4 font-medium">Code</th>
+              <th className="py-2 pr-4 font-medium">Status</th>
+              <th className="py-2 font-medium">Expires</th>
             </tr>
           </thead>
           <tbody className="text-zinc-300">
             {unlocks.map((u) => (
-              <tr key={u.id} className="border-t border-zinc-800">
-                <td className="py-2 pr-4">
+              <tr
+                key={u.id}
+                className="border-t border-white/5 transition hover:bg-white/[0.03]"
+              >
+                <td className="py-2.5 pr-4">
                   {u.reward_type === "loyalty_discount"
                     ? `${u.discount_percent}% loyalty discount`
                     : (u.rewards?.description ?? "Tile reward")}
                 </td>
-                <td className="py-2 pr-4">{u.customers?.email ?? "—"}</td>
+                <td className="py-2.5 pr-4">{u.customers?.email ?? "—"}</td>
                 {/* Codes are masked: staff must get the full code from the
                     customer, which is the whole anti-fraud point. */}
-                <td className="py-2 pr-4 font-mono">
+                <td className="py-2.5 pr-4 font-mono text-zinc-400">
                   ••••{u.redemption_code.slice(-2)}
                 </td>
-                <td className="py-2 pr-4">
+                <td className="py-2.5 pr-4">
                   <span
                     className={
-                      u.status === "redeemed"
-                        ? "text-emerald-400"
+                      "rounded-full px-2 py-0.5 text-xs font-medium " +
+                      (u.status === "redeemed"
+                        ? "bg-emerald-500/15 text-emerald-300"
                         : u.status === "expired" || u.isExpired
-                          ? "text-zinc-500"
-                          : "text-amber-300"
+                          ? "bg-zinc-500/15 text-zinc-400"
+                          : "bg-amber-500/15 text-amber-300")
                     }
                   >
                     {u.status === "unredeemed" && u.isExpired
@@ -689,7 +695,9 @@ function UnlocksList({ unlocks }: { unlocks: UnlockRow[] }) {
                       : u.status}
                   </span>
                 </td>
-                <td className="py-2">{new Date(u.expires_at).toLocaleString()}</td>
+                <td className="py-2.5 text-zinc-400">
+                  {new Date(u.expires_at).toLocaleString()}
+                </td>
               </tr>
             ))}
           </tbody>
