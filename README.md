@@ -101,7 +101,7 @@ the grid visibly depletes.
 Migrations are **plain SQL** applied with the Supabase CLI — there is no ORM
 migration layer (see "Why no Prisma" below).
 `.github/workflows/migrate.yml` runs `supabase db push` automatically whenever
-a file in `supabase/migrations/` lands on `main` (or manually via
+a file in `supabase/migrations/` lands on `develop` (or manually via
 *workflow_dispatch*). Configure these GitHub Actions secrets once:
 
 - `SUPABASE_ACCESS_TOKEN` — from supabase.com → Account → Access Tokens
