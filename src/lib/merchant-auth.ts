@@ -12,6 +12,8 @@ export interface MerchantRow {
   brand_color: string;
   points_per_discount: number;
   discount_percent: number;
+  whatsapp: string | null;
+  contact_email: string | null;
 }
 
 // Resolves the logged-in merchant for /api/merchant/* routes. Auth comes from
@@ -30,7 +32,7 @@ export async function getAuthedMerchant(): Promise<
   const { data: merchant } = await supabaseAdmin()
     .from("merchants")
     .select(
-      "id, owner_id, business_name, slug, subscription_tier, logo_url, tagline, brand_color, points_per_discount, discount_percent"
+      "id, owner_id, business_name, slug, subscription_tier, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
     )
     .eq("owner_id", user.id)
     .maybeSingle();

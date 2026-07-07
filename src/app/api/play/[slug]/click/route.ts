@@ -15,10 +15,16 @@ export async function POST(
   const { slug } = await params;
   const body = await req.json().catch(() => null);
   const email = String(body?.email ?? "").trim().toLowerCase();
+  const gridId = String(body?.gridId ?? "");
   const row = Number(body?.row);
   const col = Number(body?.col);
 
-  if (!EMAIL_REGEX.test(email) || !Number.isInteger(row) || !Number.isInteger(col)) {
+  if (
+    !EMAIL_REGEX.test(email) ||
+    !gridId ||
+    !Number.isInteger(row) ||
+    !Number.isInteger(col)
+  ) {
     return NextResponse.json(
       { result: "error", error: "invalid_request" },
       { status: 400 }
@@ -28,6 +34,7 @@ export async function POST(
   const db = supabaseAdmin();
   const { data, error } = await db.rpc("play_tile", {
     p_slug: slug,
+    p_grid_id: gridId,
     p_row: row,
     p_col: col,
     p_email: email,

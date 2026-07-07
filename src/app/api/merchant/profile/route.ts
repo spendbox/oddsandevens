@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAuthedMerchant } from "@/lib/merchant-auth";
 import {
+  EMAIL_REGEX,
   HEX_COLOR_REGEX,
   LOGO_CONTENT_TYPES,
   MAX_LOGO_BYTES,
+  PHONE_REGEX,
 } from "@/lib/constants";
 
 // Update the merchant's branding and loyalty settings. Multipart so the logo
@@ -23,7 +25,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const patch: Record<string, string | number> = {};
+  const patch: Record<string, string | number | null> = {};
 
   const businessName = form.get("businessName");
   if (typeof businessName === "string" && businessName.trim()) {
@@ -50,6 +52,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid_brand_color" }, { status: 400 });
     }
     patch.brand_color = c;
+  }
+
+  const whatsapp = form.get("whatsapp");
+  if (typeof whatsapp === "string") {
+    const w = whatsapp.trim();
+    if (w && !PHONE_REGEX.test(w)) {
+      return NextResponse.json({ error: "invalid_whatsapp" }, { status: 400 });
+    }
+    patch.whatsapp = w || null;
+  }
+
+  const contactEmail = form.get("contactEmail");
+  if (typeof contactEmail === "string") {
+    const c = contactEmail.trim().toLowerCase();
+    if (c && !EMAIL_REGEX.test(c)) {
+      return NextResponse.json({ error: "invalid_contact_email" }, { status: 400 });
+    }
+    patch.contact_email = c || null;
   }
 
   for (const [field, column] of [
@@ -98,7 +118,7 @@ export async function POST(req: Request) {
     .update(patch)
     .eq("id", merchant.id)
     .select(
-      "id, business_name, slug, subscription_tier, logo_url, tagline, brand_color, points_per_discount, discount_percent"
+      "id, business_name, slug, subscription_tier, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
     )
     .single();
   if (error) {
