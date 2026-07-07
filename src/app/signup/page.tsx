@@ -36,56 +36,79 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-950 p-6">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm rounded-2xl bg-zinc-900 p-6 shadow-xl ring-1 ring-zinc-800"
-      >
-        <h1 className="text-xl font-bold text-white">Create merchant account</h1>
-        {needsConfirm ? (
-          <p className="mt-4 text-sm text-emerald-300">
-            Check your inbox to confirm your email, then{" "}
-            <Link href="/login" className="underline">
-              sign in
-            </Link>
-            .
-          </p>
-        ) : (
-          <>
-            <input
-              type="email"
-              required
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-4 w-full rounded-lg bg-zinc-800 px-3 py-2 text-white placeholder-zinc-500 outline-none ring-1 ring-zinc-700 focus:ring-emerald-500"
-            />
-            <input
-              type="password"
-              required
-              minLength={8}
-              placeholder="Password (min 8 characters)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-3 w-full rounded-lg bg-zinc-800 px-3 py-2 text-white placeholder-zinc-500 outline-none ring-1 ring-zinc-700 focus:ring-emerald-500"
-            />
-            {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
-            <button
-              type="submit"
-              disabled={busy}
-              className="mt-4 w-full rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 hover:bg-emerald-400 disabled:opacity-50"
-            >
-              {busy ? "Creating…" : "Sign up"}
-            </button>
-            <p className="mt-4 text-center text-sm text-zinc-400">
-              Already registered?{" "}
-              <Link href="/login" className="text-emerald-400 underline">
-                Sign in
+    <main className="flex min-h-screen flex-col items-center justify-center p-6">
+      <div className="animate-fade-up w-full max-w-sm">
+        <Link
+          href="/"
+          className="mb-6 block text-center text-lg font-bold tracking-tight text-white"
+        >
+          🧩 Tile<span className="text-emerald-400">Hunt</span>
+        </Link>
+        <form onSubmit={onSubmit} className="card p-6 sm:p-8">
+          <h1 className="text-xl font-bold tracking-tight text-white">
+            Create merchant account
+          </h1>
+          {needsConfirm ? (
+            <p className="mt-5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-3 text-sm leading-relaxed text-emerald-300">
+              📬 Check your inbox to confirm your email, then{" "}
+              <Link href="/login" className="font-medium underline">
+                sign in
               </Link>
+              .
             </p>
-          </>
-        )}
-      </form>
+          ) : (
+            <>
+              <p className="mt-1 text-sm text-zinc-500">
+                Free forever on the 5×5 grid. No card required.
+              </p>
+              <label className="mt-6 block">
+                <span className="field-label">Email</span>
+                <input
+                  type="email"
+                  required
+                  placeholder="you@business.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-field"
+                />
+              </label>
+              <label className="mt-4 block">
+                <span className="field-label">Password</span>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  placeholder="Min 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-field"
+                />
+              </label>
+              {error && (
+                <p className="mt-4 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={busy}
+                className="btn-primary mt-6 w-full"
+              >
+                {busy ? "Creating…" : "Sign up"}
+              </button>
+              <p className="mt-5 text-center text-sm text-zinc-500">
+                Already registered?{" "}
+                <Link
+                  href="/login"
+                  className="font-medium text-emerald-400 hover:text-emerald-300"
+                >
+                  Sign in
+                </Link>
+              </p>
+            </>
+          )}
+        </form>
+      </div>
     </main>
   );
 }

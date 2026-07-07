@@ -169,25 +169,28 @@ export default function PlayBoard({ slug }: { slug: string }) {
 
   if (loadError) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 p-6 text-center text-zinc-300">
-        {loadError}
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <div className="card max-w-sm p-6 text-center text-zinc-300">
+          <div className="text-3xl">🧩</div>
+          <p className="mt-3">{loadError}</p>
+        </div>
       </main>
     );
   }
 
   if (!grid) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-400">
-        Loading board…
+      <main className="flex min-h-screen items-center justify-center text-zinc-500">
+        <span className="animate-pulse">Loading board…</span>
       </main>
     );
   }
 
   if (!email) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 p-6">
+      <main className="flex min-h-screen items-center justify-center p-6">
         <form
-          className="w-full max-w-sm rounded-2xl bg-zinc-900 p-6 shadow-xl ring-1 ring-zinc-800"
+          className="card animate-fade-up w-full max-w-sm p-6 sm:p-8"
           onSubmit={(e) => {
             e.preventDefault();
             const value = emailInput.trim().toLowerCase();
@@ -200,26 +203,31 @@ export default function PlayBoard({ slug }: { slug: string }) {
             setFlash(null);
           }}
         >
-          <h1 className="text-xl font-bold text-white">
-            🎯 {grid.businessName}
+          <div className="text-3xl">🎯</div>
+          <h1 className="mt-3 text-xl font-bold tracking-tight text-white">
+            {grid.businessName}
           </h1>
-          <p className="mt-2 text-sm text-zinc-400">
+          <p className="mt-2 text-sm leading-relaxed text-zinc-400">
             Tap a tile, win a reward. Enter your email so we can send you your
             redemption code if you hit one.
           </p>
-          <input
-            type="email"
-            required
-            placeholder="you@example.com"
-            value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
-            className="mt-4 w-full rounded-lg bg-zinc-800 px-3 py-2 text-white placeholder-zinc-500 outline-none ring-1 ring-zinc-700 focus:ring-emerald-500"
-          />
-          {flash && <p className="mt-2 text-sm text-rose-400">{flash}</p>}
-          <button
-            type="submit"
-            className="mt-4 w-full rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 hover:bg-emerald-400"
-          >
+          <label className="mt-5 block">
+            <span className="field-label">Email</span>
+            <input
+              type="email"
+              required
+              placeholder="you@example.com"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              className="input-field"
+            />
+          </label>
+          {flash && (
+            <p className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+              {flash}
+            </p>
+          )}
+          <button type="submit" className="btn-primary mt-5 w-full">
             Start hunting
           </button>
         </form>
@@ -230,32 +238,42 @@ export default function PlayBoard({ slug }: { slug: string }) {
   const canRedeemPoints = (me?.loyaltyPoints ?? 0) >= POINTS_PER_DISCOUNT;
 
   return (
-    <main className="min-h-screen bg-zinc-950 p-4 pb-16 text-white sm:p-8">
-      <div className="mx-auto max-w-3xl">
+    <main className="min-h-screen p-4 pb-16 text-white sm:p-8">
+      <div className="animate-fade-up mx-auto max-w-3xl">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">🎯 {grid.businessName}</h1>
-            <p className="text-sm text-zinc-400">
+            <h1 className="text-2xl font-bold tracking-tight">
+              🎯 {grid.businessName}
+            </h1>
+            <p className="mt-0.5 text-sm text-zinc-400">
               {grid.rewardsRemaining > 0
                 ? `${grid.rewardsRemaining} reward${grid.rewardsRemaining === 1 ? "" : "s"} still hidden — good luck!`
                 : "All rewards found — earn loyalty points until the next round!"}
             </p>
           </div>
-          <div className="rounded-xl bg-zinc-900 px-4 py-2 text-sm ring-1 ring-zinc-800">
-            ⭐ {me?.loyaltyPoints ?? 0} point{(me?.loyaltyPoints ?? 0) === 1 ? "" : "s"}
-            <span className="text-zinc-500"> · {POINTS_PER_DISCOUNT} pts = {DISCOUNT_PERCENT}% off</span>
+          <div className="card px-4 py-2 text-sm">
+            ⭐{" "}
+            <span className="font-semibold text-amber-300">
+              {me?.loyaltyPoints ?? 0}
+            </span>{" "}
+            point{(me?.loyaltyPoints ?? 0) === 1 ? "" : "s"}
+            <span className="text-zinc-500">
+              {" "}
+              · {POINTS_PER_DISCOUNT} pts = {DISCOUNT_PERCENT}% off
+            </span>
           </div>
         </header>
 
         {cooldownLeft && (
-          <div className="mt-4 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-300 ring-1 ring-amber-500/30">
-            ⏳ You can play again in <strong>{cooldownLeft}</strong>. Loyalty
-            points and codes below stay yours.
+          <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+            ⏳ You can play again in{" "}
+            <strong className="font-semibold tabular-nums">{cooldownLeft}</strong>.
+            Loyalty points and codes below stay yours.
           </div>
         )}
 
         {flash && !cooldownLeft && (
-          <div className="mt-4 rounded-xl bg-zinc-900 px-4 py-3 text-sm text-zinc-200 ring-1 ring-zinc-700">
+          <div className="animate-pop-in card mt-4 px-4 py-3 text-sm text-zinc-200">
             {flash}
           </div>
         )}
@@ -279,13 +297,13 @@ export default function PlayBoard({ slug }: { slug: string }) {
                 className={
                   "aspect-square rounded-lg text-lg transition sm:text-xl " +
                   (state === true
-                    ? "bg-emerald-500/20 ring-1 ring-emerald-500/40"
+                    ? "animate-tile-reveal bg-emerald-500/20 shadow-[0_0_16px_rgb(16_185_129/0.35)] ring-1 ring-emerald-400/50"
                     : state === false
-                      ? "bg-zinc-900 ring-1 ring-zinc-800 " +
-                        (isMyMiss ? "text-zinc-400" : "text-zinc-600")
+                      ? (isMyMiss ? "animate-tile-reveal text-zinc-400 " : "text-zinc-700 ") +
+                        "bg-zinc-900/80 ring-1 ring-white/5"
                       : cooldownLeft
-                        ? "cursor-not-allowed bg-zinc-800/60 ring-1 ring-zinc-700/50"
-                        : "cursor-pointer bg-gradient-to-br from-emerald-600 to-teal-700 shadow hover:scale-105 hover:from-emerald-500 hover:to-teal-600 active:scale-95")
+                        ? "cursor-not-allowed bg-zinc-800/40 ring-1 ring-white/5"
+                        : "cursor-pointer bg-gradient-to-br from-emerald-500 to-teal-700 shadow-[inset_0_1px_0_rgb(255_255_255/0.25),0_2px_8px_rgb(0_0_0/0.4)] ring-1 ring-white/10 hover:scale-105 hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.25),0_0_16px_rgb(16_185_129/0.4)] hover:brightness-110 active:scale-95")
                 }
               >
                 {state === true ? "🎁" : state === false ? "✕" : ""}
@@ -298,7 +316,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
           <button
             onClick={redeemPoints}
             disabled={busy}
-            className="mt-6 w-full rounded-xl bg-amber-500 px-4 py-3 font-semibold text-amber-950 hover:bg-amber-400 disabled:opacity-50"
+            className="mt-6 w-full cursor-pointer rounded-xl bg-gradient-to-b from-amber-400 to-amber-500 px-4 py-3 font-semibold text-amber-950 shadow-[0_4px_16px_rgb(245_158_11/0.35),inset_0_1px_0_rgb(255_255_255/0.35)] transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
           >
             ⭐ Redeem {POINTS_PER_DISCOUNT} points for {DISCOUNT_PERCENT}% off
           </button>
@@ -306,22 +324,20 @@ export default function PlayBoard({ slug }: { slug: string }) {
 
         {(me?.codes.length ?? 0) > 0 && (
           <section className="mt-8">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
-              Your active codes
-            </h2>
-            <ul className="mt-2 space-y-2">
+            <h2 className="section-title">Your active codes</h2>
+            <ul className="mt-3 space-y-2">
               {me!.codes.map((c) => (
                 <li
                   key={c.code}
-                  className="flex items-center justify-between rounded-xl bg-zinc-900 px-4 py-3 ring-1 ring-zinc-800"
+                  className="card flex items-center justify-between gap-3 px-4 py-3"
                 >
-                  <div>
-                    <p className="font-medium">{c.description}</p>
-                    <p className="text-xs text-zinc-500">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{c.description}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500">
                       Expires {new Date(c.expiresAt).toLocaleString()}
                     </p>
                   </div>
-                  <span className="rounded-lg bg-zinc-800 px-3 py-1 font-mono text-lg tracking-widest text-emerald-400">
+                  <span className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 font-mono text-lg tracking-widest text-emerald-300">
                     {c.code}
                   </span>
                 </li>
@@ -333,7 +349,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
         <footer className="mt-10 text-center text-xs text-zinc-600">
           Playing as {email} ·{" "}
           <button
-            className="underline hover:text-zinc-400"
+            className="cursor-pointer underline transition hover:text-zinc-400"
             onClick={() => {
               window.localStorage.removeItem(EMAIL_STORAGE_KEY);
               setEmail(null);
@@ -353,33 +369,33 @@ export default function PlayBoard({ slug }: { slug: string }) {
 function HitModal({ hit, onClose }: { hit: HitInfo; onClose: () => void }) {
   const countdown = useCountdown(hit.expiresAt);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
-      <div className="w-full max-w-sm rounded-2xl bg-zinc-900 p-6 text-center shadow-2xl ring-1 ring-emerald-500/40">
-        <div className="text-5xl">🎉</div>
-        <h2 className="mt-3 text-xl font-bold text-white">You won!</h2>
-        <p className="mt-1 text-emerald-300">{hit.description}</p>
-        <p className="mt-4 text-xs uppercase tracking-wide text-zinc-500">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm">
+      <div className="animate-pop-in card w-full max-w-sm border-emerald-500/30 p-6 text-center shadow-[0_0_60px_rgb(16_185_129/0.25)] sm:p-8">
+        <div className="text-6xl">🎉</div>
+        <h2 className="mt-4 text-2xl font-bold tracking-tight text-white">
+          You won!
+        </h2>
+        <p className="mt-1 font-medium text-emerald-300">{hit.description}</p>
+        <p className="mt-5 text-xs uppercase tracking-[0.14em] text-zinc-500">
           Show this code to staff
         </p>
-        <p className="mt-1 rounded-xl bg-zinc-800 py-3 font-mono text-3xl tracking-[0.3em] text-emerald-400">
+        <p className="mt-2 rounded-xl border border-emerald-500/25 bg-zinc-950/80 py-3.5 font-mono text-3xl tracking-[0.3em] text-emerald-300 shadow-inner">
           {hit.code}
         </p>
-        <p className="mt-3 text-sm text-zinc-400">
+        <p className="mt-4 text-sm text-zinc-400">
           {countdown ? (
             <>
-              ⏳ Expires in <strong className="text-amber-300">{countdown}</strong>
+              ⏳ Expires in{" "}
+              <strong className="font-semibold text-amber-300 tabular-nums">
+                {countdown}
+              </strong>
             </>
           ) : (
             "This code has expired."
           )}
         </p>
-        <p className="mt-1 text-xs text-zinc-500">
-          We also emailed it to you.
-        </p>
-        <button
-          onClick={onClose}
-          className="mt-5 w-full rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-emerald-950 hover:bg-emerald-400"
-        >
+        <p className="mt-1 text-xs text-zinc-500">We also emailed it to you.</p>
+        <button onClick={onClose} className="btn-primary mt-6 w-full">
           Done
         </button>
       </div>
