@@ -55,6 +55,7 @@ export async function POST(
     await sendRewardUnlockedEmail({
       to: email,
       businessName,
+      slug: slug.toLowerCase(),
       description: result.description,
       code: result.code,
       expiresAt: result.expires_at,

@@ -45,6 +45,7 @@ export async function POST(
     await sendDiscountCodeEmail({
       to: email,
       businessName: merchant?.business_name ?? "the merchant",
+      slug: slug.toLowerCase(),
       discountPercent: result.discount_percent,
       code: result.code,
       expiresAt: result.expires_at,

@@ -83,12 +83,18 @@ the grid visibly depletes.
    | `SUPABASE_SERVICE_ROLE_KEY` | Production + Preview | mark **Sensitive** — server-only |
    | `RESEND_API_KEY` | Production (+ Preview if you want real emails) | optional; logs to console when unset |
    | `EMAIL_FROM` | Production + Preview | verified Resend sender |
+   | `APP_URL` | optional on Vercel | canonical URL for links in emails; defaults to `VERCEL_PROJECT_PRODUCTION_URL`, required on other hosts |
 
    `NEXT_PUBLIC_*` values are inlined at build time, so set them **before**
    the first deploy and redeploy after changing them. If you want previews
    isolated from production data, create a second (staging) Supabase project
    and scope its values to the Preview environment only.
 3. Local dev can reuse the same values with `vercel env pull .env.local`.
+4. **Supabase-side URL config** (dashboard → Authentication → URL
+   Configuration): set *Site URL* to your production URL and add
+   `https://*.vercel.app` preview URLs to *Redirect URLs* if you use email
+   confirmation — otherwise merchant signup confirmation links redirect to
+   `localhost`.
 
 ## Database migrations (CI)
 

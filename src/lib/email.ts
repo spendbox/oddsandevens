@@ -6,6 +6,24 @@ import { Resend } from "resend";
 
 const FROM = process.env.EMAIL_FROM ?? "TileHunt <onboarding@resend.dev>";
 
+// Canonical app URL for links inside emails. On Vercel this falls back to the
+// production domain automatically; set APP_URL to override (e.g. custom domain
+// before it's the Vercel production domain, or non-Vercel hosting).
+function appUrl(): string | null {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  return null;
+}
+
+function boardLink(slug: string): string {
+  const base = appUrl();
+  return base
+    ? `<p><a href="${base}/g/${slug}">Play again</a> once your cooldown ends.</p>`
+    : "";
+}
+
 function resend(): Resend | null {
   const key = process.env.RESEND_API_KEY;
   return key ? new Resend(key) : null;
@@ -32,11 +50,12 @@ function formatExpiry(expiresAt: string) {
 export async function sendRewardUnlockedEmail(params: {
   to: string;
   businessName: string;
+  slug: string;
   description: string;
   code: string;
   expiresAt: string;
 }) {
-  const { to, businessName, description, code, expiresAt } = params;
+  const { to, businessName, slug, description, code, expiresAt } = params;
   await send(
     to,
     `🎉 You won: ${description} at ${businessName}`,
@@ -46,6 +65,7 @@ export async function sendRewardUnlockedEmail(params: {
       <p>Show this code to staff to redeem it:</p>
       <p style="font-size:28px;letter-spacing:6px;font-weight:bold;background:#f4f4f5;padding:12px 16px;border-radius:8px;text-align:center">${code}</p>
       <p>⏳ Expires <strong>${formatExpiry(expiresAt)}</strong>. After that the code is invalid.</p>
+      ${boardLink(slug)}
     </div>`
   );
 }
@@ -53,11 +73,12 @@ export async function sendRewardUnlockedEmail(params: {
 export async function sendDiscountCodeEmail(params: {
   to: string;
   businessName: string;
+  slug: string;
   discountPercent: number;
   code: string;
   expiresAt: string;
 }) {
-  const { to, businessName, discountPercent, code, expiresAt } = params;
+  const { to, businessName, slug, discountPercent, code, expiresAt } = params;
   await send(
     to,
     `Your ${discountPercent}% discount at ${businessName}`,
@@ -67,6 +88,7 @@ export async function sendDiscountCodeEmail(params: {
       <p>Show this code to staff to redeem it:</p>
       <p style="font-size:28px;letter-spacing:6px;font-weight:bold;background:#f4f4f5;padding:12px 16px;border-radius:8px;text-align:center">${code}</p>
       <p>⏳ Expires <strong>${formatExpiry(expiresAt)}</strong>.</p>
+      ${boardLink(slug)}
     </div>`
   );
 }
@@ -85,6 +107,7 @@ export async function sendMerchantHitEmail(params: {
       <h2>Reward unlocked on your grid</h2>
       <p>A customer (${customerEmail}) just won <strong>${description}</strong> at ${businessName}.</p>
       <p>They received a redemption code by email — your staff can redeem it from the dashboard when they visit.</p>
+      ${appUrl() ? `<p><a href="${appUrl()}/dashboard">Open your dashboard</a></p>` : ""}
     </div>`
   );
 }
