@@ -70,6 +70,45 @@ the grid visibly depletes.
    npm run dev
    ```
 
+## Deploying to Vercel
+
+1. Import the repo into Vercel (framework auto-detects Next.js).
+2. Add environment variables under **Project → Settings → Environment
+   Variables** (or `vercel env add`):
+
+   | Variable | Environments | Notes |
+   |----------|--------------|-------|
+   | `NEXT_PUBLIC_SUPABASE_URL` | Production + Preview + Development | build-time inlined |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Production + Preview + Development | build-time inlined |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Production + Preview | mark **Sensitive** — server-only |
+   | `RESEND_API_KEY` | Production (+ Preview if you want real emails) | optional; logs to console when unset |
+   | `EMAIL_FROM` | Production + Preview | verified Resend sender |
+
+   `NEXT_PUBLIC_*` values are inlined at build time, so set them **before**
+   the first deploy and redeploy after changing them. If you want previews
+   isolated from production data, create a second (staging) Supabase project
+   and scope its values to the Preview environment only.
+3. Local dev can reuse the same values with `vercel env pull .env.local`.
+
+## Database migrations (CI)
+
+Migrations are **plain SQL** applied with the Supabase CLI — there is no ORM
+migration layer (see "Why no Prisma" below).
+`.github/workflows/migrate.yml` runs `supabase db push` automatically whenever
+a file in `supabase/migrations/` lands on `main` (or manually via
+*workflow_dispatch*). Configure these GitHub Actions secrets once:
+
+- `SUPABASE_ACCESS_TOKEN` — from supabase.com → Account → Access Tokens
+- `SUPABASE_PROJECT_REF` — the ref in your project's URL
+- `SUPABASE_DB_PASSWORD` — the project's database password
+
+**Why no Prisma:** the core game logic lives in `SECURITY DEFINER` plpgsql
+functions with `FOR UPDATE` row locks, plus RLS policies and column-level
+grants — all things Prisma's schema DSL can't express, so they'd end up as
+raw-SQL escape hatches anyway. One SQL migration chain keeps a single source
+of truth; `supabase db push` tracks applied migrations server-side just like
+`prisma migrate deploy` would.
+
 ## Manual end-to-end test
 
 1. Sign up at `/signup` (confirm email if your project requires it), then log
