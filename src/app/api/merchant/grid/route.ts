@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getAuthedMerchant } from "@/lib/merchant-auth";
+import { effectiveTier, getAuthedMerchant } from "@/lib/merchant-auth";
 import {
+  GRID_SIZE,
+  GRID_RESET_DAYS_DEFAULT,
   LOGO_CONTENT_TYPES,
   MAX_GRID_IMAGE_BYTES,
+  REWARD_EXPIRY_DAYS_MAX,
+  REWARD_EXPIRY_DAYS_MIN,
   TIER_LIMITS,
   TILE_SHAPES,
   type TileShape,
@@ -12,12 +16,13 @@ import type { CreateGridResult } from "@/lib/types";
 
 interface RewardInput {
   description: string;
-  expiryHours: number;
+  details: string | null;
+  expiryDays: number;
   maxRedemptions: number;
 }
 
-// Create a grid. Multipart form:
-//   rows, cols, rewards (JSON array), title?, tileShape?,
+// Create a grid (always 7x7). Multipart form:
+//   rewards (JSON array), title?, tileShape?, resetDays?,
 //   imageUrl? (library pick) OR image? (custom upload, premium only).
 // Rewards are placed on random tiles inside the create_grid Postgres function
 // — positions are never sent to or chosen by the client. Tier caps are
@@ -36,10 +41,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const rows = Number(form.get("rows"));
-  const cols = Number(form.get("cols"));
   const title = String(form.get("title") ?? "").trim();
   const tileShape = String(form.get("tileShape") ?? "square") as TileShape;
+  const resetDays = Number(form.get("resetDays") ?? GRID_RESET_DAYS_DEFAULT);
   let imageUrl: string | null = String(form.get("imageUrl") ?? "").trim() || null;
   let rewardsInput: unknown;
   try {
@@ -48,25 +52,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const limits = TIER_LIMITS[merchant.subscription_tier];
-  if (
-    !Number.isInteger(rows) ||
-    !Number.isInteger(cols) ||
-    rows < limits.minGrid ||
-    rows > limits.maxGrid ||
-    cols < limits.minGrid ||
-    cols > limits.maxGrid
-  ) {
-    return NextResponse.json({ error: "grid_size_not_allowed" }, { status: 400 });
-  }
+  const tier = effectiveTier(merchant);
+  const limits = TIER_LIMITS[tier];
   if (title.length > 80) {
     return NextResponse.json({ error: "invalid_title" }, { status: 400 });
   }
   if (!TILE_SHAPES.includes(tileShape)) {
     return NextResponse.json({ error: "invalid_tile_shape" }, { status: 400 });
   }
-  if (tileShape !== "square" && merchant.subscription_tier !== "premium") {
+  if (tileShape !== "square" && tier !== "premium") {
     return NextResponse.json({ error: "shape_requires_premium" }, { status: 403 });
+  }
+  if (
+    !Number.isInteger(resetDays) ||
+    resetDays < limits.resetDaysMin ||
+    resetDays > limits.resetDaysMax
+  ) {
+    return NextResponse.json({ error: "invalid_reset_days" }, { status: 400 });
   }
 
   if (!Array.isArray(rewardsInput) || rewardsInput.length < 1) {
@@ -79,24 +81,26 @@ export async function POST(req: Request) {
   const rewards: RewardInput[] = [];
   for (const r of rewardsInput) {
     const description = String(r?.description ?? "").trim();
-    const expiryHours = Number(r?.expiryHours ?? 48);
+    const details = String(r?.details ?? "").trim() || null;
+    const expiryDays = Number(r?.expiryDays ?? 30);
     const maxRedemptions = Number(r?.maxRedemptions ?? 1);
     if (
       description.length < 1 ||
       description.length > 200 ||
-      !Number.isInteger(expiryHours) ||
-      expiryHours < 1 ||
-      expiryHours > 720 ||
+      (details !== null && details.length > 300) ||
+      !Number.isInteger(expiryDays) ||
+      expiryDays < REWARD_EXPIRY_DAYS_MIN ||
+      expiryDays > REWARD_EXPIRY_DAYS_MAX ||
       !Number.isInteger(maxRedemptions) ||
       maxRedemptions < 1
     ) {
       return NextResponse.json({ error: "invalid_reward" }, { status: 400 });
     }
-    rewards.push({ description, expiryHours, maxRedemptions });
+    rewards.push({ description, details, expiryDays, maxRedemptions });
   }
 
   const totalRewardTiles = rewards.reduce((s, r) => s + r.maxRedemptions, 0);
-  if (totalRewardTiles > rows * cols) {
+  if (totalRewardTiles > GRID_SIZE * GRID_SIZE) {
     return NextResponse.json({ error: "rewards_exceed_tiles" }, { status: 400 });
   }
 
@@ -118,7 +122,7 @@ export async function POST(req: Request) {
 
   const customImage = form.get("image");
   if (customImage instanceof File && customImage.size > 0) {
-    if (merchant.subscription_tier !== "premium") {
+    if (tier !== "premium") {
       return NextResponse.json(
         { error: "custom_image_requires_premium" },
         { status: 403 }
@@ -146,16 +150,16 @@ export async function POST(req: Request) {
 
   const { data, error } = await db.rpc("create_grid", {
     p_merchant_id: merchant.id,
-    p_rows: rows,
-    p_cols: cols,
     p_rewards: rewards.map((r) => ({
       description: r.description,
-      expiry_hours: r.expiryHours,
+      details: r.details,
+      expiry_days: r.expiryDays,
       max_redemptions: r.maxRedemptions,
     })),
     p_title: title || null,
     p_image_url: imageUrl,
     p_tile_shape: tileShape,
+    p_reset_days: resetDays,
   });
   if (error) {
     console.error("[create_grid] rpc failed:", error);

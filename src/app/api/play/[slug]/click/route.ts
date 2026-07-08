@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendMerchantHitEmail, sendRewardUnlockedEmail } from "@/lib/email";
 import { EMAIL_REGEX } from "@/lib/constants";
+import { clientIpHash } from "@/lib/ip";
 import type { PlayResult } from "@/lib/types";
 
 // The click endpoint. All game rules (cooldown, single-consumption tile lock,
@@ -38,6 +39,7 @@ export async function POST(
     p_row: row,
     p_col: col,
     p_email: email,
+    p_ip_hash: clientIpHash(req),
   });
   if (error) {
     console.error("[play_tile] rpc failed:", error);
@@ -84,13 +86,15 @@ export async function POST(
   const status =
     result.result === "cooldown"
       ? 429
-      : result.result !== "error"
-        ? 200
-        : result.error === "tile_taken"
-          ? 409
-          : result.error === "merchant_not_found" || result.error === "no_active_grid"
-            ? 404
-            : 400;
+      : result.result === "grid_completed"
+        ? 409
+        : result.result !== "error"
+          ? 200
+          : result.error === "tile_taken"
+            ? 409
+            : result.error === "merchant_not_found" || result.error === "no_active_grid"
+              ? 404
+              : 400;
 
   return NextResponse.json(result, { status });
 }

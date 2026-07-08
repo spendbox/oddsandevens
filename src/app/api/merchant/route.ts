@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   const { data, error } = await supabaseAdmin()
     .from("merchants")
     .insert({ owner_id: userId, business_name: businessName, slug })
-    .select("id, business_name, slug, subscription_tier")
+    .select("id, business_name, slug, subscription_tier, premium_expires_at")
     .single();
 
   if (error) {

@@ -3,9 +3,33 @@
 import type { TileShape } from "./constants";
 
 export type PlayResult =
-  | { result: "hit"; description: string; code: string; expires_at: string }
-  | { result: "miss"; loyalty_points: number }
-  | { result: "cooldown"; next_play_at: string; loyalty_points: number }
+  | {
+      result: "hit";
+      description: string;
+      code: string;
+      expires_at: string;
+      grid_completed?: boolean;
+      resets_at?: string;
+    }
+  | {
+      result: "miss";
+      loyalty_points: number;
+      points_expire_at: string | null;
+      grid_completed?: boolean;
+      resets_at?: string;
+    }
+  | {
+      result: "cooldown";
+      next_play_at: string;
+      loyalty_points: number;
+      points_expire_at: string | null;
+    }
+  | { result: "grid_completed"; resets_at: string }
+  | {
+      result: "no_plays";
+      loyalty_points: number;
+      points_expire_at: string | null;
+    }
   | { result: "error"; error: PlayError };
 
 export type PlayError =
@@ -26,15 +50,43 @@ export type RedeemResult =
     }
   | { result: "error"; error: "code_not_found" | "already_redeemed" | "expired" };
 
-export type PointsRedeemResult =
+// What the staff code box resolves to: the customer's cycling loyalty code
+// or a one-time redemption code minted per unlock.
+export type StaffLookupResult =
   | {
-      result: "discount_issued";
+      result: "found";
+      kind: "loyalty";
+      customer_email: string;
+      points: number;
+      points_needed: number;
       discount_percent: number;
-      code: string;
-      expires_at: string;
-      loyalty_points: number;
+      eligible: boolean;
+      points_expire_at: string | null;
     }
-  | { result: "error"; error: "merchant_not_found" | "insufficient_points" };
+  | {
+      result: "found";
+      kind: "code";
+      customer_email: string;
+      description: string;
+      status: "unredeemed" | "redeemed" | "expired";
+      expires_at: string;
+    }
+  | { result: "error"; error: "code_not_found" | "merchant_not_found" };
+
+export type LoyaltyRedeemResult =
+  | {
+      result: "loyalty_redeemed";
+      discount_percent: number;
+      customer_email: string;
+      points_remaining: number;
+      points_expire_at: string | null;
+    }
+  | {
+      result: "error";
+      error: "code_not_found" | "merchant_not_found" | "insufficient_points";
+      points?: number;
+      points_needed?: number;
+    };
 
 export type CreateGridResult =
   | { result: "created"; grid_id: string }
@@ -42,12 +94,12 @@ export type CreateGridResult =
       result: "error";
       error:
         | "merchant_not_found"
-        | "grid_size_not_allowed"
         | "too_many_rewards"
         | "no_rewards"
         | "rewards_exceed_tiles"
         | "invalid_tile_shape"
         | "shape_requires_premium"
+        | "invalid_reset_days"
         | "too_many_active_grids";
     };
 
@@ -62,6 +114,11 @@ export interface PublicGrid {
   cols: number;
   revealed: { row: number; col: number; hit: boolean }[];
   rewardsRemaining: number;
+  // What's hidden in this grid, for the welcome popup (no positions).
+  rewardsInfo: { description: string; details: string | null }[];
+  // Set while the grid rests after completion; resetsAt is when it revives.
+  completedAt: string | null;
+  resetsAt: string | null;
 }
 
 // The whole board page: merchant branding + every active grid.
@@ -79,7 +136,10 @@ export interface PublicBoardState {
 
 export interface CustomerState {
   loyaltyPoints: number;
+  pointsExpireAt: string | null;
   cooldownUntil: string | null;
+  // Cycling per-business loyalty code shown at the counter.
+  loyaltyCode: string | null;
   codes: {
     code: string;
     description: string;
@@ -92,6 +152,8 @@ export interface CustomerState {
 export interface CustomerSummary {
   email: string;
   loyaltyPoints: number;
+  pointsExpireAt: string | null;
+  totalPlays: number;
   lastPlayedAt: string | null;
   // Cooldown end, if the customer is currently in cooldown.
   nextPlayAt: string | null;
@@ -117,6 +179,46 @@ export interface GridStats {
   revealedCount: number;
   unlockedCount: number;
   redeemedCount: number;
+  resetDays: number;
+  completedAt: string | null;
+  cycle: number;
+}
+
+// Aggregate KPIs for the dashboard's stats row.
+export interface MerchantStats {
+  totalCustomers: number;
+  totalPlays: number;
+  rewardsUnlocked: number;
+  redemptions: number;
+  redemptionsLast30d: number;
+  redemptionRate: number; // redemptions / all codes issued, 0..1
+  activeCodes: number;
+  pointsOutstanding: number;
+}
+
+// Plays-based plan state for the dashboard (from /api/merchant/plan).
+export interface MerchantPlan {
+  tier: "free" | "premium";
+  premiumExpiresAt: string | null;
+  baseAllowance: number; // annual plays for the current tier
+  playsUsed: number; // plays used this annual period
+  baseRemaining: number; // baseAllowance - playsUsed, floored at 0
+  topupPlays: number; // purchased, non-expiring plays
+  playsRemaining: number; // baseRemaining + topupPlays
+  periodEnd: string; // when the annual window resets
+  premiumPriceKobo: number;
+  topupPricePer1000Kobo: number;
+  paymentsEnabled: boolean;
+}
+
+// A reusable reward in the merchant's catalogue (Build → Rewards). Copied into
+// grid-bound rewards when a grid is built.
+export interface RewardTemplate {
+  id: string;
+  description: string;
+  details: string | null;
+  default_expiry_days: number;
+  created_at: string;
 }
 
 // Free image library entry (curated in /admin).
@@ -133,9 +235,11 @@ export interface LoyaltyAccount {
   logoUrl: string | null;
   brandColor: string;
   loyaltyPoints: number;
+  pointsExpireAt: string | null;
   pointsPerDiscount: number;
   discountPercent: number;
   cooldownUntil: string | null;
+  loyaltyCode: string | null;
   codes: {
     code: string;
     description: string;

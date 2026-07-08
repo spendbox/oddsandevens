@@ -4,7 +4,7 @@ import { Resend } from "resend";
 // time we send, so a delivery failure must never surface as a game error.
 // Without RESEND_API_KEY (local dev), emails are logged instead of sent.
 
-const FROM = process.env.EMAIL_FROM ?? "TileHunt <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "Spendbox <onboarding@resend.dev>";
 
 // Canonical app URL for links inside emails. On Vercel this falls back to the
 // production domain automatically; set APP_URL to override (e.g. custom domain
@@ -70,29 +70,6 @@ export async function sendRewardUnlockedEmail(params: {
   );
 }
 
-export async function sendDiscountCodeEmail(params: {
-  to: string;
-  businessName: string;
-  slug: string;
-  discountPercent: number;
-  code: string;
-  expiresAt: string;
-}) {
-  const { to, businessName, slug, discountPercent, code, expiresAt } = params;
-  await send(
-    to,
-    `Your ${discountPercent}% discount at ${businessName}`,
-    `<div style="font-family:sans-serif;max-width:480px">
-      <h2>Loyalty pays off!</h2>
-      <p>You traded your points for <strong>${discountPercent}% off</strong> at ${businessName}.</p>
-      <p>Show this code to staff to redeem it:</p>
-      <p style="font-size:28px;letter-spacing:6px;font-weight:bold;background:#f4f4f5;padding:12px 16px;border-radius:8px;text-align:center">${code}</p>
-      <p>⏳ Expires <strong>${formatExpiry(expiresAt)}</strong>.</p>
-      ${boardLink(slug)}
-    </div>`
-  );
-}
-
 export async function sendMerchantHitEmail(params: {
   to: string;
   businessName: string;
@@ -102,7 +79,7 @@ export async function sendMerchantHitEmail(params: {
   const { to, businessName, description, customerEmail } = params;
   await send(
     to,
-    `TileHunt: a customer just won "${description}"`,
+    `Spendbox: a customer just won "${description}"`,
     `<div style="font-family:sans-serif;max-width:480px">
       <h2>Reward unlocked on your grid</h2>
       <p>A customer (${customerEmail}) just won <strong>${description}</strong> at ${businessName}.</p>

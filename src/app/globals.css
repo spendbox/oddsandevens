@@ -75,6 +75,101 @@
   }
 }
 
+/* Big celebratory win: confetti rains down and the trophy bursts in. */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-12vh) rotate(0deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 1;
+  }
+}
+@keyframes trophy-burst {
+  0% {
+    transform: scale(0.2) rotate(-18deg);
+    opacity: 0;
+  }
+  45% {
+    transform: scale(1.25) rotate(8deg);
+  }
+  70% {
+    transform: scale(0.95) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+@keyframes win-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand), transparent 60%);
+  }
+  50% {
+    box-shadow: 0 0 40px 8px color-mix(in oklab, var(--brand), transparent 55%);
+  }
+}
+
+/* Landing page: drifting aurora blobs, shimmering tiles, popping gifts. */
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(5%, -4%) scale(1.15);
+  }
+}
+@keyframes tile-shimmer {
+  0%,
+  100% {
+    opacity: 0.9;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
+  }
+  50% {
+    opacity: 1;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.3),
+      0 0 18px color-mix(in oklab, var(--brand), transparent 55%);
+  }
+}
+@keyframes gift-pop {
+  0%,
+  72%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  80% {
+    transform: scale(1.28) rotate(-8deg);
+  }
+  90% {
+    transform: scale(1.1) rotate(5deg);
+  }
+}
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes sheen {
+  0% {
+    background-position: -150% 0;
+  }
+  60%,
+  100% {
+    background-position: 250% 0;
+  }
+}
+
 /* Splash screen: logo pops in, whole overlay fades away. */
 @keyframes splash-logo {
   0% {
@@ -165,17 +260,44 @@ body {
       0 0 18px color-mix(in oklab, var(--brand), transparent 55%);
   }
 
-  /* Premium tile shapes (default is the rounded square). clip-path swallows
-     box-shadow, so shaped tiles lean on their fill alone. */
-  .tile-shape-circle {
-    border-radius: 9999px;
+  /* Interlocking (clipped) tiles: clip-path swallows box-shadow, but
+     filter: drop-shadow follows the clipped silhouette, so shaped tiles get
+     their glow from a drop-shadow instead. */
+  .tile-live-shaped {
+    filter: drop-shadow(
+      0 2px 5px color-mix(in oklab, var(--brand), transparent 65%)
+    );
   }
-  .tile-shape-hexagon {
-    border-radius: 0;
-    clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
+  .tile-live-shaped:hover {
+    filter: drop-shadow(
+      0 0 10px color-mix(in oklab, var(--brand), transparent 50%)
+    );
   }
-  .tile-shape-diamond {
-    border-radius: 0;
-    clip-path: polygon(50% 2%, 98% 50%, 50% 98%, 2% 50%);
+
+  /* Tiles locked by the play cooldown twinkle on and off. Each tile gets its
+     own --twinkle-delay / --twinkle-duration so the board sparkles randomly
+     rather than pulsing in unison. Drop-shadow works on clipped shapes too. */
+  .tile-cooldown {
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--brand), white 60%),
+      color-mix(in oklab, var(--brand), white 40%)
+    );
+    animation: tile-twinkle var(--twinkle-duration, 3s) ease-in-out
+      var(--twinkle-delay, 0s) infinite;
+  }
+}
+
+@keyframes tile-twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+    filter: none;
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(
+      0 0 9px color-mix(in oklab, var(--brand), transparent 45%)
+    );
   }
 }

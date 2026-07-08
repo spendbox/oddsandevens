@@ -1,17 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   Check,
+  Crown,
+  ExternalLink,
   Eye,
   EyeOff,
   ImagePlus,
   Landmark,
   LogOut,
   Shield,
+  Store,
+  Trash2,
   Upload,
+  Users,
 } from "lucide-react";
 import { PasswordInput } from "@/components/password-input";
+import { useAutoRefresh } from "@/lib/use-auto-refresh";
 
 interface AdminImage {
   id: string;
@@ -21,13 +28,38 @@ interface AdminImage {
   created_at: string;
 }
 
+interface AdminMerchant {
+  id: string;
+  businessName: string;
+  slug: string;
+  tier: "free" | "premium";
+  premiumExpiresAt: string | null;
+  createdAt: string;
+  customers: number;
+  activeGrids: number;
+}
+
+interface AdminCustomer {
+  id: string;
+  email: string;
+  createdAt: string;
+  businesses: number;
+  points: number;
+  plays: number;
+}
+
 // Platform admin: curate the free grid-image library and set the premium
 // price. Access is gated server-side by ADMIN_EMAILS — this page just renders
 // whatever the /api/admin/* routes allow.
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [images, setImages] = useState<AdminImage[]>([]);
+  const [merchants, setMerchants] = useState<AdminMerchant[]>([]);
+  const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [priceNaira, setPriceNaira] = useState("");
+  const [freePlays, setFreePlays] = useState("");
+  const [premiumPlays, setPremiumPlays] = useState("");
+  const [topupPriceNaira, setTopupPriceNaira] = useState("");
   const [savedPrice, setSavedPrice] = useState(false);
   const [title, setTitle] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -42,21 +74,41 @@ export default function AdminPage() {
   // Pure fetcher (no setState) so the mount effect can apply the result in an
   // async callback — required by the react-hooks/set-state-in-effect rule.
   const fetchAdminData = useCallback(async (): Promise<
-    { authorized: false } | { authorized: true; priceNaira: string; images: AdminImage[] }
+    | { authorized: false }
+    | {
+        authorized: true;
+        priceNaira: string;
+        freePlays: string;
+        premiumPlays: string;
+        topupPriceNaira: string;
+        images: AdminImage[];
+        merchants: AdminMerchant[];
+        customers: AdminCustomer[];
+      }
   > => {
-    const [settingsRes, imagesRes] = await Promise.all([
-      fetch("/api/admin/settings"),
-      fetch("/api/admin/images"),
-    ]);
+    const [settingsRes, imagesRes, merchantsRes, customersRes] =
+      await Promise.all([
+        fetch("/api/admin/settings"),
+        fetch("/api/admin/images"),
+        fetch("/api/admin/merchants"),
+        fetch("/api/admin/customers"),
+      ]);
     if (settingsRes.status === 401 || imagesRes.status === 401) {
       return { authorized: false };
     }
     const settings = await settingsRes.json().catch(() => null);
     const imgs = await imagesRes.json().catch(() => null);
+    const merch = await merchantsRes.json().catch(() => null);
+    const custs = await customersRes.json().catch(() => null);
     return {
       authorized: true,
       priceNaira: String((settings?.premiumPriceKobo ?? 0) / 100),
+      freePlays: String(settings?.freeYearlyPlays ?? 0),
+      premiumPlays: String(settings?.premiumYearlyPlays ?? 0),
+      topupPriceNaira: String((settings?.topupPricePer1000Kobo ?? 0) / 100),
       images: (imgs?.images as AdminImage[]) ?? [],
+      merchants: (merch?.merchants as AdminMerchant[]) ?? [],
+      customers: (custs?.customers as AdminCustomer[]) ?? [],
     };
   }, []);
 
@@ -67,7 +119,12 @@ export default function AdminPage() {
         return;
       }
       setPriceNaira(data.priceNaira);
+      setFreePlays(data.freePlays);
+      setPremiumPlays(data.premiumPlays);
+      setTopupPriceNaira(data.topupPriceNaira);
       setImages(data.images);
+      setMerchants(data.merchants);
+      setCustomers(data.customers);
       setAuthorized(true);
     },
     []
@@ -76,6 +133,13 @@ export default function AdminPage() {
   const load = useCallback(async () => {
     applyAdminData(await fetchAdminData());
   }, [fetchAdminData, applyAdminData]);
+
+  // Keep the merchant/customer lists current without a manual reload.
+  useAutoRefresh(
+    useCallback(() => {
+      if (authorized) void load();
+    }, [authorized, load])
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -91,14 +155,20 @@ export default function AdminPage() {
     e.preventDefault();
     setError(null);
     setSavedPrice(false);
-    const kobo = Math.round(Number(priceNaira) * 100);
     const res = await fetch("/api/admin/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ premiumPriceKobo: kobo }),
+      body: JSON.stringify({
+        premiumPriceKobo: Math.round(Number(priceNaira) * 100),
+        freeYearlyPlays: Math.round(Number(freePlays)),
+        premiumYearlyPlays: Math.round(Number(premiumPlays)),
+        topupPricePer1000Kobo: Math.round(Number(topupPriceNaira) * 100),
+      }),
     });
     if (!res.ok) {
-      setError("Couldn't save the price — it must be between ₦100 and ₦1,000,000.");
+      setError(
+        "Couldn't save — check the price is at least ₦100 and the play counts are whole numbers."
+      );
       return;
     }
     setSavedPrice(true);
@@ -142,6 +212,52 @@ export default function AdminPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: img.id, isActive: !img.is_active }),
     });
+    await load();
+  }
+
+  async function deleteImage(img: AdminImage) {
+    if (!window.confirm(`Delete "${img.title}" from the library permanently?`)) {
+      return;
+    }
+    await fetch("/api/admin/images", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: img.id }),
+    });
+    await load();
+  }
+
+  async function deleteMerchant(m: AdminMerchant) {
+    if (
+      !window.confirm(
+        `Delete "${m.businessName}" (/g/${m.slug}) and its account permanently? All grids, rewards, and codes go with it.`
+      )
+    ) {
+      return;
+    }
+    const res = await fetch("/api/admin/merchants", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: m.id }),
+    });
+    if (!res.ok) setError("Couldn't delete that business.");
+    await load();
+  }
+
+  async function deleteCustomer(c: AdminCustomer) {
+    if (
+      !window.confirm(
+        `Delete customer ${c.email} permanently? Their points and codes at every business go with them.`
+      )
+    ) {
+      return;
+    }
+    const res = await fetch("/api/admin/customers", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: c.id }),
+    });
+    if (!res.ok) setError("Couldn't delete that customer.");
     await load();
   }
 
@@ -195,7 +311,7 @@ export default function AdminPage() {
               required
               value={loginEmail}
               onChange={(e) => setLoginEmail(e.target.value)}
-              placeholder="admin@tilehunt.app"
+              placeholder="admin@spendbox.site"
               className="input-field"
             />
           </label>
@@ -223,7 +339,7 @@ export default function AdminPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-zinc-900">
             <Shield className="size-6 text-emerald-600" aria-hidden />
-            TileHunt admin
+            Spendbox admin
           </h1>
           <button
             onClick={async () => {
@@ -242,32 +358,73 @@ export default function AdminPage() {
         <form onSubmit={savePrice} className="card mt-6 p-4 sm:p-5">
           <h2 className="section-title">
             <Landmark className="size-3.5" aria-hidden />
-            Premium price
+            Pricing & play allowances
           </h2>
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-zinc-500">₦</span>
-            <input
-              type="number"
-              min={100}
-              step={100}
-              value={priceNaira}
-              onChange={(e) => setPriceNaira(e.target.value)}
-              className="input-field w-40"
-              aria-label="Premium price in naira"
-            />
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="field-label">Premium price / year (₦)</span>
+              <input
+                type="number"
+                min={100}
+                step="any"
+                value={priceNaira}
+                onChange={(e) => setPriceNaira(e.target.value)}
+                className="input-field w-full"
+                aria-label="Premium price in naira"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Top-up price / 1,000 plays (₦)</span>
+              <input
+                type="number"
+                min={10}
+                step="any"
+                value={topupPriceNaira}
+                onChange={(e) => setTopupPriceNaira(e.target.value)}
+                className="input-field w-full"
+                aria-label="Top-up price per 1000 plays in naira"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Free plays / year</span>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={freePlays}
+                onChange={(e) => setFreePlays(e.target.value)}
+                className="input-field w-full"
+                aria-label="Free tier yearly plays"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Premium plays / year</span>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={premiumPlays}
+                onChange={(e) => setPremiumPlays(e.target.value)}
+                className="input-field w-full"
+                aria-label="Premium tier yearly plays"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
             <button type="submit" className="btn-primary px-4 py-2">
               {savedPrice ? (
                 <>
                   <Check className="size-4" aria-hidden /> Saved
                 </>
               ) : (
-                "Save price"
+                "Save settings"
               )}
             </button>
+            <p className="text-xs text-zinc-400">
+              A play is one tile tap. Premium is a yearly Paystack plan; top-ups
+              are one-off and never expire.
+            </p>
           </div>
-          <p className="mt-2 text-xs text-zinc-400">
-            Charged once via Paystack when a business upgrades to Premium.
-          </p>
         </form>
 
         <form onSubmit={uploadImage} className="card mt-4 p-4 sm:p-5">
@@ -337,19 +494,117 @@ export default function AdminPage() {
                   <p className="mt-1.5 truncate text-xs font-medium text-zinc-700">
                     {img.title}
                   </p>
+                  <div className="mt-1 flex gap-1">
+                    <button
+                      onClick={() => toggleImage(img)}
+                      className="btn-ghost grow justify-center text-xs"
+                    >
+                      {img.is_active ? (
+                        <>
+                          <EyeOff className="size-3.5" aria-hidden /> Hide
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="size-3.5" aria-hidden /> Show
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => deleteImage(img)}
+                      className="btn-ghost justify-center text-xs text-rose-600 hover:bg-rose-50"
+                      aria-label={`Delete ${img.title}`}
+                    >
+                      <Trash2 className="size-3.5" aria-hidden />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card mt-4 p-4 sm:p-5">
+          <h2 className="section-title">
+            <Store className="size-3.5" aria-hidden />
+            Businesses ({merchants.length})
+          </h2>
+          {merchants.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">No businesses yet.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {merchants.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-zinc-200 px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-zinc-900">
+                      {m.businessName}
+                      {m.tier === "premium" && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                          <Crown className="size-3" aria-hidden /> Premium
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      /g/{m.slug} · {m.customers} customer
+                      {m.customers === 1 ? "" : "s"} · {m.activeGrids} active
+                      grid{m.activeGrids === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={`/g/${m.slug}`}
+                      target="_blank"
+                      className="btn-secondary px-3 py-1.5 text-xs"
+                    >
+                      <ExternalLink className="size-3.5" aria-hidden />
+                      View page
+                    </Link>
+                    <button
+                      onClick={() => deleteMerchant(m)}
+                      className="btn-secondary px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
+                    >
+                      <Trash2 className="size-3.5" aria-hidden />
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card mt-4 p-4 sm:p-5">
+          <h2 className="section-title">
+            <Users className="size-3.5" aria-hidden />
+            Customers ({customers.length})
+          </h2>
+          {customers.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">No customers yet.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {customers.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-zinc-200 px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="break-all text-sm font-medium text-zinc-900">
+                      {c.email}
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      {c.businesses} business{c.businesses === 1 ? "" : "es"} ·{" "}
+                      {c.plays} play{c.plays === 1 ? "" : "s"} · {c.points}{" "}
+                      point{c.points === 1 ? "" : "s"}
+                    </p>
+                  </div>
                   <button
-                    onClick={() => toggleImage(img)}
-                    className="btn-ghost mt-1 w-full justify-center text-xs"
+                    onClick={() => deleteCustomer(c)}
+                    className="btn-secondary px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
                   >
-                    {img.is_active ? (
-                      <>
-                        <EyeOff className="size-3.5" aria-hidden /> Hide
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="size-3.5" aria-hidden /> Show
-                      </>
-                    )}
+                    <Trash2 className="size-3.5" aria-hidden />
+                    Delete
                   </button>
                 </li>
               ))}

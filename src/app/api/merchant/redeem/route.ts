@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAuthedMerchant } from "@/lib/merchant-auth";
-import type { RedeemResult } from "@/lib/types";
+import type { LoyaltyRedeemResult, RedeemResult } from "@/lib/types";
 
-// Staff redemption: type the code the customer shows. There is deliberately
-// no lookup-by-customer-email path — the code itself is the credential.
+// Staff redemption, step 2 (step 1 is /api/merchant/redeem/lookup): confirm
+// what the lookup resolved. Two kinds:
+//   loyalty — burn the customer's points for a discount; their loyalty code
+//             cycles server-side so it can't be replayed.
+//   code    — a one-time redemption code minted per unlock (reward win or
+//             old loyalty discount); redeems once and reshuffles the grid.
 export async function POST(req: Request) {
   const { userId, merchant } = await getAuthedMerchant();
   if (!userId) {
@@ -15,6 +19,11 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
+  const kind = String(body?.kind ?? "");
+  if (kind !== "loyalty" && kind !== "code") {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
   const code = String(body?.code ?? "").trim().toUpperCase();
   if (!/^[A-Z0-9]{6}$/.test(code)) {
     return NextResponse.json(
@@ -23,21 +32,22 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data, error } = await supabaseAdmin().rpc("redeem_code", {
+  const fn = kind === "loyalty" ? "redeem_loyalty_by_code" : "redeem_code";
+  const { data, error } = await supabaseAdmin().rpc(fn, {
     p_merchant_id: merchant.id,
     p_code: code,
   });
   if (error) {
-    console.error("[redeem_code] rpc failed:", error);
+    console.error(`[${fn}] rpc failed:`, error);
     return NextResponse.json(
       { result: "error", error: "internal" },
       { status: 500 }
     );
   }
 
-  const result = data as RedeemResult;
+  const result = data as LoyaltyRedeemResult | RedeemResult;
   const status =
-    result.result === "redeemed"
+    result.result !== "error"
       ? 200
       : result.error === "code_not_found"
         ? 404
