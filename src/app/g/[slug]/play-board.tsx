@@ -85,7 +85,6 @@ type Reveal =
 
 export default function PlayBoard({ slug }: { slug: string }) {
   const [email, setEmail] = useState<string | null>(null);
-  const [emailInput, setEmailInput] = useState("");
   const [board, setBoard] = useState<PublicBoardState | null>(null);
   const [gridIndex, setGridIndex] = useState(0);
   const [me, setMe] = useState<CustomerState | null>(null);
@@ -93,8 +92,11 @@ export default function PlayBoard({ slug }: { slug: string }) {
   const [busy, setBusy] = useState(false);
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  // Email is only requested on the first tile tap by a not-logged-in visitor.
+  // Email + verification are only requested on the first tile tap by a
+  // not-logged-in visitor (or when a remembered email isn't verified yet).
   const [emailPrompt, setEmailPrompt] = useState(false);
+  const [verifyInitEmail, setVerifyInitEmail] = useState("");
+  const [verifyInitStep, setVerifyInitStep] = useState<"email" | "code">("email");
   const [pendingTile, setPendingTile] = useState<{ row: number; col: number } | null>(
     null
   );
@@ -202,14 +204,20 @@ export default function PlayBoard({ slug }: { slug: string }) {
     return map;
   }, [grid]);
 
+  function openVerify(step: "email" | "code", initialEmail = "") {
+    setVerifyInitStep(step);
+    setVerifyInitEmail(initialEmail);
+    setEmailPrompt(true);
+  }
+
   async function clickTile(row: number, col: number, emailArg?: string) {
     if (busy || cooldownLeft || !grid || gridResting) return;
     const useEmail = emailArg ?? email;
-    // Not logged in yet: ask for an email now (only on the first tap), remember
-    // which tile they wanted, and play it once they've entered one.
+    // Not logged in yet: ask for an email + verification now (only on the first
+    // tap), remember which tile they wanted, and play it once verified.
     if (!useEmail) {
       setPendingTile({ row, col });
-      setEmailPrompt(true);
+      openVerify("email");
       return;
     }
     setBusy(true);
@@ -221,6 +229,12 @@ export default function PlayBoard({ slug }: { slug: string }) {
         body: JSON.stringify({ email: useEmail, gridId: grid.id, row, col }),
       });
       const result = (await res.json()) as PlayResult;
+      if (result.result === "error" && result.error === "email_not_verified") {
+        // Remembered email hasn't been verified: jump straight to the code step.
+        setPendingTile({ row, col });
+        openVerify("code", useEmail);
+        return;
+      }
       if (result.result === "hit") {
         setReveal({
           kind: "hit",
@@ -508,34 +522,141 @@ export default function PlayBoard({ slug }: { slug: string }) {
       )}
 
       {emailPrompt && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
-          style={brandStyle}
-          onClick={() => setEmailPrompt(false)}
-        >
-          <form
-            className="animate-pop-in card w-full max-w-sm p-6 sm:p-7"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => {
-              e.preventDefault();
-              const value = emailInput.trim().toLowerCase();
-              if (!EMAIL_REGEX.test(value)) {
-                setFlash("Enter a valid email address.");
-                return;
-              }
-              window.localStorage.setItem(EMAIL_STORAGE_KEY, value);
-              setEmail(value);
-              setFlash(null);
-              setEmailPrompt(false);
-              const tile = pendingTile;
-              setPendingTile(null);
-              if (tile) clickTile(tile.row, tile.col, value);
-            }}
-          >
-            <BusinessMark board={board} size="lg" />
+        <VerifyModal
+          board={board}
+          brandStyle={brandStyle}
+          initialEmail={verifyInitEmail}
+          initialStep={verifyInitStep}
+          onClose={() => setEmailPrompt(false)}
+          onVerified={(em) => {
+            window.localStorage.setItem(EMAIL_STORAGE_KEY, em);
+            setEmail(em);
+            setEmailPrompt(false);
+            const tile = pendingTile;
+            setPendingTile(null);
+            if (tile) clickTile(tile.row, tile.col, em);
+          }}
+        />
+      )}
+    </main>
+  );
+}
+
+// Two-step customer email verification: enter email → we email a code → enter
+// the code. On success the caller is handed the verified email.
+function VerifyModal({
+  board,
+  brandStyle,
+  initialEmail,
+  initialStep,
+  onVerified,
+  onClose,
+}: {
+  board: PublicBoardState;
+  brandStyle: React.CSSProperties;
+  initialEmail: string;
+  initialStep: "email" | "code";
+  onVerified: (email: string) => void;
+  onClose: () => void;
+}) {
+  const [step, setStep] = useState<"email" | "code">(initialStep);
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState(initialStep === "code" ? initialEmail : "");
+
+  // When opened straight at the code step (a remembered but unverified email),
+  // send the code right away.
+  useEffect(() => {
+    if (initialStep !== "code" || !initialEmail) return;
+    let ignore = false;
+    fetch("/api/customer/verify/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: initialEmail }),
+    }).then(() => {
+      if (!ignore) setSentTo(initialEmail);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [initialStep, initialEmail]);
+
+  async function sendCode(addr: string) {
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/customer/verify/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: addr }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(
+        body?.error === "too_many_requests"
+          ? "Too many code requests — wait a little and try again."
+          : "Couldn't send the code. Try again."
+      );
+      return false;
+    }
+    setSentTo(addr);
+    setStep("code");
+    return true;
+  }
+
+  async function submitCode() {
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/customer/verify/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: sentTo, code: code.trim() }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError("That code isn't right or has expired. Check your email.");
+      return;
+    }
+    onVerified(sentTo);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
+      style={brandStyle}
+      onClick={onClose}
+    >
+      <form
+        className="animate-pop-in card w-full max-w-sm p-6 sm:p-7"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (step === "email") {
+            const value = email.trim().toLowerCase();
+            if (!EMAIL_REGEX.test(value)) {
+              setError("Enter a valid email address.");
+              return;
+            }
+            setEmail(value);
+            sendCode(value);
+          } else {
+            if (!/^\d{6}$/.test(code.trim())) {
+              setError("Enter the 6-digit code we emailed you.");
+              return;
+            }
+            submitCode();
+          }
+        }}
+      >
+        <BusinessMark board={board} size="lg" />
+
+        {step === "email" ? (
+          <>
             <p className="mt-3 text-sm leading-relaxed text-zinc-500">
-              Enter your email so we can send your redemption code if you win —
-              then your tile flips right away.
+              Enter your email to play. We&apos;ll send a 6-digit code to confirm
+              it&apos;s you — then your tile flips.
             </p>
             <label className="mt-5 block">
               <span className="field-label">Email</span>
@@ -544,19 +665,51 @@ export default function PlayBoard({ slug }: { slug: string }) {
                 required
                 autoFocus
                 placeholder="you@example.com"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="input-field"
               />
             </label>
-            {flash && <p className="alert-error mt-3">{flash}</p>}
-            <button type="submit" className="btn-primary mt-5 w-full">
-              Reveal my tile
+            {error && <p className="alert-error mt-3">{error}</p>}
+            <button type="submit" disabled={busy} className="btn-primary mt-5 w-full">
+              {busy ? "Sending code…" : "Send my code"}
             </button>
-          </form>
-        </div>
-      )}
-    </main>
+          </>
+        ) : (
+          <>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-500">
+              We emailed a 6-digit code to{" "}
+              <span className="font-medium text-zinc-700">{sentTo}</span>. Enter
+              it to verify and reveal your tile.
+            </p>
+            <label className="mt-5 block">
+              <span className="field-label">Verification code</span>
+              <input
+                inputMode="numeric"
+                autoFocus
+                maxLength={6}
+                placeholder="123456"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                className="input-field text-center font-mono text-2xl tracking-[0.4em]"
+              />
+            </label>
+            {error && <p className="alert-error mt-3">{error}</p>}
+            <button type="submit" disabled={busy} className="btn-primary mt-5 w-full">
+              {busy ? "Verifying…" : "Verify & play"}
+            </button>
+            <button
+              type="button"
+              onClick={() => sendCode(sentTo)}
+              disabled={busy}
+              className="btn-ghost mx-auto mt-2 block"
+            >
+              Resend code
+            </button>
+          </>
+        )}
+      </form>
+    </div>
   );
 }
 

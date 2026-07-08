@@ -37,7 +37,8 @@ export type PlayError =
   | "merchant_not_found"
   | "no_active_grid"
   | "invalid_tile"
-  | "tile_taken";
+  | "tile_taken"
+  | "email_not_verified";
 
 export type RedeemResult =
   | {

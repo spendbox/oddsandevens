@@ -47,6 +47,38 @@ function formatExpiry(expiresAt: string) {
   return new Date(expiresAt).toUTCString();
 }
 
+// One-time 6-digit code for signup, password reset, or customer verification.
+export async function sendVerificationCodeEmail(params: {
+  to: string;
+  code: string;
+  purpose: "merchant_signup" | "password_reset" | "customer_verify";
+}) {
+  const { to, code, purpose } = params;
+  const heading =
+    purpose === "password_reset"
+      ? "Reset your Spendbox password"
+      : purpose === "customer_verify"
+        ? "Confirm your email to play"
+        : "Confirm your email";
+  const intro =
+    purpose === "password_reset"
+      ? "Use this code to reset your password:"
+      : purpose === "customer_verify"
+        ? "Enter this code to verify your email and claim your rewards:"
+        : "Enter this code to finish creating your Spendbox account:";
+  await send(
+    to,
+    `${code} is your Spendbox code`,
+    `<div style="font-family:sans-serif;max-width:480px">
+      <h2>${heading}</h2>
+      <p>${intro}</p>
+      <p style="font-size:32px;letter-spacing:8px;font-weight:bold;background:#f4f4f5;padding:14px 16px;border-radius:8px;text-align:center">${code}</p>
+      <p>It expires in 10 minutes. If you didn't request this, you can ignore
+      this email.</p>
+    </div>`
+  );
+}
+
 export async function sendRewardUnlockedEmail(params: {
   to: string;
   businessName: string;

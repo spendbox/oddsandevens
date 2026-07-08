@@ -37,6 +37,20 @@ export async function POST(
   }
 
   const db = supabaseAdmin();
+
+  // Players must verify their email (via a code) before they can tap a tile.
+  const { data: cust } = await db
+    .from("customers")
+    .select("email_verified")
+    .eq("email", email)
+    .maybeSingle();
+  if (!cust || !cust.email_verified) {
+    return NextResponse.json(
+      { result: "error", error: "email_not_verified" },
+      { status: 403 }
+    );
+  }
+
   const { data, error } = await db.rpc("play_tile", {
     p_slug: slug,
     p_grid_id: gridId,

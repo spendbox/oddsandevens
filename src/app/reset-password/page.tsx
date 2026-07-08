@@ -7,10 +7,9 @@ import { Boxes } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { PasswordInput } from "@/components/password-input";
 
-// Signup is email → 6-digit code (emailed) → password. The code proves the
-// email before the account is created; afterwards the merchant signs in with
-// their password.
-export default function SignupPage() {
+// Forgot password: email → 6-digit code (emailed) → new password. Then we sign
+// the merchant in with the new password.
+export default function ResetPasswordPage() {
   const router = useRouter();
   const [step, setStep] = useState<"email" | "verify">("email");
   const [email, setEmail] = useState("");
@@ -23,29 +22,21 @@ export default function SignupPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await fetch("/api/auth/register/start", {
+    const res = await fetch("/api/auth/password/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: email.trim().toLowerCase() }),
     });
     setBusy(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      setError(
-        body?.error === "email_taken"
-          ? "That email already has an account — sign in instead."
-          : body?.error === "too_many_requests"
-            ? "Too many code requests — wait a little and try again."
-            : body?.error === "invalid_email"
-              ? "Enter a valid email address."
-              : "Couldn't send the code. Try again."
-      );
+      setError("Enter a valid email address.");
       return;
     }
+    // Always advance — the endpoint doesn't reveal whether the email exists.
     setStep("verify");
   }
 
-  async function completeSignup(e: React.FormEvent) {
+  async function completeReset(e: React.FormEvent) {
     e.preventDefault();
     if (!/^\d{6}$/.test(code.trim())) {
       setError("Enter the 6-digit code we emailed you.");
@@ -58,7 +49,7 @@ export default function SignupPage() {
     setBusy(true);
     setError(null);
     const addr = email.trim().toLowerCase();
-    const res = await fetch("/api/auth/register/complete", {
+    const res = await fetch("/api/auth/password/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: addr, code: code.trim(), password }),
@@ -69,22 +60,18 @@ export default function SignupPage() {
       setError(
         body?.error === "invalid_code"
           ? "That code isn't right or has expired. Check your email or resend."
-          : body?.error === "email_taken"
-            ? "That email already has an account — sign in instead."
-            : body?.error === "weak_password"
-              ? "Password must be at least 8 characters."
-              : "Couldn't create your account. Try again."
+          : body?.error === "weak_password"
+            ? "Password must be at least 8 characters."
+            : "Couldn't reset your password. Try again."
       );
       return;
     }
-    // Account created — sign in with the new password and go to the dashboard.
     const { error: signInError } = await supabaseBrowser().auth.signInWithPassword({
       email: addr,
       password,
     });
     setBusy(false);
     if (signInError) {
-      setError("Account created — please sign in.");
       router.push("/login");
       return;
     }
@@ -104,13 +91,13 @@ export default function SignupPage() {
         </Link>
         <div className="card p-6 sm:p-8">
           <h1 className="text-xl font-bold tracking-tight text-zinc-900">
-            Create merchant account
+            Reset your password
           </h1>
 
           {step === "email" ? (
             <form onSubmit={sendCode}>
               <p className="mt-1 text-sm text-zinc-500">
-                Free to start. We&apos;ll email a code to confirm your address.
+                Enter your account email and we&apos;ll send a reset code.
               </p>
               <label className="mt-6 block">
                 <span className="field-label">Email</span>
@@ -126,10 +113,10 @@ export default function SignupPage() {
               </label>
               {error && <p className="alert-error mt-4">{error}</p>}
               <button type="submit" disabled={busy} className="btn-primary mt-6 w-full">
-                {busy ? "Sending code…" : "Continue"}
+                {busy ? "Sending code…" : "Send reset code"}
               </button>
               <p className="mt-5 text-center text-sm text-zinc-500">
-                Already registered?{" "}
+                Remembered it?{" "}
                 <Link
                   href="/login"
                   className="font-medium text-emerald-600 hover:text-emerald-500"
@@ -139,14 +126,14 @@ export default function SignupPage() {
               </p>
             </form>
           ) : (
-            <form onSubmit={completeSignup}>
+            <form onSubmit={completeReset}>
               <p className="mt-1 text-sm leading-relaxed text-zinc-500">
-                Enter the 6-digit code sent to{" "}
-                <span className="font-medium text-zinc-700">{email}</span> and
-                choose a password.
+                Enter the code sent to{" "}
+                <span className="font-medium text-zinc-700">{email}</span> and a
+                new password.
               </p>
               <label className="mt-5 block">
-                <span className="field-label">Verification code</span>
+                <span className="field-label">Reset code</span>
                 <input
                   inputMode="numeric"
                   autoFocus
@@ -158,7 +145,7 @@ export default function SignupPage() {
                 />
               </label>
               <label className="mt-4 block">
-                <span className="field-label">Password</span>
+                <span className="field-label">New password</span>
                 <PasswordInput
                   required
                   minLength={8}
@@ -169,7 +156,7 @@ export default function SignupPage() {
               </label>
               {error && <p className="alert-error mt-4">{error}</p>}
               <button type="submit" disabled={busy} className="btn-primary mt-6 w-full">
-                {busy ? "Creating…" : "Create account"}
+                {busy ? "Resetting…" : "Set new password"}
               </button>
               <button
                 type="button"

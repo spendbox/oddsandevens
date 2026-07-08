@@ -72,6 +72,14 @@ export default function LoginPage() {
           <button type="submit" disabled={busy} className="btn-primary mt-6 w-full">
             {busy ? "Signing in…" : "Sign in"}
           </button>
+          <p className="mt-3 text-center text-sm">
+            <Link
+              href="/reset-password"
+              className="text-zinc-500 underline transition hover:text-zinc-700"
+            >
+              Forgot your password?
+            </Link>
+          </p>
           <p className="mt-5 text-center text-sm text-zinc-500">
             New here?{" "}
             <Link
