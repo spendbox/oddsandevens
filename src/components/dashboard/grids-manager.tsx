@@ -37,7 +37,7 @@ export function GridsManager({
       const body = await res.json().catch(() => null);
       setError(
         body?.error === "too_many_active_grids"
-          ? `Your ${tier} tier allows ${maxActive} active grid${maxActive === 1 ? "" : "s"} — archive one first.`
+          ? `Your ${tier} tier allows ${maxActive} active grid${maxActive === 1 ? "" : "s"} — archive one first, or go Premium for unlimited grids.`
           : "Couldn't update that grid."
       );
       return;
@@ -69,7 +69,10 @@ export function GridsManager({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="section-title">
           <Layers className="size-3.5" aria-hidden />
-          Your grids · {activeCount}/{maxActive} active
+          Your grids ·{" "}
+          {Number.isFinite(maxActive)
+            ? `${activeCount}/${maxActive} active`
+            : `${activeCount} active · unlimited`}
         </h2>
         <button onClick={onNewGrid} className="btn-primary px-4 py-2 text-sm">
           <Plus className="size-4" aria-hidden />

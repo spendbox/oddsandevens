@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { effectiveTier, getAuthedMerchant } from "@/lib/merchant-auth";
 import {
+  GRID_DESCRIPTION_MAX,
   GRID_SIZE,
   GRID_RESET_DAYS_DEFAULT,
   LOGO_CONTENT_TYPES,
   MAX_GRID_IMAGE_BYTES,
   REWARD_EXPIRY_DAYS_MAX,
   REWARD_EXPIRY_DAYS_MIN,
+  REWARD_ICON_SLUGS,
   TIER_LIMITS,
   TILE_SHAPES,
   type TileShape,
@@ -17,6 +19,7 @@ import type { CreateGridResult } from "@/lib/types";
 interface RewardInput {
   description: string;
   details: string | null;
+  icon: string | null;
   expiryDays: number;
   maxRedemptions: number;
 }
@@ -42,6 +45,7 @@ export async function POST(req: Request) {
   }
 
   const title = String(form.get("title") ?? "").trim();
+  const description = String(form.get("description") ?? "").trim();
   const tileShape = String(form.get("tileShape") ?? "square") as TileShape;
   const resetDays = Number(form.get("resetDays") ?? GRID_RESET_DAYS_DEFAULT);
   let imageUrl: string | null = String(form.get("imageUrl") ?? "").trim() || null;
@@ -54,8 +58,15 @@ export async function POST(req: Request) {
 
   const tier = effectiveTier(merchant);
   const limits = TIER_LIMITS[tier];
+  // Every grid needs a customer-facing name.
+  if (title.length < 1) {
+    return NextResponse.json({ error: "title_required" }, { status: 400 });
+  }
   if (title.length > 80) {
     return NextResponse.json({ error: "invalid_title" }, { status: 400 });
+  }
+  if (description.length > GRID_DESCRIPTION_MAX) {
+    return NextResponse.json({ error: "invalid_description" }, { status: 400 });
   }
   if (!TILE_SHAPES.includes(tileShape)) {
     return NextResponse.json({ error: "invalid_tile_shape" }, { status: 400 });
@@ -82,6 +93,10 @@ export async function POST(req: Request) {
   for (const r of rewardsInput) {
     const description = String(r?.description ?? "").trim();
     const details = String(r?.details ?? "").trim() || null;
+    const rawIcon = String(r?.icon ?? "").trim();
+    const icon = (REWARD_ICON_SLUGS as readonly string[]).includes(rawIcon)
+      ? rawIcon
+      : null;
     const expiryDays = Number(r?.expiryDays ?? 30);
     const maxRedemptions = Number(r?.maxRedemptions ?? 1);
     if (
@@ -96,7 +111,7 @@ export async function POST(req: Request) {
     ) {
       return NextResponse.json({ error: "invalid_reward" }, { status: 400 });
     }
-    rewards.push({ description, details, expiryDays, maxRedemptions });
+    rewards.push({ description, details, icon, expiryDays, maxRedemptions });
   }
 
   const totalRewardTiles = rewards.reduce((s, r) => s + r.maxRedemptions, 0);
@@ -153,13 +168,15 @@ export async function POST(req: Request) {
     p_rewards: rewards.map((r) => ({
       description: r.description,
       details: r.details,
+      icon: r.icon,
       expiry_days: r.expiryDays,
       max_redemptions: r.maxRedemptions,
     })),
-    p_title: title || null,
+    p_title: title,
     p_image_url: imageUrl,
     p_tile_shape: tileShape,
     p_reset_days: resetDays,
+    p_description: description || null,
   });
   if (error) {
     console.error("[create_grid] rpc failed:", error);

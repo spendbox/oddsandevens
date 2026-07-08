@@ -27,7 +27,8 @@ export const TIER_LIMITS = {
   free: { maxRewards: 2, maxActiveGrids: 1, resetDaysMin: 7, resetDaysMax: 7 },
   premium: {
     maxRewards: 10,
-    maxActiveGrids: 10,
+    // Premium runs unlimited grids — grids can model whole product lines.
+    maxActiveGrids: Number.POSITIVE_INFINITY,
     resetDaysMin: 7,
     resetDaysMax: 365,
   },
@@ -61,6 +62,40 @@ export const DEFAULT_PREMIUM_YEARLY_PLAYS = 5000;
 export const DEFAULT_TOPUP_PRICE_PER_1000_KOBO = 100_000; // ₦1,000 / 1,000 plays
 export const TOPUP_MIN_PLAYS = 100;
 export const TOPUP_MAX_PLAYS = 1_000_000;
+
+// Grid descriptions are optional, customer-facing, and capped like details.
+export const GRID_DESCRIPTION_MAX = 300;
+
+// Icon slugs a business can attach to a reward (see lib/reward-icons.tsx for
+// the component map). Stored in rewards.icon / reward_templates.icon.
+export const REWARD_ICON_SLUGS = [
+  "gift",
+  "percent",
+  "ticket",
+  "star",
+  "sparkles",
+  "heart",
+  "gem",
+  "coffee",
+  "pizza",
+  "sandwich",
+  "croissant",
+  "salad",
+  "drumstick",
+  "ice-cream",
+  "cake",
+  "drink",
+  "beer",
+  "utensils",
+  "shirt",
+  "bag",
+  "scissors",
+  "music",
+  "car",
+  "dumbbell",
+  "phone",
+] as const;
+export type RewardIconSlug = (typeof REWARD_ICON_SLUGS)[number];
 
 export const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export const SLUG_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;

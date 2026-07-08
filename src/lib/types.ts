@@ -101,7 +101,8 @@ export type CreateGridResult =
         | "invalid_tile_shape"
         | "shape_requires_premium"
         | "invalid_reset_days"
-        | "too_many_active_grids";
+        | "too_many_active_grids"
+        | "title_required";
     };
 
 // One active grid as served to the play page. Contains no reward positions —
@@ -109,14 +110,24 @@ export type CreateGridResult =
 export interface PublicGrid {
   id: string;
   title: string | null;
+  description: string | null;
   imageUrl: string | null;
   tileShape: TileShape;
   rows: number;
   cols: number;
   revealed: { row: number; col: number; hit: boolean }[];
   rewardsRemaining: number;
-  // What's hidden in this grid, for the welcome popup (no positions).
-  rewardsInfo: { description: string; details: string | null }[];
+  // What's hidden in this grid, for the welcome popup and the rewards strip
+  // under the board (no positions).
+  rewardsInfo: { description: string; details: string | null; icon: string | null }[];
+  // Latest taps on this grid (current cycle), newest first, emails masked —
+  // shown as a live-activity ticker on the play page.
+  recentActivity: {
+    maskedEmail: string;
+    hit: boolean;
+    description: string | null;
+    at: string;
+  }[];
   // Set while the grid rests after completion; resetsAt is when it revives.
   completedAt: string | null;
   resetsAt: string | null;
@@ -219,6 +230,7 @@ export interface RewardTemplate {
   id: string;
   description: string;
   details: string | null;
+  icon: string | null;
   default_expiry_days: number;
   created_at: string;
 }

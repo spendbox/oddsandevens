@@ -171,6 +171,21 @@
     opacity: 0;
   }
 }
+/* Case-study card: profit bars grow up, hold, then breathe back. */
+@keyframes grow-bar {
+  0% {
+    transform: scaleY(0.06);
+  }
+  16% {
+    transform: scaleY(1);
+  }
+  84% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0.06);
+  }
+}
 @keyframes swipe-hint {
   0%,
   100% {

@@ -17,6 +17,7 @@ import {
   Star,
   Target,
   Trophy,
+  Utensils,
   X,
 } from "lucide-react";
 
@@ -74,6 +75,7 @@ const FEATURES = [
 
 const SECTIONS = [
   { id: "hero", label: "Spendbox" },
+  { id: "story", label: "Amara's story" },
   { id: "step-1", label: "Hide your rewards" },
   { id: "step-2", label: "Share one link" },
   { id: "step-3", label: "Watch them come back" },
@@ -469,7 +471,102 @@ export default function LandingPage() {
         <SwipeHint />
       </Deck>
 
-      {/* Cards 2–4 — How it works, one card per step */}
+      {/* Card 2 — Case study: a food business selling loyalty rewards */}
+      <Deck id="story">
+        <FlipCard className="flex justify-center">
+          <div className="card relative w-full max-w-lg overflow-hidden p-8 text-center sm:p-10">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -right-4 -top-12 select-none text-[11rem] font-black leading-none text-emerald-500/[0.06]"
+            >
+              ×
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
+              <Utensils className="size-3" aria-hidden />
+              Real-world play
+            </span>
+
+            <p className="mt-6 text-6xl font-extrabold tracking-tight sm:text-7xl">
+              <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
+                3.5×
+              </span>
+            </p>
+            <p className="mt-1 text-sm font-semibold uppercase tracking-[0.16em] text-zinc-400">
+              profit in one month
+            </p>
+
+            {/* Before / after profit bars */}
+            <div
+              className="mx-auto mt-7 flex h-36 items-end justify-center gap-10"
+              aria-hidden
+            >
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex h-28 items-end">
+                  <div
+                    className="w-14 origin-bottom rounded-t-xl bg-zinc-200"
+                    style={{
+                      height: "28%",
+                      animation: "grow-bar 7s ease-in-out infinite",
+                    }}
+                  />
+                </div>
+                <span className="text-[11px] font-medium text-zinc-400">
+                  Before
+                </span>
+              </div>
+              <div className="relative flex flex-col items-center gap-2">
+                <span
+                  className="absolute -right-9 -top-1 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[11px] font-bold text-emerald-600 shadow-md"
+                  style={{ animation: "float-slow 4s ease-in-out infinite" }}
+                >
+                  +250%
+                </span>
+                <div className="flex h-28 items-end">
+                  <div
+                    className="w-14 origin-bottom rounded-t-xl bg-gradient-to-t from-emerald-600 to-teal-400"
+                    style={{
+                      height: "100%",
+                      animation: "grow-bar 7s ease-in-out 0.25s infinite",
+                    }}
+                  />
+                </div>
+                <span className="text-[11px] font-semibold text-emerald-700">
+                  With Spendbox
+                </span>
+              </div>
+            </div>
+
+            <p className="mx-auto mt-7 max-w-md text-sm leading-relaxed text-zinc-600 sm:text-base">
+              Amara runs a jollof kitchen in Lagos. She hid free plates and
+              10%-off rewards in a Spendbox grid, put the link on every
+              takeaway receipt, and let customers play after each meal. Misses
+              earned loyalty points toward discounts, wins were meals — and her
+              regulars came back all month to keep their streaks.
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-zinc-500">
+              <span className="flex items-center gap-1.5">
+                <Trophy className="size-3.5 text-emerald-600" aria-hidden />
+                4× repeat visits
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Star
+                  className="size-3.5 fill-amber-400 text-amber-400"
+                  aria-hidden
+                />
+                31 days
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Link2 className="size-3.5 text-emerald-600" aria-hidden />1
+                shared link
+              </span>
+            </div>
+          </div>
+        </FlipCard>
+        <SwipeHint />
+      </Deck>
+
+      {/* Cards 3–5 — How it works, one card per step */}
       {STEPS.map((_, i) => (
         <Deck key={i} id={`step-${i + 1}`}>
           <FlipCard className="flex justify-center">
@@ -549,7 +646,7 @@ export default function LandingPage() {
                   </span>
                 </p>
                 <p className="mt-2 text-sm text-zinc-600">
-                  Up to 10 grids, 10 rewards each, custom puzzle images, and
+                  Unlimited grids, 10 rewards each, custom puzzle images, and
                   interlocking tiles. Top up any time — on any plan.
                 </p>
               </div>
