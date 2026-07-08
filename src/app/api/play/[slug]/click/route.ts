@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { sendMerchantHitEmail, sendRewardUnlockedEmail } from "@/lib/email";
+import {
+  sendLoyaltyUnlockedEmail,
+  sendMerchantHitEmail,
+  sendRewardUnlockedEmail,
+} from "@/lib/email";
 import { EMAIL_REGEX } from "@/lib/constants";
 import { clientIpHash } from "@/lib/ip";
 import type { PlayResult } from "@/lib/types";
@@ -51,34 +55,68 @@ export async function POST(
 
   const result = data as PlayResult;
 
-  if (result.result === "hit") {
-    // Emails are best-effort; failures are logged inside the helpers and never
-    // affect the already-committed game result.
+  // Emails are best-effort; failures are logged inside the helpers and never
+  // affect the already-committed game result.
+  if (result.result === "hit" || result.result === "miss") {
     const { data: merchant } = await db
       .from("merchants")
-      .select("owner_id, business_name")
+      .select("id, owner_id, business_name, discount_percent, points_per_discount")
       .eq("slug", slug.toLowerCase())
       .single();
     const businessName = merchant?.business_name ?? "the merchant";
 
-    await sendRewardUnlockedEmail({
-      to: email,
-      businessName,
-      slug: slug.toLowerCase(),
-      description: result.description,
-      code: result.code,
-      expiresAt: result.expires_at,
-    });
+    if (result.result === "hit") {
+      await sendRewardUnlockedEmail({
+        to: email,
+        businessName,
+        slug: slug.toLowerCase(),
+        description: result.description,
+        code: result.code,
+        expiresAt: result.expires_at,
+      });
 
-    if (merchant) {
-      const { data: owner } = await db.auth.admin.getUserById(merchant.owner_id);
-      if (owner?.user?.email) {
-        await sendMerchantHitEmail({
-          to: owner.user.email,
-          businessName,
-          description: result.description,
-          customerEmail: email,
-        });
+      if (merchant) {
+        const { data: owner } = await db.auth.admin.getUserById(
+          merchant.owner_id
+        );
+        if (owner?.user?.email) {
+          await sendMerchantHitEmail({
+            to: owner.user.email,
+            businessName,
+            description: result.description,
+            customerEmail: email,
+          });
+        }
+      }
+    } else if (
+      merchant &&
+      merchant.points_per_discount > 0 &&
+      result.loyalty_points > 0 &&
+      result.loyalty_points % merchant.points_per_discount === 0
+    ) {
+      // This miss just completed a fresh discount cycle — the loyalty code is
+      // now redeemable, so let the customer know with their code.
+      const { data: cust } = await db
+        .from("customers")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+      if (cust) {
+        const { data: cms } = await db
+          .from("customer_merchant_state")
+          .select("loyalty_code")
+          .eq("customer_id", cust.id)
+          .eq("merchant_id", merchant.id)
+          .maybeSingle();
+        if (cms?.loyalty_code) {
+          await sendLoyaltyUnlockedEmail({
+            to: email,
+            businessName,
+            slug: slug.toLowerCase(),
+            discountPercent: merchant.discount_percent,
+            code: cms.loyalty_code,
+          });
+        }
       }
     }
   }

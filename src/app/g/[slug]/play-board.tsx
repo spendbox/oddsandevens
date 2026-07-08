@@ -93,6 +93,11 @@ export default function PlayBoard({ slug }: { slug: string }) {
   const [busy, setBusy] = useState(false);
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  // Email is only requested on the first tile tap by a not-logged-in visitor.
+  const [emailPrompt, setEmailPrompt] = useState(false);
+  const [pendingTile, setPendingTile] = useState<{ row: number; col: number } | null>(
+    null
+  );
   const [lastMiss, setLastMiss] = useState<{
     gridId: string;
     row: number;
@@ -197,15 +202,23 @@ export default function PlayBoard({ slug }: { slug: string }) {
     return map;
   }, [grid]);
 
-  async function clickTile(row: number, col: number) {
-    if (!email || busy || cooldownLeft || !grid || gridResting) return;
+  async function clickTile(row: number, col: number, emailArg?: string) {
+    if (busy || cooldownLeft || !grid || gridResting) return;
+    const useEmail = emailArg ?? email;
+    // Not logged in yet: ask for an email now (only on the first tap), remember
+    // which tile they wanted, and play it once they've entered one.
+    if (!useEmail) {
+      setPendingTile({ row, col });
+      setEmailPrompt(true);
+      return;
+    }
     setBusy(true);
     setFlash(null);
     try {
       const res = await fetch(`/api/play/${slug}/click`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, gridId: grid.id, row, col }),
+        body: JSON.stringify({ email: useEmail, gridId: grid.id, row, col }),
       });
       const result = (await res.json()) as PlayResult;
       if (result.result === "hit") {
@@ -296,52 +309,6 @@ export default function PlayBoard({ slug }: { slug: string }) {
       <main className="flex min-h-screen items-center justify-center text-zinc-400">
         {splash}
         <span className="animate-pulse">Loading board…</span>
-      </main>
-    );
-  }
-
-  if (!email) {
-    return (
-      <main
-        className="flex min-h-screen items-center justify-center p-6"
-        style={brandStyle}
-      >
-        {splash}
-        <form
-          className="card animate-fade-up w-full max-w-sm p-6 sm:p-8"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const value = emailInput.trim().toLowerCase();
-            if (!EMAIL_REGEX.test(value)) {
-              setFlash("Enter a valid email address.");
-              return;
-            }
-            window.localStorage.setItem(EMAIL_STORAGE_KEY, value);
-            setEmail(value);
-            setFlash(null);
-          }}
-        >
-          <BusinessMark board={board} size="lg" />
-          <p className="mt-3 text-sm leading-relaxed text-zinc-500">
-            {board.tagline ?? "Tap a tile, win a reward."} Enter your email so
-            we can send you your redemption code if you hit one.
-          </p>
-          <label className="mt-5 block">
-            <span className="field-label">Email</span>
-            <input
-              type="email"
-              required
-              placeholder="you@example.com"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              className="input-field"
-            />
-          </label>
-          {flash && <p className="alert-error mt-3">{flash}</p>}
-          <button type="submit" className="btn-primary mt-5 w-full">
-            Start hunting
-          </button>
-        </form>
       </main>
     );
   }
@@ -488,21 +455,32 @@ export default function PlayBoard({ slug }: { slug: string }) {
         )}
 
         <footer className="mt-10 text-center text-xs text-zinc-400">
-          Playing as {email} ·{" "}
-          <Link href="/me" className="underline transition hover:text-zinc-600">
-            my rewards
-          </Link>{" "}
-          ·{" "}
-          <button
-            className="cursor-pointer underline transition hover:text-zinc-600"
-            onClick={() => {
-              window.localStorage.removeItem(EMAIL_STORAGE_KEY);
-              setEmail(null);
-              setMe(null);
-            }}
-          >
-            switch email
-          </button>
+          {email ? (
+            <>
+              Playing as {email} ·{" "}
+              <Link href="/me" className="underline transition hover:text-zinc-600">
+                my rewards
+              </Link>{" "}
+              ·{" "}
+              <button
+                className="cursor-pointer underline transition hover:text-zinc-600"
+                onClick={() => {
+                  window.localStorage.removeItem(EMAIL_STORAGE_KEY);
+                  setEmail(null);
+                  setMe(null);
+                }}
+              >
+                switch email
+              </button>
+            </>
+          ) : (
+            <>
+              Tap a tile to start ·{" "}
+              <Link href="/me" className="underline transition hover:text-zinc-600">
+                my rewards
+              </Link>
+            </>
+          )}
         </footer>
       </div>
 
@@ -517,7 +495,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
         />
       )}
 
-      {showWelcome && !reveal && grid && (
+      {showWelcome && !reveal && !emailPrompt && grid && (
         <WelcomeModal
           board={board}
           grid={grid}
@@ -527,6 +505,56 @@ export default function PlayBoard({ slug }: { slug: string }) {
             setShowWelcome(false);
           }}
         />
+      )}
+
+      {emailPrompt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
+          style={brandStyle}
+          onClick={() => setEmailPrompt(false)}
+        >
+          <form
+            className="animate-pop-in card w-full max-w-sm p-6 sm:p-7"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const value = emailInput.trim().toLowerCase();
+              if (!EMAIL_REGEX.test(value)) {
+                setFlash("Enter a valid email address.");
+                return;
+              }
+              window.localStorage.setItem(EMAIL_STORAGE_KEY, value);
+              setEmail(value);
+              setFlash(null);
+              setEmailPrompt(false);
+              const tile = pendingTile;
+              setPendingTile(null);
+              if (tile) clickTile(tile.row, tile.col, value);
+            }}
+          >
+            <BusinessMark board={board} size="lg" />
+            <p className="mt-3 text-sm leading-relaxed text-zinc-500">
+              Enter your email so we can send your redemption code if you win —
+              then your tile flips right away.
+            </p>
+            <label className="mt-5 block">
+              <span className="field-label">Email</span>
+              <input
+                type="email"
+                required
+                autoFocus
+                placeholder="you@example.com"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                className="input-field"
+              />
+            </label>
+            {flash && <p className="alert-error mt-3">{flash}</p>}
+            <button type="submit" className="btn-primary mt-5 w-full">
+              Reveal my tile
+            </button>
+          </form>
+        </div>
       )}
     </main>
   );

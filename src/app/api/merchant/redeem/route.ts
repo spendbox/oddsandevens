@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAuthedMerchant } from "@/lib/merchant-auth";
+import { sendRewardRedeemedEmail } from "@/lib/email";
 import type { LoyaltyRedeemResult, RedeemResult } from "@/lib/types";
 
 // Staff redemption, step 2 (step 1 is /api/merchant/redeem/lookup): confirm
@@ -46,6 +47,23 @@ export async function POST(req: Request) {
   }
 
   const result = data as LoyaltyRedeemResult | RedeemResult;
+
+  // Notify the customer that their gift was redeemed (best-effort).
+  if (
+    kind === "code" &&
+    result.result === "redeemed" &&
+    "reward_type" in result &&
+    result.reward_type === "tile" &&
+    result.customer_email
+  ) {
+    await sendRewardRedeemedEmail({
+      to: result.customer_email,
+      businessName: merchant.business_name,
+      slug: merchant.slug,
+      description: result.description,
+    });
+  }
+
   const status =
     result.result !== "error"
       ? 200
