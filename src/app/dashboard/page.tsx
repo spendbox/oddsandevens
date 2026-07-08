@@ -161,6 +161,7 @@ export default function DashboardPage() {
         "payment_ref"
       );
       let outcome: string | null = null;
+      let payError: string | null = null;
       if (ref) {
         const res = await fetch("/api/merchant/upgrade/verify", {
           method: "POST",
@@ -168,7 +169,8 @@ export default function DashboardPage() {
           body: JSON.stringify({ reference: ref }),
         });
         const body = await res.json().catch(() => null);
-        outcome = res.ok ? (body?.result as string) : null;
+        outcome = (body?.result as string) ?? null;
+        payError = (body?.error as string) ?? null;
         window.history.replaceState(null, "", "/dashboard");
       }
       const snap = await fetchAll();
@@ -184,9 +186,11 @@ export default function DashboardPage() {
             ? "Payment confirmed — your Premium year is active! 🎉"
             : outcome === "topped_up"
               ? "Payment confirmed — your extra taps are ready! 🎉"
-              : "We couldn't confirm that payment. If you were charged, contact support."
+              : payError === "payment_pending"
+                ? "Payment received — we're confirming it now. Your account updates automatically the moment it clears."
+                : "We couldn't confirm that payment yet. If you were charged, it's applied automatically once it clears."
         );
-        if (outcome) setTab("plans");
+        setTab("plans");
       }
     };
     verifyThenLoad();
