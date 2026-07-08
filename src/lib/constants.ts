@@ -39,6 +39,8 @@ export const TILE_SHAPES = [
   "square",
   "interlock-sharp",
   "interlock-curved",
+  "interlock-round",
+  "interlock-chevron",
 ] as const;
 export type TileShape = (typeof TILE_SHAPES)[number];
 

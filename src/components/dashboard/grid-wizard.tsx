@@ -23,12 +23,14 @@ import {
 import type { LibraryImage, RewardTemplate } from "@/lib/types";
 import {
   allEdgeCombos,
+  chevronClipPolygon,
   curvedPathD,
   edgesFor,
   edgesKey,
   interlockSliceStyle,
   isOutTile,
   sharpClipPolygon,
+  usesSvgClip,
   type TileEdges,
 } from "@/lib/tile-shapes";
 
@@ -38,6 +40,8 @@ const SHAPE_LABELS: Record<TileShape, string> = {
   square: "Square",
   "interlock-sharp": "Interlock · sharp",
   "interlock-curved": "Interlock · curved",
+  "interlock-round": "Interlock · round",
+  "interlock-chevron": "Interlock · chevron",
 };
 
 // A fully interior tile (tabs on every edge) for the shape picker preview.
@@ -77,14 +81,18 @@ function GridPreview({
   // A few tiles shown "revealed" so the puzzle-image effect is visible.
   const revealedCells = imageUrl ? sampleCells(10, 11) : new Set<number>();
 
-  const curvedCombos =
-    tileShape === "interlock-curved" ? allEdgeCombos(GRID_SIZE, GRID_SIZE) : [];
+  const curvedCombos = usesSvgClip(tileShape)
+    ? allEdgeCombos(GRID_SIZE, GRID_SIZE)
+    : [];
 
   function clipStyle(row: number, col: number): React.CSSProperties {
     if (!interlock) return {};
     const edges = edgesFor(row, col, GRID_SIZE, GRID_SIZE);
     if (tileShape === "interlock-sharp") {
       return { clipPath: sharpClipPolygon(edges) };
+    }
+    if (tileShape === "interlock-chevron") {
+      return { clipPath: chevronClipPolygon(edges) };
     }
     return { clipPath: `url(#wizprev-${edgesKey(edges)})` };
   }
@@ -101,7 +109,7 @@ function GridPreview({
                 id={`wizprev-${edgesKey(edges)}`}
                 clipPathUnits="objectBoundingBox"
               >
-                <path d={curvedPathD(edges)} />
+                <path d={curvedPathD(edges, tileShape)} />
               </clipPath>
             ))}
           </defs>
@@ -184,18 +192,19 @@ function ShapePreview({ shape }: { shape: TileShape }) {
   if (shape === "square") {
     return <span className="block size-9 rounded-md bg-emerald-500" aria-hidden />;
   }
-  const d =
-    shape === "interlock-curved"
-      ? curvedPathD(PREVIEW_EDGES)
-      : // The polygon helper emits CSS syntax; strip it back to SVG points.
-        undefined;
+  // Curved family draws an SVG path; sharp family a polygon (CSS syntax stripped
+  // back to SVG points).
+  const isCurved = shape === "interlock-curved" || shape === "interlock-round";
   return (
     <svg viewBox="0 0 1 1" className="size-9 text-emerald-500" aria-hidden>
-      {shape === "interlock-curved" ? (
-        <path d={d} fill="currentColor" />
+      {isCurved ? (
+        <path d={curvedPathD(PREVIEW_EDGES, shape)} fill="currentColor" />
       ) : (
         <polygon
-          points={sharpClipPolygon(PREVIEW_EDGES)
+          points={(shape === "interlock-chevron"
+            ? chevronClipPolygon(PREVIEW_EDGES)
+            : sharpClipPolygon(PREVIEW_EDGES)
+          )
             .replace(/^polygon\(/, "")
             .replace(/\)$/, "")
             .split(", ")

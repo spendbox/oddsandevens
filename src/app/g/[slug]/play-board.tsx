@@ -32,12 +32,14 @@ import type {
 } from "@/lib/types";
 import {
   allEdgeCombos,
+  chevronClipPolygon,
   curvedPathD,
   edgesFor,
   edgesKey,
   interlockSliceStyle,
   isOutTile,
   sharpClipPolygon,
+  usesSvgClip,
 } from "@/lib/tile-shapes";
 
 const EMAIL_STORAGE_KEY = "tilehunt_email";
@@ -947,13 +949,12 @@ function TileGrid({
   resting: boolean;
   onTileClick: (row: number, col: number) => void;
 }) {
-  const interlock =
-    grid.tileShape === "interlock-sharp" || grid.tileShape === "interlock-curved";
+  const interlock = grid.tileShape !== "square";
 
-  // One SVG clipPath per distinct silhouette on this board (curved only).
+  // One SVG clipPath per distinct silhouette on this board (curved family only).
   const curvedCombos = useMemo(
     () =>
-      grid.tileShape === "interlock-curved"
+      usesSvgClip(grid.tileShape)
         ? allEdgeCombos(grid.rows, grid.cols)
         : [],
     [grid.tileShape, grid.rows, grid.cols]
@@ -963,6 +964,9 @@ function TileGrid({
     const edges = edgesFor(row, col, grid.rows, grid.cols);
     if (grid.tileShape === "interlock-sharp") {
       return { clipPath: sharpClipPolygon(edges) };
+    }
+    if (grid.tileShape === "interlock-chevron") {
+      return { clipPath: chevronClipPolygon(edges) };
     }
     return { clipPath: `url(#jig-${grid.id}-${edgesKey(edges)})` };
   }
@@ -995,7 +999,7 @@ function TileGrid({
                 id={`jig-${grid.id}-${edgesKey(edges)}`}
                 clipPathUnits="objectBoundingBox"
               >
-                <path d={curvedPathD(edges)} />
+                <path d={curvedPathD(edges, grid.tileShape)} />
               </clipPath>
             ))}
           </defs>
