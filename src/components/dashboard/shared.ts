@@ -45,6 +45,7 @@ export interface Snapshot {
   customers: CustomerSummary[];
   stats: MerchantStats | null;
   plan: MerchantPlan | null;
+  hasReward: boolean;
   // Set when the merchant query itself failed (e.g. schema out of date) —
   // never show onboarding in that case, the merchant may well exist.
   loadError: string | null;

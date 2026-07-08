@@ -367,6 +367,7 @@ export default function AdminPage() {
                 type="number"
                 min={100}
                 step="any"
+                onFocus={(e) => e.currentTarget.select()}
                 value={priceNaira}
                 onChange={(e) => setPriceNaira(e.target.value)}
                 className="input-field w-full"
@@ -379,6 +380,7 @@ export default function AdminPage() {
                 type="number"
                 min={10}
                 step="any"
+                onFocus={(e) => e.currentTarget.select()}
                 value={topupPriceNaira}
                 onChange={(e) => setTopupPriceNaira(e.target.value)}
                 className="input-field w-full"
@@ -391,6 +393,7 @@ export default function AdminPage() {
                 type="number"
                 min={0}
                 step="any"
+                onFocus={(e) => e.currentTarget.select()}
                 value={freePlays}
                 onChange={(e) => setFreePlays(e.target.value)}
                 className="input-field w-full"
@@ -403,6 +406,7 @@ export default function AdminPage() {
                 type="number"
                 min={0}
                 step="any"
+                onFocus={(e) => e.currentTarget.select()}
                 value={premiumPlays}
                 onChange={(e) => setPremiumPlays(e.target.value)}
                 className="input-field w-full"

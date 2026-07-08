@@ -244,6 +244,7 @@ export function BrandSettings({
             min={1}
             max={100}
             value={pointsPerDiscount}
+            onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => setPointsPerDiscount(Number(e.target.value))}
             className="input-field w-20"
             aria-label="Points required"
@@ -254,6 +255,7 @@ export function BrandSettings({
             min={1}
             max={100}
             value={discountPercent}
+            onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => setDiscountPercent(Number(e.target.value))}
             className="input-field w-20"
             aria-label="Discount percent"
