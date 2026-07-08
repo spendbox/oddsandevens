@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Check,
   Copy,
+  Gift,
   Grid3x3,
   HelpCircle,
   Palette,
@@ -14,7 +15,7 @@ import { DEFAULT_POINTS_PER_DISCOUNT } from "@/lib/constants";
 import type { Merchant } from "./shared";
 
 interface Step {
-  key: "grid" | "brand" | "share";
+  key: "reward" | "grid" | "brand" | "share";
   title: string;
   description: string;
   done: boolean;
@@ -32,12 +33,16 @@ function sharedKey(merchantId: string) {
 // steps are done or the merchant dismisses it.
 export function GettingStarted({
   merchant,
+  hasReward,
   hasGrid,
+  onCreateReward,
   onCreateGrid,
   onOpenSettings,
 }: {
   merchant: Merchant;
+  hasReward: boolean;
   hasGrid: boolean;
+  onCreateReward: () => void;
   onCreateGrid: () => void;
   onOpenSettings: () => void;
 }) {
@@ -61,15 +66,28 @@ export function GettingStarted({
 
   const steps: Step[] = [
     {
+      key: "reward",
+      title: "Create a reward",
+      description: "Add something worth winning — e.g. a free drink.",
+      done: hasReward,
+      actionLabel: "Add reward",
+      icon: <Gift className="size-4" aria-hidden />,
+      tutorial: [
+        "Open Build → Rewards and add the prizes you want to give away (e.g. \"Free plate of jollof\").",
+        "Set how long each reward stays valid once a customer wins it.",
+        "You'll pick from these rewards when you build a grid, so create them first.",
+      ],
+    },
+    {
       key: "grid",
       title: "Create your first grid",
-      description: "Hide rewards under 49 tiles for customers to hunt.",
+      description: "Hide your rewards under 49 tiles for customers to hunt.",
       done: hasGrid,
       actionLabel: "Create grid",
       icon: <Grid3x3 className="size-4" aria-hidden />,
       tutorial: [
         "A grid is a 7×7 board of hidden tiles. Customers tap one tile per visit.",
-        "Add 1-2 rewards (e.g. \"Free drink\") and choose how many winners each has — the rest of the tiles earn loyalty points instead.",
+        "Pick which of your rewards to hide and how many winning tiles each gets — the rest of the tiles earn loyalty points instead.",
         "Rewards land on random tiles server-side, so nobody (not even you) knows where they are.",
       ],
     },
@@ -105,7 +123,8 @@ export function GettingStarted({
   if (remaining === 0) return null;
 
   async function act(step: Step) {
-    if (step.key === "grid") onCreateGrid();
+    if (step.key === "reward") onCreateReward();
+    else if (step.key === "grid") onCreateGrid();
     else if (step.key === "brand") onOpenSettings();
     else {
       await navigator.clipboard.writeText(shareUrl);
@@ -124,7 +143,7 @@ export function GettingStarted({
           Getting started
         </h2>
         <p className="mt-0.5 text-xs text-zinc-500">
-          {steps.length - remaining} of {steps.length} done — three quick steps
+          {steps.length - remaining} of {steps.length} done — a few quick steps
           and you&apos;re live.
         </p>
       </div>

@@ -53,6 +53,21 @@ export function RewardsManager() {
 
   async function save() {
     if (!draft) return;
+    // Validate client-side so a filled-in form never trips the generic error.
+    if (!draft.description.trim()) {
+      setError("Give your reward a name.");
+      return;
+    }
+    if (
+      !Number.isInteger(draft.defaultExpiryDays) ||
+      draft.defaultExpiryDays < REWARD_EXPIRY_DAYS_MIN ||
+      draft.defaultExpiryDays > REWARD_EXPIRY_DAYS_MAX
+    ) {
+      setError(
+        `Validity must be a whole number of days between ${REWARD_EXPIRY_DAYS_MIN} and ${REWARD_EXPIRY_DAYS_MAX}.`
+      );
+      return;
+    }
     setBusy(true);
     setError(null);
     const res = await fetch("/api/merchant/reward-templates", {
@@ -67,7 +82,14 @@ export function RewardsManager() {
     });
     setBusy(false);
     if (!res.ok) {
-      setError("Every reward needs a description and a validity of 1–60 days.");
+      const body = await res.json().catch(() => null);
+      // A 500 here almost always means the reward_templates table is missing —
+      // i.e. the latest DB migrations haven't been applied yet.
+      setError(
+        res.status >= 500 || body?.error === "internal"
+          ? "Couldn't save — your database is missing the rewards table. Apply the latest migrations (supabase/migrations, incl. 0009), then try again."
+          : "Every reward needs a description and a validity of 1–60 days."
+      );
       return;
     }
     setDraft(null);
@@ -128,11 +150,13 @@ export function RewardsManager() {
                 type="number"
                 min={REWARD_EXPIRY_DAYS_MIN}
                 max={REWARD_EXPIRY_DAYS_MAX}
-                value={draft.defaultExpiryDays}
+                value={Number.isNaN(draft.defaultExpiryDays) ? "" : draft.defaultExpiryDays}
+                onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
-                    defaultExpiryDays: Number(e.target.value),
+                    defaultExpiryDays:
+                      e.target.value === "" ? NaN : Number(e.target.value),
                   })
                 }
                 className="input-field w-24"

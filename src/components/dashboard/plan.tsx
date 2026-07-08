@@ -114,10 +114,11 @@ export function PlansPanel({
 
   const premium = tier === "premium";
   const lapsed = !premium && premiumExpiresAt !== null;
-  const topupCostKobo = Math.max(
-    1,
-    Math.round((qty / 1000) * plan.topupPricePer1000Kobo)
-  );
+  const qtyValid =
+    Number.isInteger(qty) && qty >= TOPUP_MIN_PLAYS && qty <= TOPUP_MAX_PLAYS;
+  const topupCostKobo = qtyValid
+    ? Math.max(1, Math.round((qty / 1000) * plan.topupPricePer1000Kobo))
+    : 0;
 
   async function buyTopup() {
     setBusyTopup(true);
@@ -223,25 +224,25 @@ export function PlansPanel({
               min={TOPUP_MIN_PLAYS}
               max={TOPUP_MAX_PLAYS}
               step={1}
-              value={qty}
-              onChange={(e) => setQty(Math.floor(Number(e.target.value)))}
+              value={Number.isNaN(qty) ? "" : qty}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) =>
+                setQty(
+                  e.target.value === "" ? NaN : Math.floor(Number(e.target.value))
+                )
+              }
               className="input-field w-40"
             />
           </label>
           <div className="pb-1">
             <p className="text-xs text-zinc-500">Cost</p>
             <p className="text-lg font-semibold text-zinc-900">
-              {naira(topupCostKobo)}
+              {qtyValid ? naira(topupCostKobo) : "—"}
             </p>
           </div>
           <button
             onClick={buyTopup}
-            disabled={
-              busyTopup ||
-              !plan.paymentsEnabled ||
-              qty < TOPUP_MIN_PLAYS ||
-              qty > TOPUP_MAX_PLAYS
-            }
+            disabled={busyTopup || !plan.paymentsEnabled || !qtyValid}
             className="btn-primary"
             title={plan.paymentsEnabled ? undefined : "Payments not configured"}
           >

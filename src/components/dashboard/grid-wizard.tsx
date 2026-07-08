@@ -652,6 +652,7 @@ export function GridWizard({
                             min={1}
                             max={GRID_SIZE * GRID_SIZE}
                             value={winners[t.id]}
+                            onFocus={(e) => e.currentTarget.select()}
                             onChange={(e) =>
                               setWinnerCount(t.id, Number(e.target.value))
                             }

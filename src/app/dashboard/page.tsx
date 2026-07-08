@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [stats, setStats] = useState<MerchantStats | null>(null);
   const [plan, setPlan] = useState<MerchantPlan | null>(null);
+  const [hasReward, setHasReward] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("home");
   const [buildSub, setBuildSub] = useState<BuildSub>("grids");
@@ -74,6 +75,7 @@ export default function DashboardPage() {
       customers: [],
       stats: null,
       plan: null,
+      hasReward: false,
       loadError: null,
     };
 
@@ -94,7 +96,7 @@ export default function DashboardPage() {
     snap.merchant = m as Merchant | null;
     if (!m) return snap;
 
-    const [{ data: u }, customersRes, gridsRes, statsRes, planRes] =
+    const [{ data: u }, customersRes, gridsRes, statsRes, planRes, rewardsRes] =
       await Promise.all([
         supabase
           .from("unlocked_rewards")
@@ -112,6 +114,9 @@ export default function DashboardPage() {
         ),
         fetch("/api/merchant/stats").then((res) => (res.ok ? res.json() : null)),
         fetch("/api/merchant/plan").then((res) => (res.ok ? res.json() : null)),
+        fetch("/api/merchant/reward-templates").then((res) =>
+          res.ok ? res.json() : { rewards: [] }
+        ),
       ]);
     const now = Date.now();
     snap.unlocks = ((u as unknown as Omit<UnlockRow, "isExpired">[]) ?? []).map(
@@ -121,6 +126,7 @@ export default function DashboardPage() {
     snap.grids = (gridsRes?.grids as GridStats[]) ?? [];
     snap.stats = (statsRes as MerchantStats | null) ?? null;
     snap.plan = (planRes as MerchantPlan | null) ?? null;
+    snap.hasReward = ((rewardsRes?.rewards as unknown[]) ?? []).length > 0;
     return snap;
   }, []);
 
@@ -131,6 +137,7 @@ export default function DashboardPage() {
     setCustomers(snap.customers);
     setStats(snap.stats);
     setPlan(snap.plan);
+    setHasReward(snap.hasReward);
     setLoadError(snap.loadError);
     setLoading(false);
   }, []);
@@ -287,7 +294,12 @@ export default function DashboardPage() {
               <div className="mt-6 space-y-6">
                 <GettingStarted
                   merchant={merchant}
+                  hasReward={hasReward}
                   hasGrid={grids.length > 0}
+                  onCreateReward={() => {
+                    setTab("build");
+                    setBuildSub("rewards");
+                  }}
                   onCreateGrid={openWizard}
                   onOpenSettings={() => setTab("settings")}
                 />
