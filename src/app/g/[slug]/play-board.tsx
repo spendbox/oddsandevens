@@ -100,6 +100,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
   const [pendingTile, setPendingTile] = useState<{ row: number; col: number } | null>(
     null
   );
+  const [cooldownPopup, setCooldownPopup] = useState(false);
   const [lastMiss, setLastMiss] = useState<{
     gridId: string;
     row: number;
@@ -211,7 +212,12 @@ export default function PlayBoard({ slug }: { slug: string }) {
   }
 
   async function clickTile(row: number, col: number, emailArg?: string) {
-    if (busy || cooldownLeft || !grid || gridResting) return;
+    if (busy || !grid || gridResting) return;
+    // On cooldown: explain why the tile won't turn over instead of doing nothing.
+    if (cooldownLeft) {
+      setCooldownPopup(true);
+      return;
+    }
     const useEmail = emailArg ?? email;
     // Not logged in yet: ask for an email + verification now (only on the first
     // tap), remember which tile they wanted, and play it once verified.
@@ -452,8 +458,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
             grid={grid}
             revealedMap={revealedMap}
             lastMiss={lastMiss}
-            disabled={busy || !!cooldownLeft || gridResting}
-            cooldown={!!cooldownLeft && !gridResting}
+            disabled={busy || gridResting}
             resting={gridResting}
             onTileClick={clickTile}
           />
@@ -519,6 +524,46 @@ export default function PlayBoard({ slug }: { slug: string }) {
             setShowWelcome(false);
           }}
         />
+      )}
+
+      {cooldownPopup && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
+          style={brandStyle}
+          onClick={() => setCooldownPopup(false)}
+        >
+          <div
+            className="animate-pop-in card w-full max-w-sm p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="mx-auto flex size-14 items-center justify-center rounded-2xl"
+              style={{
+                backgroundColor: "color-mix(in oklab, var(--brand), transparent 85%)",
+                color: "var(--brand)",
+              }}
+            >
+              <Hourglass className="size-7" aria-hidden />
+            </div>
+            <h2 className="mt-4 text-xl font-bold tracking-tight text-zinc-900">
+              One tap per round
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+              You&apos;ve already played recently, so this tile can&apos;t be
+              turned over yet. You can flip your next tile in{" "}
+              <strong className="font-semibold tabular-nums" style={{ color: "var(--brand)" }}>
+                {cooldownLeft ?? "a moment"}
+              </strong>
+              .
+            </p>
+            <button
+              onClick={() => setCooldownPopup(false)}
+              className="btn-primary mt-5 w-full"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
       )}
 
       {emailPrompt && (
@@ -892,7 +937,6 @@ function TileGrid({
   revealedMap,
   lastMiss,
   disabled,
-  cooldown,
   resting,
   onTileClick,
 }: {
@@ -900,7 +944,6 @@ function TileGrid({
   revealedMap: Map<string, boolean>;
   lastMiss: { gridId: string; row: number; col: number } | null;
   disabled: boolean;
-  cooldown: boolean;
   resting: boolean;
   onTileClick: (row: number, col: number) => void;
 }) {
@@ -935,20 +978,9 @@ function TileGrid({
     };
   }
 
-  // Deterministic per-tile "randomness" so cooldown tiles twinkle out of sync.
-  function twinkleStyle(i: number): React.CSSProperties {
-    if (!cooldown) return {};
-    return {
-      "--twinkle-delay": `${(i * 137) % 3000}ms`,
-      "--twinkle-duration": `${2400 + ((i * 97) % 1900)}ms`,
-    } as React.CSSProperties;
-  }
-
-  const liveClasses = cooldown
-    ? "tile-cooldown cursor-not-allowed"
-    : resting
-      ? "cursor-not-allowed bg-zinc-100 ring-1 ring-zinc-200 opacity-70"
-      : interlock
+  const liveClasses = resting
+    ? "cursor-not-allowed bg-zinc-100 ring-1 ring-zinc-200 opacity-70"
+    : interlock
         ? "tile-live tile-live-shaped cursor-pointer hover:brightness-110 active:brightness-95"
         : "tile-live cursor-pointer hover:scale-105 active:scale-95";
 
@@ -1019,9 +1051,9 @@ function TileGrid({
                   onClick={() => onTileClick(row, col)}
                   aria-label={`Tile ${row + 1}, ${col + 1}`}
                   className={
-                    "aspect-square overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-black/5 transition " +
+                    "tile-face aspect-square overflow-hidden rounded-lg bg-zinc-100 transition " +
                     (disabled
-                      ? "cursor-not-allowed opacity-60"
+                      ? "cursor-not-allowed"
                       : "cursor-pointer hover:brightness-105 active:brightness-95")
                   }
                   style={squareSliceStyle(row, col)}
@@ -1057,7 +1089,6 @@ function TileGrid({
                 onClick={() => onTileClick(row, col)}
                 aria-label={`Tile ${row + 1}, ${col + 1}`}
                 className={`aspect-square rounded-lg transition ${liveClasses}`}
-                style={twinkleStyle(i)}
               />
             );
           }
@@ -1149,7 +1180,7 @@ function TileGrid({
                   onClick={() => onTileClick(row, col)}
                   aria-label={`Tile ${row + 1}, ${col + 1}`}
                   className={`absolute transition ${liveClasses}`}
-                  style={{ ...boxStyle, ...twinkleStyle(i) }}
+                  style={boxStyle}
                 />
               )}
             </div>

@@ -243,61 +243,46 @@ body {
     @apply rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700;
   }
 
-  /* Unclicked, playable tile: gradient built from the merchant's brand color. */
+  /* Unclicked, playable tile: a glossy, slightly 3D face built from the
+     merchant's brand color, with a thin white border and a soft drop shadow. */
   .tile-live {
     background-image: linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--brand), white 18%),
-      color-mix(in oklab, var(--brand), black 22%)
+      150deg,
+      color-mix(in oklab, var(--brand), white 26%),
+      color-mix(in oklab, var(--brand), black 28%)
     );
+    border: 1px solid rgb(255 255 255 / 0.7);
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.3),
-      0 2px 6px color-mix(in oklab, var(--brand), transparent 70%);
+      inset 0 1.5px 0 rgb(255 255 255 / 0.55),
+      inset 0 -3px 6px rgb(0 0 0 / 0.18),
+      0 3px 7px rgb(0 0 0 / 0.14);
   }
   .tile-live:hover {
     box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.3),
-      0 0 18px color-mix(in oklab, var(--brand), transparent 55%);
+      inset 0 1.5px 0 rgb(255 255 255 / 0.6),
+      0 0 16px color-mix(in oklab, var(--brand), transparent 55%),
+      0 4px 10px rgb(0 0 0 / 0.16);
+  }
+
+  /* Puzzle-image (or plain) tile face: same thin white border + 3D lift, but
+     no brand gradient (the image or a solid fill shows through). */
+  .tile-face {
+    border: 1px solid rgb(255 255 255 / 0.7);
+    box-shadow:
+      inset 0 1.5px 0 rgb(255 255 255 / 0.4),
+      0 3px 7px rgb(0 0 0 / 0.14);
   }
 
   /* Interlocking (clipped) tiles: clip-path swallows box-shadow, but
      filter: drop-shadow follows the clipped silhouette, so shaped tiles get
      their glow from a drop-shadow instead. */
+  /* Interlocking (clipped) tiles can't show a border, so their 3D lift comes
+     from a drop-shadow that follows the clipped silhouette. */
   .tile-live-shaped {
-    filter: drop-shadow(
-      0 2px 5px color-mix(in oklab, var(--brand), transparent 65%)
-    );
+    filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.22));
   }
   .tile-live-shaped:hover {
-    filter: drop-shadow(
-      0 0 10px color-mix(in oklab, var(--brand), transparent 50%)
-    );
-  }
-
-  /* Tiles locked by the play cooldown twinkle on and off. Each tile gets its
-     own --twinkle-delay / --twinkle-duration so the board sparkles randomly
-     rather than pulsing in unison. Drop-shadow works on clipped shapes too. */
-  .tile-cooldown {
-    background-image: linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--brand), white 60%),
-      color-mix(in oklab, var(--brand), white 40%)
-    );
-    animation: tile-twinkle var(--twinkle-duration, 3s) ease-in-out
-      var(--twinkle-delay, 0s) infinite;
-  }
-}
-
-@keyframes tile-twinkle {
-  0%,
-  100% {
-    opacity: 0.55;
-    filter: none;
-  }
-  50% {
-    opacity: 1;
-    filter: drop-shadow(
-      0 0 9px color-mix(in oklab, var(--brand), transparent 45%)
-    );
+    filter: drop-shadow(0 3px 5px rgb(0 0 0 / 0.28))
+      drop-shadow(0 0 8px color-mix(in oklab, var(--brand), transparent 55%));
   }
 }
