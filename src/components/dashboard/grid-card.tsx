@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Archive, Hourglass, Play, Puzzle } from "lucide-react";
+import { Archive, Hourglass, Play, Puzzle, Trash2 } from "lucide-react";
 import type { GridStats } from "@/lib/types";
 import { formatEta } from "./shared";
 import { RewardMap } from "./reward-map";
@@ -10,10 +10,12 @@ export function GridCard({
   grid,
   busy,
   onSetStatus,
+  onDelete,
 }: {
   grid: GridStats;
   busy: boolean;
   onSetStatus: (id: string, status: "active" | "archived") => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   const [showMap, setShowMap] = useState(false);
   const resting = grid.status === "active" && grid.completedAt !== null;
@@ -100,6 +102,15 @@ export function GridCard({
               {busy ? "…" : "Activate"}
             </button>
           )}
+          <button
+            onClick={() => onDelete(grid.id)}
+            disabled={busy}
+            className="btn-secondary px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50"
+            aria-label="Delete grid"
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+            {busy ? "…" : "Delete"}
+          </button>
         </div>
       </div>
       {showMap && <RewardMap gridId={grid.id} rows={grid.rows} cols={grid.cols} />}

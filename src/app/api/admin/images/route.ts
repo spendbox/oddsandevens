@@ -90,3 +90,42 @@ export async function PATCH(req: Request) {
   }
   return NextResponse.json({ ok: true });
 }
+
+// Remove an image from the library entirely (grids that already use it keep
+// their copy of the URL; the storage object is best-effort deleted).
+export async function DELETE(req: Request) {
+  const admin = await getAdminUser();
+  if (!admin) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const body = await req.json().catch(() => null);
+  const id = String(body?.id ?? "");
+  if (!id) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const db = supabaseAdmin();
+  const { data: img } = await db
+    .from("grid_images")
+    .select("id, url")
+    .eq("id", id)
+    .maybeSingle();
+  if (!img) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  const { error } = await db.from("grid_images").delete().eq("id", img.id);
+  if (error) {
+    console.error("[admin images] delete failed:", error);
+    return NextResponse.json({ error: "internal" }, { status: 500 });
+  }
+
+  // Best-effort storage cleanup: the URL ends with the object path.
+  const marker = "/grid-images/";
+  const idx = img.url.indexOf(marker);
+  if (idx !== -1) {
+    const path = img.url.slice(idx + marker.length);
+    await db.storage.from("grid-images").remove([path]);
+  }
+  return NextResponse.json({ ok: true });
+}

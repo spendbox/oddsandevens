@@ -45,6 +45,25 @@ export function GridsManager({
     await onChanged();
   }
 
+  async function deleteGrid(id: string) {
+    if (
+      !window.confirm(
+        "Delete this grid permanently? Its tiles and rewards are removed. Codes customers already won stay redeemable."
+      )
+    ) {
+      return;
+    }
+    setBusyId(id);
+    setError(null);
+    const res = await fetch(`/api/merchant/grids/${id}`, { method: "DELETE" });
+    setBusyId(null);
+    if (!res.ok) {
+      setError("Couldn't delete that grid.");
+      return;
+    }
+    await onChanged();
+  }
+
   return (
     <section className="card p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -76,6 +95,7 @@ export function GridsManager({
               grid={g}
               busy={busyId === g.id}
               onSetStatus={setStatus}
+              onDelete={deleteGrid}
             />
           ))}
         </ul>

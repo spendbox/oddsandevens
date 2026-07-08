@@ -16,6 +16,7 @@ import type { CreateGridResult } from "@/lib/types";
 
 interface RewardInput {
   description: string;
+  details: string | null;
   expiryDays: number;
   maxRedemptions: number;
 }
@@ -80,11 +81,13 @@ export async function POST(req: Request) {
   const rewards: RewardInput[] = [];
   for (const r of rewardsInput) {
     const description = String(r?.description ?? "").trim();
+    const details = String(r?.details ?? "").trim() || null;
     const expiryDays = Number(r?.expiryDays ?? 2);
     const maxRedemptions = Number(r?.maxRedemptions ?? 1);
     if (
       description.length < 1 ||
       description.length > 200 ||
+      (details !== null && details.length > 300) ||
       !Number.isInteger(expiryDays) ||
       expiryDays < REWARD_EXPIRY_DAYS_MIN ||
       expiryDays > REWARD_EXPIRY_DAYS_MAX ||
@@ -93,7 +96,7 @@ export async function POST(req: Request) {
     ) {
       return NextResponse.json({ error: "invalid_reward" }, { status: 400 });
     }
-    rewards.push({ description, expiryDays, maxRedemptions });
+    rewards.push({ description, details, expiryDays, maxRedemptions });
   }
 
   const totalRewardTiles = rewards.reduce((s, r) => s + r.maxRedemptions, 0);
@@ -149,6 +152,7 @@ export async function POST(req: Request) {
     p_merchant_id: merchant.id,
     p_rewards: rewards.map((r) => ({
       description: r.description,
+      details: r.details,
       expiry_days: r.expiryDays,
       max_redemptions: r.maxRedemptions,
     })),

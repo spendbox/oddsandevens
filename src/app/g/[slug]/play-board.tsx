@@ -39,6 +39,7 @@ import {
 } from "@/lib/tile-shapes";
 
 const EMAIL_STORAGE_KEY = "tilehunt_email";
+const WELCOME_STORAGE_PREFIX = "tilehunt_welcomed_";
 const SPLASH_MS = 1600;
 
 function useCountdown(target: string | null): string | null {
@@ -95,19 +96,27 @@ export default function PlayBoard({ slug }: { slug: string }) {
     row: number;
     col: number;
   } | null>(null);
-  // Splash: shown on top of everything until the board has loaded AND the
-  // minimum splash time has passed.
+  // Splash: a single branded overlay that only starts once the board (and
+  // with it the business logo) has arrived — no generic pre-splash.
   const [splashDone, setSplashDone] = useState(false);
   const [splashLeaving, setSplashLeaving] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
+    if (!board) return;
     const id = setTimeout(() => setSplashLeaving(true), SPLASH_MS);
-    const id2 = setTimeout(() => setSplashDone(true), SPLASH_MS + 500);
+    const id2 = setTimeout(() => {
+      setSplashDone(true);
+      // Welcome popup: once per browser session per business, after the splash.
+      if (!window.sessionStorage.getItem(WELCOME_STORAGE_PREFIX + slug)) {
+        setShowWelcome(true);
+      }
+    }, SPLASH_MS + 500);
     return () => {
       clearTimeout(id);
       clearTimeout(id2);
     };
-  }, []);
+  }, [board, slug]);
 
   // Fetchers are pure (no setState) so effects can apply their results in
   // async callbacks — required by the react-hooks/set-state-in-effect rule.
@@ -222,7 +231,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
   } as React.CSSProperties;
 
   const splash =
-    !splashDone && !loadError ? (
+    board && !splashDone && !loadError ? (
       <div
         className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-white"
         style={{
@@ -232,7 +241,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
         aria-hidden
       >
         <div style={{ animation: "splash-logo 0.9s cubic-bezier(0.34,1.56,0.64,1) both" }}>
-          {board?.logoUrl ? (
+          {board.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- merchant-uploaded, host not known at build time
             <img
               src={board.logoUrl}
@@ -244,22 +253,16 @@ export default function PlayBoard({ slug }: { slug: string }) {
               className="flex size-24 items-center justify-center rounded-3xl text-white shadow-xl"
               style={{ backgroundColor: "var(--brand)" }}
             >
-              {board ? (
-                <Target className="size-12" aria-hidden />
-              ) : (
-                <Puzzle className="size-12" aria-hidden />
-              )}
+              <Target className="size-12" aria-hidden />
             </div>
           )}
         </div>
-        {board && (
-          <p
-            className="mt-4 text-lg font-bold tracking-tight text-zinc-900"
-            style={{ animation: "splash-logo 0.9s 0.15s cubic-bezier(0.34,1.56,0.64,1) both" }}
-          >
-            {board.businessName}
-          </p>
-        )}
+        <p
+          className="mt-4 text-lg font-bold tracking-tight text-zinc-900"
+          style={{ animation: "splash-logo 0.9s 0.15s cubic-bezier(0.34,1.56,0.64,1) both" }}
+        >
+          {board.businessName}
+        </p>
       </div>
     ) : null;
 
@@ -370,6 +373,12 @@ export default function PlayBoard({ slug }: { slug: string }) {
           </div>
         </header>
 
+        <CodesStrip
+          me={me}
+          discountPercent={board.discountPercent}
+          eligible={canRedeemPoints}
+        />
+
         {board.grids.length > 1 && (
           <div className="mt-4 flex items-center gap-2">
             <button
@@ -431,7 +440,6 @@ export default function PlayBoard({ slug }: { slug: string }) {
             <span>
               You can play again in{" "}
               <strong className="font-semibold tabular-nums">{cooldownLeft}</strong>.
-              Loyalty points and codes below stay yours.
             </span>
           </div>
         )}
@@ -451,51 +459,6 @@ export default function PlayBoard({ slug }: { slug: string }) {
           resting={gridResting}
           onTileClick={clickTile}
         />
-
-        {canRedeemPoints && me?.loyaltyCode && (
-          <div className="mt-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-            <BadgePercent className="size-5 shrink-0 text-amber-600" aria-hidden />
-            <p className="text-sm leading-relaxed text-amber-800">
-              You have enough points! Show your{" "}
-              <strong className="font-semibold">loyalty code</strong> below at
-              the counter for {board.discountPercent}% off.
-            </p>
-          </div>
-        )}
-
-        {(me?.loyaltyCode || me?.rewardCode) && (
-          <CodesCard me={me} />
-        )}
-
-        {(me?.codes.length ?? 0) > 0 && (
-          <section className="mt-8">
-            <h2 className="section-title">Your active rewards</h2>
-            <ul className="mt-3 space-y-2">
-              {me!.codes.map((c) => (
-                <li
-                  key={c.code}
-                  className="card flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-zinc-800">
-                      {c.description}
-                    </p>
-                    <p className="mt-0.5 text-xs text-zinc-400">
-                      Expires {new Date(c.expiresAt).toLocaleString()}
-                    </p>
-                  </div>
-                  <span className="rounded-lg border border-[color-mix(in_oklab,var(--brand),transparent_60%)] bg-[color-mix(in_oklab,var(--brand),transparent_92%)] px-3 py-1.5 font-mono text-lg tracking-widest text-[var(--brand)]">
-                    {c.code}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 text-xs text-zinc-400">
-              Or just show your reward code above — staff can see everything
-              you&apos;ve won.
-            </p>
-          </section>
-        )}
 
         <footer className="mt-10 text-center text-xs text-zinc-400">
           Playing as {email} ·{" "}
@@ -526,67 +489,187 @@ export default function PlayBoard({ slug }: { slug: string }) {
           onClose={() => setReveal(null)}
         />
       )}
+
+      {showWelcome && !reveal && (
+        <WelcomeModal
+          board={board}
+          grid={grid}
+          brandStyle={brandStyle}
+          onClose={() => {
+            window.sessionStorage.setItem(WELCOME_STORAGE_PREFIX + slug, "1");
+            setShowWelcome(false);
+          }}
+        />
+      )}
     </main>
   );
 }
 
-// The customer's two persistent counter codes: the cycling loyalty code and
-// the fixed reward code.
-function CodesCard({ me }: { me: CustomerState }) {
+// Codes live at the top of the page, right by the points: the cycling
+// loyalty code plus a one-time code for every unredeemed reward.
+function CodesStrip({
+  me,
+  discountPercent,
+  eligible,
+}: {
+  me: CustomerState | null;
+  discountPercent: number;
+  eligible: boolean;
+}) {
   const [copied, setCopied] = useState<string | null>(null);
+  if (!me || (!me.loyaltyCode && me.codes.length === 0)) return null;
 
-  const entries = [
-    me.loyaltyCode
-      ? {
-          key: "loyalty",
-          code: me.loyaltyCode,
-          title: "Loyalty code",
-          hint: "Show at the counter to spend your points. It changes after each use.",
-          icon: <BadgePercent className="size-4" aria-hidden />,
-        }
-      : null,
-    me.rewardCode
-      ? {
-          key: "reward",
-          code: me.rewardCode,
-          title: "Reward code",
-          hint: "Show to claim rewards you've won. This one never changes.",
-          icon: <Gift className="size-4" aria-hidden />,
-        }
-      : null,
-  ].filter((e) => e !== null);
+  async function copy(code: string) {
+    await navigator.clipboard.writeText(code);
+    setCopied(code);
+    setTimeout(() => setCopied(null), 1500);
+  }
+
+  const codeChip = (code: string) => (
+    <button
+      onClick={() => copy(code)}
+      className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-[color-mix(in_oklab,var(--brand),transparent_60%)] bg-[color-mix(in_oklab,var(--brand),transparent_92%)] px-3 py-1.5 font-mono text-base tracking-[0.2em] text-[var(--brand)] transition hover:brightness-95"
+      aria-label={`Copy code ${code}`}
+    >
+      {code}
+      {copied === code ? (
+        <Check className="size-3.5" aria-hidden />
+      ) : (
+        <Copy className="size-3.5 opacity-60" aria-hidden />
+      )}
+    </button>
+  );
 
   return (
-    <section className="mt-8">
-      <h2 className="section-title">Your codes</h2>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {entries.map((e) => (
-          <div key={e.key} className="card p-4">
+    <section className="mt-4 space-y-2">
+      {me.loyaltyCode && (
+        <div className="card flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
+          <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
-              <span className="text-[var(--brand)]">{e.icon}</span>
-              {e.title}
+              <BadgePercent className="size-4 text-[var(--brand)]" aria-hidden />
+              Loyalty code
             </p>
-            <button
-              onClick={async () => {
-                await navigator.clipboard.writeText(e.code);
-                setCopied(e.key);
-                setTimeout(() => setCopied(null), 1500);
-              }}
-              className="mt-3 flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-[color-mix(in_oklab,var(--brand),transparent_60%)] bg-[color-mix(in_oklab,var(--brand),transparent_92%)] px-4 py-3 font-mono text-xl tracking-[0.25em] text-[var(--brand)] transition hover:brightness-95"
-              aria-label={`Copy ${e.title}`}
-            >
-              {e.code}
-              {copied === e.key ? (
-                <Check className="size-4 shrink-0" aria-hidden />
-              ) : (
-                <Copy className="size-4 shrink-0 opacity-60" aria-hidden />
-              )}
-            </button>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-500">{e.hint}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
+              {eligible
+                ? `You have enough points — show this at the counter for ${discountPercent}% off!`
+                : "Show at the counter to spend your points. It changes after each use."}
+            </p>
           </div>
-        ))}
-      </div>
+          {codeChip(me.loyaltyCode)}
+        </div>
+      )}
+      {me.codes.map((c) => (
+        <div
+          key={c.code}
+          className="card flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3"
+        >
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
+              <Gift className="size-4 text-[var(--brand)]" aria-hidden />
+              {c.description}
+            </p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Show to staff to claim · expires{" "}
+              {new Date(c.expiresAt).toLocaleString()}
+            </p>
+          </div>
+          {codeChip(c.code)}
+        </div>
+      ))}
     </section>
+  );
+}
+
+// First-visit popup: a branded welcome with how-to-play and what's hidden in
+// the grid (reward names + optional details, never positions).
+function WelcomeModal({
+  board,
+  grid,
+  brandStyle,
+  onClose,
+}: {
+  board: PublicBoardState;
+  grid: PublicGrid;
+  brandStyle: React.CSSProperties;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
+      style={brandStyle}
+      onClick={onClose}
+    >
+      <div
+        className="animate-pop-in card relative max-h-[85vh] w-full max-w-sm overflow-y-auto p-6 sm:p-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center">
+          {board.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- merchant-uploaded, host not known at build time
+            <img
+              src={board.logoUrl}
+              alt=""
+              className="size-16 rounded-2xl border border-zinc-200 object-cover shadow"
+            />
+          ) : (
+            <div
+              className="flex size-16 items-center justify-center rounded-2xl text-white shadow"
+              style={{ backgroundColor: "var(--brand)" }}
+            >
+              <Target className="size-8" aria-hidden />
+            </div>
+          )}
+        </div>
+        <h2 className="mt-4 text-center text-xl font-bold tracking-tight text-zinc-900">
+          Welcome to {board.businessName}!
+        </h2>
+        <p className="mt-1.5 text-center text-sm leading-relaxed text-zinc-500">
+          {board.tagline ??
+            "Tap a tile and see what's underneath — rewards are hiding in the grid."}
+        </p>
+
+        {grid.rewardsInfo.length > 0 && (
+          <div className="mt-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
+              Hidden in this grid
+            </p>
+            <ul className="mt-2 space-y-2">
+              {grid.rewardsInfo.map((r, i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-2.5 rounded-xl bg-[color-mix(in_oklab,var(--brand),transparent_94%)] px-3 py-2.5"
+                >
+                  <Gift
+                    className="mt-0.5 size-4 shrink-0 text-[var(--brand)]"
+                    aria-hidden
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-zinc-800">
+                      {r.description}
+                    </p>
+                    {r.details && (
+                      <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
+                        {r.details}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <p className="mt-4 text-center text-xs leading-relaxed text-zinc-400">
+          Miss a reward and you still earn a loyalty point —{" "}
+          {board.pointsPerDiscount} points get you {board.discountPercent}% off
+          at the counter.
+        </p>
+
+        <button onClick={onClose} className="btn-primary mt-5 w-full">
+          Start hunting
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -990,7 +1073,8 @@ function RevealModal({
               )}
             </p>
             <p className="mt-1 text-xs text-zinc-400">
-              We also emailed it to you — or just show your reward code.
+              We also emailed it to you — it stays at the top of this page
+              until you redeem it.
             </p>
           </>
         ) : (

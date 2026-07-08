@@ -29,7 +29,6 @@ export async function GET(
     pointsExpireAt: null,
     cooldownUntil: null,
     loyaltyCode: null,
-    rewardCode: null,
     codes: [],
   };
 
@@ -78,9 +77,7 @@ export async function GET(
   const [{ data: state }, { data: codes }] = await Promise.all([
     db
       .from("customer_merchant_state")
-      .select(
-        "last_played_at, loyalty_points, points_expire_at, loyalty_code, reward_code"
-      )
+      .select("last_played_at, loyalty_points, points_expire_at, loyalty_code")
       .eq("customer_id", customer.id)
       .eq("merchant_id", merchant.id)
       .single(),
@@ -116,7 +113,6 @@ export async function GET(
     pointsExpireAt: pointsExpired ? null : (state?.points_expire_at ?? null),
     cooldownUntil,
     loyaltyCode: state?.loyalty_code ?? null,
-    rewardCode: state?.reward_code ?? null,
     codes: (codes ?? []).map((c) => ({
       code: c.redemption_code,
       description:

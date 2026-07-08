@@ -45,18 +45,8 @@ export type RedeemResult =
     }
   | { result: "error"; error: "code_not_found" | "already_redeemed" | "expired" };
 
-// One entry in a reward-code lookup: an unlocked reward the staff can redeem.
-export interface StaffRewardEntry {
-  unlocked_id: string;
-  description: string;
-  reward_type: "tile" | "loyalty_discount";
-  discount_percent: number | null;
-  unlocked_at: string;
-  expires_at: string;
-}
-
-// What the staff code box resolves to: the customer's cycling loyalty code,
-// their fixed reward code, or a legacy one-time redemption code.
+// What the staff code box resolves to: the customer's cycling loyalty code
+// or a one-time redemption code minted per unlock.
 export type StaffLookupResult =
   | {
       result: "found";
@@ -70,13 +60,7 @@ export type StaffLookupResult =
     }
   | {
       result: "found";
-      kind: "reward";
-      customer_email: string;
-      rewards: StaffRewardEntry[];
-    }
-  | {
-      result: "found";
-      kind: "legacy";
+      kind: "code";
       customer_email: string;
       description: string;
       status: "unredeemed" | "redeemed" | "expired";
@@ -125,6 +109,8 @@ export interface PublicGrid {
   cols: number;
   revealed: { row: number; col: number; hit: boolean }[];
   rewardsRemaining: number;
+  // What's hidden in this grid, for the welcome popup (no positions).
+  rewardsInfo: { description: string; details: string | null }[];
   // Set while the grid rests after completion; resetsAt is when it revives.
   completedAt: string | null;
   resetsAt: string | null;
@@ -147,9 +133,8 @@ export interface CustomerState {
   loyaltyPoints: number;
   pointsExpireAt: string | null;
   cooldownUntil: string | null;
-  // Persistent per-business codes shown at the counter.
+  // Cycling per-business loyalty code shown at the counter.
   loyaltyCode: string | null;
-  rewardCode: string | null;
   codes: {
     code: string;
     description: string;
@@ -225,7 +210,6 @@ export interface LoyaltyAccount {
   discountPercent: number;
   cooldownUntil: string | null;
   loyaltyCode: string | null;
-  rewardCode: string | null;
   codes: {
     code: string;
     description: string;

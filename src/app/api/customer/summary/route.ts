@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     db
       .from("customer_merchant_state")
       .select(
-        "merchant_id, last_played_at, loyalty_points, points_expire_at, loyalty_code, reward_code, merchants(business_name, slug, logo_url, brand_color, points_per_discount, discount_percent)"
+        "merchant_id, last_played_at, loyalty_points, points_expire_at, loyalty_code, merchants(business_name, slug, logo_url, brand_color, points_per_discount, discount_percent)"
       )
       .eq("customer_id", customer.id),
     db
@@ -89,7 +89,6 @@ export async function GET(req: Request) {
         discountPercent: m.discount_percent,
         cooldownUntil,
         loyaltyCode: s.loyalty_code ?? null,
-        rewardCode: s.reward_code ?? null,
         codes: codesByMerchant.get(s.merchant_id) ?? [],
       };
     })

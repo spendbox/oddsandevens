@@ -102,6 +102,7 @@ export function GridWizard({
   const [drafts, setDrafts] = useState<RewardDraft[]>([
     {
       description: "",
+      details: "",
       expiryDays: REWARD_EXPIRY_DAYS_DEFAULT,
       maxRedemptions: 1,
     },
@@ -432,53 +433,68 @@ export function GridWizard({
             Rewards ({drafts.length}/{limits.maxRewards})
           </span>
           {drafts.map((d, i) => (
-            <div key={i} className="mt-2 flex flex-wrap items-end gap-2">
-              <label className="block grow">
-                <span className="field-label">Description</span>
+            <div
+              key={i}
+              className="mt-3 rounded-xl border border-zinc-200 p-3 sm:p-4"
+            >
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="block grow">
+                  <span className="field-label">Reward</span>
+                  <input
+                    required
+                    value={d.description}
+                    onChange={(e) => setDraft(i, { description: e.target.value })}
+                    placeholder="Free plate of jollof rice"
+                    className="input-field"
+                  />
+                </label>
+                <label className="block">
+                  <span className="field-label">Valid for (days)</span>
+                  <input
+                    type="number"
+                    min={REWARD_EXPIRY_DAYS_MIN}
+                    max={REWARD_EXPIRY_DAYS_MAX}
+                    value={d.expiryDays}
+                    onChange={(e) =>
+                      setDraft(i, { expiryDays: Number(e.target.value) })
+                    }
+                    className="input-field w-24"
+                  />
+                </label>
+                <label className="block">
+                  <span className="field-label">Winners</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={49}
+                    value={d.maxRedemptions}
+                    onChange={(e) =>
+                      setDraft(i, { maxRedemptions: Number(e.target.value) })
+                    }
+                    className="input-field w-20"
+                  />
+                </label>
+                {drafts.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setDrafts((ds) => ds.filter((_, j) => j !== i))}
+                    className="btn-secondary px-3 py-2.5 text-sm text-rose-500"
+                    aria-label="Remove reward"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                )}
+              </div>
+              <label className="mt-2 block">
+                <span className="field-label">Description (optional)</span>
                 <input
-                  required
-                  value={d.description}
-                  onChange={(e) => setDraft(i, { description: e.target.value })}
-                  placeholder="Free plate of jollof rice"
+                  value={d.details}
+                  onChange={(e) => setDraft(i, { details: e.target.value })}
+                  maxLength={300}
+                  placeholder="Any details customers should know — size, terms, how to claim…"
                   className="input-field"
                 />
               </label>
-              <label className="block">
-                <span className="field-label">Valid for (days)</span>
-                <input
-                  type="number"
-                  min={REWARD_EXPIRY_DAYS_MIN}
-                  max={REWARD_EXPIRY_DAYS_MAX}
-                  value={d.expiryDays}
-                  onChange={(e) =>
-                    setDraft(i, { expiryDays: Number(e.target.value) })
-                  }
-                  className="input-field w-24"
-                />
-              </label>
-              <label className="block">
-                <span className="field-label">Winners</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={49}
-                  value={d.maxRedemptions}
-                  onChange={(e) =>
-                    setDraft(i, { maxRedemptions: Number(e.target.value) })
-                  }
-                  className="input-field w-20"
-                />
-              </label>
-              {drafts.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setDrafts((ds) => ds.filter((_, j) => j !== i))}
-                  className="btn-secondary px-3 py-2.5 text-sm text-rose-500"
-                  aria-label="Remove reward"
-                >
-                  <X className="size-4" aria-hidden />
-                </button>
-              )}
             </div>
           ))}
           {drafts.length < limits.maxRewards && (
@@ -489,6 +505,7 @@ export function GridWizard({
                   ...ds,
                   {
                     description: "",
+                    details: "",
                     expiryDays: REWARD_EXPIRY_DAYS_DEFAULT,
                     maxRedemptions: 1,
                   },

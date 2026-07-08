@@ -65,7 +65,7 @@ export async function GET(
       .eq("is_revealed", true),
     db
       .from("rewards")
-      .select("id, grid_id, max_redemptions")
+      .select("id, grid_id, max_redemptions, description, details")
       .in("grid_id", gridIds),
   ]);
 
@@ -125,6 +125,9 @@ export async function GET(
           sum + Math.max(r.max_redemptions - (claimCounts.get(r.id) ?? 0), 0),
         0
       ),
+    rewardsInfo: (rewards ?? [])
+      .filter((r) => r.grid_id === g.id)
+      .map((r) => ({ description: r.description, details: r.details ?? null })),
     completedAt: g.completed_at,
     resetsAt: g.completed_at
       ? new Date(

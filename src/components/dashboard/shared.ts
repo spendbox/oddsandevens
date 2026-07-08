@@ -50,6 +50,7 @@ export interface Snapshot {
 
 export interface RewardDraft {
   description: string;
+  details: string;
   expiryDays: number;
   maxRedemptions: number;
 }
