@@ -38,9 +38,11 @@ export async function GET() {
   );
 
   const tier = effectiveTier(merchant);
+  const premiumYearlyPlays =
+    settings.get("premium_yearly_plays") ?? DEFAULT_PREMIUM_YEARLY_PLAYS;
   const baseAllowance =
     tier === "premium"
-      ? settings.get("premium_yearly_plays") ?? DEFAULT_PREMIUM_YEARLY_PLAYS
+      ? premiumYearlyPlays
       : settings.get("free_yearly_plays") ?? DEFAULT_FREE_YEARLY_PLAYS;
 
   // Mirror play_tile's lazy annual rollover so the dashboard shows the same
@@ -59,6 +61,7 @@ export async function GET() {
     tier,
     premiumExpiresAt: merchant.premium_expires_at,
     baseAllowance,
+    premiumYearlyPlays,
     playsUsed,
     baseRemaining,
     topupPlays: merchant.topup_plays,

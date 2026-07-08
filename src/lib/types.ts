@@ -201,6 +201,7 @@ export interface MerchantPlan {
   tier: "free" | "premium";
   premiumExpiresAt: string | null;
   baseAllowance: number; // annual plays for the current tier
+  premiumYearlyPlays: number; // annual plays a premium plan grants (for the upsell)
   playsUsed: number; // plays used this annual period
   baseRemaining: number; // baseAllowance - playsUsed, floored at 0
   topupPlays: number; // purchased, non-expiring plays

@@ -163,37 +163,49 @@ export function PlansPanel({
   return (
     <div className="space-y-4">
       {/* Balance summary */}
-      <div className="card p-5">
+      <div className="card p-5 sm:p-6">
         <p className="section-title">
           <Gauge className="size-3.5" aria-hidden />
           Your plays
         </p>
-        <div className="mt-2 flex flex-wrap items-end gap-x-8 gap-y-3">
-          <div>
-            <p className="text-4xl font-bold tracking-tight text-zinc-900">
+
+        <div className="mt-4 grid items-center gap-6 sm:grid-cols-[auto_1fr]">
+          <div className="sm:pr-6 sm:border-r sm:border-zinc-100">
+            <p className="text-5xl font-bold tracking-tight text-zinc-900">
               {plan.playsRemaining.toLocaleString()}
             </p>
-            <p className="text-xs text-zinc-500">plays remaining</p>
+            <p className="mt-1 text-sm text-zinc-500">plays remaining</p>
           </div>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-            <dt className="text-zinc-500">Yearly allowance</dt>
-            <dd className="text-right font-medium text-zinc-800">
-              {plan.baseRemaining.toLocaleString()} /{" "}
-              {plan.baseAllowance.toLocaleString()}
-            </dd>
-            <dt className="text-zinc-500">Topped-up plays</dt>
-            <dd className="text-right font-medium text-zinc-800">
-              {plan.topupPlays.toLocaleString()}
-            </dd>
-            <dt className="text-zinc-500">Resets on</dt>
-            <dd className="text-right font-medium text-zinc-800">
-              {formatDate(plan.periodEnd)}
-            </dd>
+
+          <dl className="grid grid-cols-3 gap-4">
+            <div>
+              <dt className="text-xs text-zinc-500">Yearly left</dt>
+              <dd className="mt-0.5 text-lg font-semibold text-zinc-900">
+                {plan.baseRemaining.toLocaleString()}
+                <span className="text-sm font-normal text-zinc-400">
+                  {" "}
+                  / {plan.baseAllowance.toLocaleString()}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-zinc-500">Topped up</dt>
+              <dd className="mt-0.5 text-lg font-semibold text-zinc-900">
+                {plan.topupPlays.toLocaleString()}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-zinc-500">Resets</dt>
+              <dd className="mt-0.5 text-lg font-semibold text-zinc-900">
+                {formatDate(plan.periodEnd)}
+              </dd>
+            </div>
           </dl>
         </div>
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-100">
+
+        <div className="mt-5 h-2 overflow-hidden rounded-full bg-zinc-100">
           <div
-            className="h-full rounded-full"
+            className="h-full rounded-full transition-all"
             style={{
               width: `${baseFraction(plan) * 100}%`,
               backgroundColor: "var(--brand)",
@@ -284,26 +296,30 @@ export function PlansPanel({
             </>
           ) : (
             <>
-              {plan.baseAllowance > 0 && (
+              {plan.premiumPriceKobo > 0 && (
                 <>
                   <span className="font-medium text-zinc-800">
-                    {plan.premiumPriceKobo > 0 && naira(plan.premiumPriceKobo)}/year
+                    {naira(plan.premiumPriceKobo)}/year
                   </span>{" "}
                   ·{" "}
                 </>
               )}
-              Up to 10 grids at once, 10 rewards per grid, custom puzzle images,
-              interlocking tile shapes, longer reset cooldowns — and a much bigger
-              yearly play allowance.
+              Get <span className="font-medium text-zinc-800">
+                {plan.premiumYearlyPlays.toLocaleString()} plays a year
+              </span>{" "}
+              (up from {plan.baseAllowance.toLocaleString()}), plus more grids,
+              rewards, and custom board styling.
             </>
           )}
         </p>
         <ul className="mt-3 grid gap-1.5 text-sm text-zinc-600 sm:grid-cols-2">
           {[
+            `${plan.premiumYearlyPlays.toLocaleString()} plays / year`,
             "10 active grids",
             "10 rewards per grid",
             "Custom puzzle images",
             "Interlocking tile shapes",
+            "Reset cooldowns up to a year",
           ].map((f) => (
             <li key={f} className="flex items-center gap-1.5">
               <Sparkles className="size-3.5 text-amber-500" aria-hidden />

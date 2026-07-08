@@ -9,6 +9,7 @@ import {
   TOPUP_MIN_PLAYS,
 } from "@/lib/constants";
 import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
+import { appBaseUrl } from "@/lib/base-url";
 
 // Start a Paystack checkout for a play top-up. The business picks any quantity
 // of extra plays; we charge proportionally to the admin-set price per 1,000.
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
   const amountKobo = Math.max(1, Math.round((plays / 1000) * pricePer1000));
 
   const reference = `th_${randomBytes(12).toString("hex")}`;
-  const origin = new URL(req.url).origin;
+  const origin = appBaseUrl(req);
 
   const { error: insertError } = await db.from("payments").insert({
     merchant_id: merchant.id,

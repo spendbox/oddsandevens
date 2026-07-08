@@ -165,9 +165,6 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs text-zinc-400">
-          Every board is a shared 7×7 grid — each tile can be won just once.
-        </p>
       </div>
 
       {/* How it works */}

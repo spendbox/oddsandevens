@@ -544,7 +544,10 @@ function CodesStrip({
   eligible: boolean;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
-  if (!me || (!me.loyaltyCode && me.codes.length === 0)) return null;
+  // The loyalty code only appears once the customer can actually redeem it —
+  // no point showing a code they can't use yet.
+  const showLoyaltyCode = !!me?.loyaltyCode && eligible;
+  if (!me || (!showLoyaltyCode && me.codes.length === 0)) return null;
 
   async function copy(code: string) {
     await navigator.clipboard.writeText(code);
@@ -569,7 +572,7 @@ function CodesStrip({
 
   return (
     <section className="mt-4 space-y-2">
-      {me.loyaltyCode && (
+      {showLoyaltyCode && me.loyaltyCode && (
         <div className="card flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
@@ -577,9 +580,8 @@ function CodesStrip({
               Loyalty code
             </p>
             <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
-              {eligible
-                ? `You have enough points — show this at the counter for ${discountPercent}% off!`
-                : "Show at the counter to spend your points. It changes after each use."}
+              You have enough points — show this at the counter for{" "}
+              {discountPercent}% off!
             </p>
           </div>
           {codeChip(me.loyaltyCode)}
@@ -801,31 +803,65 @@ function TileGrid({
             lastMiss.col === col;
 
           if (!interlock) {
+            // Reversed puzzle image: the picture shows on UNREVEALED tiles, and
+            // each reveal covers its piece with a faded brand-colour patch.
+            if (grid.imageUrl) {
+              if (isRevealed) {
+                return (
+                  <div
+                    key={i}
+                    aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+                    className={
+                      "relative flex aspect-square items-center justify-center rounded-lg ring-1 ring-[color-mix(in_oklab,var(--brand),transparent_65%)] " +
+                      (isMyMiss ? "animate-tile-reveal" : "")
+                    }
+                    style={{
+                      backgroundColor:
+                        "color-mix(in oklab, var(--brand), transparent 82%)",
+                    }}
+                  >
+                    {state === true && (
+                      <span
+                        className="flex size-6 items-center justify-center rounded-full text-white shadow"
+                        style={{ backgroundColor: "var(--brand)" }}
+                      >
+                        <Gift className="size-3.5" aria-hidden />
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <button
+                  key={i}
+                  disabled={disabled}
+                  onClick={() => onTileClick(row, col)}
+                  aria-label={`Tile ${row + 1}, ${col + 1}`}
+                  className={
+                    "aspect-square overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-black/5 transition " +
+                    (disabled
+                      ? "cursor-not-allowed opacity-60"
+                      : "cursor-pointer hover:brightness-105 active:brightness-95")
+                  }
+                  style={squareSliceStyle(row, col)}
+                />
+              );
+            }
             if (isRevealed) {
-              // Revealed: show the puzzle-image slice (or a plain marker without
-              // an image). Hits get a small gift badge on top of the slice.
+              // No image: revealed tiles show a hit / miss marker.
               return (
                 <div
                   key={i}
                   aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
                   className={
-                    "relative flex aspect-square items-center justify-center rounded-lg " +
+                    "relative flex aspect-square items-center justify-center rounded-lg ring-1 " +
                     (isMyMiss ? "animate-tile-reveal " : "") +
-                    (grid.imageUrl
-                      ? "ring-1 ring-zinc-200"
-                      : state === true
-                        ? "bg-emerald-100 text-emerald-600 ring-1 ring-emerald-300"
-                        : "bg-zinc-100 text-zinc-300 ring-1 ring-zinc-200")
+                    (state === true
+                      ? "bg-emerald-100 text-emerald-600 ring-emerald-300"
+                      : "bg-zinc-100 text-zinc-300 ring-zinc-200")
                   }
-                  style={squareSliceStyle(row, col)}
                 >
-                  {grid.imageUrl ? (
-                    state === true && (
-                      <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow">
-                        <Gift className="size-3" aria-hidden />
-                      </span>
-                    )
-                  ) : state === true ? (
+                  {state === true ? (
                     <Gift className="size-1/2 max-h-6 max-w-6" aria-hidden />
                   ) : (
                     <X className="size-1/2 max-h-5 max-w-5" aria-hidden />
@@ -854,47 +890,78 @@ function TileGrid({
             ...clipStyle(row, col),
           };
 
-          return (
-            <div key={i} className="relative aspect-square">
-              {isRevealed ? (
-                <>
-                  <div
-                    aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+          // Reversed image (interlock): the picture is on the UNREVEALED shaped
+          // tile; revealing swaps it for a faded brand-colour patch.
+          if (grid.imageUrl) {
+            return (
+              <div key={i} className="relative aspect-square">
+                {isRevealed ? (
+                  <>
+                    <div
+                      aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+                      className={isMyMiss ? "absolute animate-tile-reveal" : "absolute"}
+                      style={{
+                        ...boxStyle,
+                        backgroundColor:
+                          "color-mix(in oklab, var(--brand), transparent 82%)",
+                      }}
+                    />
+                    {state === true && (
+                      <span
+                        className="absolute -right-1 -top-1 z-10 flex size-5 items-center justify-center rounded-full text-white shadow"
+                        style={{ backgroundColor: "var(--brand)" }}
+                      >
+                        <Gift className="size-3" aria-hidden />
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    disabled={disabled}
+                    onClick={() => onTileClick(row, col)}
+                    aria-label={`Tile ${row + 1}, ${col + 1}`}
                     className={
-                      "absolute flex items-center justify-center " +
-                      (isMyMiss ? "animate-tile-reveal " : "") +
-                      (grid.imageUrl
-                        ? ""
-                        : state === true
-                          ? "bg-emerald-100 text-emerald-600"
-                          : "bg-zinc-100 text-zinc-300")
+                      "absolute transition " +
+                      (disabled
+                        ? "cursor-not-allowed opacity-60"
+                        : "tile-live-shaped cursor-pointer hover:brightness-105 active:brightness-95")
                     }
                     style={{
                       ...boxStyle,
-                      ...(grid.imageUrl
-                        ? interlockSliceStyle(
-                            row,
-                            col,
-                            grid.rows,
-                            grid.cols,
-                            grid.imageUrl
-                          )
-                        : {}),
+                      ...interlockSliceStyle(
+                        row,
+                        col,
+                        grid.rows,
+                        grid.cols,
+                        grid.imageUrl
+                      ),
                     }}
-                  >
-                    {!grid.imageUrl &&
-                      (state === true ? (
-                        <Gift className="size-1/3 max-h-6 max-w-6" aria-hidden />
-                      ) : (
-                        <X className="size-1/3 max-h-5 max-w-5" aria-hidden />
-                      ))}
-                  </div>
-                  {grid.imageUrl && state === true && (
-                    <span className="absolute -right-1 -top-1 z-10 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow">
-                      <Gift className="size-3" aria-hidden />
-                    </span>
+                  />
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div key={i} className="relative aspect-square">
+              {isRevealed ? (
+                <div
+                  aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+                  className={
+                    "absolute flex items-center justify-center " +
+                    (isMyMiss ? "animate-tile-reveal " : "") +
+                    (state === true
+                      ? "bg-emerald-100 text-emerald-600"
+                      : "bg-zinc-100 text-zinc-300")
+                  }
+                  style={boxStyle}
+                >
+                  {state === true ? (
+                    <Gift className="size-1/3 max-h-6 max-w-6" aria-hidden />
+                  ) : (
+                    <X className="size-1/3 max-h-5 max-w-5" aria-hidden />
                   )}
-                </>
+                </div>
               ) : (
                 <button
                   disabled={disabled}

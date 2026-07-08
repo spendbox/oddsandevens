@@ -302,23 +302,14 @@ export default function CustomerPortalPage() {
                   );
                 })()}
 
-                {a.loyaltyCode && (
-                  <div
-                    className={
-                      "mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5 " +
-                      (a.loyaltyPoints >= a.pointsPerDiscount
-                        ? "border-[color-mix(in_oklab,var(--brand),transparent_70%)] bg-[color-mix(in_oklab,var(--brand),transparent_94%)]"
-                        : "border-zinc-100 bg-zinc-50")
-                    }
-                  >
+                {a.loyaltyCode && a.loyaltyPoints >= a.pointsPerDiscount && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[color-mix(in_oklab,var(--brand),transparent_70%)] bg-[color-mix(in_oklab,var(--brand),transparent_94%)] px-3 py-2.5">
                     <p className="flex items-center gap-1.5 text-xs font-medium text-zinc-600">
                       <BadgePercent
                         className="size-3.5 text-[var(--brand)]"
                         aria-hidden
                       />
-                      {a.loyaltyPoints >= a.pointsPerDiscount
-                        ? "Loyalty code · ready to redeem at the counter"
-                        : "Loyalty code · fill the bar above, then redeem this"}
+                      Loyalty code · ready to redeem at the counter
                     </p>
                     <span className="shrink-0 rounded-lg border border-[color-mix(in_oklab,var(--brand),transparent_60%)] bg-white px-2.5 py-1 font-mono tracking-widest text-[var(--brand)]">
                       {a.loyaltyCode}
