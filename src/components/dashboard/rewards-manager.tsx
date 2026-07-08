@@ -25,7 +25,7 @@ const EMPTY: DraftState = {
 
 // Build → Rewards: the merchant's reusable reward catalogue. Rewards are
 // created here first, then picked when building a grid.
-export function RewardsManager() {
+export function RewardsManager({ onChanged }: { onChanged?: () => void }) {
   const [rewards, setRewards] = useState<RewardTemplate[] | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -94,6 +94,7 @@ export function RewardsManager() {
     }
     setDraft(null);
     await reload();
+    onChanged?.();
   }
 
   async function remove(id: string) {
@@ -104,6 +105,7 @@ export function RewardsManager() {
       body: JSON.stringify({ id }),
     });
     await reload();
+    onChanged?.();
   }
 
   return (

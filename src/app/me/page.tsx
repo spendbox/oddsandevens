@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   BadgePercent,
   ExternalLink,
-  Hourglass,
   Puzzle,
   Star,
   Target,
@@ -235,23 +234,27 @@ export default function CustomerPortalPage() {
                           className="mr-0.5 inline size-3.5 fill-amber-400 text-amber-400"
                           aria-hidden
                         />
-                        {a.loyaltyPoints} point{a.loyaltyPoints === 1 ? "" : "s"} ·{" "}
-                        {a.pointsPerDiscount} pts = {a.discountPercent}% off
-                        {a.pointsExpireAt && a.loyaltyPoints > 0 && (
-                          <> · points expire {formatEta(a.pointsExpireAt)}</>
-                        )}
-                        {a.cooldownUntil && (
-                          <>
-                            {" "}
-                            ·{" "}
-                            <Hourglass
-                              className="inline size-3 text-amber-500"
-                              aria-hidden
-                            />{" "}
-                            play again {formatEta(a.cooldownUntil)}
-                          </>
-                        )}
+                        <span className="font-medium text-zinc-700">
+                          {a.loyaltyPoints}
+                        </span>{" "}
+                        point{a.loyaltyPoints === 1 ? "" : "s"} ·{" "}
+                        {a.discountPercent}% off at {a.pointsPerDiscount}
                       </p>
+                      {(a.cooldownUntil ||
+                        (a.pointsExpireAt && a.loyaltyPoints > 0)) && (
+                        <p className="mt-0.5 text-[11px] text-zinc-400">
+                          {a.cooldownUntil && (
+                            <>Play again {formatEta(a.cooldownUntil)}</>
+                          )}
+                          {a.cooldownUntil &&
+                            a.pointsExpireAt &&
+                            a.loyaltyPoints > 0 &&
+                            " · "}
+                          {a.pointsExpireAt && a.loyaltyPoints > 0 && (
+                            <>points expire {formatEta(a.pointsExpireAt)}</>
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <Link
@@ -295,8 +298,8 @@ export default function CustomerPortalPage() {
                         }
                       >
                         {eligible
-                          ? `Reward unlocked! Show your loyalty code below for ${a.discountPercent}% off.`
-                          : `${toGo} more point${toGo === 1 ? "" : "s"} to unlock ${a.discountPercent}% off. You can only redeem once the bar is full.`}
+                          ? `Reward unlocked — show your loyalty code for ${a.discountPercent}% off.`
+                          : `${toGo} more point${toGo === 1 ? "" : "s"} to ${a.discountPercent}% off.`}
                       </p>
                     </>
                   );

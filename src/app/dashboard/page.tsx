@@ -145,7 +145,7 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     const snap = await fetchAll();
     if (snap === "unauthenticated") {
-      router.push("/login");
+      router.push("/signup");
       return;
     }
     applySnapshot(snap);
@@ -174,7 +174,7 @@ export default function DashboardPage() {
       const snap = await fetchAll();
       if (ignore) return;
       if (snap === "unauthenticated") {
-        router.push("/login");
+        router.push("/signup");
         return;
       }
       applySnapshot(snap);
@@ -183,7 +183,7 @@ export default function DashboardPage() {
           outcome === "upgraded"
             ? "Payment confirmed — your Premium year is active! 🎉"
             : outcome === "topped_up"
-              ? "Payment confirmed — your extra plays are ready! 🎉"
+              ? "Payment confirmed — your extra taps are ready! 🎉"
               : "We couldn't confirm that payment. If you were charged, contact support."
         );
         if (outcome) setTab("plans");
@@ -195,12 +195,19 @@ export default function DashboardPage() {
     };
   }, [fetchAll, router, applySnapshot]);
 
-  // Keep the dashboard live: new customers, plays, redemptions, and deletions
-  // show up on their own. Skips the initial loading phase.
+  // Keep the dashboard live: new customers, taps, redemptions, and deletions
+  // show up on their own. Unlike load(), a background poll never redirects to
+  // login on a transient auth blip — that would log the merchant out for no
+  // reason — it just skips the update.
+  const refreshSilently = useCallback(async () => {
+    const snap = await fetchAll();
+    if (snap === "unauthenticated") return;
+    applySnapshot(snap);
+  }, [fetchAll, applySnapshot]);
   useAutoRefresh(
     useCallback(() => {
-      if (!loading) void load();
-    }, [loading, load])
+      if (!loading) void refreshSilently();
+    }, [loading, refreshSilently])
   );
 
   if (loading) {
@@ -233,7 +240,7 @@ export default function DashboardPage() {
           merchant={merchant}
           onSignOut={async () => {
             await supabaseBrowser().auth.signOut();
-            router.push("/login");
+            router.push("/signup");
           }}
         />
 
@@ -351,7 +358,7 @@ export default function DashboardPage() {
                     onChanged={load}
                   />
                 ) : (
-                  <RewardsManager />
+                  <RewardsManager onChanged={load} />
                 )}
               </div>
             )}

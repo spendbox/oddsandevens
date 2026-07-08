@@ -258,10 +258,12 @@ export function BrandSettings({
           />
           <span>% discount</span>
         </div>
-        <p className="mt-1.5 text-xs text-zinc-400">
-          Customers earn 1 point per play that doesn&apos;t hit a reward.
-          Points stay valid for 7 days after their last play; customers redeem
-          them at the counter with their loyalty code.
+        <p className="mt-1.5 text-xs leading-relaxed text-zinc-400">
+          A miss earns 1 point. At {pointsPerDiscount} point
+          {pointsPerDiscount === 1 ? "" : "s"} the customer unlocks{" "}
+          {discountPercent}% off — they show their loyalty code at the counter,
+          you enter it, and their points reset. Points expire 7 days after their
+          last tap.
         </p>
       </div>
 

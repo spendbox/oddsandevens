@@ -224,10 +224,6 @@ export function PlansPanel({
           <Coins className="size-3.5" aria-hidden />
           Buy more taps
         </p>
-        <p className="mt-1.5 text-sm text-zinc-600">
-          Top up any quantity — {naira(plan.topupPricePer1000Kobo)} per 1,000
-          taps. No plan change required.
-        </p>
         <div className="mt-3 flex flex-wrap items-end gap-3">
           <label className="block">
             <span className="field-label">Taps</span>

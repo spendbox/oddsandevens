@@ -33,7 +33,7 @@ export function StatsSummary({ stats }: { stats: MerchantStats | null }) {
             <p className="text-2xl font-bold tabular-nums tracking-tight text-zinc-900">
               {stats.totalPlays.toLocaleString()}
             </p>
-            <p className="text-xs font-medium text-zinc-500">Total plays</p>
+            <p className="text-xs font-medium text-zinc-500">Total taps</p>
           </div>
         </div>
         <button

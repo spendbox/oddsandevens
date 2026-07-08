@@ -176,10 +176,6 @@ function GridPreview({
       <p className="mt-3 truncate text-center text-sm font-medium text-zinc-800">
         {title || "Untitled grid"}
       </p>
-      <p className="mt-0.5 text-center text-xs text-zinc-400">
-        {GRID_SIZE}×{GRID_SIZE} · {rewardTiles} winning tile
-        {rewardTiles === 1 ? "" : "s"} (positions are randomized for real)
-      </p>
     </div>
   );
 }
@@ -436,10 +432,6 @@ export function GridWizard({
               className="input-field"
             />
           </label>
-          <p className="text-xs text-zinc-500">
-            Every grid is {GRID_SIZE}×{GRID_SIZE} — {GRID_SIZE * GRID_SIZE}{" "}
-            tiles.
-          </p>
           <label className="block">
             <span className="field-label flex items-center gap-1.5">
               <RefreshCw className="size-3.5" aria-hidden />
