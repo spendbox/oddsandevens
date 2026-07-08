@@ -7,6 +7,7 @@ import {
   LOGO_CONTENT_TYPES,
   MAX_LOGO_BYTES,
   PHONE_REGEX,
+  SLUG_REGEX,
 } from "@/lib/constants";
 
 // Update the merchant's branding and loyalty settings. Multipart so the logo
@@ -34,6 +35,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid_business_name" }, { status: 400 });
     }
     patch.business_name = name;
+  }
+
+  const slug = form.get("slug");
+  if (typeof slug === "string" && slug.trim()) {
+    const s = slug.trim().toLowerCase();
+    if (!SLUG_REGEX.test(s)) {
+      return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
+    }
+    patch.slug = s;
   }
 
   const tagline = form.get("tagline");
@@ -122,6 +132,10 @@ export async function POST(req: Request) {
     )
     .single();
   if (error) {
+    // 23505 = unique_violation (slug already taken by another business)
+    if (error.code === "23505") {
+      return NextResponse.json({ error: "slug_taken" }, { status: 409 });
+    }
     console.error("[merchant profile] update failed:", error);
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }

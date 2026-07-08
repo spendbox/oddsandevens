@@ -277,7 +277,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
     );
   }
 
-  if (!board || !grid) {
+  if (!board) {
     return (
       <main className="flex min-h-screen items-center justify-center text-zinc-400">
         {splash}
@@ -342,11 +342,13 @@ export default function PlayBoard({ slug }: { slug: string }) {
           <div className="min-w-0">
             <BusinessMark board={board} size="md" />
             <p className="mt-1.5 text-sm leading-relaxed text-zinc-500">
-              {gridResting
-                ? "All rewards found — the grid is resting before the next round."
-                : grid.rewardsRemaining > 0
-                  ? `${grid.rewardsRemaining} reward${grid.rewardsRemaining === 1 ? "" : "s"} still hidden — good luck!`
-                  : "All rewards found on this grid — earn loyalty points or try another!"}
+              {!grid
+                ? "No grid is live right now — your points and codes are safe, check back soon!"
+                : gridResting
+                  ? "All rewards found — the grid is resting before the next round."
+                  : grid.rewardsRemaining > 0
+                    ? `${grid.rewardsRemaining} reward${grid.rewardsRemaining === 1 ? "" : "s"} still hidden — good luck!`
+                    : "All rewards found on this grid — earn loyalty points or try another!"}
             </p>
           </div>
           <div className="card flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2.5 text-sm text-zinc-700">
@@ -450,15 +452,26 @@ export default function PlayBoard({ slug }: { slug: string }) {
           </div>
         )}
 
-        <TileGrid
-          grid={grid}
-          revealedMap={revealedMap}
-          lastMiss={lastMiss}
-          disabled={busy || !!cooldownLeft || gridResting}
-          cooldown={!!cooldownLeft && !gridResting}
-          resting={gridResting}
-          onTileClick={clickTile}
-        />
+        {grid ? (
+          <TileGrid
+            grid={grid}
+            revealedMap={revealedMap}
+            lastMiss={lastMiss}
+            disabled={busy || !!cooldownLeft || gridResting}
+            cooldown={!!cooldownLeft && !gridResting}
+            resting={gridResting}
+            onTileClick={clickTile}
+          />
+        ) : (
+          <div className="card mt-6 p-8 text-center text-zinc-500">
+            <Puzzle className="mx-auto size-8 text-zinc-300" aria-hidden />
+            <p className="mt-3 text-sm leading-relaxed">
+              {board.businessName} hasn&apos;t got an active grid at the
+              moment. Your loyalty points and reward codes above are safe —
+              come back soon for the next hunt!
+            </p>
+          </div>
+        )}
 
         <footer className="mt-10 text-center text-xs text-zinc-400">
           Playing as {email} ·{" "}
@@ -490,7 +503,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
         />
       )}
 
-      {showWelcome && !reveal && (
+      {showWelcome && !reveal && grid && (
         <WelcomeModal
           board={board}
           grid={grid}

@@ -19,6 +19,7 @@ export function BrandSettings({
   onSaved: () => Promise<void>;
 }) {
   const [businessName, setBusinessName] = useState(merchant.business_name);
+  const [slug, setSlug] = useState(merchant.slug);
   const [tagline, setTagline] = useState(merchant.tagline ?? "");
   const [brandColor, setBrandColor] = useState(merchant.brand_color);
   const [whatsapp, setWhatsapp] = useState(merchant.whatsapp ?? "");
@@ -45,6 +46,7 @@ export function BrandSettings({
 
     const form = new FormData();
     form.set("businessName", businessName);
+    form.set("slug", slug);
     form.set("tagline", tagline);
     form.set("brandColor", brandColor);
     form.set("whatsapp", whatsapp);
@@ -63,6 +65,9 @@ export function BrandSettings({
       const body = await res.json().catch(() => null);
       setError(
         {
+          invalid_slug:
+            "Link name must be 3-40 characters: lowercase letters, numbers, and dashes.",
+          slug_taken: "That link name is taken — try another.",
           invalid_logo_type: "Logo must be a PNG, JPEG, or WebP image.",
           logo_too_large: "Logo must be under 1 MB.",
           invalid_brand_color: "Brand color must be a hex value like #059669.",
@@ -127,6 +132,22 @@ export function BrandSettings({
               onChange={(e) => setBusinessName(e.target.value)}
               className="input-field"
             />
+          </label>
+          <label className="block">
+            <span className="field-label">Customer link</span>
+            <div className="flex items-center rounded-xl border border-zinc-300 bg-white transition focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20">
+              <span className="pl-3.5 text-zinc-400">/g/</span>
+              <input
+                required
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase())}
+                className="w-full bg-transparent px-1 py-2.5 text-zinc-900 outline-none"
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-amber-600">
+              Changing this breaks the old link — reshare the new one with
+              your customers.
+            </p>
           </label>
           <label className="block">
             <span className="field-label">Tagline</span>

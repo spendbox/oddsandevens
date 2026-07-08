@@ -82,7 +82,7 @@ export async function POST(req: Request) {
   for (const r of rewardsInput) {
     const description = String(r?.description ?? "").trim();
     const details = String(r?.details ?? "").trim() || null;
-    const expiryDays = Number(r?.expiryDays ?? 2);
+    const expiryDays = Number(r?.expiryDays ?? 30);
     const maxRedemptions = Number(r?.maxRedemptions ?? 1);
     if (
       description.length < 1 ||

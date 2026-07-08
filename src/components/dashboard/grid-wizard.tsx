@@ -25,7 +25,16 @@ import {
   type TileShape,
 } from "@/lib/constants";
 import type { LibraryImage } from "@/lib/types";
-import { curvedPathD, sharpClipPolygon, type TileEdges } from "@/lib/tile-shapes";
+import {
+  allEdgeCombos,
+  curvedPathD,
+  edgesFor,
+  edgesKey,
+  interlockSliceStyle,
+  isOutTile,
+  sharpClipPolygon,
+  type TileEdges,
+} from "@/lib/tile-shapes";
 import type { RewardDraft } from "./shared";
 
 const WIZARD_STEPS = ["Basics", "Look", "Rewards", "Review"] as const;
@@ -43,6 +52,130 @@ const PREVIEW_EDGES: TileEdges = {
   bottom: "out",
   left: "out",
 };
+
+// Deterministic pseudo-random cell picker so the preview stays stable
+// between renders (real reward positions are chosen server-side).
+function sampleCells(count: number, salt: number): Set<number> {
+  const cells = new Set<number>();
+  let i = salt;
+  while (cells.size < Math.min(count, GRID_SIZE * GRID_SIZE)) {
+    cells.add((i * 19 + 7) % (GRID_SIZE * GRID_SIZE));
+    i += 1;
+  }
+  return cells;
+}
+
+// Live preview of the grid being built: updates with every wizard choice.
+function GridPreview({
+  title,
+  tileShape,
+  imageUrl,
+  rewardTiles,
+}: {
+  title: string;
+  tileShape: TileShape;
+  imageUrl: string | null;
+  rewardTiles: number;
+}) {
+  const interlock = tileShape !== "square";
+  const rewardCells = sampleCells(rewardTiles, 3);
+  // A few tiles shown "revealed" so the puzzle-image effect is visible.
+  const revealedCells = imageUrl ? sampleCells(10, 11) : new Set<number>();
+
+  const curvedCombos =
+    tileShape === "interlock-curved" ? allEdgeCombos(GRID_SIZE, GRID_SIZE) : [];
+
+  function clipStyle(row: number, col: number): React.CSSProperties {
+    if (!interlock) return {};
+    const edges = edgesFor(row, col, GRID_SIZE, GRID_SIZE);
+    if (tileShape === "interlock-sharp") {
+      return { clipPath: sharpClipPolygon(edges) };
+    }
+    return { clipPath: `url(#wizprev-${edgesKey(edges)})` };
+  }
+
+  return (
+    <div className="card p-4">
+      <p className="section-title">Live preview</p>
+      {curvedCombos.length > 0 && (
+        <svg width="0" height="0" className="absolute" aria-hidden>
+          <defs>
+            {curvedCombos.map((edges) => (
+              <clipPath
+                key={edgesKey(edges)}
+                id={`wizprev-${edgesKey(edges)}`}
+                clipPathUnits="objectBoundingBox"
+              >
+                <path d={curvedPathD(edges)} />
+              </clipPath>
+            ))}
+          </defs>
+        </svg>
+      )}
+      <div
+        className={
+          "mx-auto mt-3 grid w-full max-w-72 " +
+          (interlock ? "gap-0" : "gap-1")
+        }
+        style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))` }}
+        aria-hidden
+      >
+        {Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, i) => {
+          const row = Math.floor(i / GRID_SIZE);
+          const col = i % GRID_SIZE;
+          const revealed = revealedCells.has(i);
+          const reward = rewardCells.has(i);
+
+          const fillStyle: React.CSSProperties =
+            revealed && imageUrl
+              ? interlock
+                ? interlockSliceStyle(row, col, GRID_SIZE, GRID_SIZE, imageUrl)
+                : {
+                    backgroundImage: `url(${imageUrl})`,
+                    backgroundSize: `${GRID_SIZE * 100}% ${GRID_SIZE * 100}%`,
+                    backgroundPosition: `${(col / (GRID_SIZE - 1)) * 100}% ${(row / (GRID_SIZE - 1)) * 100}%`,
+                  }
+              : {};
+
+          const tileClass = revealed && imageUrl ? "" : "tile-live";
+
+          if (!interlock) {
+            return (
+              <div key={i} className={`relative aspect-square rounded ${tileClass}`} style={fillStyle}>
+                {reward && (
+                  <Gift className="absolute inset-0 m-auto size-3 text-white/90" aria-hidden />
+                )}
+              </div>
+            );
+          }
+          return (
+            <div key={i} className="relative aspect-square">
+              <div
+                className={`absolute ${tileClass}`}
+                style={{
+                  inset: "-22%",
+                  zIndex: isOutTile(row, col) ? 2 : 1,
+                  ...clipStyle(row, col),
+                  ...fillStyle,
+                }}
+              />
+              {reward && (
+                <Gift className="absolute inset-0 z-10 m-auto size-3 text-white/90" aria-hidden />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 truncate text-center text-sm font-medium text-zinc-800">
+        {title || "Untitled grid"}
+      </p>
+      <p className="mt-0.5 text-center text-xs text-zinc-400">
+        {GRID_SIZE}×{GRID_SIZE} · {rewardTiles} winning tile
+        {rewardTiles === 1 ? "" : "s"} (positions are randomized for real)
+      </p>
+    </div>
+  );
+}
 
 function ShapePreview({ shape }: { shape: TileShape }) {
   if (shape === "square") {
@@ -251,6 +384,8 @@ export function GridWizard({
         </p>
       )}
 
+      <div className="gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="min-w-0">
       {/* Step 1: basics */}
       {step === 0 && (
         <div className="mt-5 max-w-md space-y-4">
@@ -575,6 +710,17 @@ export function GridWizard({
           </p>
         </div>
       )}
+        </div>
+
+        <aside className="mt-6 lg:mt-5">
+          <GridPreview
+            title={title}
+            tileShape={tileShape}
+            imageUrl={customPreview ?? imageUrl}
+            rewardTiles={totalRewardTiles}
+          />
+        </aside>
+      </div>
 
       {error && <p className="alert-error mt-4">{error}</p>}
 

@@ -18,7 +18,7 @@ export const POINTS_EXPIRY_DAYS = 7;
 // Reward validity is configured in days on the dashboard.
 export const REWARD_EXPIRY_DAYS_MIN = 1;
 export const REWARD_EXPIRY_DAYS_MAX = 60;
-export const REWARD_EXPIRY_DAYS_DEFAULT = 2;
+export const REWARD_EXPIRY_DAYS_DEFAULT = 30;
 
 // A completed grid rests before it auto-resets with fresh stock.
 export const GRID_RESET_DAYS_DEFAULT = 7;

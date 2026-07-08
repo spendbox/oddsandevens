@@ -32,9 +32,9 @@ export async function GET(
     .eq("merchant_id", merchant.id)
     .eq("status", "active")
     .order("created_at", { ascending: true });
-  if (!grids || grids.length === 0) {
-    return NextResponse.json({ error: "no_active_grid" }, { status: 404 });
-  }
+  grids = grids ?? [];
+  // No active grid is NOT an error: the page still shows the customer's
+  // points and codes (they survive grid deletion) with a "check back" note.
 
   // Completed grids whose cooldown has elapsed revive lazily on read.
   const dueForReset = grids.filter(
@@ -57,17 +57,21 @@ export async function GET(
   }
 
   const gridIds = grids.map((g) => g.id);
-  const [{ data: revealedTiles }, { data: rewards }] = await Promise.all([
-    db
-      .from("tiles")
-      .select("grid_id, row_index, col_index, reward_id, revealed_by_customer_id")
-      .in("grid_id", gridIds)
-      .eq("is_revealed", true),
-    db
-      .from("rewards")
-      .select("id, grid_id, max_redemptions, description, details")
-      .in("grid_id", gridIds),
-  ]);
+  const [{ data: revealedTiles }, { data: rewards }] = gridIds.length
+    ? await Promise.all([
+        db
+          .from("tiles")
+          .select(
+            "grid_id, row_index, col_index, reward_id, revealed_by_customer_id"
+          )
+          .in("grid_id", gridIds)
+          .eq("is_revealed", true),
+        db
+          .from("rewards")
+          .select("id, grid_id, max_redemptions, description, details")
+          .in("grid_id", gridIds),
+      ])
+    : [{ data: [] }, { data: [] }];
 
   const rewardIds = (rewards ?? []).map((r) => r.id);
   const { data: claims } = rewardIds.length

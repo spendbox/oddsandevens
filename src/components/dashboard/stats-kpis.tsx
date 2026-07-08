@@ -10,8 +10,7 @@ import {
 } from "lucide-react";
 import type { MerchantStats } from "@/lib/types";
 
-// The dashboard's at-a-glance KPI row. 2-up on phones, 3-up on tablets,
-// all six across on wide screens.
+// The full KPI grid, shown inside the "View all stats" popup.
 export function StatsKpis({ stats }: { stats: MerchantStats | null }) {
   if (!stats) return null;
 
@@ -60,7 +59,7 @@ export function StatsKpis({ stats }: { stats: MerchantStats | null }) {
 
   return (
     <section aria-label="Business stats">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {tiles.map(({ label, value, sub, icon: Icon, accent }) => (
           <div key={label} className="card flex flex-col gap-2 p-4">
             <span

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { Grid3x3, Home, Palette, Plus, Users, X } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { TIER_LIMITS } from "@/lib/constants";
 import type { CustomerSummary, GridStats, MerchantStats } from "@/lib/types";
@@ -13,7 +13,8 @@ import {
   type UnlockRow,
 } from "@/components/dashboard/shared";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { StatsKpis } from "@/components/dashboard/stats-kpis";
+import { StatsSummary } from "@/components/dashboard/stats-summary";
+import { GettingStarted } from "@/components/dashboard/getting-started";
 import { ShareLink } from "@/components/dashboard/share-link";
 import { PremiumCard } from "@/components/dashboard/premium-card";
 import { RedeemBox } from "@/components/dashboard/redeem-box";
@@ -23,6 +24,15 @@ import { BrandSettings } from "@/components/dashboard/brand-settings";
 import { CustomersList } from "@/components/dashboard/customers-list";
 import { UnlocksList } from "@/components/dashboard/unlocks-list";
 import { OnboardingForm } from "@/components/dashboard/onboarding-form";
+
+type Tab = "home" | "grids" | "customers" | "settings";
+
+const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }> }[] = [
+  { key: "home", label: "Home", icon: Home },
+  { key: "grids", label: "Grids", icon: Grid3x3 },
+  { key: "customers", label: "Customers", icon: Users },
+  { key: "settings", label: "Settings", icon: Palette },
+];
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -34,6 +44,7 @@ export default function DashboardPage() {
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [stats, setStats] = useState<MerchantStats | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("home");
   const [showWizard, setShowWizard] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
 
@@ -169,6 +180,11 @@ export default function DashboardPage() {
   const tier = merchant ? effectiveTierNow(merchant) : "free";
   const limits = TIER_LIMITS[tier];
 
+  const openWizard = () => {
+    setTab("grids");
+    setShowWizard(true);
+  };
+
   return (
     <main className="min-h-screen p-4 pb-16 sm:p-6 lg:p-8">
       <div className="animate-fade-up mx-auto max-w-6xl">
@@ -199,34 +215,91 @@ export default function DashboardPage() {
             willReplaceActive={tier === "free" && activeGrids.length > 0}
             onDone={async () => {
               setShowWizard(false);
+              setTab("grids");
               await load();
             }}
             onCancel={() => setShowWizard(false)}
           />
         ) : (
-          <div className="mt-6 space-y-6">
-            <StatsKpis stats={stats} />
-            <div className="grid gap-4 lg:grid-cols-2">
-              <ShareLink slug={merchant.slug} tier={tier} />
-              <RedeemBox onRedeemed={load} />
-            </div>
-            <PremiumCard merchant={merchant} />
-            <GridsManager
-              grids={grids}
-              tier={tier}
-              activeCount={activeGrids.length}
-              maxActive={limits.maxActiveGrids}
-              onNewGrid={() => setShowWizard(true)}
-              onChanged={load}
-            />
-            <BrandSettings merchant={merchant} onSaved={load} />
-            <CustomersList
-              customers={customers}
-              pointsPerDiscount={merchant.points_per_discount}
-              discountPercent={merchant.discount_percent}
-            />
-            <UnlocksList unlocks={unlocks} />
-          </div>
+          <>
+            {/* Tab bar: full-width segments on phones, inline pills upward. */}
+            <nav className="mt-6 grid grid-cols-4 gap-1 rounded-2xl border border-zinc-200 bg-white p-1 sm:inline-grid sm:min-w-96">
+              {TABS.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={
+                    "flex cursor-pointer flex-col items-center gap-1 rounded-xl px-2 py-2 text-xs font-medium transition sm:flex-row sm:justify-center sm:gap-1.5 sm:px-4 sm:text-sm " +
+                    (tab === key
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800")
+                  }
+                  aria-current={tab === key ? "page" : undefined}
+                >
+                  <Icon className="size-4" aria-hidden />
+                  {label}
+                </button>
+              ))}
+            </nav>
+
+            {tab === "home" && (
+              <div className="mt-6 space-y-6">
+                <GettingStarted
+                  merchant={merchant}
+                  hasGrid={grids.length > 0}
+                  onCreateGrid={openWizard}
+                  onOpenSettings={() => setTab("settings")}
+                />
+                <StatsSummary stats={stats} />
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <ShareLink slug={merchant.slug} tier={tier} />
+                  <RedeemBox onRedeemed={load} />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-zinc-500">
+                    {activeGrids.length} active grid
+                    {activeGrids.length === 1 ? "" : "s"} of {limits.maxActiveGrids}
+                  </p>
+                  <button onClick={openWizard} className="btn-primary px-4 py-2 text-sm">
+                    <Plus className="size-4" aria-hidden />
+                    New grid
+                  </button>
+                </div>
+                <UnlocksList unlocks={unlocks} />
+                <PremiumCard merchant={merchant} />
+              </div>
+            )}
+
+            {tab === "grids" && (
+              <div className="mt-6 space-y-6">
+                <GridsManager
+                  grids={grids}
+                  tier={tier}
+                  activeCount={activeGrids.length}
+                  maxActive={limits.maxActiveGrids}
+                  onNewGrid={() => setShowWizard(true)}
+                  onChanged={load}
+                />
+              </div>
+            )}
+
+            {tab === "customers" && (
+              <div className="mt-6 space-y-6">
+                <CustomersList
+                  customers={customers}
+                  pointsPerDiscount={merchant.points_per_discount}
+                  discountPercent={merchant.discount_percent}
+                />
+              </div>
+            )}
+
+            {tab === "settings" && (
+              <div className="mt-6 space-y-6">
+                <BrandSettings merchant={merchant} onSaved={load} />
+                <PremiumCard merchant={merchant} />
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>
