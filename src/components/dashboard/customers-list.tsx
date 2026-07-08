@@ -100,7 +100,7 @@ export function CustomersList({
                   <ActiveRewards customer={c} />
                 </div>
                 <p className="mt-3 flex flex-wrap gap-x-4 text-xs text-zinc-500">
-                  <span>{c.totalPlays} plays</span>
+                  <span>{c.totalPlays} taps</span>
                   <span>
                     next play {c.nextPlayAt ? formatEta(c.nextPlayAt) : "now"}
                   </span>
@@ -118,7 +118,7 @@ export function CustomersList({
                   <th className="py-2.5 pr-4 font-medium">Points</th>
                   <th className="py-2.5 pr-4 font-medium">Discount ready</th>
                   <th className="py-2.5 pr-4 font-medium">Active rewards</th>
-                  <th className="py-2.5 pr-4 font-medium">Plays</th>
+                  <th className="py-2.5 pr-4 font-medium">Taps</th>
                   <th className="py-2.5 font-medium">Next play</th>
                 </tr>
               </thead>

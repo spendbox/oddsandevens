@@ -76,12 +76,6 @@ export function GridsManager({
           New grid
         </button>
       </div>
-      {tier === "premium" && (
-        <p className="mt-1.5 text-xs text-zinc-500">
-          Active grids all appear on your customer page — players scroll
-          between them.
-        </p>
-      )}
       {error && <p className="alert-error mt-3">{error}</p>}
       {grids.length === 0 ? (
         <p className="mt-4 text-sm text-zinc-400">

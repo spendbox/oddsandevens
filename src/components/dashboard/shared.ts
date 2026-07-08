@@ -4,6 +4,7 @@
 import type {
   CustomerSummary,
   GridStats,
+  MerchantPlan,
   MerchantStats,
 } from "@/lib/types";
 import type { SubscriptionTier } from "@/lib/constants";
@@ -43,6 +44,8 @@ export interface Snapshot {
   unlocks: UnlockRow[];
   customers: CustomerSummary[];
   stats: MerchantStats | null;
+  plan: MerchantPlan | null;
+  hasReward: boolean;
   // Set when the merchant query itself failed (e.g. schema out of date) —
   // never show onboarding in that case, the merchant may well exist.
   loadError: string | null;

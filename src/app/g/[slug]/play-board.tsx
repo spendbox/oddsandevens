@@ -12,16 +12,18 @@ import {
   Hourglass,
   Mail,
   MessageCircle,
-  PartyPopper,
   Plus,
   Puzzle,
   RefreshCw,
+  Sparkles,
   Star,
   Target,
   Ticket,
+  Trophy,
   X,
 } from "lucide-react";
 import { EMAIL_REGEX } from "@/lib/constants";
+import { useAutoRefresh } from "@/lib/use-auto-refresh";
 import type {
   CustomerState,
   PlayResult,
@@ -30,12 +32,14 @@ import type {
 } from "@/lib/types";
 import {
   allEdgeCombos,
+  chevronClipPolygon,
   curvedPathD,
   edgesFor,
   edgesKey,
   interlockSliceStyle,
   isOutTile,
   sharpClipPolygon,
+  usesSvgClip,
 } from "@/lib/tile-shapes";
 
 const EMAIL_STORAGE_KEY = "tilehunt_email";
@@ -83,7 +87,6 @@ type Reveal =
 
 export default function PlayBoard({ slug }: { slug: string }) {
   const [email, setEmail] = useState<string | null>(null);
-  const [emailInput, setEmailInput] = useState("");
   const [board, setBoard] = useState<PublicBoardState | null>(null);
   const [gridIndex, setGridIndex] = useState(0);
   const [me, setMe] = useState<CustomerState | null>(null);
@@ -91,6 +94,15 @@ export default function PlayBoard({ slug }: { slug: string }) {
   const [busy, setBusy] = useState(false);
   const [reveal, setReveal] = useState<Reveal | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  // Email + verification are only requested on the first tile tap by a
+  // not-logged-in visitor (or when a remembered email isn't verified yet).
+  const [emailPrompt, setEmailPrompt] = useState(false);
+  const [verifyInitEmail, setVerifyInitEmail] = useState("");
+  const [verifyInitStep, setVerifyInitStep] = useState<"email" | "code">("email");
+  const [pendingTile, setPendingTile] = useState<{ row: number; col: number } | null>(
+    null
+  );
+  const [cooldownPopup, setCooldownPopup] = useState(false);
   const [lastMiss, setLastMiss] = useState<{
     gridId: string;
     row: number;
@@ -128,7 +140,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
       return {
         error:
           res.status === 404
-            ? "This TileHunt board doesn't exist or has no active grid."
+            ? "This Spendbox board doesn't exist or has no active grid."
             : "Couldn't load the board. Try again shortly.",
       };
     }
@@ -173,6 +185,14 @@ export default function PlayBoard({ slug }: { slug: string }) {
     if (state) setMe(state);
   }, [fetchBoard, fetchMe]);
 
+  // The board is shared, so keep it live — tiles other players take (and grid
+  // resets) show up on their own. Only polls once the board has loaded.
+  useAutoRefresh(
+    useCallback(() => {
+      if (board && !busy) void refreshAll();
+    }, [board, busy, refreshAll])
+  );
+
   const cooldownLeft = useCountdown(me?.cooldownUntil ?? null);
 
   const grid: PublicGrid | null =
@@ -187,17 +207,42 @@ export default function PlayBoard({ slug }: { slug: string }) {
     return map;
   }, [grid]);
 
-  async function clickTile(row: number, col: number) {
-    if (!email || busy || cooldownLeft || !grid || gridResting) return;
+  function openVerify(step: "email" | "code", initialEmail = "") {
+    setVerifyInitStep(step);
+    setVerifyInitEmail(initialEmail);
+    setEmailPrompt(true);
+  }
+
+  async function clickTile(row: number, col: number, emailArg?: string) {
+    if (busy || !grid || gridResting) return;
+    // On cooldown: explain why the tile won't turn over instead of doing nothing.
+    if (cooldownLeft) {
+      setCooldownPopup(true);
+      return;
+    }
+    const useEmail = emailArg ?? email;
+    // Not logged in yet: ask for an email + verification now (only on the first
+    // tap), remember which tile they wanted, and play it once verified.
+    if (!useEmail) {
+      setPendingTile({ row, col });
+      openVerify("email");
+      return;
+    }
     setBusy(true);
     setFlash(null);
     try {
       const res = await fetch(`/api/play/${slug}/click`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, gridId: grid.id, row, col }),
+        body: JSON.stringify({ email: useEmail, gridId: grid.id, row, col }),
       });
       const result = (await res.json()) as PlayResult;
+      if (result.result === "error" && result.error === "email_not_verified") {
+        // Remembered email hasn't been verified: jump straight to the code step.
+        setPendingTile({ row, col });
+        openVerify("code", useEmail);
+        return;
+      }
       if (result.result === "hit") {
         setReveal({
           kind: "hit",
@@ -213,6 +258,10 @@ export default function PlayBoard({ slug }: { slug: string }) {
       } else if (result.result === "grid_completed") {
         setFlash(
           "All rewards on this grid have been found — it's resting before the next round."
+        );
+      } else if (result.result === "no_plays") {
+        setFlash(
+          "This board is taking a short break — check back soon for more chances to win!"
         );
       } else if (result.error === "tile_taken") {
         setFlash("Someone got to that tile first — pick another one!");
@@ -282,52 +331,6 @@ export default function PlayBoard({ slug }: { slug: string }) {
       <main className="flex min-h-screen items-center justify-center text-zinc-400">
         {splash}
         <span className="animate-pulse">Loading board…</span>
-      </main>
-    );
-  }
-
-  if (!email) {
-    return (
-      <main
-        className="flex min-h-screen items-center justify-center p-6"
-        style={brandStyle}
-      >
-        {splash}
-        <form
-          className="card animate-fade-up w-full max-w-sm p-6 sm:p-8"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const value = emailInput.trim().toLowerCase();
-            if (!EMAIL_REGEX.test(value)) {
-              setFlash("Enter a valid email address.");
-              return;
-            }
-            window.localStorage.setItem(EMAIL_STORAGE_KEY, value);
-            setEmail(value);
-            setFlash(null);
-          }}
-        >
-          <BusinessMark board={board} size="lg" />
-          <p className="mt-3 text-sm leading-relaxed text-zinc-500">
-            {board.tagline ?? "Tap a tile, win a reward."} Enter your email so
-            we can send you your redemption code if you hit one.
-          </p>
-          <label className="mt-5 block">
-            <span className="field-label">Email</span>
-            <input
-              type="email"
-              required
-              placeholder="you@example.com"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              className="input-field"
-            />
-          </label>
-          {flash && <p className="alert-error mt-3">{flash}</p>}
-          <button type="submit" className="btn-primary mt-5 w-full">
-            Start hunting
-          </button>
-        </form>
       </main>
     );
   }
@@ -457,8 +460,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
             grid={grid}
             revealedMap={revealedMap}
             lastMiss={lastMiss}
-            disabled={busy || !!cooldownLeft || gridResting}
-            cooldown={!!cooldownLeft && !gridResting}
+            disabled={busy || gridResting}
             resting={gridResting}
             onTileClick={clickTile}
           />
@@ -474,21 +476,32 @@ export default function PlayBoard({ slug }: { slug: string }) {
         )}
 
         <footer className="mt-10 text-center text-xs text-zinc-400">
-          Playing as {email} ·{" "}
-          <Link href="/me" className="underline transition hover:text-zinc-600">
-            my rewards
-          </Link>{" "}
-          ·{" "}
-          <button
-            className="cursor-pointer underline transition hover:text-zinc-600"
-            onClick={() => {
-              window.localStorage.removeItem(EMAIL_STORAGE_KEY);
-              setEmail(null);
-              setMe(null);
-            }}
-          >
-            switch email
-          </button>
+          {email ? (
+            <>
+              Playing as {email} ·{" "}
+              <Link href="/me" className="underline transition hover:text-zinc-600">
+                my rewards
+              </Link>{" "}
+              ·{" "}
+              <button
+                className="cursor-pointer underline transition hover:text-zinc-600"
+                onClick={() => {
+                  window.localStorage.removeItem(EMAIL_STORAGE_KEY);
+                  setEmail(null);
+                  setMe(null);
+                }}
+              >
+                switch email
+              </button>
+            </>
+          ) : (
+            <>
+              Tap a tile to start ·{" "}
+              <Link href="/me" className="underline transition hover:text-zinc-600">
+                my rewards
+              </Link>
+            </>
+          )}
         </footer>
       </div>
 
@@ -503,7 +516,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
         />
       )}
 
-      {showWelcome && !reveal && grid && (
+      {showWelcome && !reveal && !emailPrompt && grid && (
         <WelcomeModal
           board={board}
           grid={grid}
@@ -514,7 +527,236 @@ export default function PlayBoard({ slug }: { slug: string }) {
           }}
         />
       )}
+
+      {cooldownPopup && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
+          style={brandStyle}
+          onClick={() => setCooldownPopup(false)}
+        >
+          <div
+            className="animate-pop-in card w-full max-w-sm p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="mx-auto flex size-14 items-center justify-center rounded-2xl"
+              style={{
+                backgroundColor: "color-mix(in oklab, var(--brand), transparent 85%)",
+                color: "var(--brand)",
+              }}
+            >
+              <Hourglass className="size-7" aria-hidden />
+            </div>
+            <h2 className="mt-4 text-xl font-bold tracking-tight text-zinc-900">
+              One tap per round
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+              You&apos;ve already played recently, so this tile can&apos;t be
+              turned over yet. You can flip your next tile in{" "}
+              <strong className="font-semibold tabular-nums" style={{ color: "var(--brand)" }}>
+                {cooldownLeft ?? "a moment"}
+              </strong>
+              .
+            </p>
+            <button
+              onClick={() => setCooldownPopup(false)}
+              className="btn-primary mt-5 w-full"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
+      {emailPrompt && (
+        <VerifyModal
+          board={board}
+          brandStyle={brandStyle}
+          initialEmail={verifyInitEmail}
+          initialStep={verifyInitStep}
+          onClose={() => setEmailPrompt(false)}
+          onVerified={(em) => {
+            window.localStorage.setItem(EMAIL_STORAGE_KEY, em);
+            setEmail(em);
+            setEmailPrompt(false);
+            const tile = pendingTile;
+            setPendingTile(null);
+            if (tile) clickTile(tile.row, tile.col, em);
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+// Two-step customer email verification: enter email → we email a code → enter
+// the code. On success the caller is handed the verified email.
+function VerifyModal({
+  board,
+  brandStyle,
+  initialEmail,
+  initialStep,
+  onVerified,
+  onClose,
+}: {
+  board: PublicBoardState;
+  brandStyle: React.CSSProperties;
+  initialEmail: string;
+  initialStep: "email" | "code";
+  onVerified: (email: string) => void;
+  onClose: () => void;
+}) {
+  const [step, setStep] = useState<"email" | "code">(initialStep);
+  const [email, setEmail] = useState(initialEmail);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState(initialStep === "code" ? initialEmail : "");
+
+  // When opened straight at the code step (a remembered but unverified email),
+  // send the code right away.
+  useEffect(() => {
+    if (initialStep !== "code" || !initialEmail) return;
+    let ignore = false;
+    fetch("/api/customer/verify/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: initialEmail }),
+    }).then(() => {
+      if (!ignore) setSentTo(initialEmail);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [initialStep, initialEmail]);
+
+  async function sendCode(addr: string) {
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/customer/verify/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: addr }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(
+        body?.error === "too_many_requests"
+          ? "Too many code requests — wait a little and try again."
+          : "Couldn't send the code. Try again."
+      );
+      return false;
+    }
+    setSentTo(addr);
+    setStep("code");
+    return true;
+  }
+
+  async function submitCode() {
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/customer/verify/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: sentTo, code: code.trim() }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError("That code isn't right or has expired. Check your email.");
+      return;
+    }
+    onVerified(sentTo);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
+      style={brandStyle}
+      onClick={onClose}
+    >
+      <form
+        className="animate-pop-in card w-full max-w-sm p-6 sm:p-7"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (step === "email") {
+            const value = email.trim().toLowerCase();
+            if (!EMAIL_REGEX.test(value)) {
+              setError("Enter a valid email address.");
+              return;
+            }
+            setEmail(value);
+            sendCode(value);
+          } else {
+            if (!/^\d{6}$/.test(code.trim())) {
+              setError("Enter the 6-digit code we emailed you.");
+              return;
+            }
+            submitCode();
+          }
+        }}
+      >
+        <BusinessMark board={board} size="lg" />
+
+        {step === "email" ? (
+          <>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-500">
+              Enter your email to play. We&apos;ll send a 6-digit code to confirm
+              it&apos;s you — then your tile flips.
+            </p>
+            <label className="mt-5 block">
+              <span className="field-label">Email</span>
+              <input
+                type="email"
+                required
+                autoFocus
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input-field"
+              />
+            </label>
+            {error && <p className="alert-error mt-3">{error}</p>}
+            <button type="submit" disabled={busy} className="btn-primary mt-5 w-full">
+              {busy ? "Sending code…" : "Send my code"}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-500">
+              We emailed a 6-digit code to{" "}
+              <span className="font-medium text-zinc-700">{sentTo}</span>. Enter
+              it to verify and reveal your tile.
+            </p>
+            <label className="mt-5 block">
+              <span className="field-label">Verification code</span>
+              <input
+                inputMode="numeric"
+                autoFocus
+                maxLength={6}
+                placeholder="123456"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                className="input-field text-center font-mono text-2xl tracking-[0.4em]"
+              />
+            </label>
+            {error && <p className="alert-error mt-3">{error}</p>}
+            <button type="submit" disabled={busy} className="btn-primary mt-5 w-full">
+              {busy ? "Verifying…" : "Verify & play"}
+            </button>
+            <button
+              type="button"
+              onClick={() => sendCode(sentTo)}
+              disabled={busy}
+              className="btn-ghost mx-auto mt-2 block"
+            >
+              Resend code
+            </button>
+          </>
+        )}
+      </form>
+    </div>
   );
 }
 
@@ -530,7 +772,10 @@ function CodesStrip({
   eligible: boolean;
 }) {
   const [copied, setCopied] = useState<string | null>(null);
-  if (!me || (!me.loyaltyCode && me.codes.length === 0)) return null;
+  // The loyalty code only appears once the customer can actually redeem it —
+  // no point showing a code they can't use yet.
+  const showLoyaltyCode = !!me?.loyaltyCode && eligible;
+  if (!me || (!showLoyaltyCode && me.codes.length === 0)) return null;
 
   async function copy(code: string) {
     await navigator.clipboard.writeText(code);
@@ -555,7 +800,7 @@ function CodesStrip({
 
   return (
     <section className="mt-4 space-y-2">
-      {me.loyaltyCode && (
+      {showLoyaltyCode && me.loyaltyCode && (
         <div className="card flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
@@ -563,9 +808,8 @@ function CodesStrip({
               Loyalty code
             </p>
             <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
-              {eligible
-                ? `You have enough points — show this at the counter for ${discountPercent}% off!`
-                : "Show at the counter to spend your points. It changes after each use."}
+              You have enough points — show this at the counter for{" "}
+              {discountPercent}% off!
             </p>
           </div>
           {codeChip(me.loyaltyCode)}
@@ -695,7 +939,6 @@ function TileGrid({
   revealedMap,
   lastMiss,
   disabled,
-  cooldown,
   resting,
   onTileClick,
 }: {
@@ -703,17 +946,15 @@ function TileGrid({
   revealedMap: Map<string, boolean>;
   lastMiss: { gridId: string; row: number; col: number } | null;
   disabled: boolean;
-  cooldown: boolean;
   resting: boolean;
   onTileClick: (row: number, col: number) => void;
 }) {
-  const interlock =
-    grid.tileShape === "interlock-sharp" || grid.tileShape === "interlock-curved";
+  const interlock = grid.tileShape !== "square";
 
-  // One SVG clipPath per distinct silhouette on this board (curved only).
+  // One SVG clipPath per distinct silhouette on this board (curved family only).
   const curvedCombos = useMemo(
     () =>
-      grid.tileShape === "interlock-curved"
+      usesSvgClip(grid.tileShape)
         ? allEdgeCombos(grid.rows, grid.cols)
         : [],
     [grid.tileShape, grid.rows, grid.cols]
@@ -723,6 +964,9 @@ function TileGrid({
     const edges = edgesFor(row, col, grid.rows, grid.cols);
     if (grid.tileShape === "interlock-sharp") {
       return { clipPath: sharpClipPolygon(edges) };
+    }
+    if (grid.tileShape === "interlock-chevron") {
+      return { clipPath: chevronClipPolygon(edges) };
     }
     return { clipPath: `url(#jig-${grid.id}-${edgesKey(edges)})` };
   }
@@ -738,20 +982,9 @@ function TileGrid({
     };
   }
 
-  // Deterministic per-tile "randomness" so cooldown tiles twinkle out of sync.
-  function twinkleStyle(i: number): React.CSSProperties {
-    if (!cooldown) return {};
-    return {
-      "--twinkle-delay": `${(i * 137) % 3000}ms`,
-      "--twinkle-duration": `${2400 + ((i * 97) % 1900)}ms`,
-    } as React.CSSProperties;
-  }
-
-  const liveClasses = cooldown
-    ? "tile-cooldown cursor-not-allowed"
-    : resting
-      ? "cursor-not-allowed bg-zinc-100 ring-1 ring-zinc-200 opacity-70"
-      : interlock
+  const liveClasses = resting
+    ? "cursor-not-allowed bg-zinc-100 ring-1 ring-zinc-200 opacity-70"
+    : interlock
         ? "tile-live tile-live-shaped cursor-pointer hover:brightness-110 active:brightness-95"
         : "tile-live cursor-pointer hover:scale-105 active:scale-95";
 
@@ -766,7 +999,7 @@ function TileGrid({
                 id={`jig-${grid.id}-${edgesKey(edges)}`}
                 clipPathUnits="objectBoundingBox"
               >
-                <path d={curvedPathD(edges)} />
+                <path d={curvedPathD(edges, grid.tileShape)} />
               </clipPath>
             ))}
           </defs>
@@ -787,31 +1020,65 @@ function TileGrid({
             lastMiss.col === col;
 
           if (!interlock) {
+            // Reversed puzzle image: the picture shows on UNREVEALED tiles, and
+            // each reveal covers its piece with a faded brand-colour patch.
+            if (grid.imageUrl) {
+              if (isRevealed) {
+                return (
+                  <div
+                    key={i}
+                    aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+                    className={
+                      "relative flex aspect-square items-center justify-center rounded-lg ring-1 ring-[color-mix(in_oklab,var(--brand),transparent_65%)] " +
+                      (isMyMiss ? "animate-tile-reveal" : "")
+                    }
+                    style={{
+                      backgroundColor:
+                        "color-mix(in oklab, var(--brand), transparent 82%)",
+                    }}
+                  >
+                    {state === true && (
+                      <span
+                        className="flex size-6 items-center justify-center rounded-full text-white shadow"
+                        style={{ backgroundColor: "var(--brand)" }}
+                      >
+                        <Gift className="size-3.5" aria-hidden />
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <button
+                  key={i}
+                  disabled={disabled}
+                  onClick={() => onTileClick(row, col)}
+                  aria-label={`Tile ${row + 1}, ${col + 1}`}
+                  className={
+                    "tile-face aspect-square overflow-hidden rounded-lg bg-zinc-100 transition " +
+                    (disabled
+                      ? "cursor-not-allowed"
+                      : "cursor-pointer hover:brightness-105 active:brightness-95")
+                  }
+                  style={squareSliceStyle(row, col)}
+                />
+              );
+            }
             if (isRevealed) {
-              // Revealed: show the puzzle-image slice (or a plain marker without
-              // an image). Hits get a small gift badge on top of the slice.
+              // No image: revealed tiles show a hit / miss marker.
               return (
                 <div
                   key={i}
                   aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
                   className={
-                    "relative flex aspect-square items-center justify-center rounded-lg " +
+                    "relative flex aspect-square items-center justify-center rounded-lg ring-1 " +
                     (isMyMiss ? "animate-tile-reveal " : "") +
-                    (grid.imageUrl
-                      ? "ring-1 ring-zinc-200"
-                      : state === true
-                        ? "bg-emerald-100 text-emerald-600 ring-1 ring-emerald-300"
-                        : "bg-zinc-100 text-zinc-300 ring-1 ring-zinc-200")
+                    (state === true
+                      ? "bg-emerald-100 text-emerald-600 ring-emerald-300"
+                      : "bg-zinc-100 text-zinc-300 ring-zinc-200")
                   }
-                  style={squareSliceStyle(row, col)}
                 >
-                  {grid.imageUrl ? (
-                    state === true && (
-                      <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow">
-                        <Gift className="size-3" aria-hidden />
-                      </span>
-                    )
-                  ) : state === true ? (
+                  {state === true ? (
                     <Gift className="size-1/2 max-h-6 max-w-6" aria-hidden />
                   ) : (
                     <X className="size-1/2 max-h-5 max-w-5" aria-hidden />
@@ -826,7 +1093,6 @@ function TileGrid({
                 onClick={() => onTileClick(row, col)}
                 aria-label={`Tile ${row + 1}, ${col + 1}`}
                 className={`aspect-square rounded-lg transition ${liveClasses}`}
-                style={twinkleStyle(i)}
               />
             );
           }
@@ -840,54 +1106,85 @@ function TileGrid({
             ...clipStyle(row, col),
           };
 
-          return (
-            <div key={i} className="relative aspect-square">
-              {isRevealed ? (
-                <>
-                  <div
-                    aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+          // Reversed image (interlock): the picture is on the UNREVEALED shaped
+          // tile; revealing swaps it for a faded brand-colour patch.
+          if (grid.imageUrl) {
+            return (
+              <div key={i} className="relative aspect-square">
+                {isRevealed ? (
+                  <>
+                    <div
+                      aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+                      className={isMyMiss ? "absolute animate-tile-reveal" : "absolute"}
+                      style={{
+                        ...boxStyle,
+                        backgroundColor:
+                          "color-mix(in oklab, var(--brand), transparent 82%)",
+                      }}
+                    />
+                    {state === true && (
+                      <span
+                        className="absolute -right-1 -top-1 z-10 flex size-5 items-center justify-center rounded-full text-white shadow"
+                        style={{ backgroundColor: "var(--brand)" }}
+                      >
+                        <Gift className="size-3" aria-hidden />
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    disabled={disabled}
+                    onClick={() => onTileClick(row, col)}
+                    aria-label={`Tile ${row + 1}, ${col + 1}`}
                     className={
-                      "absolute flex items-center justify-center " +
-                      (isMyMiss ? "animate-tile-reveal " : "") +
-                      (grid.imageUrl
-                        ? ""
-                        : state === true
-                          ? "bg-emerald-100 text-emerald-600"
-                          : "bg-zinc-100 text-zinc-300")
+                      "absolute transition " +
+                      (disabled
+                        ? "cursor-not-allowed opacity-60"
+                        : "tile-live-shaped cursor-pointer hover:brightness-105 active:brightness-95")
                     }
                     style={{
                       ...boxStyle,
-                      ...(grid.imageUrl
-                        ? interlockSliceStyle(
-                            row,
-                            col,
-                            grid.rows,
-                            grid.cols,
-                            grid.imageUrl
-                          )
-                        : {}),
+                      ...interlockSliceStyle(
+                        row,
+                        col,
+                        grid.rows,
+                        grid.cols,
+                        grid.imageUrl
+                      ),
                     }}
-                  >
-                    {!grid.imageUrl &&
-                      (state === true ? (
-                        <Gift className="size-1/3 max-h-6 max-w-6" aria-hidden />
-                      ) : (
-                        <X className="size-1/3 max-h-5 max-w-5" aria-hidden />
-                      ))}
-                  </div>
-                  {grid.imageUrl && state === true && (
-                    <span className="absolute -right-1 -top-1 z-10 flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow">
-                      <Gift className="size-3" aria-hidden />
-                    </span>
+                  />
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div key={i} className="relative aspect-square">
+              {isRevealed ? (
+                <div
+                  aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
+                  className={
+                    "absolute flex items-center justify-center " +
+                    (isMyMiss ? "animate-tile-reveal " : "") +
+                    (state === true
+                      ? "bg-emerald-100 text-emerald-600"
+                      : "bg-zinc-100 text-zinc-300")
+                  }
+                  style={boxStyle}
+                >
+                  {state === true ? (
+                    <Gift className="size-1/3 max-h-6 max-w-6" aria-hidden />
+                  ) : (
+                    <X className="size-1/3 max-h-5 max-w-5" aria-hidden />
                   )}
-                </>
+                </div>
               ) : (
                 <button
                   disabled={disabled}
                   onClick={() => onTileClick(row, col)}
                   aria-label={`Tile ${row + 1}, ${col + 1}`}
                   className={`absolute transition ${liveClasses}`}
-                  style={{ ...boxStyle, ...twinkleStyle(i) }}
+                  style={boxStyle}
                 />
               )}
             </div>
@@ -997,8 +1294,46 @@ function ContactFab({ board }: { board: PublicBoardState }) {
   );
 }
 
-// The tile-reveal popup: a branded celebration for hits, an encouraging
-// points update for misses.
+// Festive confetti: deterministic pieces (position/color/delay from index) so
+// React doesn't reshuffle them between renders.
+function Confetti() {
+  const colors = [
+    "var(--brand)",
+    "#f59e0b",
+    "#ec4899",
+    "#8b5cf6",
+    "#10b981",
+    "#3b82f6",
+  ];
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      {Array.from({ length: 70 }, (_, i) => {
+        const left = (i * 37) % 100;
+        const delay = (i * 83) % 1400;
+        const duration = 2600 + ((i * 53) % 2200);
+        const size = 6 + ((i * 7) % 8);
+        const round = i % 3 === 0;
+        return (
+          <span
+            key={i}
+            className="absolute top-0"
+            style={{
+              left: `${left}%`,
+              width: size,
+              height: round ? size : size * 0.5,
+              borderRadius: round ? "9999px" : "2px",
+              backgroundColor: colors[i % colors.length],
+              animation: `confetti-fall ${duration}ms linear ${delay}ms infinite`,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// The tile-reveal popup: a big, confetti-filled celebration for hits, an
+// encouraging points update for misses.
 function RevealModal({
   reveal,
   board,
@@ -1016,6 +1351,90 @@ function RevealModal({
     ? 0
     : reveal.points % board.pointsPerDiscount || // partial progress…
       (reveal.points > 0 ? board.pointsPerDiscount : 0); // …or a full, redeemable cycle
+
+  // Hits get their own full-screen, celebratory treatment.
+  if (isHit) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/70 p-4 backdrop-blur-md"
+        style={brandStyle}
+        onClick={onClose}
+      >
+        <Confetti />
+        <div
+          className="animate-pop-in card relative w-full max-w-md overflow-hidden p-8 text-center sm:p-10"
+          onClick={(e) => e.stopPropagation()}
+          style={{ animation: "pop-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both, win-glow 2s ease-in-out 0.4s infinite" }}
+        >
+          <div className="relative mx-auto flex size-28 items-center justify-center">
+            <span
+              aria-hidden
+              className="absolute inset-0 rounded-full"
+              style={{
+                backgroundColor: "color-mix(in oklab, var(--brand), transparent 85%)",
+                animation: "burst-ring 1s ease-out 0.15s both",
+              }}
+            />
+            <div
+              className="relative flex size-24 items-center justify-center rounded-3xl text-white shadow-xl"
+              style={{
+                backgroundColor: "var(--brand)",
+                animation: "trophy-burst 0.8s cubic-bezier(0.34,1.56,0.64,1) both",
+              }}
+            >
+              <Trophy className="size-12" aria-hidden />
+            </div>
+          </div>
+
+          <p className="mt-6 flex items-center justify-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-zinc-400">
+            <Sparkles className="size-4" style={{ color: "var(--brand)" }} aria-hidden />
+            Winner
+            <Sparkles className="size-4" style={{ color: "var(--brand)" }} aria-hidden />
+          </p>
+          <h2 className="mt-1 text-4xl font-extrabold tracking-tight text-zinc-900 sm:text-5xl">
+            You won!
+          </h2>
+          <p className="mt-2 text-lg font-semibold" style={{ color: "var(--brand)" }}>
+            {reveal.description}
+          </p>
+
+          <p className="mt-6 text-xs uppercase tracking-[0.14em] text-zinc-400">
+            Show this code to staff
+          </p>
+          <p
+            className="mt-2 rounded-2xl py-5 font-mono text-4xl font-bold tracking-[0.35em] sm:text-5xl"
+            style={{
+              color: "var(--brand)",
+              backgroundColor: "color-mix(in oklab, var(--brand), transparent 92%)",
+              border: "2px solid color-mix(in oklab, var(--brand), transparent 65%)",
+            }}
+          >
+            {reveal.code}
+          </p>
+          <p className="mt-4 text-sm text-zinc-500">
+            {countdown ? (
+              <>
+                Expires in{" "}
+                <strong className="font-semibold text-amber-600 tabular-nums">
+                  {countdown}
+                </strong>
+              </>
+            ) : (
+              "This code has expired."
+            )}
+          </p>
+          <p className="mt-1 text-xs text-zinc-400">
+            We also emailed it to you — it stays at the top of this page until
+            you redeem it.
+          </p>
+
+          <button onClick={onClose} className="btn-primary mt-6 w-full py-3 text-lg">
+            Awesome!
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1041,58 +1460,16 @@ function RevealModal({
             className="animate-bounce-soft relative flex size-16 items-center justify-center rounded-2xl text-white shadow-lg"
             style={{ backgroundColor: "var(--brand)" }}
           >
-            {isHit ? (
-              <PartyPopper className="size-8" aria-hidden />
-            ) : (
-              <Star className="size-8 fill-current" aria-hidden />
-            )}
+            <Star className="size-8 fill-current" aria-hidden />
           </div>
         </div>
 
         <h2 className="mt-4 text-2xl font-bold tracking-tight text-zinc-900">
-          {isHit ? "You won!" : "+1 loyalty point"}
+          +1 loyalty point
         </h2>
 
-        {isHit ? (
-          <>
-            <p className="mt-1 font-medium" style={{ color: "var(--brand)" }}>
-              {reveal.description}
-            </p>
-            <p className="mt-5 text-xs uppercase tracking-[0.14em] text-zinc-400">
-              Show this code to staff
-            </p>
-            <p
-              className="mt-2 rounded-xl py-3.5 font-mono text-3xl tracking-[0.3em]"
-              style={{
-                color: "var(--brand)",
-                backgroundColor:
-                  "color-mix(in oklab, var(--brand), transparent 93%)",
-                border:
-                  "1px solid color-mix(in oklab, var(--brand), transparent 70%)",
-              }}
-            >
-              {reveal.code}
-            </p>
-            <p className="mt-4 text-sm text-zinc-500">
-              {countdown ? (
-                <>
-                  Expires in{" "}
-                  <strong className="font-semibold text-amber-600 tabular-nums">
-                    {countdown}
-                  </strong>
-                </>
-              ) : (
-                "This code has expired."
-              )}
-            </p>
-            <p className="mt-1 text-xs text-zinc-400">
-              We also emailed it to you — it stays at the top of this page
-              until you redeem it.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="mt-1 text-sm text-zinc-500">
+        <div>
+          <p className="mt-1 text-sm text-zinc-500">
               No reward under that tile, but you&apos;re{" "}
               {reveal.points >= board.pointsPerDiscount
                 ? `ready for ${board.discountPercent}% off — show your loyalty code at the counter!`
@@ -1118,11 +1495,10 @@ function RevealModal({
               {board.pointsPerDiscount} pts = {board.discountPercent}% off ·
               points last 7 days from your latest play
             </p>
-          </>
-        )}
+        </div>
 
         <button onClick={onClose} className="btn-primary mt-6 w-full">
-          {isHit ? "Done" : "Keep hunting next time"}
+          Keep hunting next time
         </button>
       </div>
     </div>

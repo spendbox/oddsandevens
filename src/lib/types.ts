@@ -25,6 +25,11 @@ export type PlayResult =
       points_expire_at: string | null;
     }
   | { result: "grid_completed"; resets_at: string }
+  | {
+      result: "no_plays";
+      loyalty_points: number;
+      points_expire_at: string | null;
+    }
   | { result: "error"; error: PlayError };
 
 export type PlayError =
@@ -32,7 +37,8 @@ export type PlayError =
   | "merchant_not_found"
   | "no_active_grid"
   | "invalid_tile"
-  | "tile_taken";
+  | "tile_taken"
+  | "email_not_verified";
 
 export type RedeemResult =
   | {
@@ -189,6 +195,32 @@ export interface MerchantStats {
   redemptionRate: number; // redemptions / all codes issued, 0..1
   activeCodes: number;
   pointsOutstanding: number;
+}
+
+// Plays-based plan state for the dashboard (from /api/merchant/plan).
+export interface MerchantPlan {
+  tier: "free" | "premium";
+  premiumExpiresAt: string | null;
+  baseAllowance: number; // annual plays for the current tier
+  premiumYearlyPlays: number; // annual plays a premium plan grants (for the upsell)
+  playsUsed: number; // plays used this annual period
+  baseRemaining: number; // baseAllowance - playsUsed, floored at 0
+  topupPlays: number; // purchased, non-expiring plays
+  playsRemaining: number; // baseRemaining + topupPlays
+  periodEnd: string; // when the annual window resets
+  premiumPriceKobo: number;
+  topupPricePer1000Kobo: number;
+  paymentsEnabled: boolean;
+}
+
+// A reusable reward in the merchant's catalogue (Build → Rewards). Copied into
+// grid-bound rewards when a grid is built.
+export interface RewardTemplate {
+  id: string;
+  description: string;
+  details: string | null;
+  default_expiry_days: number;
+  created_at: string;
 }
 
 // Free image library entry (curated in /admin).

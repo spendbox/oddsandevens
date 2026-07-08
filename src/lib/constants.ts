@@ -39,6 +39,8 @@ export const TILE_SHAPES = [
   "square",
   "interlock-sharp",
   "interlock-curved",
+  "interlock-round",
+  "interlock-chevron",
 ] as const;
 export type TileShape = (typeof TILE_SHAPES)[number];
 
@@ -47,6 +49,18 @@ export const PREMIUM_TERM_DAYS = 365;
 
 // Fallback premium price if the app_settings row is missing (kobo, ₦5,000).
 export const DEFAULT_PREMIUM_PRICE_KOBO = 500_000;
+
+// Plays-based allowances. A "play" is one tile tap that actually consumes a
+// tile (a hit or a miss); cooldown/taken/invalid taps don't count. Each
+// merchant gets an annual base allowance by tier (below, admin-tunable), plus
+// any purchased top-up plays that don't expire. When both run out, play pauses.
+export const PLAYS_PERIOD_DAYS = 365;
+export const DEFAULT_FREE_YEARLY_PLAYS = 100;
+export const DEFAULT_PREMIUM_YEARLY_PLAYS = 5000;
+// Top-ups are priced per 1,000 plays; the business buys any custom quantity.
+export const DEFAULT_TOPUP_PRICE_PER_1000_KOBO = 100_000; // ₦1,000 / 1,000 plays
+export const TOPUP_MIN_PLAYS = 100;
+export const TOPUP_MAX_PLAYS = 1_000_000;
 
 export const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export const SLUG_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;

@@ -8,7 +8,6 @@ import {
   Crown,
   Gift,
   ImagePlus,
-  Plus,
   RefreshCw,
   Shapes,
   X,
@@ -16,26 +15,24 @@ import {
 import {
   GRID_RESET_DAYS_DEFAULT,
   GRID_SIZE,
-  REWARD_EXPIRY_DAYS_DEFAULT,
-  REWARD_EXPIRY_DAYS_MAX,
-  REWARD_EXPIRY_DAYS_MIN,
   TIER_LIMITS,
   TILE_SHAPES,
   type SubscriptionTier,
   type TileShape,
 } from "@/lib/constants";
-import type { LibraryImage } from "@/lib/types";
+import type { LibraryImage, RewardTemplate } from "@/lib/types";
 import {
   allEdgeCombos,
+  chevronClipPolygon,
   curvedPathD,
   edgesFor,
   edgesKey,
   interlockSliceStyle,
   isOutTile,
   sharpClipPolygon,
+  usesSvgClip,
   type TileEdges,
 } from "@/lib/tile-shapes";
-import type { RewardDraft } from "./shared";
 
 const WIZARD_STEPS = ["Basics", "Look", "Rewards", "Review"] as const;
 
@@ -43,6 +40,8 @@ const SHAPE_LABELS: Record<TileShape, string> = {
   square: "Square",
   "interlock-sharp": "Interlock · sharp",
   "interlock-curved": "Interlock · curved",
+  "interlock-round": "Interlock · round",
+  "interlock-chevron": "Interlock · chevron",
 };
 
 // A fully interior tile (tabs on every edge) for the shape picker preview.
@@ -82,14 +81,18 @@ function GridPreview({
   // A few tiles shown "revealed" so the puzzle-image effect is visible.
   const revealedCells = imageUrl ? sampleCells(10, 11) : new Set<number>();
 
-  const curvedCombos =
-    tileShape === "interlock-curved" ? allEdgeCombos(GRID_SIZE, GRID_SIZE) : [];
+  const curvedCombos = usesSvgClip(tileShape)
+    ? allEdgeCombos(GRID_SIZE, GRID_SIZE)
+    : [];
 
   function clipStyle(row: number, col: number): React.CSSProperties {
     if (!interlock) return {};
     const edges = edgesFor(row, col, GRID_SIZE, GRID_SIZE);
     if (tileShape === "interlock-sharp") {
       return { clipPath: sharpClipPolygon(edges) };
+    }
+    if (tileShape === "interlock-chevron") {
+      return { clipPath: chevronClipPolygon(edges) };
     }
     return { clipPath: `url(#wizprev-${edgesKey(edges)})` };
   }
@@ -106,7 +109,7 @@ function GridPreview({
                 id={`wizprev-${edgesKey(edges)}`}
                 clipPathUnits="objectBoundingBox"
               >
-                <path d={curvedPathD(edges)} />
+                <path d={curvedPathD(edges, tileShape)} />
               </clipPath>
             ))}
           </defs>
@@ -126,18 +129,30 @@ function GridPreview({
           const revealed = revealedCells.has(i);
           const reward = rewardCells.has(i);
 
-          const fillStyle: React.CSSProperties =
-            revealed && imageUrl
-              ? interlock
-                ? interlockSliceStyle(row, col, GRID_SIZE, GRID_SIZE, imageUrl)
-                : {
-                    backgroundImage: `url(${imageUrl})`,
-                    backgroundSize: `${GRID_SIZE * 100}% ${GRID_SIZE * 100}%`,
-                    backgroundPosition: `${(col / (GRID_SIZE - 1)) * 100}% ${(row / (GRID_SIZE - 1)) * 100}%`,
-                  }
-              : {};
+          // Reversed image: unrevealed tiles show the picture; the sampled
+          // "revealed" tiles show a faded brand-colour patch instead.
+          const imageSlice: React.CSSProperties = imageUrl
+            ? interlock
+              ? interlockSliceStyle(row, col, GRID_SIZE, GRID_SIZE, imageUrl)
+              : {
+                  backgroundImage: `url(${imageUrl})`,
+                  backgroundSize: `${GRID_SIZE * 100}% ${GRID_SIZE * 100}%`,
+                  backgroundPosition: `${(col / (GRID_SIZE - 1)) * 100}% ${(row / (GRID_SIZE - 1)) * 100}%`,
+                }
+            : {};
 
-          const tileClass = revealed && imageUrl ? "" : "tile-live";
+          let fillStyle: React.CSSProperties = {};
+          let tileClass = "";
+          if (imageUrl) {
+            fillStyle = revealed
+              ? {
+                  backgroundColor:
+                    "color-mix(in oklab, var(--brand), transparent 82%)",
+                }
+              : imageSlice;
+          } else {
+            tileClass = "tile-live";
+          }
 
           if (!interlock) {
             return (
@@ -169,10 +184,6 @@ function GridPreview({
       <p className="mt-3 truncate text-center text-sm font-medium text-zinc-800">
         {title || "Untitled grid"}
       </p>
-      <p className="mt-0.5 text-center text-xs text-zinc-400">
-        {GRID_SIZE}×{GRID_SIZE} · {rewardTiles} winning tile
-        {rewardTiles === 1 ? "" : "s"} (positions are randomized for real)
-      </p>
     </div>
   );
 }
@@ -181,18 +192,19 @@ function ShapePreview({ shape }: { shape: TileShape }) {
   if (shape === "square") {
     return <span className="block size-9 rounded-md bg-emerald-500" aria-hidden />;
   }
-  const d =
-    shape === "interlock-curved"
-      ? curvedPathD(PREVIEW_EDGES)
-      : // The polygon helper emits CSS syntax; strip it back to SVG points.
-        undefined;
+  // Curved family draws an SVG path; sharp family a polygon (CSS syntax stripped
+  // back to SVG points).
+  const isCurved = shape === "interlock-curved" || shape === "interlock-round";
   return (
     <svg viewBox="0 0 1 1" className="size-9 text-emerald-500" aria-hidden>
-      {shape === "interlock-curved" ? (
-        <path d={d} fill="currentColor" />
+      {isCurved ? (
+        <path d={curvedPathD(PREVIEW_EDGES, shape)} fill="currentColor" />
       ) : (
         <polygon
-          points={sharpClipPolygon(PREVIEW_EDGES)
+          points={(shape === "interlock-chevron"
+            ? chevronClipPolygon(PREVIEW_EDGES)
+            : sharpClipPolygon(PREVIEW_EDGES)
+          )
             .replace(/^polygon\(/, "")
             .replace(/\)$/, "")
             .split(", ")
@@ -215,11 +227,13 @@ export function GridWizard({
   willReplaceActive,
   onDone,
   onCancel,
+  onManageRewards,
 }: {
   tier: SubscriptionTier;
   willReplaceActive: boolean;
   onDone: () => Promise<void>;
   onCancel: () => void;
+  onManageRewards: () => void;
 }) {
   const limits = TIER_LIMITS[tier];
   const isPremium = tier === "premium";
@@ -232,14 +246,10 @@ export function GridWizard({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [customPreview, setCustomPreview] = useState<string | null>(null);
   const customImageRef = useRef<HTMLInputElement>(null);
-  const [drafts, setDrafts] = useState<RewardDraft[]>([
-    {
-      description: "",
-      details: "",
-      expiryDays: REWARD_EXPIRY_DAYS_DEFAULT,
-      maxRedemptions: 1,
-    },
-  ]);
+  // Rewards come from the merchant's catalogue; the grid only records which
+  // ones to hide and how many winners each gets on this board.
+  const [templates, setTemplates] = useState<RewardTemplate[] | null>(null);
+  const [winners, setWinners] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -250,13 +260,31 @@ export function GridWizard({
       .then((body) => {
         if (!ignore) setLibrary((body?.images as LibraryImage[]) ?? []);
       });
+    fetch("/api/merchant/reward-templates")
+      .then((res) => (res.ok ? res.json() : { rewards: [] }))
+      .then((body) => {
+        if (!ignore) setTemplates((body?.rewards as RewardTemplate[]) ?? []);
+      });
     return () => {
       ignore = true;
     };
   }, []);
 
-  function setDraft(i: number, patch: Partial<RewardDraft>) {
-    setDrafts((d) => d.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const selectedIds = Object.keys(winners);
+
+  function toggleReward(id: string) {
+    setWinners((w) => {
+      if (id in w) {
+        const next = { ...w };
+        delete next[id];
+        return next;
+      }
+      return { ...w, [id]: 1 };
+    });
+  }
+
+  function setWinnerCount(id: string, n: number) {
+    setWinners((w) => ({ ...w, [id]: n }));
   }
 
   function validateStep(): string | null {
@@ -272,12 +300,18 @@ export function GridWizard({
       }
     }
     if (step === 2) {
-      if (drafts.some((d) => !d.description.trim())) {
-        return "Every reward needs a description.";
+      if (selectedIds.length === 0) {
+        return "Pick at least one reward to hide in this grid.";
       }
-      const total = drafts.reduce((s, d) => s + d.maxRedemptions, 0);
+      if (selectedIds.length > limits.maxRewards) {
+        return `Your ${tier} tier allows up to ${limits.maxRewards} rewards per grid.`;
+      }
+      if (selectedIds.some((id) => !Number.isInteger(winners[id]) || winners[id] < 1)) {
+        return "Each reward needs at least one winner.";
+      }
+      const total = selectedIds.reduce((s, id) => s + winners[id], 0);
       if (total > GRID_SIZE * GRID_SIZE) {
-        return "More reward redemptions than tiles — reduce the winners.";
+        return "More winning tiles than tiles on the grid — reduce the winners.";
       }
     }
     return null;
@@ -296,6 +330,13 @@ export function GridWizard({
   async function submit() {
     setBusy(true);
     setError(null);
+    const chosen = (templates ?? []).filter((t) => t.id in winners);
+    const drafts = chosen.map((t) => ({
+      description: t.description,
+      details: t.details ?? "",
+      expiryDays: t.default_expiry_days,
+      maxRedemptions: winners[t.id],
+    }));
     const form = new FormData();
     form.set("title", title);
     form.set("tileShape", tileShape);
@@ -332,7 +373,8 @@ export function GridWizard({
     await onDone();
   }
 
-  const totalRewardTiles = drafts.reduce((s, d) => s + d.maxRedemptions, 0);
+  const totalRewardTiles = selectedIds.reduce((s, id) => s + winners[id], 0);
+  const chosenTemplates = (templates ?? []).filter((t) => t.id in winners);
 
   return (
     <section className="card mt-6 p-4 sm:p-6">
@@ -399,10 +441,6 @@ export function GridWizard({
               className="input-field"
             />
           </label>
-          <p className="text-xs text-zinc-500">
-            Every grid is {GRID_SIZE}×{GRID_SIZE} — {GRID_SIZE * GRID_SIZE}{" "}
-            tiles.
-          </p>
           <label className="block">
             <span className="field-label flex items-center gap-1.5">
               <RefreshCw className="size-3.5" aria-hidden />
@@ -432,7 +470,8 @@ export function GridWizard({
           <div>
             <span className="field-label">Puzzle image (optional)</span>
             <p className="text-xs text-zinc-500">
-              Each revealed tile uncovers a piece of this image.
+              Your board shows this image; each tile a customer taps covers a
+              piece of it with your brand colour.
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               <button
@@ -514,12 +553,6 @@ export function GridWizard({
                 }}
               />
             </div>
-            {library.length === 0 && (
-              <p className="mt-2 text-xs text-zinc-400">
-                No free images in the library yet
-                {isPremium ? " — upload your own." : "."}
-              </p>
-            )}
           </div>
 
           <div>
@@ -561,96 +594,101 @@ export function GridWizard({
         </div>
       )}
 
-      {/* Step 3: rewards */}
+      {/* Step 3: rewards — pick from the merchant's catalogue */}
       {step === 2 && (
         <div className="mt-5">
           <span className="field-label">
-            Rewards ({drafts.length}/{limits.maxRewards})
+            Choose rewards ({selectedIds.length}/{limits.maxRewards})
           </span>
-          {drafts.map((d, i) => (
-            <div
-              key={i}
-              className="mt-3 rounded-xl border border-zinc-200 p-3 sm:p-4"
-            >
-              <div className="flex flex-wrap items-end gap-2">
-                <label className="block grow">
-                  <span className="field-label">Reward</span>
-                  <input
-                    required
-                    value={d.description}
-                    onChange={(e) => setDraft(i, { description: e.target.value })}
-                    placeholder="Free plate of jollof rice"
-                    className="input-field"
-                  />
-                </label>
-                <label className="block">
-                  <span className="field-label">Valid for (days)</span>
-                  <input
-                    type="number"
-                    min={REWARD_EXPIRY_DAYS_MIN}
-                    max={REWARD_EXPIRY_DAYS_MAX}
-                    value={d.expiryDays}
-                    onChange={(e) =>
-                      setDraft(i, { expiryDays: Number(e.target.value) })
-                    }
-                    className="input-field w-24"
-                  />
-                </label>
-                <label className="block">
-                  <span className="field-label">Winners</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={49}
-                    value={d.maxRedemptions}
-                    onChange={(e) =>
-                      setDraft(i, { maxRedemptions: Number(e.target.value) })
-                    }
-                    className="input-field w-20"
-                  />
-                </label>
-                {drafts.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setDrafts((ds) => ds.filter((_, j) => j !== i))}
-                    className="btn-secondary px-3 py-2.5 text-sm text-rose-500"
-                    aria-label="Remove reward"
-                  >
-                    <X className="size-4" aria-hidden />
-                  </button>
-                )}
-              </div>
-              <label className="mt-2 block">
-                <span className="field-label">Description (optional)</span>
-                <input
-                  value={d.details}
-                  onChange={(e) => setDraft(i, { details: e.target.value })}
-                  maxLength={300}
-                  placeholder="Any details customers should know — size, terms, how to claim…"
-                  className="input-field"
-                />
-              </label>
+          <p className="text-xs text-zinc-500">
+            Pick which of your rewards to hide in this grid and how many winning
+            tiles each gets. The rest of the tiles earn loyalty points.
+          </p>
+
+          {templates === null ? (
+            <p className="mt-4 animate-pulse text-sm text-zinc-400">
+              Loading your rewards…
+            </p>
+          ) : templates.length === 0 ? (
+            <div className="mt-3 rounded-xl border border-dashed border-zinc-200 p-6 text-center">
+              <Gift className="mx-auto size-8 text-zinc-300" aria-hidden />
+              <p className="mt-3 text-sm text-zinc-500">
+                You haven&apos;t created any rewards yet. Add one in the Rewards
+                tab, then come back to build your grid.
+              </p>
+              <button
+                type="button"
+                onClick={onManageRewards}
+                className="btn-primary mt-4 px-4 py-2 text-sm"
+              >
+                <Gift className="size-4" aria-hidden />
+                Manage rewards
+              </button>
             </div>
-          ))}
-          {drafts.length < limits.maxRewards && (
-            <button
-              type="button"
-              onClick={() =>
-                setDrafts((ds) => [
-                  ...ds,
-                  {
-                    description: "",
-                    details: "",
-                    expiryDays: REWARD_EXPIRY_DAYS_DEFAULT,
-                    maxRedemptions: 1,
-                  },
-                ])
-              }
-              className="btn-secondary mt-3 px-3 py-1.5 text-sm"
-            >
-              <Plus className="size-4" aria-hidden />
-              Add reward
-            </button>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {templates.map((t) => {
+                const selected = t.id in winners;
+                return (
+                  <li
+                    key={t.id}
+                    className={
+                      "rounded-xl border p-3 transition " +
+                      (selected
+                        ? "border-emerald-500 bg-emerald-50/40"
+                        : "border-zinc-200")
+                    }
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="flex min-w-0 cursor-pointer items-start gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleReward(t.id)}
+                          className="mt-1 size-4 accent-emerald-600"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-zinc-900">
+                            {t.description}
+                          </span>
+                          <span className="block text-xs text-zinc-500">
+                            Valid {t.default_expiry_days} day
+                            {t.default_expiry_days === 1 ? "" : "s"}
+                            {t.details ? ` · ${t.details}` : ""}
+                          </span>
+                        </span>
+                      </label>
+                      {selected && (
+                        <label className="flex items-center gap-1.5 text-xs text-zinc-600">
+                          Winners
+                          <input
+                            type="number"
+                            min={1}
+                            max={GRID_SIZE * GRID_SIZE}
+                            value={winners[t.id]}
+                            onFocus={(e) => e.currentTarget.select()}
+                            onChange={(e) =>
+                              setWinnerCount(t.id, Number(e.target.value))
+                            }
+                            className="input-field w-20"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+              <li>
+                <button
+                  type="button"
+                  onClick={onManageRewards}
+                  className="btn-secondary mt-1 px-3 py-1.5 text-sm"
+                >
+                  <Gift className="size-4" aria-hidden />
+                  Manage rewards
+                </button>
+              </li>
+            </ul>
           )}
         </div>
       )}
@@ -690,9 +728,9 @@ export function GridWizard({
             <div className="flex justify-between gap-4">
               <dt className="text-zinc-500">Rewards</dt>
               <dd className="text-right font-medium text-zinc-900">
-                {drafts.map((d, i) => (
-                  <span key={i} className="block">
-                    {d.description} ({d.maxRedemptions}x, {d.expiryDays}d)
+                {chosenTemplates.map((t) => (
+                  <span key={t.id} className="block">
+                    {t.description} ({winners[t.id]}x, {t.default_expiry_days}d)
                   </span>
                 ))}
               </dd>

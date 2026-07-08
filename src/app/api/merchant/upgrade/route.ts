@@ -5,6 +5,7 @@ import { getAuthedMerchant } from "@/lib/merchant-auth";
 import { supabaseServer } from "@/lib/supabase/server";
 import { DEFAULT_PREMIUM_PRICE_KOBO } from "@/lib/constants";
 import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
+import { appBaseUrl } from "@/lib/base-url";
 
 // Report the premium price (per year) and the merchant's current expiry so
 // the dashboard can show the upsell / renewal card.
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
   const amountKobo = Number(setting?.value ?? DEFAULT_PREMIUM_PRICE_KOBO);
 
   const reference = `th_${randomBytes(12).toString("hex")}`;
-  const origin = new URL(req.url).origin;
+  const origin = appBaseUrl(req);
 
   const { error: insertError } = await db.from("payments").insert({
     merchant_id: merchant.id,
