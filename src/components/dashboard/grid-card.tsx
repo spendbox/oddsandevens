@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Archive, Hourglass, Play, Puzzle, Trash2 } from "lucide-react";
+import {
+  Archive,
+  BarChart3,
+  Hourglass,
+  Play,
+  Puzzle,
+  Trash2,
+} from "lucide-react";
 import type { GridStats } from "@/lib/types";
 import { formatEta } from "./shared";
 import { RewardMap } from "./reward-map";
@@ -18,6 +25,7 @@ export function GridCard({
   onDelete: (id: string) => Promise<void>;
 }) {
   const [showMap, setShowMap] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const resting = grid.status === "active" && grid.completedAt !== null;
   const resetsAt = grid.completedAt
     ? new Date(
@@ -62,12 +70,10 @@ export function GridCard({
             )}
           </p>
           <p className="mt-0.5 text-xs text-zinc-500">
-            {grid.rows}×{grid.cols} · {grid.tileShape.replace("interlock-", "")}{" "}
-            tiles · {grid.revealedCount}/{grid.tileCount} revealed ·{" "}
             <span className="font-medium text-zinc-700">
-              {grid.redeemedCount} redeemed
+              {grid.revealedCount.toLocaleString()}
             </span>{" "}
-            of {grid.unlockedCount} won
+            tap{grid.revealedCount === 1 ? "" : "s"}
           </p>
           {resting && resetsAt && (
             <p className="mt-1 flex items-center gap-1 text-xs font-medium text-sky-700">
@@ -77,6 +83,13 @@ export function GridCard({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowStats((s) => !s)}
+            className="btn-secondary px-3 py-1.5 text-xs"
+          >
+            <BarChart3 className="size-3.5" aria-hidden />
+            Stats
+          </button>
           <button
             onClick={() => setShowMap((s) => !s)}
             className="btn-secondary px-3 py-1.5 text-xs"
@@ -113,6 +126,31 @@ export function GridCard({
           </button>
         </div>
       </div>
+      {showStats && (
+        <dl className="mt-3 grid grid-cols-2 gap-3 rounded-xl border border-zinc-100 bg-zinc-50/60 p-3 sm:grid-cols-4">
+          {[
+            { label: "Taps", value: grid.revealedCount.toLocaleString() },
+            {
+              label: "Tiles left",
+              value: (grid.tileCount - grid.revealedCount).toLocaleString(),
+            },
+            { label: "Rounds", value: grid.cycle.toLocaleString() },
+            {
+              label: "Redeemed",
+              value: `${grid.redeemedCount} of ${grid.unlockedCount}`,
+            },
+          ].map((s) => (
+            <div key={s.label}>
+              <dt className="text-[11px] uppercase tracking-wide text-zinc-400">
+                {s.label}
+              </dt>
+              <dd className="mt-0.5 text-sm font-semibold text-zinc-800">
+                {s.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {showMap && <RewardMap gridId={grid.id} rows={grid.rows} cols={grid.cols} />}
     </li>
   );
