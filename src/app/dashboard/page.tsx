@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Gift, Grid3x3, Hammer, Home, Palette, Users, Wallet, X } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { TIER_LIMITS } from "@/lib/constants";
+import { useAutoRefresh } from "@/lib/use-auto-refresh";
 import type {
   CustomerSummary,
   GridStats,
@@ -186,6 +187,14 @@ export default function DashboardPage() {
       ignore = true;
     };
   }, [fetchAll, router, applySnapshot]);
+
+  // Keep the dashboard live: new customers, plays, redemptions, and deletions
+  // show up on their own. Skips the initial loading phase.
+  useAutoRefresh(
+    useCallback(() => {
+      if (!loading) void load();
+    }, [loading, load])
+  );
 
   if (loading) {
     return (

@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { EMAIL_REGEX } from "@/lib/constants";
+import { useAutoRefresh } from "@/lib/use-auto-refresh";
 import type {
   CustomerState,
   PlayResult,
@@ -129,7 +130,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
       return {
         error:
           res.status === 404
-            ? "This TileHunt board doesn't exist or has no active grid."
+            ? "This Spendbox board doesn't exist or has no active grid."
             : "Couldn't load the board. Try again shortly.",
       };
     }
@@ -173,6 +174,14 @@ export default function PlayBoard({ slug }: { slug: string }) {
     if ("board" in b) setBoard(b.board);
     if (state) setMe(state);
   }, [fetchBoard, fetchMe]);
+
+  // The board is shared, so keep it live — tiles other players take (and grid
+  // resets) show up on their own. Only polls once the board has loaded.
+  useAutoRefresh(
+    useCallback(() => {
+      if (board && !busy) void refreshAll();
+    }, [board, busy, refreshAll])
+  );
 
   const cooldownLeft = useCountdown(me?.cooldownUntil ?? null);
 

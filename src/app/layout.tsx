@@ -13,7 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TileHunt — gamified loyalty for your business",
+  metadataBase: new URL("https://spendbox.site"),
+  title: "Spendbox — gamified loyalty for your business",
   description:
     "Hide rewards in a tile grid, share one link, and turn customers into regulars.",
 };

@@ -1,4 +1,4 @@
-# TileHunt
+# Spendbox
 
 Gamified loyalty widget for SMEs (built for Nigerian cloud kitchens first). A
 merchant hides rewards in a tile grid and shares one link (WhatsApp bio/posts).

@@ -18,6 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { PasswordInput } from "@/components/password-input";
+import { useAutoRefresh } from "@/lib/use-auto-refresh";
 
 interface AdminImage {
   id: string;
@@ -132,6 +133,13 @@ export default function AdminPage() {
   const load = useCallback(async () => {
     applyAdminData(await fetchAdminData());
   }, [fetchAdminData, applyAdminData]);
+
+  // Keep the merchant/customer lists current without a manual reload.
+  useAutoRefresh(
+    useCallback(() => {
+      if (authorized) void load();
+    }, [authorized, load])
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -303,7 +311,7 @@ export default function AdminPage() {
               required
               value={loginEmail}
               onChange={(e) => setLoginEmail(e.target.value)}
-              placeholder="admin@tilehunt.app"
+              placeholder="admin@spendbox.site"
               className="input-field"
             />
           </label>
@@ -331,7 +339,7 @@ export default function AdminPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-zinc-900">
             <Shield className="size-6 text-emerald-600" aria-hidden />
-            TileHunt admin
+            Spendbox admin
           </h1>
           <button
             onClick={async () => {
@@ -358,7 +366,7 @@ export default function AdminPage() {
               <input
                 type="number"
                 min={100}
-                step={100}
+                step="any"
                 value={priceNaira}
                 onChange={(e) => setPriceNaira(e.target.value)}
                 className="input-field w-full"
@@ -370,7 +378,7 @@ export default function AdminPage() {
               <input
                 type="number"
                 min={10}
-                step={100}
+                step="any"
                 value={topupPriceNaira}
                 onChange={(e) => setTopupPriceNaira(e.target.value)}
                 className="input-field w-full"
@@ -382,7 +390,7 @@ export default function AdminPage() {
               <input
                 type="number"
                 min={0}
-                step={10}
+                step="any"
                 value={freePlays}
                 onChange={(e) => setFreePlays(e.target.value)}
                 className="input-field w-full"
@@ -394,7 +402,7 @@ export default function AdminPage() {
               <input
                 type="number"
                 min={0}
-                step={100}
+                step="any"
                 value={premiumPlays}
                 onChange={(e) => setPremiumPlays(e.target.value)}
                 className="input-field w-full"

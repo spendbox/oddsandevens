@@ -222,7 +222,7 @@ export function PlansPanel({
               type="number"
               min={TOPUP_MIN_PLAYS}
               max={TOPUP_MAX_PLAYS}
-              step={100}
+              step={1}
               value={qty}
               onChange={(e) => setQty(Math.floor(Number(e.target.value)))}
               className="input-field w-40"

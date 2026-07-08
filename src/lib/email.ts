@@ -4,7 +4,7 @@ import { Resend } from "resend";
 // time we send, so a delivery failure must never surface as a game error.
 // Without RESEND_API_KEY (local dev), emails are logged instead of sent.
 
-const FROM = process.env.EMAIL_FROM ?? "TileHunt <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "Spendbox <onboarding@resend.dev>";
 
 // Canonical app URL for links inside emails. On Vercel this falls back to the
 // production domain automatically; set APP_URL to override (e.g. custom domain
@@ -79,7 +79,7 @@ export async function sendMerchantHitEmail(params: {
   const { to, businessName, description, customerEmail } = params;
   await send(
     to,
-    `TileHunt: a customer just won "${description}"`,
+    `Spendbox: a customer just won "${description}"`,
     `<div style="font-family:sans-serif;max-width:480px">
       <h2>Reward unlocked on your grid</h2>
       <p>A customer (${customerEmail}) just won <strong>${description}</strong> at ${businessName}.</p>

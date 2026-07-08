@@ -12,6 +12,7 @@ import {
   Ticket,
 } from "lucide-react";
 import { EMAIL_REGEX } from "@/lib/constants";
+import { useAutoRefresh } from "@/lib/use-auto-refresh";
 import type { LoyaltyAccount } from "@/lib/types";
 
 const EMAIL_STORAGE_KEY = "tilehunt_email";
@@ -72,6 +73,18 @@ export default function CustomerPortalPage() {
       setError(result.error);
     },
     [fetchAccounts]
+  );
+
+  // Silent background refresh (no loading flash) so newly-earned points and
+  // codes appear on their own.
+  useAutoRefresh(
+    useCallback(() => {
+      if (!email) return;
+      fetchAccounts(email).then((result) => {
+        setAccounts(result.accounts);
+        setError(result.error);
+      });
+    }, [email, fetchAccounts])
   );
 
   useEffect(() => {
@@ -184,7 +197,7 @@ export default function CustomerPortalPage() {
           <div className="card mt-8 p-8 text-center">
             <Star className="mx-auto size-8 text-zinc-300" aria-hidden />
             <p className="mt-3 text-zinc-500">
-              Nothing here yet — play a TileHunt board and your points and
+              Nothing here yet — play a Spendbox board and your points and
               rewards will show up.
             </p>
           </div>
