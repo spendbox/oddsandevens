@@ -918,8 +918,9 @@ function WelcomeModal({
 
         <p className="mt-4 text-center text-xs leading-relaxed text-zinc-400">
           Miss a reward and you still earn a loyalty point —{" "}
-          {board.pointsPerDiscount} points get you {board.discountPercent}% off
-          at the counter.
+          {board.pointsPerDiscount}{" "}
+          {board.pointsPerDiscount === 1 ? "point gets" : "points get"} you{" "}
+          {board.discountPercent}% off at the counter.
         </p>
 
         <button onClick={onClose} className="btn-primary mt-5 w-full">
@@ -1099,10 +1100,14 @@ function TileGrid({
 
           // Interlocking shapes: the cell stays in the grid flow; the visible
           // tile is an oversized clipped box whose tabs overhang the cell.
-          // "Out" tiles draw above their notched neighbours.
+          // "Out" cells draw above their notched neighbours. The cell wrapper
+          // carries the white-seam filter (see .tile-shaped), so it must also
+          // carry the z-index — the filter makes it a stacking context.
+          const cellStyle: React.CSSProperties = {
+            zIndex: isOutTile(row, col) ? 2 : 1,
+          };
           const boxStyle: React.CSSProperties = {
             inset: "-22%",
-            zIndex: isOutTile(row, col) ? 2 : 1,
             ...clipStyle(row, col),
           };
 
@@ -1110,12 +1115,14 @@ function TileGrid({
           // tile; revealing swaps it for a faded brand-colour patch.
           if (grid.imageUrl) {
             return (
-              <div key={i} className="relative aspect-square">
+              <div key={i} className="tile-shaped relative aspect-square" style={cellStyle}>
                 {isRevealed ? (
                   <>
                     <div
                       aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
-                      className={isMyMiss ? "absolute animate-tile-reveal" : "absolute"}
+                      className={
+                        "absolute" + (isMyMiss ? " animate-tile-reveal" : "")
+                      }
                       style={{
                         ...boxStyle,
                         backgroundColor:
@@ -1159,7 +1166,7 @@ function TileGrid({
           }
 
           return (
-            <div key={i} className="relative aspect-square">
+            <div key={i} className="tile-shaped relative aspect-square" style={cellStyle}>
               {isRevealed ? (
                 <div
                   aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}

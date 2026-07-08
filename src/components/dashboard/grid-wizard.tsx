@@ -164,12 +164,15 @@ function GridPreview({
             );
           }
           return (
-            <div key={i} className="relative aspect-square">
+            <div
+              key={i}
+              className="tile-shaped relative aspect-square"
+              style={{ zIndex: isOutTile(row, col) ? 2 : 1 }}
+            >
               <div
                 className={`absolute ${tileClass}`}
                 style={{
                   inset: "-22%",
-                  zIndex: isOutTile(row, col) ? 2 : 1,
                   ...clipStyle(row, col),
                   ...fillStyle,
                 }}
