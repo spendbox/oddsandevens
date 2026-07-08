@@ -75,17 +75,21 @@ export default function CustomerPortalPage() {
   );
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(EMAIL_STORAGE_KEY);
-    if (!stored || !EMAIL_REGEX.test(stored)) {
-      setBooting(false);
-      return;
-    }
     let ignore = false;
-    fetchAccounts(stored).then((result) => {
+    const stored = window.localStorage.getItem(EMAIL_STORAGE_KEY);
+    const valid = !!stored && EMAIL_REGEX.test(stored);
+    // Always resolve through a promise so state is only set in the callback
+    // (never synchronously inside the effect body).
+    const run = valid
+      ? fetchAccounts(stored)
+      : Promise.resolve(null as null | { accounts: LoyaltyAccount[]; error: string | null });
+    run.then((result) => {
       if (ignore) return;
-      setEmail(stored);
-      setAccounts(result.accounts);
-      setError(result.error);
+      if (result && stored) {
+        setEmail(stored);
+        setAccounts(result.accounts);
+        setError(result.error);
+      }
       setBooting(false);
     });
     return () => {

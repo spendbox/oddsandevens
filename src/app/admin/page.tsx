@@ -56,6 +56,9 @@ export default function AdminPage() {
   const [merchants, setMerchants] = useState<AdminMerchant[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [priceNaira, setPriceNaira] = useState("");
+  const [freePlays, setFreePlays] = useState("");
+  const [premiumPlays, setPremiumPlays] = useState("");
+  const [topupPriceNaira, setTopupPriceNaira] = useState("");
   const [savedPrice, setSavedPrice] = useState(false);
   const [title, setTitle] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -74,6 +77,9 @@ export default function AdminPage() {
     | {
         authorized: true;
         priceNaira: string;
+        freePlays: string;
+        premiumPlays: string;
+        topupPriceNaira: string;
         images: AdminImage[];
         merchants: AdminMerchant[];
         customers: AdminCustomer[];
@@ -96,6 +102,9 @@ export default function AdminPage() {
     return {
       authorized: true,
       priceNaira: String((settings?.premiumPriceKobo ?? 0) / 100),
+      freePlays: String(settings?.freeYearlyPlays ?? 0),
+      premiumPlays: String(settings?.premiumYearlyPlays ?? 0),
+      topupPriceNaira: String((settings?.topupPricePer1000Kobo ?? 0) / 100),
       images: (imgs?.images as AdminImage[]) ?? [],
       merchants: (merch?.merchants as AdminMerchant[]) ?? [],
       customers: (custs?.customers as AdminCustomer[]) ?? [],
@@ -109,6 +118,9 @@ export default function AdminPage() {
         return;
       }
       setPriceNaira(data.priceNaira);
+      setFreePlays(data.freePlays);
+      setPremiumPlays(data.premiumPlays);
+      setTopupPriceNaira(data.topupPriceNaira);
       setImages(data.images);
       setMerchants(data.merchants);
       setCustomers(data.customers);
@@ -135,14 +147,20 @@ export default function AdminPage() {
     e.preventDefault();
     setError(null);
     setSavedPrice(false);
-    const kobo = Math.round(Number(priceNaira) * 100);
     const res = await fetch("/api/admin/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ premiumPriceKobo: kobo }),
+      body: JSON.stringify({
+        premiumPriceKobo: Math.round(Number(priceNaira) * 100),
+        freeYearlyPlays: Math.round(Number(freePlays)),
+        premiumYearlyPlays: Math.round(Number(premiumPlays)),
+        topupPricePer1000Kobo: Math.round(Number(topupPriceNaira) * 100),
+      }),
     });
     if (!res.ok) {
-      setError("Couldn't save the price — it must be between ₦100 and ₦1,000,000.");
+      setError(
+        "Couldn't save — check the price is at least ₦100 and the play counts are whole numbers."
+      );
       return;
     }
     setSavedPrice(true);
@@ -332,32 +350,73 @@ export default function AdminPage() {
         <form onSubmit={savePrice} className="card mt-6 p-4 sm:p-5">
           <h2 className="section-title">
             <Landmark className="size-3.5" aria-hidden />
-            Premium price
+            Pricing & play allowances
           </h2>
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-zinc-500">₦</span>
-            <input
-              type="number"
-              min={100}
-              step={100}
-              value={priceNaira}
-              onChange={(e) => setPriceNaira(e.target.value)}
-              className="input-field w-40"
-              aria-label="Premium price in naira"
-            />
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="field-label">Premium price / year (₦)</span>
+              <input
+                type="number"
+                min={100}
+                step={100}
+                value={priceNaira}
+                onChange={(e) => setPriceNaira(e.target.value)}
+                className="input-field w-full"
+                aria-label="Premium price in naira"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Top-up price / 1,000 plays (₦)</span>
+              <input
+                type="number"
+                min={10}
+                step={100}
+                value={topupPriceNaira}
+                onChange={(e) => setTopupPriceNaira(e.target.value)}
+                className="input-field w-full"
+                aria-label="Top-up price per 1000 plays in naira"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Free plays / year</span>
+              <input
+                type="number"
+                min={0}
+                step={10}
+                value={freePlays}
+                onChange={(e) => setFreePlays(e.target.value)}
+                className="input-field w-full"
+                aria-label="Free tier yearly plays"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Premium plays / year</span>
+              <input
+                type="number"
+                min={0}
+                step={100}
+                value={premiumPlays}
+                onChange={(e) => setPremiumPlays(e.target.value)}
+                className="input-field w-full"
+                aria-label="Premium tier yearly plays"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
             <button type="submit" className="btn-primary px-4 py-2">
               {savedPrice ? (
                 <>
                   <Check className="size-4" aria-hidden /> Saved
                 </>
               ) : (
-                "Save price"
+                "Save settings"
               )}
             </button>
+            <p className="text-xs text-zinc-400">
+              A play is one tile tap. Premium is a yearly Paystack plan; top-ups
+              are one-off and never expire.
+            </p>
           </div>
-          <p className="mt-2 text-xs text-zinc-400">
-            Charged once via Paystack when a business upgrades to Premium.
-          </p>
         </form>
 
         <form onSubmit={uploadImage} className="card mt-4 p-4 sm:p-5">

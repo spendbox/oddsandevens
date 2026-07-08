@@ -16,6 +16,9 @@ export interface MerchantRow {
   discount_percent: number;
   whatsapp: string | null;
   contact_email: string | null;
+  plays_used: number;
+  plays_period_start: string;
+  topup_plays: number;
 }
 
 // Premium is a yearly plan: the tier only counts while it hasn't lapsed.
@@ -54,7 +57,7 @@ export async function getAuthedMerchant(): Promise<
   const { data: merchant } = await supabaseAdmin()
     .from("merchants")
     .select(
-      "id, owner_id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
+      "id, owner_id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email, plays_used, plays_period_start, topup_plays"
     )
     .eq("owner_id", user.id)
     .maybeSingle();

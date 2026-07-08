@@ -215,6 +215,10 @@ export default function PlayBoard({ slug }: { slug: string }) {
         setFlash(
           "All rewards on this grid have been found — it's resting before the next round."
         );
+      } else if (result.result === "no_plays") {
+        setFlash(
+          "This board is taking a short break — check back soon for more chances to win!"
+        );
       } else if (result.error === "tile_taken") {
         setFlash("Someone got to that tile first — pick another one!");
       } else {
