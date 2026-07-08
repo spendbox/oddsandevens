@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { verifyTransaction } from "@/lib/paystack";
+import { isTerminalFailure, verifyTransaction } from "@/lib/paystack";
 import { PREMIUM_TERM_DAYS } from "@/lib/constants";
 
 export type SettleResult =
@@ -41,14 +41,24 @@ export async function settlePayment(
 
   const verification = await verifyTransaction(reference);
   if (!verification) return { ok: false, status: 502, error: "paystack_failed" };
+
+  if (!verification.success) {
+    // Only mark failed on a terminal state. A pending/ongoing transaction
+    // (e.g. a test bank transfer that settles a moment later) is left as-is so
+    // the webhook can credit it once Paystack confirms.
+    if (isTerminalFailure(verification.status)) {
+      await db
+        .from("payments")
+        .update({ status: "failed" })
+        .eq("id", payment.id)
+        .eq("status", "pending");
+      return { ok: false, status: 402, error: "payment_not_successful" };
+    }
+    return { ok: false, status: 202, error: "payment_pending" };
+  }
   // The amount check stops a cheaper, unrelated successful charge being
   // replayed as a paid product.
-  if (!verification.success || verification.amountKobo < payment.amount_kobo) {
-    await db
-      .from("payments")
-      .update({ status: "failed" })
-      .eq("id", payment.id)
-      .eq("status", "pending");
+  if (verification.amountKobo < payment.amount_kobo) {
     return { ok: false, status: 402, error: "payment_not_successful" };
   }
 

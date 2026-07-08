@@ -145,7 +145,7 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     const snap = await fetchAll();
     if (snap === "unauthenticated") {
-      router.push("/login");
+      router.push("/signup");
       return;
     }
     applySnapshot(snap);
@@ -161,6 +161,7 @@ export default function DashboardPage() {
         "payment_ref"
       );
       let outcome: string | null = null;
+      let payError: string | null = null;
       if (ref) {
         const res = await fetch("/api/merchant/upgrade/verify", {
           method: "POST",
@@ -168,13 +169,14 @@ export default function DashboardPage() {
           body: JSON.stringify({ reference: ref }),
         });
         const body = await res.json().catch(() => null);
-        outcome = res.ok ? (body?.result as string) : null;
+        outcome = (body?.result as string) ?? null;
+        payError = (body?.error as string) ?? null;
         window.history.replaceState(null, "", "/dashboard");
       }
       const snap = await fetchAll();
       if (ignore) return;
       if (snap === "unauthenticated") {
-        router.push("/login");
+        router.push("/signup");
         return;
       }
       applySnapshot(snap);
@@ -183,10 +185,12 @@ export default function DashboardPage() {
           outcome === "upgraded"
             ? "Payment confirmed — your Premium year is active! 🎉"
             : outcome === "topped_up"
-              ? "Payment confirmed — your extra plays are ready! 🎉"
-              : "We couldn't confirm that payment. If you were charged, contact support."
+              ? "Payment confirmed — your extra taps are ready! 🎉"
+              : payError === "payment_pending"
+                ? "Payment received — we're confirming it now. Your account updates automatically the moment it clears."
+                : "We couldn't confirm that payment yet. If you were charged, it's applied automatically once it clears."
         );
-        if (outcome) setTab("plans");
+        setTab("plans");
       }
     };
     verifyThenLoad();
@@ -195,12 +199,19 @@ export default function DashboardPage() {
     };
   }, [fetchAll, router, applySnapshot]);
 
-  // Keep the dashboard live: new customers, plays, redemptions, and deletions
-  // show up on their own. Skips the initial loading phase.
+  // Keep the dashboard live: new customers, taps, redemptions, and deletions
+  // show up on their own. Unlike load(), a background poll never redirects to
+  // login on a transient auth blip — that would log the merchant out for no
+  // reason — it just skips the update.
+  const refreshSilently = useCallback(async () => {
+    const snap = await fetchAll();
+    if (snap === "unauthenticated") return;
+    applySnapshot(snap);
+  }, [fetchAll, applySnapshot]);
   useAutoRefresh(
     useCallback(() => {
-      if (!loading) void load();
-    }, [loading, load])
+      if (!loading) void refreshSilently();
+    }, [loading, refreshSilently])
   );
 
   if (loading) {
@@ -233,7 +244,7 @@ export default function DashboardPage() {
           merchant={merchant}
           onSignOut={async () => {
             await supabaseBrowser().auth.signOut();
-            router.push("/login");
+            router.push("/signup");
           }}
         />
 
@@ -351,7 +362,7 @@ export default function DashboardPage() {
                     onChanged={load}
                   />
                 ) : (
-                  <RewardsManager />
+                  <RewardsManager onChanged={load} />
                 )}
               </div>
             )}

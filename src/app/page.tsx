@@ -110,8 +110,9 @@ export default function LandingPage() {
           className="animate-fade-up mt-5 max-w-xl text-balance text-lg leading-relaxed text-zinc-600"
           style={{ animationDelay: "160ms" }}
         >
-          Turn one-time buyers into regulars. Hide rewards in a branded tile
-          grid, share one link, and let your customers hunt for their next treat.
+          Turn one-time shoppers into repeat buyers. Hide rewards inside a
+          beautifully branded grid, share one link, and let your customers play
+          to win their next perk.
         </p>
 
         <div

@@ -116,7 +116,7 @@ export default function AuthPage() {
     });
     setBusy(false);
     if (signInError) {
-      router.push("/login");
+      router.push("/signup");
       return;
     }
     router.push("/dashboard");

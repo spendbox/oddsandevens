@@ -82,7 +82,26 @@ function edgePoint(
   ];
 }
 
-export function sharpClipPolygon(edges: TileEdges): string {
+// A tab profile is a list of (t along the edge, h as a fraction of the tab
+// depth M) points describing one out-tab; in-notches are the same profile
+// mirrored inward (sign flips), so an out-tab always matches its neighbour's
+// notch and the board tessellates for any profile.
+type TabProfile = [number, number][];
+
+const TRAPEZOID_TAB: TabProfile = [
+  [0.36, 0],
+  [0.44, 1],
+  [0.56, 1],
+  [0.64, 0],
+];
+// A single triangular point instead of a plateau.
+const CHEVRON_TAB: TabProfile = [
+  [0.3, 0],
+  [0.5, 1],
+  [0.7, 0],
+];
+
+function tabPolygon(edges: TileEdges, profile: TabProfile): string {
   const points: [number, number][] = [];
   (["top", "right", "bottom", "left"] as const).forEach((name) => {
     const frame = EDGE_FRAME[name];
@@ -90,16 +109,19 @@ export function sharpClipPolygon(edges: TileEdges): string {
     points.push([frame.sx, frame.sy]);
     if (kind === "flat") return;
     const sign = kind === "out" ? 1 : -1;
-    // Trapezoid: shoulders at 36%/64% of the edge, tip plateau at 44%/56%,
-    // depth = the full tab overhang M.
-    points.push(edgePoint(frame, sign, 0.36, 0));
-    points.push(edgePoint(frame, sign, 0.44, M));
-    points.push(edgePoint(frame, sign, 0.56, M));
-    points.push(edgePoint(frame, sign, 0.64, 0));
+    for (const [t, h] of profile) points.push(edgePoint(frame, sign, t, h * M));
   });
   return `polygon(${points
     .map(([x, y]) => `${round(x * 100)}% ${round(y * 100)}%`)
     .join(", ")})`;
+}
+
+export function sharpClipPolygon(edges: TileEdges): string {
+  return tabPolygon(edges, TRAPEZOID_TAB);
+}
+
+export function chevronClipPolygon(edges: TileEdges): string {
+  return tabPolygon(edges, CHEVRON_TAB);
 }
 
 // ---------------------------------------------------------------------------
@@ -110,16 +132,40 @@ export function sharpClipPolygon(edges: TileEdges): string {
 
 // Knob profile in (t, h) edge-local coordinates: t along the edge 0..1,
 // h outward. Heights are scaled so the knob head reaches exactly M.
-const KNOB: { c1: [number, number]; c2: [number, number]; end: [number, number] }[] =
-  [
+type KnobSeg = { c1: [number, number]; c2: [number, number]; end: [number, number] };
+interface KnobProfile {
+  start: number;
+  segs: KnobSeg[];
+}
+
+// Classic jigsaw knob: a narrow neck opening to a round head.
+const JIGSAW_KNOB: KnobProfile = {
+  start: 0.35,
+  segs: [
     { c1: [0.47, 0], c2: [0.45, 0.33], end: [0.38, 0.45] },
     { c1: [0.29, 0.65], c2: [0.35, 1], end: [0.5, 1] },
     { c1: [0.65, 1], c2: [0.71, 0.65], end: [0.62, 0.45] },
     { c1: [0.55, 0.33], c2: [0.53, 0], end: [0.65, 0] },
-  ];
-const KNOB_START = 0.35;
+  ],
+};
+// A wide, smooth dome (no neck).
+const ROUND_KNOB: KnobProfile = {
+  start: 0.28,
+  segs: [
+    { c1: [0.34, 0.62], c2: [0.36, 1], end: [0.5, 1] },
+    { c1: [0.64, 1], c2: [0.66, 0.62], end: [0.72, 0] },
+  ],
+};
 
-export function curvedPathD(edges: TileEdges): string {
+function knobFor(shape: string): KnobProfile {
+  return shape === "interlock-round" ? ROUND_KNOB : JIGSAW_KNOB;
+}
+
+export function curvedPathD(
+  edges: TileEdges,
+  shape: string = "interlock-curved"
+): string {
+  const knob = knobFor(shape);
   const cmds: string[] = [`M ${round(M)} ${round(M)}`];
   (["top", "right", "bottom", "left"] as const).forEach((name) => {
     const frame = EDGE_FRAME[name];
@@ -133,8 +179,8 @@ export function curvedPathD(edges: TileEdges): string {
       const [x, y] = edgePoint(frame, sign, t, h * M);
       return `${round(x)} ${round(y)}`;
     };
-    cmds.push(`L ${pt(KNOB_START, 0)}`);
-    for (const seg of KNOB) {
+    cmds.push(`L ${pt(knob.start, 0)}`);
+    for (const seg of knob.segs) {
       cmds.push(
         `C ${pt(seg.c1[0], seg.c1[1])}, ${pt(seg.c2[0], seg.c2[1])}, ${pt(seg.end[0], seg.end[1])}`
       );
@@ -143,6 +189,12 @@ export function curvedPathD(edges: TileEdges): string {
   });
   cmds.push("Z");
   return cmds.join(" ");
+}
+
+// True when a shape needs an SVG clipPath (curved family) rather than a CSS
+// polygon (sharp family).
+export function usesSvgClip(shape: string): boolean {
+  return shape === "interlock-curved" || shape === "interlock-round";
 }
 
 // Every distinct edge combination a rows x cols board can produce, so the

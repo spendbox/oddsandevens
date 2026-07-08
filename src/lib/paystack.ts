@@ -48,7 +48,7 @@ export async function initializeTransaction(params: {
 
 export async function verifyTransaction(
   reference: string
-): Promise<{ success: boolean; amountKobo: number } | null> {
+): Promise<{ status: string; success: boolean; amountKobo: number } | null> {
   const key = secretKey();
   if (!key) return null;
   try {
@@ -61,12 +61,23 @@ export async function verifyTransaction(
       console.error("[paystack] verify failed:", body);
       return null;
     }
+    // `data.status` is the transaction state: success / failed / abandoned /
+    // reversed, or an in-flight state (pending / ongoing / processing) —
+    // common for test bank transfers that settle a moment later.
+    const status = String(body.data?.status ?? "");
     return {
-      success: body.data?.status === "success",
+      status,
+      success: status === "success",
       amountKobo: Number(body.data?.amount ?? 0),
     };
   } catch (err) {
     console.error("[paystack] verify threw:", err);
     return null;
   }
+}
+
+// Terminal failure states — anything else that isn't "success" is still in
+// flight and should not be marked failed (the webhook will settle it).
+export function isTerminalFailure(status: string): boolean {
+  return ["failed", "abandoned", "reversed"].includes(status);
 }

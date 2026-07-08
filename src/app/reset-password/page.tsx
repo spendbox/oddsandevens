@@ -72,7 +72,7 @@ export default function ResetPasswordPage() {
     });
     setBusy(false);
     if (signInError) {
-      router.push("/login");
+      router.push("/signup");
       return;
     }
     router.push("/dashboard");
@@ -118,7 +118,7 @@ export default function ResetPasswordPage() {
               <p className="mt-5 text-center text-sm text-zinc-500">
                 Remembered it?{" "}
                 <Link
-                  href="/login"
+                  href="/signup"
                   className="font-medium text-emerald-600 hover:text-emerald-500"
                 >
                   Sign in

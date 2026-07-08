@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Link2 } from "lucide-react";
+import { Check, Copy, ExternalLink, Link2 } from "lucide-react";
 import type { SubscriptionTier } from "@/lib/constants";
 
 export function ShareLink({
@@ -30,25 +30,35 @@ export function ShareLink({
       >
         {url}
       </p>
-      <button
-        onClick={async () => {
-          await navigator.clipboard.writeText(url);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        }}
-        className="btn-secondary w-full px-4 py-2.5 text-sm sm:w-auto sm:self-start"
-      >
-        {copied ? (
-          <>
-            <Check className="size-4" style={{ color: "var(--brand)" }} aria-hidden />{" "}
-            Copied!
-          </>
-        ) : (
-          <>
-            <Copy className="size-4" aria-hidden /> Copy link
-          </>
-        )}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={async () => {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+          className="btn-secondary px-4 py-2.5 text-sm"
+        >
+          {copied ? (
+            <>
+              <Check className="size-4" style={{ color: "var(--brand)" }} aria-hidden />{" "}
+              Copied!
+            </>
+          ) : (
+            <>
+              <Copy className="size-4" aria-hidden /> Copy link
+            </>
+          )}
+        </button>
+        <a
+          href={`/g/${slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-primary px-4 py-2.5 text-sm"
+        >
+          <ExternalLink className="size-4" aria-hidden /> Visit page
+        </a>
+      </div>
     </div>
   );
 }
