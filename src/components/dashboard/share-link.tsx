@@ -19,9 +19,15 @@ export function ShareLink({
       <p className="section-title">
         <Link2 className="size-3.5" aria-hidden />
         Your customer link ·{" "}
-        <span className="text-emerald-600">{tier} tier</span>
+        <span style={{ color: "var(--brand)" }}>{tier} tier</span>
       </p>
-      <p className="break-all rounded-xl bg-emerald-50 px-3 py-2.5 font-mono text-sm leading-relaxed text-emerald-700">
+      <p
+        className="break-all rounded-xl px-3 py-2.5 font-mono text-sm leading-relaxed"
+        style={{
+          backgroundColor: "color-mix(in oklab, var(--brand), transparent 92%)",
+          color: "var(--brand)",
+        }}
+      >
         {url}
       </p>
       <button
@@ -34,7 +40,8 @@ export function ShareLink({
       >
         {copied ? (
           <>
-            <Check className="size-4 text-emerald-600" aria-hidden /> Copied!
+            <Check className="size-4" style={{ color: "var(--brand)" }} aria-hidden />{" "}
+            Copied!
           </>
         ) : (
           <>

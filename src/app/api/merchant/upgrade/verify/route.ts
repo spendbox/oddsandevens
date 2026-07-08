@@ -90,11 +90,15 @@ export async function POST(req: Request) {
     base + PREMIUM_TERM_DAYS * 86400_000
   ).toISOString();
 
+  // A premium purchase also starts a fresh annual play window, so the buyer
+  // gets the full premium allowance right away.
   const { error: tierError } = await db
     .from("merchants")
     .update({
       subscription_tier: "premium",
       premium_expires_at: premiumExpiresAt,
+      plays_used: 0,
+      plays_period_start: new Date().toISOString(),
     })
     .eq("id", merchant.id);
   if (tierError) {

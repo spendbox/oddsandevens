@@ -22,7 +22,11 @@ export function DashboardHeader({
             className="size-10 shrink-0 rounded-xl border border-zinc-200 object-cover"
           />
         ) : (
-          <Puzzle className="size-8 shrink-0 text-emerald-600" aria-hidden />
+          <Puzzle
+            className="size-8 shrink-0"
+            style={{ color: "var(--brand)" }}
+            aria-hidden
+          />
         )}
         <div className="min-w-0">
           <h1 className="truncate text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl">
