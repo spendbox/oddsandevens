@@ -9,7 +9,6 @@ import {
   Palette,
   Share2,
   Sparkles,
-  X,
 } from "lucide-react";
 import { DEFAULT_POINTS_PER_DISCOUNT } from "@/lib/constants";
 import type { Merchant } from "./shared";
@@ -24,9 +23,6 @@ interface Step {
   tutorial: string[];
 }
 
-function dismissedKey(merchantId: string) {
-  return `th_checklist_dismissed_${merchantId}`;
-}
 function sharedKey(merchantId: string) {
   return `th_shared_${merchantId}`;
 }
@@ -45,11 +41,6 @@ export function GettingStarted({
   onCreateGrid: () => void;
   onOpenSettings: () => void;
 }) {
-  const [dismissed, setDismissed] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.localStorage.getItem(dismissedKey(merchant.id)) === "1"
-  );
   const [shared, setShared] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -111,7 +102,7 @@ export function GettingStarted({
   ];
 
   const remaining = steps.filter((s) => !s.done).length;
-  if (dismissed || remaining === 0) return null;
+  if (remaining === 0) return null;
 
   async function act(step: Step) {
     if (step.key === "grid") onCreateGrid();
@@ -127,27 +118,15 @@ export function GettingStarted({
 
   return (
     <section className="card border-emerald-200 bg-gradient-to-br from-emerald-50/70 to-white p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-800">
-            <Sparkles className="size-4" aria-hidden />
-            Getting started
-          </h2>
-          <p className="mt-0.5 text-xs text-zinc-500">
-            {steps.length - remaining} of {steps.length} done — three quick
-            steps and you&apos;re live.
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            window.localStorage.setItem(dismissedKey(merchant.id), "1");
-            setDismissed(true);
-          }}
-          className="btn-ghost shrink-0"
-          aria-label="Dismiss checklist"
-        >
-          <X className="size-4" aria-hidden />
-        </button>
+      <div>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-800">
+          <Sparkles className="size-4" aria-hidden />
+          Getting started
+        </h2>
+        <p className="mt-0.5 text-xs text-zinc-500">
+          {steps.length - remaining} of {steps.length} done — three quick steps
+          and you&apos;re live.
+        </p>
       </div>
 
       <ul className="mt-3 space-y-2">

@@ -75,6 +75,46 @@
   }
 }
 
+/* Big celebratory win: confetti rains down and the trophy bursts in. */
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-12vh) rotate(0deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 1;
+  }
+}
+@keyframes trophy-burst {
+  0% {
+    transform: scale(0.2) rotate(-18deg);
+    opacity: 0;
+  }
+  45% {
+    transform: scale(1.25) rotate(8deg);
+  }
+  70% {
+    transform: scale(0.95) rotate(-3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+@keyframes win-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand), transparent 60%);
+  }
+  50% {
+    box-shadow: 0 0 40px 8px color-mix(in oklab, var(--brand), transparent 55%);
+  }
+}
+
 /* Splash screen: logo pops in, whole overlay fades away. */
 @keyframes splash-logo {
   0% {

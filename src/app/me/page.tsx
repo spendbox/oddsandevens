@@ -36,6 +36,9 @@ export default function CustomerPortalPage() {
   const [emailInput, setEmailInput] = useState("");
   const [accounts, setAccounts] = useState<LoyaltyAccount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // While we check localStorage for a remembered email, hold back the email
+  // form so logged-in customers never see it flash.
+  const [booting, setBooting] = useState(true);
 
   // Pure fetcher (no setState) so the mount effect can apply the result in an
   // async callback — required by the react-hooks/set-state-in-effect rule.
@@ -73,18 +76,30 @@ export default function CustomerPortalPage() {
 
   useEffect(() => {
     const stored = window.localStorage.getItem(EMAIL_STORAGE_KEY);
-    if (!stored || !EMAIL_REGEX.test(stored)) return;
+    if (!stored || !EMAIL_REGEX.test(stored)) {
+      setBooting(false);
+      return;
+    }
     let ignore = false;
     fetchAccounts(stored).then((result) => {
       if (ignore) return;
       setEmail(stored);
       setAccounts(result.accounts);
       setError(result.error);
+      setBooting(false);
     });
     return () => {
       ignore = true;
     };
   }, [fetchAccounts]);
+
+  if (booting) {
+    return (
+      <main className="flex min-h-screen items-center justify-center text-zinc-400">
+        <span className="animate-pulse">Loading your rewards…</span>
+      </main>
+    );
+  }
 
   if (!email) {
     return (
@@ -231,33 +246,62 @@ export default function CustomerPortalPage() {
                 </div>
 
                 {/* Progress toward the next discount */}
-                <div className="mt-3 flex items-center gap-1.5">
-                  {Array.from({ length: a.pointsPerDiscount }, (_, i) => (
-                    <span
-                      key={i}
-                      className="h-2 grow rounded-full"
-                      style={{
-                        backgroundColor:
-                          i < a.loyaltyPoints % a.pointsPerDiscount ||
-                          (a.loyaltyPoints > 0 &&
-                            a.loyaltyPoints % a.pointsPerDiscount === 0 &&
-                            i < a.pointsPerDiscount)
-                            ? "var(--brand)"
-                            : "color-mix(in oklab, var(--brand), transparent 88%)",
-                      }}
-                      aria-hidden
-                    />
-                  ))}
-                </div>
+                {(() => {
+                  const eligible = a.loyaltyPoints >= a.pointsPerDiscount;
+                  const inCycle = eligible
+                    ? a.pointsPerDiscount
+                    : a.loyaltyPoints % a.pointsPerDiscount;
+                  const toGo = a.pointsPerDiscount - inCycle;
+                  return (
+                    <>
+                      <div className="mt-3 flex items-center gap-1.5">
+                        {Array.from({ length: a.pointsPerDiscount }, (_, i) => (
+                          <span
+                            key={i}
+                            className="h-2 grow rounded-full"
+                            style={{
+                              backgroundColor:
+                                i < inCycle
+                                  ? "var(--brand)"
+                                  : "color-mix(in oklab, var(--brand), transparent 88%)",
+                            }}
+                            aria-hidden
+                          />
+                        ))}
+                      </div>
+                      <p
+                        className={
+                          "mt-1.5 text-xs " +
+                          (eligible
+                            ? "font-medium text-[var(--brand)]"
+                            : "text-zinc-500")
+                        }
+                      >
+                        {eligible
+                          ? `Reward unlocked! Show your loyalty code below for ${a.discountPercent}% off.`
+                          : `${toGo} more point${toGo === 1 ? "" : "s"} to unlock ${a.discountPercent}% off. You can only redeem once the bar is full.`}
+                      </p>
+                    </>
+                  );
+                })()}
 
                 {a.loyaltyCode && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2.5">
+                  <div
+                    className={
+                      "mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2.5 " +
+                      (a.loyaltyPoints >= a.pointsPerDiscount
+                        ? "border-[color-mix(in_oklab,var(--brand),transparent_70%)] bg-[color-mix(in_oklab,var(--brand),transparent_94%)]"
+                        : "border-zinc-100 bg-zinc-50")
+                    }
+                  >
                     <p className="flex items-center gap-1.5 text-xs font-medium text-zinc-600">
                       <BadgePercent
                         className="size-3.5 text-[var(--brand)]"
                         aria-hidden
                       />
-                      Loyalty code · show at the counter to spend points
+                      {a.loyaltyPoints >= a.pointsPerDiscount
+                        ? "Loyalty code · ready to redeem at the counter"
+                        : "Loyalty code · fill the bar above, then redeem this"}
                     </p>
                     <span className="shrink-0 rounded-lg border border-[color-mix(in_oklab,var(--brand),transparent_60%)] bg-white px-2.5 py-1 font-mono tracking-widest text-[var(--brand)]">
                       {a.loyaltyCode}

@@ -12,13 +12,14 @@ import {
   Hourglass,
   Mail,
   MessageCircle,
-  PartyPopper,
   Plus,
   Puzzle,
   RefreshCw,
+  Sparkles,
   Star,
   Target,
   Ticket,
+  Trophy,
   X,
 } from "lucide-react";
 import { EMAIL_REGEX } from "@/lib/constants";
@@ -997,8 +998,46 @@ function ContactFab({ board }: { board: PublicBoardState }) {
   );
 }
 
-// The tile-reveal popup: a branded celebration for hits, an encouraging
-// points update for misses.
+// Festive confetti: deterministic pieces (position/color/delay from index) so
+// React doesn't reshuffle them between renders.
+function Confetti() {
+  const colors = [
+    "var(--brand)",
+    "#f59e0b",
+    "#ec4899",
+    "#8b5cf6",
+    "#10b981",
+    "#3b82f6",
+  ];
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      {Array.from({ length: 70 }, (_, i) => {
+        const left = (i * 37) % 100;
+        const delay = (i * 83) % 1400;
+        const duration = 2600 + ((i * 53) % 2200);
+        const size = 6 + ((i * 7) % 8);
+        const round = i % 3 === 0;
+        return (
+          <span
+            key={i}
+            className="absolute top-0"
+            style={{
+              left: `${left}%`,
+              width: size,
+              height: round ? size : size * 0.5,
+              borderRadius: round ? "9999px" : "2px",
+              backgroundColor: colors[i % colors.length],
+              animation: `confetti-fall ${duration}ms linear ${delay}ms infinite`,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// The tile-reveal popup: a big, confetti-filled celebration for hits, an
+// encouraging points update for misses.
 function RevealModal({
   reveal,
   board,
@@ -1016,6 +1055,90 @@ function RevealModal({
     ? 0
     : reveal.points % board.pointsPerDiscount || // partial progress…
       (reveal.points > 0 ? board.pointsPerDiscount : 0); // …or a full, redeemable cycle
+
+  // Hits get their own full-screen, celebratory treatment.
+  if (isHit) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/70 p-4 backdrop-blur-md"
+        style={brandStyle}
+        onClick={onClose}
+      >
+        <Confetti />
+        <div
+          className="animate-pop-in card relative w-full max-w-md overflow-hidden p-8 text-center sm:p-10"
+          onClick={(e) => e.stopPropagation()}
+          style={{ animation: "pop-in 0.35s cubic-bezier(0.34,1.56,0.64,1) both, win-glow 2s ease-in-out 0.4s infinite" }}
+        >
+          <div className="relative mx-auto flex size-28 items-center justify-center">
+            <span
+              aria-hidden
+              className="absolute inset-0 rounded-full"
+              style={{
+                backgroundColor: "color-mix(in oklab, var(--brand), transparent 85%)",
+                animation: "burst-ring 1s ease-out 0.15s both",
+              }}
+            />
+            <div
+              className="relative flex size-24 items-center justify-center rounded-3xl text-white shadow-xl"
+              style={{
+                backgroundColor: "var(--brand)",
+                animation: "trophy-burst 0.8s cubic-bezier(0.34,1.56,0.64,1) both",
+              }}
+            >
+              <Trophy className="size-12" aria-hidden />
+            </div>
+          </div>
+
+          <p className="mt-6 flex items-center justify-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-zinc-400">
+            <Sparkles className="size-4" style={{ color: "var(--brand)" }} aria-hidden />
+            Winner
+            <Sparkles className="size-4" style={{ color: "var(--brand)" }} aria-hidden />
+          </p>
+          <h2 className="mt-1 text-4xl font-extrabold tracking-tight text-zinc-900 sm:text-5xl">
+            You won!
+          </h2>
+          <p className="mt-2 text-lg font-semibold" style={{ color: "var(--brand)" }}>
+            {reveal.description}
+          </p>
+
+          <p className="mt-6 text-xs uppercase tracking-[0.14em] text-zinc-400">
+            Show this code to staff
+          </p>
+          <p
+            className="mt-2 rounded-2xl py-5 font-mono text-4xl font-bold tracking-[0.35em] sm:text-5xl"
+            style={{
+              color: "var(--brand)",
+              backgroundColor: "color-mix(in oklab, var(--brand), transparent 92%)",
+              border: "2px solid color-mix(in oklab, var(--brand), transparent 65%)",
+            }}
+          >
+            {reveal.code}
+          </p>
+          <p className="mt-4 text-sm text-zinc-500">
+            {countdown ? (
+              <>
+                Expires in{" "}
+                <strong className="font-semibold text-amber-600 tabular-nums">
+                  {countdown}
+                </strong>
+              </>
+            ) : (
+              "This code has expired."
+            )}
+          </p>
+          <p className="mt-1 text-xs text-zinc-400">
+            We also emailed it to you — it stays at the top of this page until
+            you redeem it.
+          </p>
+
+          <button onClick={onClose} className="btn-primary mt-6 w-full py-3 text-lg">
+            Awesome!
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1041,58 +1164,16 @@ function RevealModal({
             className="animate-bounce-soft relative flex size-16 items-center justify-center rounded-2xl text-white shadow-lg"
             style={{ backgroundColor: "var(--brand)" }}
           >
-            {isHit ? (
-              <PartyPopper className="size-8" aria-hidden />
-            ) : (
-              <Star className="size-8 fill-current" aria-hidden />
-            )}
+            <Star className="size-8 fill-current" aria-hidden />
           </div>
         </div>
 
         <h2 className="mt-4 text-2xl font-bold tracking-tight text-zinc-900">
-          {isHit ? "You won!" : "+1 loyalty point"}
+          +1 loyalty point
         </h2>
 
-        {isHit ? (
-          <>
-            <p className="mt-1 font-medium" style={{ color: "var(--brand)" }}>
-              {reveal.description}
-            </p>
-            <p className="mt-5 text-xs uppercase tracking-[0.14em] text-zinc-400">
-              Show this code to staff
-            </p>
-            <p
-              className="mt-2 rounded-xl py-3.5 font-mono text-3xl tracking-[0.3em]"
-              style={{
-                color: "var(--brand)",
-                backgroundColor:
-                  "color-mix(in oklab, var(--brand), transparent 93%)",
-                border:
-                  "1px solid color-mix(in oklab, var(--brand), transparent 70%)",
-              }}
-            >
-              {reveal.code}
-            </p>
-            <p className="mt-4 text-sm text-zinc-500">
-              {countdown ? (
-                <>
-                  Expires in{" "}
-                  <strong className="font-semibold text-amber-600 tabular-nums">
-                    {countdown}
-                  </strong>
-                </>
-              ) : (
-                "This code has expired."
-              )}
-            </p>
-            <p className="mt-1 text-xs text-zinc-400">
-              We also emailed it to you — it stays at the top of this page
-              until you redeem it.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="mt-1 text-sm text-zinc-500">
+        <div>
+          <p className="mt-1 text-sm text-zinc-500">
               No reward under that tile, but you&apos;re{" "}
               {reveal.points >= board.pointsPerDiscount
                 ? `ready for ${board.discountPercent}% off — show your loyalty code at the counter!`
@@ -1118,11 +1199,10 @@ function RevealModal({
               {board.pointsPerDiscount} pts = {board.discountPercent}% off ·
               points last 7 days from your latest play
             </p>
-          </>
-        )}
+        </div>
 
         <button onClick={onClose} className="btn-primary mt-6 w-full">
-          {isHit ? "Done" : "Keep hunting next time"}
+          Keep hunting next time
         </button>
       </div>
     </div>

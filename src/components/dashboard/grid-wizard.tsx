@@ -514,12 +514,6 @@ export function GridWizard({
                 }}
               />
             </div>
-            {library.length === 0 && (
-              <p className="mt-2 text-xs text-zinc-400">
-                No free images in the library yet
-                {isPremium ? " — upload your own." : "."}
-              </p>
-            )}
           </div>
 
           <div>
