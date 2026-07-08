@@ -122,9 +122,6 @@ export default function LandingPage() {
             Start free
             <ArrowRight className="size-4" aria-hidden />
           </Link>
-          <Link href="/login" className="btn-secondary text-base">
-            Merchant login
-          </Link>
         </div>
 
         {/* Animated hero board */}
@@ -165,9 +162,6 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs text-zinc-400">
-          Every board is a shared 7×7 grid — each tile can be won just once.
-        </p>
       </div>
 
       {/* How it works */}
@@ -220,7 +214,7 @@ export default function LandingPage() {
           <div className="rounded-xl border border-zinc-100 p-5">
             <p className="text-sm font-semibold text-zinc-900">Free</p>
             <p className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">
-              100 <span className="text-base font-medium text-zinc-500">plays/yr</span>
+              100 <span className="text-base font-medium text-zinc-500">taps/yr</span>
             </p>
             <p className="mt-2 text-sm text-zinc-600">
               One live grid, two rewards, and your own branded board. Perfect for
@@ -233,7 +227,7 @@ export default function LandingPage() {
             </span>
             <p className="text-sm font-semibold text-emerald-800">Premium</p>
             <p className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">
-              5,000 <span className="text-base font-medium text-zinc-500">plays/yr</span>
+              5,000 <span className="text-base font-medium text-zinc-500">taps/yr</span>
             </p>
             <p className="mt-2 text-sm text-zinc-600">
               Up to 10 grids, 10 rewards each, custom puzzle images, and
@@ -242,8 +236,8 @@ export default function LandingPage() {
           </div>
         </div>
         <p className="mt-4 text-center text-xs text-zinc-400">
-          A play is one tile tap. Need more? Buy top-up plays in a click — no
-          upgrade required.
+          A tap is one tile a customer flips. Need more? Buy top-up taps in a
+          click — no upgrade required.
         </p>
       </section>
 

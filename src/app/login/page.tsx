@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Puzzle } from "lucide-react";
+import { Boxes } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { PasswordInput } from "@/components/password-input";
 
@@ -38,8 +38,8 @@ export default function LoginPage() {
           href="/"
           className="mb-6 flex items-center justify-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
         >
-          <Puzzle className="size-5 text-emerald-600" aria-hidden />
-          Tile<span className="-ml-2 text-emerald-600">Hunt</span>
+          <Boxes className="size-5 text-emerald-600" aria-hidden />
+          Spend<span className="text-emerald-600">box</span>
         </Link>
         <form onSubmit={onSubmit} className="card p-6 sm:p-8">
           <h1 className="text-xl font-bold tracking-tight text-zinc-900">
@@ -72,6 +72,14 @@ export default function LoginPage() {
           <button type="submit" disabled={busy} className="btn-primary mt-6 w-full">
             {busy ? "Signing in…" : "Sign in"}
           </button>
+          <p className="mt-3 text-center text-sm">
+            <Link
+              href="/reset-password"
+              className="text-zinc-500 underline transition hover:text-zinc-700"
+            >
+              Forgot your password?
+            </Link>
+          </p>
           <p className="mt-5 text-center text-sm text-zinc-500">
             New here?{" "}
             <Link

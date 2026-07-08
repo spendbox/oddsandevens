@@ -1,6 +1,6 @@
 "use client";
 
-import { Crown, LogOut, Puzzle } from "lucide-react";
+import { Boxes, Crown, LogOut } from "lucide-react";
 import { formatDate, isPremiumNow, type Merchant } from "./shared";
 
 export function DashboardHeader({
@@ -22,7 +22,7 @@ export function DashboardHeader({
             className="size-10 shrink-0 rounded-xl border border-zinc-200 object-cover"
           />
         ) : (
-          <Puzzle
+          <Boxes
             className="size-8 shrink-0"
             style={{ color: "var(--brand)" }}
             aria-hidden
@@ -34,7 +34,7 @@ export function DashboardHeader({
               merchant.business_name
             ) : (
               <>
-                Tile<span className="text-emerald-600">Hunt</span>
+                Spend<span className="text-emerald-600">box</span>
               </>
             )}
           </h1>

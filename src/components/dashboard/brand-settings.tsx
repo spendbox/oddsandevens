@@ -152,10 +152,6 @@ export function BrandSettings({
               if (f) setLogoPreview(URL.createObjectURL(f));
             }}
           />
-          <p className="mt-1.5 max-w-24 text-[11px] leading-tight text-zinc-400">
-            PNG, JPEG, or WebP, up to 1 MB. Shown on your board&apos;s splash
-            screen.
-          </p>
         </div>
 
         <div className="min-w-56 grow space-y-4">

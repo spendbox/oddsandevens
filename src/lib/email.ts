@@ -4,7 +4,7 @@ import { Resend } from "resend";
 // time we send, so a delivery failure must never surface as a game error.
 // Without RESEND_API_KEY (local dev), emails are logged instead of sent.
 
-const FROM = process.env.EMAIL_FROM ?? "Spendbox <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "Spendbox <notifications@spendbox.site>";
 
 // Canonical app URL for links inside emails. On Vercel this falls back to the
 // production domain automatically; set APP_URL to override (e.g. custom domain
@@ -47,6 +47,38 @@ function formatExpiry(expiresAt: string) {
   return new Date(expiresAt).toUTCString();
 }
 
+// One-time 6-digit code for signup, password reset, or customer verification.
+export async function sendVerificationCodeEmail(params: {
+  to: string;
+  code: string;
+  purpose: "merchant_signup" | "password_reset" | "customer_verify";
+}) {
+  const { to, code, purpose } = params;
+  const heading =
+    purpose === "password_reset"
+      ? "Reset your Spendbox password"
+      : purpose === "customer_verify"
+        ? "Confirm your email to play"
+        : "Confirm your email";
+  const intro =
+    purpose === "password_reset"
+      ? "Use this code to reset your password:"
+      : purpose === "customer_verify"
+        ? "Enter this code to verify your email and claim your rewards:"
+        : "Enter this code to finish creating your Spendbox account:";
+  await send(
+    to,
+    `${code} is your Spendbox code`,
+    `<div style="font-family:sans-serif;max-width:480px">
+      <h2>${heading}</h2>
+      <p>${intro}</p>
+      <p style="font-size:32px;letter-spacing:8px;font-weight:bold;background:#f4f4f5;padding:14px 16px;border-radius:8px;text-align:center">${code}</p>
+      <p>It expires in 10 minutes. If you didn't request this, you can ignore
+      this email.</p>
+    </div>`
+  );
+}
+
 export async function sendRewardUnlockedEmail(params: {
   to: string;
   businessName: string;
@@ -65,6 +97,51 @@ export async function sendRewardUnlockedEmail(params: {
       <p>Show this code to staff to redeem it:</p>
       <p style="font-size:28px;letter-spacing:6px;font-weight:bold;background:#f4f4f5;padding:12px 16px;border-radius:8px;text-align:center">${code}</p>
       <p>⏳ Expires <strong>${formatExpiry(expiresAt)}</strong>. After that the code is invalid.</p>
+      ${boardLink(slug)}
+    </div>`
+  );
+}
+
+// Sent to the customer when staff redeems one of their reward codes, so they
+// have a record that it was claimed.
+export async function sendRewardRedeemedEmail(params: {
+  to: string;
+  businessName: string;
+  slug: string;
+  description: string;
+}) {
+  const { to, businessName, slug, description } = params;
+  await send(
+    to,
+    `Redeemed: ${description} at ${businessName}`,
+    `<div style="font-family:sans-serif;max-width:480px">
+      <h2>Your reward was redeemed 🎉</h2>
+      <p><strong>${description}</strong> at ${businessName} has just been marked
+      as redeemed. Enjoy!</p>
+      ${boardLink(slug)}
+    </div>`
+  );
+}
+
+// Sent to the customer the moment they have enough loyalty points to redeem a
+// discount, so they know their loyalty code is now live.
+export async function sendLoyaltyUnlockedEmail(params: {
+  to: string;
+  businessName: string;
+  slug: string;
+  discountPercent: number;
+  code: string;
+}) {
+  const { to, businessName, slug, discountPercent, code } = params;
+  await send(
+    to,
+    `🎁 Your ${discountPercent}% discount at ${businessName} is ready`,
+    `<div style="font-family:sans-serif;max-width:480px">
+      <h2>You've unlocked ${discountPercent}% off at ${businessName}!</h2>
+      <p>You've earned enough loyalty points. Show this loyalty code at the
+      counter to claim your discount:</p>
+      <p style="font-size:28px;letter-spacing:6px;font-weight:bold;background:#f4f4f5;padding:12px 16px;border-radius:8px;text-align:center">${code}</p>
+      <p>It's the same code each time and changes after you use it.</p>
       ${boardLink(slug)}
     </div>`
   );

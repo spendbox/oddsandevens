@@ -121,18 +121,30 @@ function GridPreview({
           const revealed = revealedCells.has(i);
           const reward = rewardCells.has(i);
 
-          const fillStyle: React.CSSProperties =
-            revealed && imageUrl
-              ? interlock
-                ? interlockSliceStyle(row, col, GRID_SIZE, GRID_SIZE, imageUrl)
-                : {
-                    backgroundImage: `url(${imageUrl})`,
-                    backgroundSize: `${GRID_SIZE * 100}% ${GRID_SIZE * 100}%`,
-                    backgroundPosition: `${(col / (GRID_SIZE - 1)) * 100}% ${(row / (GRID_SIZE - 1)) * 100}%`,
-                  }
-              : {};
+          // Reversed image: unrevealed tiles show the picture; the sampled
+          // "revealed" tiles show a faded brand-colour patch instead.
+          const imageSlice: React.CSSProperties = imageUrl
+            ? interlock
+              ? interlockSliceStyle(row, col, GRID_SIZE, GRID_SIZE, imageUrl)
+              : {
+                  backgroundImage: `url(${imageUrl})`,
+                  backgroundSize: `${GRID_SIZE * 100}% ${GRID_SIZE * 100}%`,
+                  backgroundPosition: `${(col / (GRID_SIZE - 1)) * 100}% ${(row / (GRID_SIZE - 1)) * 100}%`,
+                }
+            : {};
 
-          const tileClass = revealed && imageUrl ? "" : "tile-live";
+          let fillStyle: React.CSSProperties = {};
+          let tileClass = "";
+          if (imageUrl) {
+            fillStyle = revealed
+              ? {
+                  backgroundColor:
+                    "color-mix(in oklab, var(--brand), transparent 82%)",
+                }
+              : imageSlice;
+          } else {
+            tileClass = "tile-live";
+          }
 
           if (!interlock) {
             return (
@@ -457,7 +469,8 @@ export function GridWizard({
           <div>
             <span className="field-label">Puzzle image (optional)</span>
             <p className="text-xs text-zinc-500">
-              Each revealed tile uncovers a piece of this image.
+              Your board shows this image; each tile a customer taps covers a
+              piece of it with your brand colour.
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               <button

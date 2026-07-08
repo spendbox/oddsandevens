@@ -37,7 +37,8 @@ export type PlayError =
   | "merchant_not_found"
   | "no_active_grid"
   | "invalid_tile"
-  | "tile_taken";
+  | "tile_taken"
+  | "email_not_verified";
 
 export type RedeemResult =
   | {
@@ -201,6 +202,7 @@ export interface MerchantPlan {
   tier: "free" | "premium";
   premiumExpiresAt: string | null;
   baseAllowance: number; // annual plays for the current tier
+  premiumYearlyPlays: number; // annual plays a premium plan grants (for the upsell)
   playsUsed: number; // plays used this annual period
   baseRemaining: number; // baseAllowance - playsUsed, floored at 0
   topupPlays: number; // purchased, non-expiring plays

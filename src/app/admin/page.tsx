@@ -167,7 +167,7 @@ export default function AdminPage() {
     });
     if (!res.ok) {
       setError(
-        "Couldn't save — check the price is at least ₦100 and the play counts are whole numbers."
+        "Couldn't save — check the price is at least ₦100 and the tap counts are whole numbers."
       );
       return;
     }
@@ -358,7 +358,7 @@ export default function AdminPage() {
         <form onSubmit={savePrice} className="card mt-6 p-4 sm:p-5">
           <h2 className="section-title">
             <Landmark className="size-3.5" aria-hidden />
-            Pricing & play allowances
+            Pricing & tap allowances
           </h2>
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <label className="block">
@@ -375,7 +375,7 @@ export default function AdminPage() {
               />
             </label>
             <label className="block">
-              <span className="field-label">Top-up price / 1,000 plays (₦)</span>
+              <span className="field-label">Top-up price / 1,000 taps (₦)</span>
               <input
                 type="number"
                 min={10}
@@ -384,11 +384,11 @@ export default function AdminPage() {
                 value={topupPriceNaira}
                 onChange={(e) => setTopupPriceNaira(e.target.value)}
                 className="input-field w-full"
-                aria-label="Top-up price per 1000 plays in naira"
+                aria-label="Top-up price per 1000 taps in naira"
               />
             </label>
             <label className="block">
-              <span className="field-label">Free plays / year</span>
+              <span className="field-label">Free taps / year</span>
               <input
                 type="number"
                 min={0}
@@ -397,11 +397,11 @@ export default function AdminPage() {
                 value={freePlays}
                 onChange={(e) => setFreePlays(e.target.value)}
                 className="input-field w-full"
-                aria-label="Free tier yearly plays"
+                aria-label="Free tier yearly taps"
               />
             </label>
             <label className="block">
-              <span className="field-label">Premium plays / year</span>
+              <span className="field-label">Premium taps / year</span>
               <input
                 type="number"
                 min={0}
@@ -410,7 +410,7 @@ export default function AdminPage() {
                 value={premiumPlays}
                 onChange={(e) => setPremiumPlays(e.target.value)}
                 className="input-field w-full"
-                aria-label="Premium tier yearly plays"
+                aria-label="Premium tier yearly taps"
               />
             </label>
           </div>
@@ -425,7 +425,7 @@ export default function AdminPage() {
               )}
             </button>
             <p className="text-xs text-zinc-400">
-              A play is one tile tap. Premium is a yearly Paystack plan; top-ups
+              A tap is one tile. Premium is a yearly Paystack plan; top-ups
               are one-off and never expire.
             </p>
           </div>
@@ -599,7 +599,7 @@ export default function AdminPage() {
                     </p>
                     <p className="mt-0.5 text-xs text-zinc-500">
                       {c.businesses} business{c.businesses === 1 ? "" : "es"} ·{" "}
-                      {c.plays} play{c.plays === 1 ? "" : "s"} · {c.points}{" "}
+                      {c.plays} tap{c.plays === 1 ? "" : "s"} · {c.points}{" "}
                       point{c.points === 1 ? "" : "s"}
                     </p>
                   </div>
