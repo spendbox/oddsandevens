@@ -4,6 +4,7 @@ import { getAuthedMerchant } from "@/lib/merchant-auth";
 import {
   REWARD_EXPIRY_DAYS_MAX,
   REWARD_EXPIRY_DAYS_MIN,
+  REWARD_ICON_SLUGS,
 } from "@/lib/constants";
 import type { RewardTemplate } from "@/lib/types";
 
@@ -20,7 +21,7 @@ export async function GET() {
   }
   const { data } = await supabaseAdmin()
     .from("reward_templates")
-    .select("id, description, details, default_expiry_days, created_at")
+    .select("id, description, details, icon, default_expiry_days, created_at")
     .eq("merchant_id", merchant.id)
     .eq("archived", false)
     .order("created_at", { ascending: false });
@@ -30,11 +31,17 @@ export async function GET() {
 function parseBody(body: unknown): {
   description: string;
   details: string | null;
+  icon: string | null;
   defaultExpiryDays: number;
 } | null {
   const b = body as Record<string, unknown> | null;
   const description = String(b?.description ?? "").trim();
   const details = String(b?.details ?? "").trim();
+  const rawIcon = String(b?.icon ?? "").trim();
+  // Unknown slugs are dropped rather than rejected — the icon is decorative.
+  const icon = (REWARD_ICON_SLUGS as readonly string[]).includes(rawIcon)
+    ? rawIcon
+    : null;
   const defaultExpiryDays = Number(b?.defaultExpiryDays);
   if (description.length < 1 || description.length > 200) return null;
   if (details.length > 300) return null;
@@ -45,7 +52,7 @@ function parseBody(body: unknown): {
   ) {
     return null;
   }
-  return { description, details: details || null, defaultExpiryDays };
+  return { description, details: details || null, icon, defaultExpiryDays };
 }
 
 export async function POST(req: Request) {
@@ -66,9 +73,10 @@ export async function POST(req: Request) {
       merchant_id: merchant.id,
       description: parsed.description,
       details: parsed.details,
+      icon: parsed.icon,
       default_expiry_days: parsed.defaultExpiryDays,
     })
-    .select("id, description, details, default_expiry_days, created_at")
+    .select("id, description, details, icon, default_expiry_days, created_at")
     .single();
   if (error) {
     console.error("[reward-templates] insert failed:", error);
@@ -96,6 +104,7 @@ export async function PATCH(req: Request) {
     .update({
       description: parsed.description,
       details: parsed.details,
+      icon: parsed.icon,
       default_expiry_days: parsed.defaultExpiryDays,
     })
     .eq("id", id)

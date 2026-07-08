@@ -6,13 +6,16 @@ import {
   REWARD_EXPIRY_DAYS_DEFAULT,
   REWARD_EXPIRY_DAYS_MAX,
   REWARD_EXPIRY_DAYS_MIN,
+  REWARD_ICON_SLUGS,
 } from "@/lib/constants";
+import { REWARD_ICON_COMPONENTS, rewardIcon } from "@/lib/reward-icons";
 import type { RewardTemplate } from "@/lib/types";
 
 interface DraftState {
   id: string | null; // null = creating
   description: string;
   details: string;
+  icon: string;
   defaultExpiryDays: number;
 }
 
@@ -20,6 +23,7 @@ const EMPTY: DraftState = {
   id: null,
   description: "",
   details: "",
+  icon: "gift",
   defaultExpiryDays: REWARD_EXPIRY_DAYS_DEFAULT,
 };
 
@@ -77,6 +81,7 @@ export function RewardsManager({ onChanged }: { onChanged?: () => void }) {
         id: draft.id ?? undefined,
         description: draft.description,
         details: draft.details,
+        icon: draft.icon,
         defaultExpiryDays: draft.defaultExpiryDays,
       }),
     });
@@ -175,6 +180,36 @@ export function RewardsManager({ onChanged }: { onChanged?: () => void }) {
               className="input-field"
             />
           </label>
+          <div className="mt-3">
+            <span className="field-label">Icon</span>
+            <p className="text-xs text-zinc-500">
+              Customers see this next to the reward on your board.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {REWARD_ICON_SLUGS.map((slug) => {
+                const Icon = REWARD_ICON_COMPONENTS[slug];
+                const selected = draft.icon === slug;
+                return (
+                  <button
+                    key={slug}
+                    type="button"
+                    title={slug}
+                    aria-label={`Icon: ${slug}`}
+                    aria-pressed={selected}
+                    onClick={() => setDraft({ ...draft, icon: slug })}
+                    className={
+                      "flex size-9 items-center justify-center rounded-lg border transition " +
+                      (selected
+                        ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                        : "border-zinc-200 text-zinc-400 hover:border-zinc-300 hover:text-zinc-600")
+                    }
+                  >
+                    <Icon className="size-4.5" aria-hidden />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {error && <p className="alert-error mt-3">{error}</p>}
           <div className="mt-3 flex gap-2">
             <button onClick={save} disabled={busy} className="btn-primary px-4 py-2 text-sm">
@@ -215,20 +250,27 @@ export function RewardsManager({ onChanged }: { onChanged?: () => void }) {
           )
         ) : (
           <ul className="space-y-2">
-            {rewards.map((r) => (
+            {rewards.map((r) => {
+              const Icon = rewardIcon(r.icon);
+              return (
               <li
                 key={r.id}
                 className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-zinc-200 px-3 py-2.5"
               >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-zinc-900">
-                    {r.description}
-                  </p>
-                  <p className="mt-0.5 text-xs text-zinc-500">
-                    Valid {r.default_expiry_days} day
-                    {r.default_expiry_days === 1 ? "" : "s"}
-                    {r.details ? ` · ${r.details}` : ""}
-                  </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <Icon className="size-4.5" aria-hidden />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-zinc-900">
+                      {r.description}
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      Valid {r.default_expiry_days} day
+                      {r.default_expiry_days === 1 ? "" : "s"}
+                      {r.details ? ` · ${r.details}` : ""}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -237,6 +279,7 @@ export function RewardsManager({ onChanged }: { onChanged?: () => void }) {
                         id: r.id,
                         description: r.description,
                         details: r.details ?? "",
+                        icon: r.icon ?? "gift",
                         defaultExpiryDays: r.default_expiry_days,
                       })
                     }
@@ -254,7 +297,8 @@ export function RewardsManager({ onChanged }: { onChanged?: () => void }) {
                   </button>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

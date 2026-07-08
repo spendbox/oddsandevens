@@ -2,6 +2,20 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { PublicBoardState, PublicGrid } from "@/lib/types";
 
+// How many recent taps each grid's public activity ticker shows.
+const ACTIVITY_LIMIT = 8;
+
+// "jane.doe@gmail.com" -> "ja***@g***.com" — enough to feel real, never
+// enough to identify. Degenerate addresses fall back to full masking.
+function maskEmail(email: string): string {
+  const [local = "", domain = ""] = email.split("@");
+  const dot = domain.lastIndexOf(".");
+  const host = dot > 0 ? domain.slice(0, dot) : domain;
+  const tld = dot > 0 ? domain.slice(dot) : "";
+  const lead = (s: string, n: number) => (s.length > n ? s.slice(0, n) : s.slice(0, 1));
+  return `${lead(local, 2)}***@${lead(host, 1)}***${tld}`;
+}
+
 // Public board state for the play page: merchant branding plus every active
 // grid. Returns dimensions and already-revealed tiles only — reward positions
 // for unrevealed tiles never leave the database.
@@ -24,7 +38,7 @@ export async function GET(
   }
 
   const gridColumns =
-    "id, title, image_url, tile_shape, rows, cols, created_at, completed_at, reset_days, cycle";
+    "id, title, description, image_url, tile_shape, rows, cols, created_at, completed_at, reset_days, cycle";
 
   let { data: grids } = await db
     .from("grids")
@@ -62,13 +76,13 @@ export async function GET(
         db
           .from("tiles")
           .select(
-            "grid_id, row_index, col_index, reward_id, revealed_by_customer_id"
+            "grid_id, row_index, col_index, reward_id, revealed_by_customer_id, revealed_at"
           )
           .in("grid_id", gridIds)
           .eq("is_revealed", true),
         db
           .from("rewards")
-          .select("id, grid_id, max_redemptions, description, details")
+          .select("id, grid_id, max_redemptions, description, details, icon")
           .in("grid_id", gridIds),
       ])
     : [{ data: [] }, { data: [] }];
@@ -105,9 +119,25 @@ export async function GET(
     claimCounts.set(c.reward_id, (claimCounts.get(c.reward_id) ?? 0) + 1);
   }
 
+  // Masked emails for the activity ticker. Revealed tiles are wiped on grid
+  // reset, so everything here belongs to the current cycle.
+  const customerIds = [
+    ...new Set(
+      (revealedTiles ?? [])
+        .map((t) => t.revealed_by_customer_id)
+        .filter((id): id is string => id !== null)
+    ),
+  ];
+  const { data: customers } = customerIds.length
+    ? await db.from("customers").select("id, email").in("id", customerIds)
+    : { data: [] as { id: string; email: string }[] };
+  const emailById = new Map((customers ?? []).map((c) => [c.id, c.email]));
+  const rewardById = new Map((rewards ?? []).map((r) => [r.id, r]));
+
   const publicGrids: PublicGrid[] = grids.map((g) => ({
     id: g.id,
     title: g.title,
+    description: g.description,
     imageUrl: g.image_url,
     tileShape: g.tile_shape,
     rows: g.rows,
@@ -131,7 +161,38 @@ export async function GET(
       ),
     rewardsInfo: (rewards ?? [])
       .filter((r) => r.grid_id === g.id)
-      .map((r) => ({ description: r.description, details: r.details ?? null })),
+      .map((r) => ({
+        description: r.description,
+        details: r.details ?? null,
+        icon: r.icon ?? null,
+      })),
+    recentActivity: (revealedTiles ?? [])
+      .filter(
+        (t) =>
+          t.grid_id === g.id &&
+          t.revealed_at !== null &&
+          t.revealed_by_customer_id !== null &&
+          emailById.has(t.revealed_by_customer_id)
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.revealed_at!).getTime() - new Date(a.revealed_at!).getTime()
+      )
+      .slice(0, ACTIVITY_LIMIT)
+      .map((t) => {
+        const hit =
+          t.reward_id !== null &&
+          claimKeys.has(`${t.reward_id}:${t.revealed_by_customer_id}`);
+        return {
+          maskedEmail: maskEmail(emailById.get(t.revealed_by_customer_id!)!),
+          hit,
+          description:
+            hit && t.reward_id
+              ? (rewardById.get(t.reward_id)?.description ?? null)
+              : null,
+          at: t.revealed_at!,
+        };
+      }),
     completedAt: g.completed_at,
     resetsAt: g.completed_at
       ? new Date(

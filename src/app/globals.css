@@ -160,6 +160,43 @@
     transform: translateY(-10px);
   }
 }
+/* Landing card deck: pulsing halo rings, and the bouncing swipe-up hint. */
+@keyframes ring-pulse {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+/* Case-study card: profit bars grow up, hold, then breathe back. */
+@keyframes grow-bar {
+  0% {
+    transform: scaleY(0.06);
+  }
+  16% {
+    transform: scaleY(1);
+  }
+  84% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0.06);
+  }
+}
+@keyframes swipe-hint {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translateY(7px);
+    opacity: 1;
+  }
+}
 @keyframes sheen {
   0% {
     background-position: -150% 0;
@@ -273,16 +310,23 @@ body {
       0 3px 7px rgb(0 0 0 / 0.14);
   }
 
-  /* Interlocking (clipped) tiles: clip-path swallows box-shadow, but
-     filter: drop-shadow follows the clipped silhouette, so shaped tiles get
-     their glow from a drop-shadow instead. */
-  /* Interlocking (clipped) tiles can't show a border, so their 3D lift comes
-     from a drop-shadow that follows the clipped silhouette. */
-  .tile-live-shaped {
-    filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.22));
+  /* Interlocking (clipped) tiles: clip-path swallows real borders, and it is
+     applied AFTER filter, so a drop-shadow on the clipped element itself gets
+     clipped away too. The seam therefore lives on the tile's grid-cell
+     wrapper: its drop-shadows take the already-clipped tile as input, tracing
+     the jigsaw silhouette with a hard white line. Out-tiles stack above their
+     notched neighbours, so the line lands exactly on the intersection between
+     tiles, like the seams of a real puzzle. A soft dark shadow keeps the 3D
+     lift. (.tile-live-shaped marks the playable tile inside the wrapper so
+     hovering it swaps the lift for a brand glow.) */
+  .tile-shaped {
+    filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white)
+      drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white)
+      drop-shadow(0 2px 3px rgb(0 0 0 / 0.16));
   }
-  .tile-live-shaped:hover {
-    filter: drop-shadow(0 3px 5px rgb(0 0 0 / 0.28))
-      drop-shadow(0 0 8px color-mix(in oklab, var(--brand), transparent 55%));
+  .tile-shaped:has(.tile-live-shaped:hover) {
+    filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white)
+      drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white)
+      drop-shadow(0 0 10px color-mix(in oklab, var(--brand), transparent 55%));
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   BadgePercent,
@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { EMAIL_REGEX } from "@/lib/constants";
+import { rewardIcon } from "@/lib/reward-icons";
 import { useAutoRefresh } from "@/lib/use-auto-refresh";
 import type {
   CustomerState,
@@ -78,6 +79,52 @@ function formatSpan(iso: string): string {
   if (d > 0) return `${d}d ${h}h`;
   if (h > 0) return `${h}h`;
   return `${Math.max(Math.ceil(ms / 60_000), 1)}m`;
+}
+
+// "30 minutes ago" for the activity ticker (coarse, no ticking).
+function timeAgo(iso: string): string {
+  const s = Math.max(
+    Math.floor((Date.now() - new Date(iso).getTime()) / 1000),
+    0
+  );
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} minute${m === 1 ? "" : "s"} ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+}
+
+// Shared popup chrome. The overlay is viewport-fixed with a solid rgba dim
+// (no color-mix, so it renders on every browser) and scrolls itself when the
+// card is taller than the screen — the card never drifts out of view.
+function ModalShell({
+  brandStyle,
+  onClose,
+  children,
+  before,
+}: {
+  brandStyle: React.CSSProperties;
+  onClose: () => void;
+  children: React.ReactNode;
+  // Full-viewport decoration behind the card (e.g. confetti).
+  before?: React.ReactNode;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain backdrop-blur-sm"
+      style={{ ...brandStyle, backgroundColor: "rgba(24, 24, 27, 0.55)" }}
+      onClick={onClose}
+    >
+      {before}
+      <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 // What the reveal popup shows after a tile is tapped.
@@ -456,14 +503,31 @@ export default function PlayBoard({ slug }: { slug: string }) {
         )}
 
         {grid ? (
-          <TileGrid
-            grid={grid}
-            revealedMap={revealedMap}
-            lastMiss={lastMiss}
-            disabled={busy || gridResting}
-            resting={gridResting}
-            onTileClick={clickTile}
-          />
+          <>
+            {(grid.title || grid.description) && (
+              <div className="mt-5 text-center">
+                {grid.title && (
+                  <h2 className="text-lg font-bold tracking-tight text-zinc-900">
+                    {grid.title}
+                  </h2>
+                )}
+                {grid.description && (
+                  <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-zinc-500">
+                    {grid.description}
+                  </p>
+                )}
+              </div>
+            )}
+            <TileGrid
+              grid={grid}
+              revealedMap={revealedMap}
+              lastMiss={lastMiss}
+              disabled={busy || gridResting}
+              resting={gridResting}
+              onTileClick={clickTile}
+            />
+            <GridRewards grid={grid} />
+          </>
         ) : (
           <div className="card mt-6 p-8 text-center text-zinc-500">
             <Puzzle className="mx-auto size-8 text-zinc-300" aria-hidden />
@@ -505,6 +569,8 @@ export default function PlayBoard({ slug }: { slug: string }) {
         </footer>
       </div>
 
+      {grid && splashDone && <ActivityTicker items={grid.recentActivity} />}
+
       <ContactFab board={board} />
 
       {reveal && (
@@ -529,11 +595,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
       )}
 
       {cooldownPopup && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
-          style={brandStyle}
-          onClick={() => setCooldownPopup(false)}
-        >
+        <ModalShell brandStyle={brandStyle} onClose={() => setCooldownPopup(false)}>
           <div
             className="animate-pop-in card w-full max-w-sm p-6 text-center"
             onClick={(e) => e.stopPropagation()}
@@ -565,7 +627,7 @@ export default function PlayBoard({ slug }: { slug: string }) {
               Got it
             </button>
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {emailPrompt && (
@@ -670,11 +732,7 @@ function VerifyModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
-      style={brandStyle}
-      onClick={onClose}
-    >
+    <ModalShell brandStyle={brandStyle} onClose={onClose}>
       <form
         className="animate-pop-in card w-full max-w-sm p-6 sm:p-7"
         onClick={(e) => e.stopPropagation()}
@@ -756,7 +814,7 @@ function VerifyModal({
           </>
         )}
       </form>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -851,13 +909,9 @@ function WelcomeModal({
   onClose: () => void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
-      style={brandStyle}
-      onClick={onClose}
-    >
+    <ModalShell brandStyle={brandStyle} onClose={onClose}>
       <div
-        className="animate-pop-in card relative max-h-[85vh] w-full max-w-sm overflow-y-auto p-6 sm:p-8"
+        className="animate-pop-in card relative w-full max-w-sm p-6 sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-center">
@@ -891,42 +945,46 @@ function WelcomeModal({
               Hidden in this grid
             </p>
             <ul className="mt-2 space-y-2">
-              {grid.rewardsInfo.map((r, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-2.5 rounded-xl bg-[color-mix(in_oklab,var(--brand),transparent_94%)] px-3 py-2.5"
-                >
-                  <Gift
-                    className="mt-0.5 size-4 shrink-0 text-[var(--brand)]"
-                    aria-hidden
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-zinc-800">
-                      {r.description}
-                    </p>
-                    {r.details && (
-                      <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
-                        {r.details}
+              {grid.rewardsInfo.map((r, i) => {
+                const Icon = rewardIcon(r.icon);
+                return (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2.5 rounded-xl bg-[color-mix(in_oklab,var(--brand),transparent_94%)] px-3 py-2.5"
+                  >
+                    <Icon
+                      className="mt-0.5 size-4 shrink-0 text-[var(--brand)]"
+                      aria-hidden
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-zinc-800">
+                        {r.description}
                       </p>
-                    )}
-                  </div>
-                </li>
-              ))}
+                      {r.details && (
+                        <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
+                          {r.details}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
 
         <p className="mt-4 text-center text-xs leading-relaxed text-zinc-400">
           Miss a reward and you still earn a loyalty point —{" "}
-          {board.pointsPerDiscount} points get you {board.discountPercent}% off
-          at the counter.
+          {board.pointsPerDiscount}{" "}
+          {board.pointsPerDiscount === 1 ? "point gets" : "points get"} you{" "}
+          {board.discountPercent}% off at the counter.
         </p>
 
         <button onClick={onClose} className="btn-primary mt-5 w-full">
           Start hunting
         </button>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -1099,10 +1157,14 @@ function TileGrid({
 
           // Interlocking shapes: the cell stays in the grid flow; the visible
           // tile is an oversized clipped box whose tabs overhang the cell.
-          // "Out" tiles draw above their notched neighbours.
+          // "Out" cells draw above their notched neighbours. The cell wrapper
+          // carries the white-seam filter (see .tile-shaped), so it must also
+          // carry the z-index — the filter makes it a stacking context.
+          const cellStyle: React.CSSProperties = {
+            zIndex: isOutTile(row, col) ? 2 : 1,
+          };
           const boxStyle: React.CSSProperties = {
             inset: "-22%",
-            zIndex: isOutTile(row, col) ? 2 : 1,
             ...clipStyle(row, col),
           };
 
@@ -1110,12 +1172,14 @@ function TileGrid({
           // tile; revealing swaps it for a faded brand-colour patch.
           if (grid.imageUrl) {
             return (
-              <div key={i} className="relative aspect-square">
+              <div key={i} className="tile-shaped relative aspect-square" style={cellStyle}>
                 {isRevealed ? (
                   <>
                     <div
                       aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
-                      className={isMyMiss ? "absolute animate-tile-reveal" : "absolute"}
+                      className={
+                        "absolute" + (isMyMiss ? " animate-tile-reveal" : "")
+                      }
                       style={{
                         ...boxStyle,
                         backgroundColor:
@@ -1159,7 +1223,7 @@ function TileGrid({
           }
 
           return (
-            <div key={i} className="relative aspect-square">
+            <div key={i} className="tile-shaped relative aspect-square" style={cellStyle}>
               {isRevealed ? (
                 <div
                   aria-label={`Tile ${row + 1}, ${col + 1} (already revealed)`}
@@ -1190,6 +1254,129 @@ function TileGrid({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// The prize list under the board: everything hidden in this grid, with the
+// business's chosen icon per reward. No positions, obviously.
+function GridRewards({ grid }: { grid: PublicGrid }) {
+  if (grid.rewardsInfo.length === 0) return null;
+  return (
+    <section className="card mt-5 p-4 sm:p-5">
+      <h2 className="section-title">
+        <Gift className="size-3.5" aria-hidden />
+        Rewards in this grid
+      </h2>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {grid.rewardsInfo.map((r, i) => {
+          const Icon = rewardIcon(r.icon);
+          return (
+            <li
+              key={i}
+              className="flex items-start gap-3 rounded-xl bg-[color-mix(in_oklab,var(--brand),transparent_94%)] px-3 py-2.5"
+            >
+              <span
+                className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-white"
+                style={{ backgroundColor: "var(--brand)" }}
+              >
+                <Icon className="size-4" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-zinc-800">
+                  {r.description}
+                </p>
+                {r.details && (
+                  <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
+                    {r.details}
+                  </p>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+// Live-activity toast: cycles through the grid's latest taps ("ja***@g***.com
+// just got a loyalty point · 30 minutes ago"), one at a time, bottom-left.
+// The board polls for fresh state, so items get a stable key to avoid
+// restarting the rotation on every refetch.
+function ActivityTicker({ items }: { items: PublicGrid["recentActivity"] }) {
+  const [index, setIndex] = useState(0);
+  const [shown, setShown] = useState(false);
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+  const itemsKey = useMemo(
+    () => items.map((a) => `${a.at}:${a.maskedEmail}:${a.hit}`).join("|"),
+    [items]
+  );
+
+  useEffect(() => {
+    if (itemsRef.current.length === 0) return;
+    let i = 0;
+    setIndex(0);
+    // Slide the first toast in shortly after load, then rotate.
+    const first = setTimeout(() => setShown(true), 1200);
+    const cycle = setInterval(() => {
+      setShown(false);
+      setTimeout(() => {
+        i = (i + 1) % Math.max(itemsRef.current.length, 1);
+        setIndex(i);
+        setShown(true);
+      }, 450);
+    }, 6500);
+    return () => {
+      clearTimeout(first);
+      clearInterval(cycle);
+      setShown(false);
+    };
+  }, [itemsKey]);
+
+  const item = items[Math.min(index, items.length - 1)];
+  if (!item) return null;
+
+  return (
+    <div
+      aria-hidden
+      className={
+        "pointer-events-none fixed bottom-5 left-4 z-30 max-w-[78vw] transition-all duration-500 sm:max-w-sm " +
+        (shown ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0")
+      }
+    >
+      <div className="card flex items-center gap-2.5 px-3.5 py-2.5">
+        <span
+          className={
+            "flex size-8 shrink-0 items-center justify-center rounded-full text-white " +
+            (item.hit ? "" : "bg-amber-400")
+          }
+          style={item.hit ? { backgroundColor: "var(--brand)" } : undefined}
+        >
+          {item.hit ? (
+            <Trophy className="size-4" aria-hidden />
+          ) : (
+            <Star className="size-4 fill-current" aria-hidden />
+          )}
+        </span>
+        <p className="min-w-0 text-xs leading-relaxed text-zinc-600">
+          <span className="font-semibold text-zinc-800">{item.maskedEmail}</span>{" "}
+          {item.hit ? (
+            <>
+              just won{" "}
+              <span className="font-semibold" style={{ color: "var(--brand)" }}>
+                {item.description ?? "a reward"}
+              </span>
+            </>
+          ) : (
+            "just got a loyalty point"
+          )}{" "}
+          · {timeAgo(item.at)}
+        </p>
       </div>
     </div>
   );
@@ -1306,7 +1493,7 @@ function Confetti() {
     "#3b82f6",
   ];
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+    <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
       {Array.from({ length: 70 }, (_, i) => {
         const left = (i * 37) % 100;
         const delay = (i * 83) % 1400;
@@ -1355,12 +1542,7 @@ function RevealModal({
   // Hits get their own full-screen, celebratory treatment.
   if (isHit) {
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/70 p-4 backdrop-blur-md"
-        style={brandStyle}
-        onClick={onClose}
-      >
-        <Confetti />
+      <ModalShell brandStyle={brandStyle} onClose={onClose} before={<Confetti />}>
         <div
           className="animate-pop-in card relative w-full max-w-md overflow-hidden p-8 text-center sm:p-10"
           onClick={(e) => e.stopPropagation()}
@@ -1432,16 +1614,12 @@ function RevealModal({
             Awesome!
           </button>
         </div>
-      </div>
+      </ModalShell>
     );
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
-      style={brandStyle}
-      onClick={onClose}
-    >
+    <ModalShell brandStyle={brandStyle} onClose={onClose}>
       <div
         className="animate-pop-in card relative w-full max-w-sm overflow-hidden p-6 text-center sm:p-8"
         onClick={(e) => e.stopPropagation()}
@@ -1501,6 +1679,6 @@ function RevealModal({
           Keep hunting next time
         </button>
       </div>
-    </div>
+    </ModalShell>
   );
 }

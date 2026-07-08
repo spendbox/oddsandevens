@@ -20,6 +20,7 @@ import {
   type SubscriptionTier,
   type TileShape,
 } from "@/lib/constants";
+import { rewardIcon } from "@/lib/reward-icons";
 import type { LibraryImage, RewardTemplate } from "@/lib/types";
 import {
   allEdgeCombos,
@@ -164,12 +165,15 @@ function GridPreview({
             );
           }
           return (
-            <div key={i} className="relative aspect-square">
+            <div
+              key={i}
+              className="tile-shaped relative aspect-square"
+              style={{ zIndex: isOutTile(row, col) ? 2 : 1 }}
+            >
               <div
                 className={`absolute ${tileClass}`}
                 style={{
                   inset: "-22%",
-                  zIndex: isOutTile(row, col) ? 2 : 1,
                   ...clipStyle(row, col),
                   ...fillStyle,
                 }}
@@ -240,11 +244,16 @@ export function GridWizard({
 
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [resetDays, setResetDays] = useState(GRID_RESET_DAYS_DEFAULT);
   const [tileShape, setTileShape] = useState<TileShape>("square");
   const [library, setLibrary] = useState<LibraryImage[]>([]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [customPreview, setCustomPreview] = useState<string | null>(null);
+  // The chosen custom file lives in state, NOT just in the <input> — the
+  // input is unmounted when the wizard leaves the Look step, which used to
+  // silently drop the upload at submit time.
+  const [customFile, setCustomFile] = useState<File | null>(null);
   const customImageRef = useRef<HTMLInputElement>(null);
   // Rewards come from the merchant's catalogue; the grid only records which
   // ones to hide and how many winners each gets on this board.
@@ -289,6 +298,9 @@ export function GridWizard({
 
   function validateStep(): string | null {
     if (step === 0) {
+      if (!title.trim()) {
+        return "Give your grid a name — customers see it on your board.";
+      }
       if (
         !Number.isInteger(resetDays) ||
         resetDays < limits.resetDaysMin ||
@@ -334,16 +346,17 @@ export function GridWizard({
     const drafts = chosen.map((t) => ({
       description: t.description,
       details: t.details ?? "",
+      icon: t.icon ?? "",
       expiryDays: t.default_expiry_days,
       maxRedemptions: winners[t.id],
     }));
     const form = new FormData();
-    form.set("title", title);
+    form.set("title", title.trim());
+    if (description.trim()) form.set("description", description.trim());
     form.set("tileShape", tileShape);
     form.set("resetDays", String(resetDays));
     form.set("rewards", JSON.stringify(drafts));
-    const custom = customImageRef.current?.files?.[0];
-    if (custom) form.set("image", custom);
+    if (customFile) form.set("image", customFile);
     else if (imageUrl) form.set("imageUrl", imageUrl);
 
     const res = await fetch("/api/merchant/grid", { method: "POST", body: form });
@@ -352,8 +365,9 @@ export function GridWizard({
       const body = await res.json().catch(() => null);
       setError(
         {
+          title_required: "Give your grid a name — customers see it on your board.",
           too_many_rewards: `Your ${tier} tier allows up to ${limits.maxRewards} rewards.`,
-          too_many_active_grids: `You already have the maximum number of active grids — archive one first.`,
+          too_many_active_grids: `You already have the maximum number of active grids — archive one first, or go Premium for unlimited grids.`,
           invalid_reward: "Each reward needs a description and sensible numbers.",
           rewards_exceed_tiles:
             "More reward redemptions than tiles — reduce the winners.",
@@ -366,6 +380,12 @@ export function GridWizard({
           invalid_image: "Pick an image from the library.",
           invalid_image_type: "Image must be PNG, JPEG, or WebP.",
           image_too_large: "Image must be under 3 MB.",
+          image_upload_failed:
+            "Couldn't upload your image — try again, or use a smaller file.",
+          invalid_tile_shape:
+            "That tile shape isn't available yet — your database may need the latest migrations (supabase/migrations, incl. 0012).",
+          internal:
+            "Something went wrong on the server while creating the grid — try again in a moment.",
         }[String(body?.error)] ?? "Couldn't create the grid."
       );
       return;
@@ -422,7 +442,7 @@ export function GridWizard({
       {willReplaceActive && step === 0 && (
         <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
           On the free tier a new grid replaces your current one (already-issued
-          codes stay valid). Go Premium to run up to 10 grids at once.
+          codes stay valid). Go Premium to run unlimited grids at once.
         </p>
       )}
 
@@ -432,13 +452,25 @@ export function GridWizard({
       {step === 0 && (
         <div className="mt-5 max-w-md space-y-4">
           <label className="block">
-            <span className="field-label">Grid name (customers see this)</span>
+            <span className="field-label">Grid name (required — customers see this)</span>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={80}
+              required
               placeholder="July jollof hunt"
               className="input-field"
+            />
+          </label>
+          <label className="block">
+            <span className="field-label">Description (optional)</span>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={300}
+              rows={2}
+              placeholder="What is this grid about? e.g. the product it features, or what customers can win…"
+              className="input-field resize-none"
             />
           </label>
           <label className="block">
@@ -479,6 +511,7 @@ export function GridWizard({
                 onClick={() => {
                   setImageUrl(null);
                   setCustomPreview(null);
+                  setCustomFile(null);
                   if (customImageRef.current) customImageRef.current.value = "";
                 }}
                 className={
@@ -498,6 +531,7 @@ export function GridWizard({
                   onClick={() => {
                     setImageUrl(img.url);
                     setCustomPreview(null);
+                    setCustomFile(null);
                     if (customImageRef.current) customImageRef.current.value = "";
                   }}
                   className={
@@ -547,6 +581,7 @@ export function GridWizard({
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) {
+                    setCustomFile(f);
                     setCustomPreview(URL.createObjectURL(f));
                     setImageUrl(null);
                   }
@@ -648,7 +683,16 @@ export function GridWizard({
                           className="mt-1 size-4 accent-emerald-600"
                         />
                         <span className="min-w-0">
-                          <span className="block text-sm font-medium text-zinc-900">
+                          <span className="flex items-center gap-1.5 text-sm font-medium text-zinc-900">
+                            {(() => {
+                              const Icon = rewardIcon(t.icon);
+                              return (
+                                <Icon
+                                  className="size-4 shrink-0 text-emerald-600"
+                                  aria-hidden
+                                />
+                              );
+                            })()}
                             {t.description}
                           </span>
                           <span className="block text-xs text-zinc-500">
@@ -699,10 +743,16 @@ export function GridWizard({
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between gap-4">
               <dt className="text-zinc-500">Name</dt>
-              <dd className="font-medium text-zinc-900">
-                {title || `${GRID_SIZE}×${GRID_SIZE} grid`}
-              </dd>
+              <dd className="font-medium text-zinc-900">{title}</dd>
             </div>
+            {description.trim() && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-zinc-500">Description</dt>
+                <dd className="max-w-[60%] text-right font-medium text-zinc-900">
+                  {description.trim()}
+                </dd>
+              </div>
+            )}
             <div className="flex justify-between gap-4">
               <dt className="text-zinc-500">Size</dt>
               <dd className="font-medium text-zinc-900">

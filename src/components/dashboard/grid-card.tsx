@@ -94,7 +94,7 @@ export function GridCard({
             onClick={() => setShowMap((s) => !s)}
             className="btn-secondary px-3 py-1.5 text-xs"
           >
-            {showMap ? "Hide map" : "Reward map"}
+            {showMap ? "Hide map" : "Map"}
           </button>
           {grid.status === "active" ? (
             <button

@@ -36,14 +36,20 @@ export async function PATCH(
   if (grid.status === status) return NextResponse.json({ ok: true });
 
   if (status === "active") {
-    const { count } = await db
-      .from("grids")
-      .select("id", { count: "exact", head: true })
-      .eq("merchant_id", merchant.id)
-      .eq("status", "active");
+    // Premium has no cap (Infinity); only finite tiers need the count check.
     const cap = TIER_LIMITS[effectiveTier(merchant)].maxActiveGrids;
-    if ((count ?? 0) >= cap) {
-      return NextResponse.json({ error: "too_many_active_grids" }, { status: 409 });
+    if (Number.isFinite(cap)) {
+      const { count } = await db
+        .from("grids")
+        .select("id", { count: "exact", head: true })
+        .eq("merchant_id", merchant.id)
+        .eq("status", "active");
+      if ((count ?? 0) >= cap) {
+        return NextResponse.json(
+          { error: "too_many_active_grids" },
+          { status: 409 }
+        );
+      }
     }
   }
 
