@@ -3,7 +3,6 @@
 
 import type {
   CustomerSummary,
-  GridStats,
   MerchantPlan,
   MerchantStats,
   RewardTemplate,
@@ -44,7 +43,6 @@ export interface UnlockRow {
 
 export interface Snapshot {
   merchant: Merchant | null;
-  grids: GridStats[];
   unlocks: UnlockRow[];
   customers: CustomerSummary[];
   stats: MerchantStats | null;

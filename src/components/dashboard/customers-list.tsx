@@ -68,7 +68,7 @@ export function CustomersList({
         Customers ({customers.length})
       </h2>
       <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
-        Everyone who has played your grid, with their points and what they can
+        Everyone who has played your games, with their points and what they can
         redeem. Your rate: {pointsPerDiscount} points = {discountPercent}% off.
         Points expire 7 days after a customer&apos;s last play.
       </p>
@@ -100,7 +100,7 @@ export function CustomersList({
                   <ActiveRewards customer={c} />
                 </div>
                 <p className="mt-3 flex flex-wrap gap-x-4 text-xs text-zinc-500">
-                  <span>{c.totalPlays} taps</span>
+                  <span>{c.totalPlays} plays</span>
                   <span>
                     next play {c.nextPlayAt ? formatEta(c.nextPlayAt) : "now"}
                   </span>
@@ -118,7 +118,7 @@ export function CustomersList({
                   <th className="py-2.5 pr-4 font-medium">Points</th>
                   <th className="py-2.5 pr-4 font-medium">Discount ready</th>
                   <th className="py-2.5 pr-4 font-medium">Active rewards</th>
-                  <th className="py-2.5 pr-4 font-medium">Taps</th>
+                  <th className="py-2.5 pr-4 font-medium">Plays</th>
                   <th className="py-2.5 font-medium">Next play</th>
                 </tr>
               </thead>

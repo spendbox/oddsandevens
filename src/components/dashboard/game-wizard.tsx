@@ -1,8 +1,10 @@
 "use client";
 
-// The game builder. Five short steps, every one of them pre-filled: a business
-// that just picks a game and hits "Create" gets a working, branded, shareable
-// game with sensible odds and one prize.
+// The game builder. Pick a game, name it, tweak it, set a prize — with the
+// real game playing alongside the whole time, so nothing has to be imagined.
+//
+// Every field arrives pre-filled: a business that picks a game and presses
+// "Create" straight away still gets a working, branded, shareable game.
 
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, Loader2, Sparkles } from "lucide-react";
@@ -14,92 +16,42 @@ import {
   type GameDefinition,
   type GameType,
 } from "@/lib/games/catalog";
-import type { GameConfig, PrizeDraft } from "@/lib/games/types";
+import { buildChanceSlots, buildScoreSlots, type PrizeRow } from "@/lib/games/slots";
+import type { GameConfig } from "@/lib/games/types";
 import type { RewardTemplate } from "@/lib/types";
 import type { SubscriptionTier } from "@/lib/constants";
 import { GameIcon } from "@/components/games/icons";
 import { GameConfigEditor } from "./game-config-editor";
+import { GamePreview } from "./game-preview";
 
 type Step = "gallery" | "name" | "setup" | "prizes" | "done";
 
-interface PrizeRow {
-  description: string;
-  details: string;
-  icon: string | null;
-  expiryDays: number;
-  stock: number;
-  minScore: number;
-}
-
-const BLANK_LABELS = [
-  "Not this time",
-  "So close!",
-  "Try again tomorrow",
-  "Better luck next time",
+// Replay limits in the words a shop owner would use, not hours.
+const PLAY_FREQUENCY = [
+  { value: 0, label: "As often as they like" },
+  { value: 6, label: "A few times a day" },
+  { value: 12, label: "Twice a day" },
+  { value: 24, label: "Once a day" },
+  { value: 168, label: "Once a week" },
 ];
 
-// Turns the merchant's "how often should someone win?" percentage into the
-// weights the draw actually uses: every real prize carries the same weight,
-// and blank segments soak up the rest.
-function buildChanceSlots(prizes: PrizeRow[], winPercent: number): PrizeDraft[] {
-  const realWeight = 100;
-  const totalPrizeWeight = realWeight * prizes.length;
-  const chance = Math.min(Math.max(winPercent, 1), 100) / 100;
-  const blankTotal = Math.round((totalPrizeWeight * (1 - chance)) / chance);
-  // A wheel reads best with 6-ish segments, and alternating blanks look fair.
-  const blankCount =
-    blankTotal <= 0 ? 0 : Math.max(2, Math.min(6 - prizes.length, 4));
-
-  const slots: PrizeDraft[] = [];
-  const perBlank = blankCount > 0 ? Math.round(blankTotal / blankCount) : 0;
-
-  // Interleave prizes and blanks so neighbouring wheel segments differ.
-  const blanks: PrizeDraft[] = Array.from({ length: blankCount }, (_, i) => ({
-    kind: "blank" as const,
-    description: BLANK_LABELS[i % BLANK_LABELS.length],
-    weight: Math.max(perBlank, 1),
-    stock: 0,
-  }));
-
-  const maxLength = Math.max(prizes.length, blanks.length);
-  for (let i = 0; i < maxLength; i++) {
-    if (i < prizes.length) {
-      slots.push({
-        kind: "prize",
-        description: prizes[i].description,
-        details: prizes[i].details || null,
-        icon: prizes[i].icon,
-        expiry_days: prizes[i].expiryDays,
-        stock: prizes[i].stock,
-        weight: realWeight,
-        min_score: 0,
-      });
-    }
-    if (i < blanks.length) slots.push(blanks[i]);
-  }
-  return slots;
-}
-
-function buildScoreSlots(prizes: PrizeRow[]): PrizeDraft[] {
-  return prizes.map((prize) => ({
-    kind: "prize" as const,
-    description: prize.description,
-    details: prize.details || null,
-    icon: prize.icon,
-    expiry_days: prize.expiryDays,
-    stock: prize.stock,
-    weight: 1,
-    min_score: prize.minScore,
-  }));
-}
+const WIN_LIMIT = [
+  { value: 1, label: "One prize, then they're done" },
+  { value: 2, label: "Up to two prizes" },
+  { value: 3, label: "Up to three prizes" },
+  { value: 100, label: "As many as they can win" },
+];
 
 export function GameWizard({
   tier,
+  brandColor,
   rewardTemplates,
   onDone,
   onCancel,
 }: {
   tier: SubscriptionTier;
+  /** The business's brand colour — the preview paints the game with it. */
+  brandColor: string;
   rewardTemplates: RewardTemplate[];
   onDone: () => void | Promise<void>;
   onCancel: () => void;
@@ -137,7 +89,7 @@ export function GameWizard({
     setDescription(chosen.tagline);
     setConfig({ ...chosen.defaultConfig });
     setCooldownHours(chosen.cooldownHours);
-    // Start from the merchant's own reward catalogue when they have one.
+    // Start from the business's own reward catalogue when they have one.
     const first = rewardTemplates[0];
     setPrizes([
       {
@@ -206,7 +158,7 @@ export function GameWizard({
     if (!res.ok || !body?.ok) {
       setError(
         body?.error === "too_many_games"
-          ? "You've hit your plan's game limit. Upgrade or archive one first."
+          ? "You've hit your plan's game limit. Upgrade or retire one first."
           : body?.error === "too_many_prizes"
             ? `Your plan allows up to ${maxPrizes} prizes per game.`
             : "We couldn't create that game. Check the details and try again."
@@ -228,8 +180,8 @@ export function GameWizard({
               Pick a game to brand
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Every game is yours in a minute: name it, set a prize, share the
-              link.
+              Choose one and you&apos;ll be playing your own version of it in a
+              few seconds — then share the link.
             </p>
           </div>
           <button onClick={onCancel} className="btn-ghost">
@@ -286,10 +238,10 @@ export function GameWizard({
                 <p className="mt-0.5 text-sm text-zinc-500">{game.tagline}</p>
                 <p className="mt-2 text-xs font-medium text-zinc-400">
                   {game.engine === "chance"
-                    ? "Instant draw"
+                    ? "Instant win"
                     : game.hasLeaderboard
-                      ? "Score + leaderboard"
-                      : "Everyone who finishes"}
+                      ? "Play for a high score"
+                      : "Everyone who finishes wins"}
                 </p>
               </button>
             ))}
@@ -339,7 +291,7 @@ export function GameWizard({
               rel="noopener noreferrer"
               className="btn-secondary flex-1"
             >
-              Preview it
+              Open it
             </a>
             <button
               onClick={() => void onDone()}
@@ -355,6 +307,281 @@ export function GameWizard({
   }
 
   const stepIndex = step === "name" ? 1 : step === "setup" ? 2 : 3;
+  const showPreview = step === "setup" || step === "prizes";
+
+  const form = (
+    <div className="card p-5 sm:p-6">
+      <div className="flex items-center gap-3">
+        <span
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
+          style={{
+            background: `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`,
+          }}
+        >
+          <GameIcon icon={def.icon} className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="truncate font-bold text-zinc-900">{def.label}</h2>
+          <p className="truncate text-sm text-zinc-500">{def.tagline}</p>
+        </div>
+      </div>
+
+      {/* ---- Step: name ---- */}
+      {step === "name" && (
+        <div className="mt-5 flex flex-col gap-4">
+          <p className="text-sm leading-relaxed text-zinc-600">{def.blurb}</p>
+          <label className="block">
+            <span className="field-label">What players will see</span>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={80}
+              className="input-field"
+              placeholder={def.label}
+            />
+          </label>
+          <label className="block">
+            <span className="field-label">One line about it (optional)</span>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={300}
+              rows={2}
+              className="input-field resize-y"
+            />
+          </label>
+          <button
+            onClick={() => setStep("setup")}
+            className="btn-primary"
+            style={{ backgroundColor: "var(--brand)" }}
+          >
+            Next: make it yours
+          </button>
+        </div>
+      )}
+
+      {/* ---- Step: setup ---- */}
+      {step === "setup" && (
+        <div className="mt-5 flex flex-col gap-4">
+          <p className="text-sm text-zinc-500">
+            Change anything here and the preview updates as you type. Or change
+            nothing — it already works.
+          </p>
+          <GameConfigEditor
+            fields={def.fields}
+            config={config}
+            onChange={setConfig}
+          />
+          <button
+            onClick={() => setStep("prizes")}
+            className="btn-primary"
+            style={{ backgroundColor: "var(--brand)" }}
+          >
+            Next: prizes
+          </button>
+        </div>
+      )}
+
+      {/* ---- Step: prizes ---- */}
+      {step === "prizes" && (
+        <div className="mt-5 flex flex-col gap-4">
+          <div>
+            <p className="section-title">What can they win?</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              {def.engine === "chance"
+                ? "Winners are drawn on our servers, so nobody can rig it from their phone."
+                : `They win the best prize they earn — play the preview to see what a real score looks like.`}
+            </p>
+          </div>
+
+          {prizes.map((prize, index) => (
+            <div
+              key={index}
+              className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3"
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                  Prize {index + 1}
+                </span>
+                {prizes.length > 1 && (
+                  <button
+                    onClick={() =>
+                      setPrizes(prizes.filter((_, i) => i !== index))
+                    }
+                    className="btn-ghost px-2 text-xs text-zinc-400 hover:text-rose-600"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+
+              <label className="block">
+                <span className="field-label">What they win</span>
+                <input
+                  value={prize.description}
+                  onChange={(e) =>
+                    updatePrize(index, { description: e.target.value })
+                  }
+                  maxLength={200}
+                  placeholder="Free coffee with any pastry"
+                  className="input-field"
+                  list="game-reward-suggestions"
+                />
+              </label>
+
+              <label className="mt-2 block">
+                <span className="field-label">Small print (optional)</span>
+                <input
+                  value={prize.details}
+                  onChange={(e) =>
+                    updatePrize(index, { details: e.target.value })
+                  }
+                  maxLength={300}
+                  placeholder="Dine-in only, one per customer"
+                  className="input-field"
+                />
+              </label>
+
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="field-label">How many can you give away?</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100000}
+                    value={prize.stock}
+                    onChange={(e) =>
+                      updatePrize(index, { stock: Number(e.target.value) })
+                    }
+                    className="input-field"
+                  />
+                </label>
+                {def.winRule === "target" ? (
+                  <label className="block">
+                    <span className="field-label">
+                      Score they need ({def.scoreLabel})
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={prize.minScore}
+                      onChange={(e) =>
+                        updatePrize(index, { minScore: Number(e.target.value) })
+                      }
+                      className="input-field"
+                    />
+                  </label>
+                ) : (
+                  <label className="block">
+                    <span className="field-label">Code valid for (days)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={prize.expiryDays}
+                      onChange={(e) =>
+                        updatePrize(index, {
+                          expiryDays: Number(e.target.value),
+                        })
+                      }
+                      className="input-field"
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <datalist id="game-reward-suggestions">
+            {rewardTemplates.map((template) => (
+              <option key={template.id} value={template.description} />
+            ))}
+          </datalist>
+
+          {prizes.length < maxPrizes && (
+            <button onClick={addPrize} className="btn-secondary self-start text-sm">
+              Add another prize
+            </button>
+          )}
+
+          {def.engine === "chance" && (
+            <label className="block rounded-xl border border-zinc-200 p-3">
+              <span className="field-label">
+                How often should someone win? ({winPercent}%)
+              </span>
+              <input
+                type="range"
+                min={1}
+                max={100}
+                value={winPercent}
+                onChange={(e) => setWinPercent(Number(e.target.value))}
+                className="w-full accent-[var(--brand)]"
+              />
+              <span className="text-xs text-zinc-500">
+                About {winPercent} in every 100 plays lands on a prize. The rest
+                see a &ldquo;not this time&rdquo; and still earn a loyalty point.
+                Play the preview a few times to feel it.
+              </span>
+            </label>
+          )}
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="field-label">How often can one person play?</span>
+              <select
+                value={cooldownHours}
+                onChange={(e) => setCooldownHours(Number(e.target.value))}
+                className="input-field"
+              >
+                {PLAY_FREQUENCY.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="field-label">
+                How many prizes can one person win?
+              </span>
+              <select
+                value={maxWins}
+                onChange={(e) => setMaxWins(Number(e.target.value))}
+                className="input-field"
+              >
+                {WIN_LIMIT.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {error && <p className="alert-error">{error}</p>}
+
+          <button
+            onClick={create}
+            disabled={busy}
+            className="btn-primary"
+            style={{ backgroundColor: "var(--brand)" }}
+          >
+            {busy ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                Creating…
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-4" aria-hidden />
+                Create &amp; get my link
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <section className="mt-6">
@@ -376,268 +603,24 @@ export function GameWizard({
         </button>
       </header>
 
-      <div className="card mx-auto mt-4 max-w-2xl p-5 sm:p-6">
-        <div className="flex items-center gap-3">
-          <span
-            className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
-            style={{
-              background: `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`,
-            }}
-          >
-            <GameIcon icon={def.icon} className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="truncate font-bold text-zinc-900">{def.label}</h2>
-            <p className="truncate text-sm text-zinc-500">{def.tagline}</p>
+      {showPreview ? (
+        // Preview first on a phone (see what you're making), beside the form
+        // and sticky on a wide screen.
+        <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+          <div className="order-2 lg:order-1">{form}</div>
+          <div className="order-1 lg:order-2 lg:sticky lg:top-6">
+            <GamePreview
+              def={def}
+              config={config}
+              prizes={prizes}
+              winPercent={winPercent}
+              accent={brandColor || "#059669"}
+            />
           </div>
         </div>
-
-        {/* ---- Step: name ---- */}
-        {step === "name" && (
-          <div className="mt-5 flex flex-col gap-4">
-            <p className="text-sm leading-relaxed text-zinc-600">{def.blurb}</p>
-            <label className="block">
-              <span className="field-label">What players will see</span>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                maxLength={80}
-                className="input-field"
-                placeholder={def.label}
-              />
-            </label>
-            <label className="block">
-              <span className="field-label">One line about it (optional)</span>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                maxLength={300}
-                rows={2}
-                className="input-field resize-y"
-              />
-            </label>
-            <button
-              onClick={() => setStep("setup")}
-              className="btn-primary"
-              style={{ backgroundColor: "var(--brand)" }}
-            >
-              Next: set it up
-            </button>
-          </div>
-        )}
-
-        {/* ---- Step: setup ---- */}
-        {step === "setup" && (
-          <div className="mt-5 flex flex-col gap-4">
-            <p className="text-sm text-zinc-500">
-              These are all pre-filled — change what you care about and move on.
-            </p>
-            <GameConfigEditor
-              fields={def.fields}
-              config={config}
-              onChange={setConfig}
-            />
-            <button
-              onClick={() => setStep("prizes")}
-              className="btn-primary"
-              style={{ backgroundColor: "var(--brand)" }}
-            >
-              Next: prizes
-            </button>
-          </div>
-        )}
-
-        {/* ---- Step: prizes ---- */}
-        {step === "prizes" && (
-          <div className="mt-5 flex flex-col gap-4">
-            <div>
-              <p className="section-title">Prizes</p>
-              <p className="mt-1 text-xs text-zinc-500">
-                {def.engine === "chance"
-                  ? "Winners are drawn on our servers — the browser never sees the odds."
-                  : `A player wins the best prize whose target they beat (${def.scoreLabel}).`}
-              </p>
-            </div>
-
-            {prizes.map((prize, index) => (
-              <div
-                key={index}
-                className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3"
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                    Prize {index + 1}
-                  </span>
-                  {prizes.length > 1 && (
-                    <button
-                      onClick={() =>
-                        setPrizes(prizes.filter((_, i) => i !== index))
-                      }
-                      className="btn-ghost px-2 text-xs text-zinc-400 hover:text-rose-600"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-
-                <label className="block">
-                  <span className="field-label">What they win</span>
-                  <input
-                    value={prize.description}
-                    onChange={(e) =>
-                      updatePrize(index, { description: e.target.value })
-                    }
-                    maxLength={200}
-                    placeholder="Free coffee with any pastry"
-                    className="input-field"
-                    list="game-reward-suggestions"
-                  />
-                </label>
-
-                <label className="mt-2 block">
-                  <span className="field-label">Small print (optional)</span>
-                  <input
-                    value={prize.details}
-                    onChange={(e) =>
-                      updatePrize(index, { details: e.target.value })
-                    }
-                    maxLength={300}
-                    placeholder="Dine-in only, one per customer"
-                    className="input-field"
-                  />
-                </label>
-
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="field-label">How many to give away</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100000}
-                      value={prize.stock}
-                      onChange={(e) =>
-                        updatePrize(index, { stock: Number(e.target.value) })
-                      }
-                      className="input-field"
-                    />
-                  </label>
-                  {def.winRule === "target" ? (
-                    <label className="block">
-                      <span className="field-label">
-                        Score to beat ({def.scoreLabel})
-                      </span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={prize.minScore}
-                        onChange={(e) =>
-                          updatePrize(index, { minScore: Number(e.target.value) })
-                        }
-                        className="input-field"
-                      />
-                    </label>
-                  ) : (
-                    <label className="block">
-                      <span className="field-label">Code valid for (days)</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={60}
-                        value={prize.expiryDays}
-                        onChange={(e) =>
-                          updatePrize(index, {
-                            expiryDays: Number(e.target.value),
-                          })
-                        }
-                        className="input-field"
-                      />
-                    </label>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            <datalist id="game-reward-suggestions">
-              {rewardTemplates.map((template) => (
-                <option key={template.id} value={template.description} />
-              ))}
-            </datalist>
-
-            {prizes.length < maxPrizes && (
-              <button onClick={addPrize} className="btn-secondary self-start text-sm">
-                Add another prize
-              </button>
-            )}
-
-            {def.engine === "chance" && (
-              <label className="block rounded-xl border border-zinc-200 p-3">
-                <span className="field-label">
-                  How often should someone win? ({winPercent}%)
-                </span>
-                <input
-                  type="range"
-                  min={1}
-                  max={100}
-                  value={winPercent}
-                  onChange={(e) => setWinPercent(Number(e.target.value))}
-                  className="w-full accent-[var(--brand)]"
-                />
-                <span className="text-xs text-zinc-500">
-                  Roughly {winPercent} in 100 plays land on a prize. The rest see
-                  a &ldquo;not this time&rdquo; segment — and still earn a
-                  loyalty point.
-                </span>
-              </label>
-            )}
-
-            <div className="grid grid-cols-2 gap-2">
-              <label className="block">
-                <span className="field-label">Replay cooldown (hours)</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={720}
-                  value={cooldownHours}
-                  onChange={(e) => setCooldownHours(Number(e.target.value))}
-                  className="input-field"
-                />
-              </label>
-              <label className="block">
-                <span className="field-label">Max wins per player</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={maxWins}
-                  onChange={(e) => setMaxWins(Number(e.target.value))}
-                  className="input-field"
-                />
-              </label>
-            </div>
-
-            {error && <p className="alert-error">{error}</p>}
-
-            <button
-              onClick={create}
-              disabled={busy}
-              className="btn-primary"
-              style={{ backgroundColor: "var(--brand)" }}
-            >
-              {busy ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                  Creating…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="size-4" aria-hidden />
-                  Create &amp; get my link
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
+      ) : (
+        <div className="mx-auto mt-4 max-w-2xl">{form}</div>
+      )}
     </section>
   );
 }

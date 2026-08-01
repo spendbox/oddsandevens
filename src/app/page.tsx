@@ -4,12 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  Boxes,
   ChevronDown,
+  Coins,
+  Disc,
+  Gamepad2,
   Gift,
   Link2,
   Mail,
   MessageCircle,
+  Puzzle,
   QrCode,
   Share2,
   ShieldCheck,
@@ -18,7 +21,7 @@ import {
   Target,
   Trophy,
   Utensils,
-  X,
+  Wand2,
 } from "lucide-react";
 
 // The landing is a vertical deck of full-screen snap cards: each swipe up
@@ -26,40 +29,39 @@ import {
 // being turned (see FlipCard). Everything is CSS-animated; the only JS is
 // two IntersectionObservers (flip trigger + active-dot tracking).
 
-// Decorative hero board: a fixed pattern with a few "winning" tiles that pop
-// on a loop.
-const DEMO_TILES: ("gift" | "miss" | "")[] = [
-  "", "", "miss", "", "", "gift",
-  "", "gift", "", "", "miss", "",
-  "miss", "", "", "gift", "", "",
-  "", "", "miss", "", "", "miss",
-  "", "gift", "", "miss", "", "",
-  "miss", "", "", "", "gift", "",
+// Decorative hero: a sample of the game catalogue, cycling on a loop.
+const DEMO_GAMES: { label: string; emoji: string; swatch: [string, string] }[] = [
+  { label: "Spin to Win", emoji: "🎡", swatch: ["#f97316", "#db2777"] },
+  { label: "Scratch Card", emoji: "🪙", swatch: ["#6366f1", "#0ea5e9"] },
+  { label: "Pick-a-Box", emoji: "🎁", swatch: ["#a855f7", "#ec4899"] },
+  { label: "Whack-a-Mole", emoji: "🐹", swatch: ["#a16207", "#16a34a"] },
+  { label: "Memory Match", emoji: "🧠", swatch: ["#2563eb", "#0891b2"] },
+  { label: "Trivia", emoji: "🏆", swatch: ["#f59e0b", "#7c3aed"] },
 ];
 
 const STEPS = [
   {
-    Icon: Boxes,
-    title: "Hide your rewards",
-    text: "Drop your rewards onto a branded 7×7 grid. Positions are randomized server-side — even you can't see where they land.",
+    Icon: Gamepad2,
+    title: "Pick a game",
+    text: "Twenty to choose from — a prize wheel, a scratch card, a quiz, an arcade high-score chase. Pick one and it's already working.",
+  },
+  {
+    Icon: Wand2,
+    title: "Make it yours",
+    text: "Your logo, your colours, your prizes, your odds. The real game plays right beside you as you set it up, so nothing has to be imagined.",
   },
   {
     Icon: Share2,
     title: "Share one link",
-    text: "Put a single link in your WhatsApp bio, on receipts, or a counter QR. No app, no sign-up for customers.",
-  },
-  {
-    Icon: Trophy,
-    title: "Watch them come back",
-    text: "One tap per visit: a win emails a redemption code, a miss earns loyalty points. Either way, they return.",
+    text: "Drop it in your WhatsApp bio, on receipts, or a counter QR. No app and no sign-up — winners get a redemption code by email.",
   },
 ];
 
 const FEATURES = [
   {
     Icon: Target,
-    title: "One tap per visit",
-    text: "A built-in cooldown keeps the game fair and gives customers a reason to come back tomorrow.",
+    title: "You set the odds",
+    text: "Decide how often someone wins and how many prizes you'll give away. Nobody can win more than you put on the table.",
   },
   {
     Icon: Mail,
@@ -68,17 +70,17 @@ const FEATURES = [
   },
   {
     Icon: ShieldCheck,
-    title: "Fraud-proof redemption",
-    text: "Staff redeem by code, never by looking up an email. A reward can't be over-claimed or double-dipped.",
+    title: "Impossible to rig",
+    text: "Every draw and every score is settled on our servers. The odds never reach the player's phone, so they can't be read or edited.",
   },
 ];
 
 const SECTIONS = [
   { id: "hero", label: "Spendbox" },
   { id: "story", label: "Amara's story" },
-  { id: "step-1", label: "Hide your rewards" },
-  { id: "step-2", label: "Share one link" },
-  { id: "step-3", label: "Watch them come back" },
+  { id: "step-1", label: "Pick a game" },
+  { id: "step-2", label: "Make it yours" },
+  { id: "step-3", label: "Share one link" },
   { id: "features", label: "Why it works" },
   { id: "pricing", label: "Pricing" },
   { id: "start", label: "Get started" },
@@ -155,34 +157,31 @@ function Deck({
 
 // --- Per-step animated visuals -------------------------------------------
 
-// Step 1: a mini grid shimmering while gift tiles pop — rewards being hidden.
-function HideRewardsVisual() {
-  const gifts = new Set([3, 7, 16, 21]);
+// Step 1: the catalogue — a sample of the games drifting into view.
+function PickAGameVisual() {
+  const picks = [
+    { Icon: Disc, className: "left-0 top-2", delay: "0ms" },
+    { Icon: Coins, className: "right-1 top-0", delay: "500ms" },
+    { Icon: Gift, className: "left-6 bottom-1", delay: "1000ms" },
+    { Icon: Puzzle, className: "right-6 bottom-3", delay: "1500ms" },
+    { Icon: Trophy, className: "left-1/2 top-10 -translate-x-1/2", delay: "750ms" },
+  ];
   return (
-    <div className="mx-auto grid w-44 grid-cols-5 gap-1" aria-hidden>
-      {Array.from({ length: 25 }, (_, i) => (
-        <div
-          key={i}
-          className="tile-live flex aspect-square items-center justify-center rounded-md"
-          style={{
-            animation: `tile-shimmer ${2400 + ((i * 131) % 1800)}ms ease-in-out ${(i * 97) % 1600}ms infinite`,
-          }}
+    <div className="relative mx-auto h-40 w-full max-w-xs" aria-hidden>
+      {picks.map(({ Icon, className, delay }) => (
+        <span
+          key={delay}
+          className={`absolute flex size-12 items-center justify-center rounded-2xl border border-emerald-100 bg-white text-emerald-600 shadow-lg ${className}`}
+          style={{ animation: `float-slow 5s ease-in-out ${delay} infinite` }}
         >
-          {gifts.has(i) && (
-            <Gift
-              className="size-3.5 text-white"
-              style={{
-                animation: `gift-pop ${3000 + ((i * 173) % 1400)}ms ease-in-out ${(i * 210) % 1200}ms infinite`,
-              }}
-            />
-          )}
-        </div>
+          <Icon className="size-6" />
+        </span>
       ))}
     </div>
   );
 }
 
-// Step 2: the one link with a sheen sweeping across it, channels floating around.
+// Step 3: the one link with a sheen sweeping across it, channels floating around.
 function ShareLinkVisual() {
   const orbit = [
     { Icon: MessageCircle, className: "-left-2 top-2", delay: "0ms" },
@@ -203,7 +202,7 @@ function ShareLinkVisual() {
       <div className="relative overflow-hidden rounded-full border border-emerald-200 bg-white px-5 py-2.5 font-mono text-sm text-emerald-700 shadow-lg">
         <span className="flex items-center gap-2">
           <Link2 className="size-4" />
-          spendbox.site/g/your-shop
+          spendbox.site/p/your-shop
         </span>
         <span
           className="pointer-events-none absolute inset-0"
@@ -219,12 +218,13 @@ function ShareLinkVisual() {
   );
 }
 
-// Step 3: the trophy pulsing with halo rings, loyalty points drifting in.
-function ComeBackVisual() {
+// Step 2: the game being dressed — a wheel spinning inside a phone, with the
+// settings that shaped it floating alongside.
+function MakeItYoursVisual() {
   const chips = [
-    { label: "+1 point", className: "-left-4 top-4", delay: "300ms" },
-    { label: "+1 point", className: "-right-6 top-14", delay: "1400ms" },
-    { label: "10% off", className: "left-0 bottom-0", delay: "2300ms" },
+    { label: "Your logo", className: "-left-3 top-3", delay: "300ms" },
+    { label: "Your prizes", className: "-right-4 top-16", delay: "1400ms" },
+    { label: "Your odds", className: "left-1 bottom-1", delay: "2300ms" },
   ];
   return (
     <div className="relative mx-auto flex h-40 w-full max-w-xs items-center justify-center" aria-hidden>
@@ -232,15 +232,11 @@ function ComeBackVisual() {
         className="absolute size-24 rounded-full bg-emerald-400/30"
         style={{ animation: "ring-pulse 2.4s ease-out infinite" }}
       />
-      <span
-        className="absolute size-24 rounded-full bg-emerald-400/30"
-        style={{ animation: "ring-pulse 2.4s ease-out 1.2s infinite" }}
-      />
-      <div
-        className="relative flex size-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-xl"
-        style={{ animation: "float-slow 4s ease-in-out infinite" }}
-      >
-        <Trophy className="size-10" />
+      <div className="relative flex h-32 w-20 items-center justify-center rounded-2xl border-4 border-zinc-900 bg-white shadow-xl">
+        <Disc
+          className="size-12 text-emerald-600"
+          style={{ animation: "float-slow 3s linear infinite" }}
+        />
       </div>
       {chips.map(({ label, className, delay }) => (
         <span
@@ -256,7 +252,7 @@ function ComeBackVisual() {
   );
 }
 
-const STEP_VISUALS = [HideRewardsVisual, ShareLinkVisual, ComeBackVisual];
+const STEP_VISUALS = [PickAGameVisual, MakeItYoursVisual, ShareLinkVisual];
 
 // A "How it works" card: step chip, animated visual, icon, copy, deck dots.
 function StepCard({ index }: { index: number }) {
@@ -389,7 +385,7 @@ export default function LandingPage() {
             style={{ animationDelay: "0ms" }}
           >
             <Sparkles className="size-3.5" aria-hidden />
-            Gamified loyalty for your business
+            Branded games for your business
           </span>
 
           <h1
@@ -400,7 +396,7 @@ export default function LandingPage() {
               className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-lg sm:size-16"
               style={{ animation: "float-slow 5s ease-in-out infinite" }}
             >
-              <Boxes className="size-7 sm:size-9" aria-hidden />
+              <Gamepad2 className="size-7 sm:size-9" aria-hidden />
             </span>
             <span>
               Spend
@@ -414,9 +410,9 @@ export default function LandingPage() {
             className="animate-fade-up mt-5 max-w-xl text-balance text-lg leading-relaxed text-zinc-600"
             style={{ animationDelay: "160ms" }}
           >
-            Turn one-time shoppers into repeat buyers. Hide rewards inside a
-            beautifully branded grid, share one link, and let your customers
-            play to win their next perk.
+            Turn one-time shoppers into repeat buyers. Build a branded game —
+            a prize wheel, a scratch card, a quiz, an arcade chase — share one
+            link, and let your customers play to win their next perk.
           </p>
 
           <div
@@ -429,44 +425,40 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          {/* Animated hero board */}
+          {/* Animated sample of the catalogue */}
           <div
-            className="animate-fade-up card mt-10 grid w-full max-w-[17rem] grid-cols-6 gap-1.5 p-3"
+            className="animate-fade-up mt-10 grid w-full max-w-md grid-cols-3 gap-2"
             style={{ animationDelay: "320ms" }}
             aria-hidden
           >
-            {DEMO_TILES.map((t, i) => (
+            {DEMO_GAMES.map((game, i) => (
               <div
-                key={i}
-                className={
-                  "flex aspect-square items-center justify-center rounded-lg " +
-                  (t === "gift"
-                    ? "bg-emerald-100 text-emerald-600 ring-1 ring-emerald-300"
-                    : t === "miss"
-                      ? "bg-zinc-100 text-zinc-300 ring-1 ring-zinc-200"
-                      : "tile-live")
-                }
-                style={
-                  t === ""
-                    ? {
-                        animation: `tile-shimmer ${2600 + ((i * 137) % 2000)}ms ease-in-out ${(i * 90) % 1800}ms infinite`,
-                      }
-                    : undefined
-                }
+                key={game.label}
+                className="card flex flex-col items-center gap-1.5 p-3"
+                style={{
+                  animation: `float-slow ${4.5 + (i % 3) * 0.6}s ease-in-out ${i * 250}ms infinite`,
+                }}
               >
-                {t === "gift" ? (
-                  <Gift
-                    className="size-4"
-                    style={{
-                      animation: `gift-pop ${3400 + ((i * 211) % 1600)}ms ease-in-out ${(i * 130) % 1500}ms infinite`,
-                    }}
-                  />
-                ) : t === "miss" ? (
-                  <X className="size-4" />
-                ) : null}
+                <span
+                  className="flex size-9 items-center justify-center rounded-xl text-lg"
+                  style={{
+                    background: `linear-gradient(140deg, ${game.swatch[0]}, ${game.swatch[1]})`,
+                  }}
+                >
+                  {game.emoji}
+                </span>
+                <span className="text-[11px] font-semibold text-zinc-600">
+                  {game.label}
+                </span>
               </div>
             ))}
           </div>
+          <p
+            className="animate-fade-up mt-3 text-xs font-medium text-zinc-400"
+            style={{ animationDelay: "400ms" }}
+          >
+            …and fourteen more.
+          </p>
         </div>
         <SwipeHint />
       </Deck>
@@ -537,11 +529,11 @@ export default function LandingPage() {
             </div>
 
             <p className="mx-auto mt-7 max-w-md text-sm leading-relaxed text-zinc-600 sm:text-base">
-              Amara runs a jollof kitchen in Lagos. She hid free plates and
-              10%-off rewards in a Spendbox grid, put the link on every
-              takeaway receipt, and let customers play after each meal. Misses
-              earned loyalty points toward discounts, wins were meals — and her
-              regulars came back all month to keep their streaks.
+              Amara runs a jollof kitchen in Lagos. She built a spin-to-win
+              wheel with free plates and 10%-off codes on it, set the odds to
+              one win in four, and printed the link as a QR on every takeaway
+              bag. Losing spins still earned loyalty points toward a discount —
+              so her regulars came back all month to keep spinning.
             </p>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-zinc-500">
@@ -624,12 +616,12 @@ export default function LandingPage() {
                 <p className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">
                   100{" "}
                   <span className="text-base font-medium text-zinc-500">
-                    taps/yr
+                    plays/yr
                   </span>
                 </p>
                 <p className="mt-2 text-sm text-zinc-600">
-                  One live grid, two rewards, and your own branded board.
-                  Perfect for getting started.
+                  Two live games with two prizes each, branded to you. Every
+                  game type included. Perfect for getting started.
                 </p>
               </div>
               <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/40 p-5">
@@ -642,18 +634,18 @@ export default function LandingPage() {
                 <p className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">
                   5,000{" "}
                   <span className="text-base font-medium text-zinc-500">
-                    taps/yr
+                    plays/yr
                   </span>
                 </p>
                 <p className="mt-2 text-sm text-zinc-600">
-                  Unlimited grids, 10 rewards each, custom puzzle images, and
-                  interlocking tiles. Top up any time — on any plan.
+                  Unlimited live games, 10 prizes in each, and your own artwork
+                  throughout. Top up any time — on any plan.
                 </p>
               </div>
             </div>
             <p className="mt-4 text-center text-xs text-zinc-400">
-              A tap is one tile a customer flips. Need more? Buy top-up taps in
-              a click — no upgrade required.
+              A play is one round a customer finishes. Need more? Buy top-up
+              plays in a click — no upgrade required.
             </p>
           </FlipCard>
         </div>
@@ -668,17 +660,17 @@ export default function LandingPage() {
               className="flex size-16 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-xl"
               style={{ animation: "float-slow 5s ease-in-out infinite" }}
             >
-              <Boxes className="size-8" aria-hidden />
+              <Gamepad2 className="size-8" aria-hidden />
             </div>
             <h2 className="mt-6 max-w-xl text-balance text-4xl font-extrabold tracking-tight text-zinc-900 sm:text-5xl">
-              Ready to turn taps into repeat customers?
+              Ready to turn players into repeat customers?
             </h2>
             <p className="mt-4 max-w-md text-balance text-zinc-600">
-              Your first board takes about two minutes to set up — rewards,
-              brand colors, link and all.
+              Your first game takes about two minutes — pick it, play it in the
+              preview, share the link.
             </p>
             <Link href="/signup" className="btn-primary mt-8 text-base">
-              Create your first board
+              Build your first game
               <ArrowRight className="size-4" aria-hidden />
             </Link>
             <p className="mt-8 text-xs text-zinc-400">

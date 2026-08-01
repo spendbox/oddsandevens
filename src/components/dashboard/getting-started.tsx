@@ -4,8 +4,8 @@ import { useState } from "react";
 import {
   Check,
   Copy,
+  Gamepad2,
   Gift,
-  Grid3x3,
   HelpCircle,
   Palette,
   Share2,
@@ -15,7 +15,7 @@ import { DEFAULT_POINTS_PER_DISCOUNT } from "@/lib/constants";
 import type { Merchant } from "./shared";
 
 interface Step {
-  key: "reward" | "grid" | "brand" | "share";
+  key: "reward" | "game" | "brand" | "share";
   title: string;
   description: string;
   done: boolean;
@@ -28,22 +28,22 @@ function sharedKey(merchantId: string) {
   return `th_shared_${merchantId}`;
 }
 
-// First-login guide: a three-step checklist (create a grid, brand the page,
-// share the link) with a short tutorial popup per step. Disappears once all
+// First-login guide: a short checklist (add a reward, launch a game, brand the
+// page, share the link) with a tutorial popup per step. Disappears once all
 // steps are done or the merchant dismisses it.
 export function GettingStarted({
   merchant,
   hasReward,
-  hasGrid,
+  hasGame,
   onCreateReward,
-  onCreateGrid,
+  onCreateGame,
   onOpenSettings,
 }: {
   merchant: Merchant;
   hasReward: boolean;
-  hasGrid: boolean;
+  hasGame: boolean;
   onCreateReward: () => void;
-  onCreateGrid: () => void;
+  onCreateGame: () => void;
   onOpenSettings: () => void;
 }) {
   const [shared, setShared] = useState(
@@ -61,8 +61,8 @@ export function GettingStarted({
 
   const shareUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/g/${merchant.slug}`
-      : `/g/${merchant.slug}`;
+      ? `${window.location.origin}/p/${merchant.slug}`
+      : `/p/${merchant.slug}`;
 
   const steps: Step[] = [
     {
@@ -75,20 +75,20 @@ export function GettingStarted({
       tutorial: [
         "Open Build → Rewards and add the prizes you want to give away (e.g. \"Free plate of jollof\").",
         "Set how long each reward stays valid once a customer wins it.",
-        "You'll pick from these rewards when you build a grid, so create them first.",
+        "You'll pick from these rewards when you build a game, so create them first.",
       ],
     },
     {
-      key: "grid",
-      title: "Create your first grid",
-      description: "Hide your rewards under 49 tiles for customers to hunt.",
-      done: hasGrid,
-      actionLabel: "Create grid",
-      icon: <Grid3x3 className="size-4" aria-hidden />,
+      key: "game",
+      title: "Launch your first game",
+      description: "A wheel, a scratch card, a quiz — twenty to choose from.",
+      done: hasGame,
+      actionLabel: "Create game",
+      icon: <Gamepad2 className="size-4" aria-hidden />,
       tutorial: [
-        "A grid is a 7×7 board of hidden tiles. Customers tap one tile per visit.",
-        "Pick which of your rewards to hide and how many winning tiles each gets — the rest of the tiles earn loyalty points instead.",
-        "Rewards land on random tiles server-side, so nobody (not even you) knows where they are.",
+        "Open Build → Games and pick a game. Everything is pre-filled, and the preview lets you play it while you set it up.",
+        "Choose what customers can win, how many you'll give away, and how often someone should win.",
+        "Winners are drawn on our servers, so the odds can't be read or rigged from anyone's phone.",
       ],
     },
     {
@@ -99,7 +99,7 @@ export function GettingStarted({
       actionLabel: "Open settings",
       icon: <Palette className="size-4" aria-hidden />,
       tutorial: [
-        "Upload your logo and pick your brand color — the whole customer page (tiles included) takes on your colors.",
+        "Upload your logo and pick your brand color — every game you share takes on your colors.",
         "Add a tagline and contact details so customers can reach you.",
         `Set your loyalty exchange rate: how many points (default ${DEFAULT_POINTS_PER_DISCOUNT}) buy what discount.`,
       ],
@@ -112,7 +112,7 @@ export function GettingStarted({
       actionLabel: copied ? "Copied!" : "Copy link",
       icon: <Share2 className="size-4" aria-hidden />,
       tutorial: [
-        "Your customer page lives at the link on your dashboard — anyone with it can play.",
+        "Your games hub lives at the link on your dashboard, and every game also has its own link.",
         "Customers only need an email to join; they get a code by email when they win.",
         "Post the link on WhatsApp, Instagram, or print it as a QR code at the counter.",
       ],
@@ -124,7 +124,7 @@ export function GettingStarted({
 
   async function act(step: Step) {
     if (step.key === "reward") onCreateReward();
-    else if (step.key === "grid") onCreateGrid();
+    else if (step.key === "game") onCreateGame();
     else if (step.key === "brand") onOpenSettings();
     else {
       await navigator.clipboard.writeText(shareUrl);

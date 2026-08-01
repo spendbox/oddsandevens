@@ -38,7 +38,7 @@ export function PlaysWidget({
         <div>
           <p className="section-title">
             <Gauge className="size-3.5" aria-hidden />
-            Taps left this year
+            Plays left this year
           </p>
           <p
             className={
@@ -138,7 +138,7 @@ export function PlansPanel({
       body?.error === "payments_not_configured"
         ? "Payments aren't configured yet — set PAYSTACK_SECRET_KEY on the server."
         : body?.error === "invalid_quantity"
-          ? `Choose between ${TOPUP_MIN_PLAYS.toLocaleString()} and ${TOPUP_MAX_PLAYS.toLocaleString()} taps.`
+          ? `Choose between ${TOPUP_MIN_PLAYS.toLocaleString()} and ${TOPUP_MAX_PLAYS.toLocaleString()} plays.`
           : "Couldn't start the payment. Try again."
     );
   }
@@ -166,7 +166,7 @@ export function PlansPanel({
       <div className="card p-5 sm:p-6">
         <p className="section-title">
           <Gauge className="size-3.5" aria-hidden />
-          Your taps
+          Your plays
         </p>
 
         <div className="mt-4 grid items-center gap-6 sm:grid-cols-[auto_1fr]">
@@ -174,7 +174,7 @@ export function PlansPanel({
             <p className="text-5xl font-bold tracking-tight text-zinc-900">
               {plan.playsRemaining.toLocaleString()}
             </p>
-            <p className="mt-1 text-sm text-zinc-500">taps remaining</p>
+            <p className="mt-1 text-sm text-zinc-500">plays remaining</p>
           </div>
 
           <dl className="grid grid-cols-3 gap-4">
@@ -213,8 +213,8 @@ export function PlansPanel({
           />
         </div>
         <p className="mt-2 text-xs text-zinc-400">
-          A tap is one tile a customer reveals. Your yearly allowance refills on
-          the reset date; topped-up taps never expire.
+          A play is one round a customer finishes. Your yearly allowance refills
+          on the reset date; topped-up plays never expire.
         </p>
       </div>
 
@@ -222,11 +222,11 @@ export function PlansPanel({
       <div className="card p-5">
         <p className="section-title">
           <Coins className="size-3.5" aria-hidden />
-          Buy more taps
+          Buy more plays
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-3">
           <label className="block">
-            <span className="field-label">Taps</span>
+            <span className="field-label">Plays</span>
             <input
               type="number"
               min={TOPUP_MIN_PLAYS}
@@ -255,7 +255,7 @@ export function PlansPanel({
             title={plan.paymentsEnabled ? undefined : "Payments not configured"}
           >
             <Zap className="size-4" aria-hidden />
-            {busyTopup ? "Redirecting…" : "Buy taps"}
+            {busyTopup ? "Redirecting…" : "Buy plays"}
           </button>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -288,7 +288,7 @@ export function PlansPanel({
               <span className="font-medium text-zinc-800">
                 {formatDate(premiumExpiresAt)}
               </span>
-              . A renewal adds a full year on top and refreshes your yearly taps.
+              . A renewal adds a full year on top and refreshes your yearly plays.
             </>
           ) : (
             <>
@@ -301,21 +301,21 @@ export function PlansPanel({
                 </>
               )}
               Get <span className="font-medium text-zinc-800">
-                {plan.premiumYearlyPlays.toLocaleString()} taps a year
+                {plan.premiumYearlyPlays.toLocaleString()} plays a year
               </span>{" "}
-              (up from {plan.baseAllowance.toLocaleString()}), plus more grids,
-              rewards, and custom board styling.
+              (up from {plan.baseAllowance.toLocaleString()}), plus unlimited
+              games and more prizes in each of them.
             </>
           )}
         </p>
         <ul className="mt-3 grid gap-1.5 text-sm text-zinc-600 sm:grid-cols-2">
           {[
-            `${plan.premiumYearlyPlays.toLocaleString()} taps / year`,
-            "10 active grids",
-            "10 rewards per grid",
-            "Custom puzzle images",
-            "Interlocking tile shapes",
-            "Reset cooldowns up to a year",
+            `${plan.premiumYearlyPlays.toLocaleString()} plays / year`,
+            "Unlimited live games",
+            "10 prizes per game",
+            "All 20 game types",
+            "Custom artwork and colours",
+            "Leaderboards on every score game",
           ].map((f) => (
             <li key={f} className="flex items-center gap-1.5">
               <Sparkles className="size-3.5 text-amber-500" aria-hidden />

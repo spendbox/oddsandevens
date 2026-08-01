@@ -1,11 +1,9 @@
 "use client";
 
-// One link that shows everything a business has running: every live game, plus
-// their tile board if they still run one.
+// One link that shows everything a business has running.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Grid3x3 } from "lucide-react";
 import { GameIcon } from "@/components/games/icons";
 import { gameDef, themeAccent } from "@/lib/games/catalog";
 import type { PublicGamesHub } from "@/lib/games/types";
@@ -78,7 +76,7 @@ export default function GamesHub({ slug }: { slug: string }) {
           </div>
         </header>
 
-        {hub.games.length === 0 && !hub.hasGrid ? (
+        {hub.games.length === 0 ? (
           <p className="card p-6 text-center text-sm text-zinc-500">
             No games are running right now — check back soon.
           </p>
@@ -133,33 +131,6 @@ export default function GamesHub({ slug }: { slug: string }) {
               );
             })}
 
-            {hub.hasGrid && (
-              <Link
-                href={`/g/${slug}`}
-                className="card group flex items-center gap-4 p-4 transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <span
-                  className="flex size-12 shrink-0 items-center justify-center rounded-xl text-white"
-                  style={{ backgroundColor: brand }}
-                >
-                  <Grid3x3 className="size-6" aria-hidden />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-semibold text-zinc-900">
-                    Reward grid
-                  </span>
-                  <span className="block text-sm text-zinc-500">
-                    Tap a tile, hunt the hidden rewards.
-                  </span>
-                </span>
-                <span
-                  className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold text-white"
-                  style={{ backgroundColor: brand }}
-                >
-                  Play
-                </span>
-              </Link>
-            )}
           </div>
         )}
 

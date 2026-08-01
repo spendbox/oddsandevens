@@ -42,6 +42,7 @@ export default function SliceNinja({
 }: GameProps) {
   const [phase, setPhase] = useState<"idle" | "running" | "grading">("idle");
   const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(3);
   // Physics in refs; this snapshot is what React renders each frame.
   const [frame, setFrame] = useState<Tossed[]>([]);
 
@@ -49,9 +50,11 @@ export default function SliceNinja({
   const nextId = useRef(0);
   const nextToss = useRef(0.6);
   const scoreRef = useRef(0);
+  const livesRef = useRef(3);
   const slicing = useRef(false);
   const once = useOnce();
 
+  const startingLives = clamp(Math.round(cfgNum(config, "lives", 3)), 1, 9);
   const duration = clamp(Math.round(cfgNum(config, "duration", 45)), 15, 180);
   const difficulty = difficultyScale(config);
   const fruit = emojiList(cfgStr(config, "sliceEmojis", "🍉 🍊 🍏 🍍"), ["🍉"]);
@@ -125,8 +128,12 @@ export default function SliceNinja({
     objects.current = next;
     setFrame(next);
     if (hitBomb) {
-      end();
-      return;
+      livesRef.current -= 1;
+      setLives(livesRef.current);
+      if (livesRef.current <= 0) {
+        end();
+        return;
+      }
     }
     if (hits > 0) {
       scoreRef.current += hits;
@@ -137,8 +144,10 @@ export default function SliceNinja({
   const start = () => {
     objects.current = [];
     scoreRef.current = 0;
+    livesRef.current = startingLives;
     nextToss.current = 0.6;
     setScore(0);
+    setLives(startingLives);
     setFrame([]);
     setPhase("running");
   };
@@ -149,6 +158,7 @@ export default function SliceNinja({
         items={[
           { label: "Sliced", value: score },
           { label: "Time", value: `${timeLeft}s` },
+          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—" },
         ]}
       />
       <Stage
@@ -189,7 +199,9 @@ export default function SliceNinja({
         {phase === "idle" && (
           <StartOverlay
             title="Slice everything"
-            hint={`Swipe across the screen to slice. Hit a ${bomb} and the round is over.`}
+            hint={`Swipe across the screen to slice. Every ${bomb} costs one of your ${startingLives} ${
+              startingLives === 1 ? "life" : "lives"
+            }.`}
             buttonLabel="Start slicing"
             accent={accent}
             onStart={start}

@@ -148,6 +148,17 @@ const emojiListField = (
   maxLength: 60,
 });
 
+// Arcade games are much friendlier with a few lives: one mistake ending the
+// whole round is the fastest way to make a player close the tab.
+const livesField: ConfigField = {
+  key: "lives",
+  label: "Lives per round",
+  type: "number",
+  min: 1,
+  max: 9,
+  help: "How many mistakes a player gets before the round ends.",
+};
+
 // ---------------------------------------------------------------------------
 // The catalogue
 // ---------------------------------------------------------------------------
@@ -315,10 +326,12 @@ export const GAMES: Record<GameType, GameDefinition> = {
       obstacleEmoji: "🌵",
       difficulty: "normal",
       groundColor: "#1f2937",
+      lives: 3,
     },
     fields: [
       emojiListField("runnerEmoji", "Runner", "Your mascot, an emoji."),
       emojiListField("obstacleEmoji", "Obstacle", "What they jump over."),
+      livesField,
       difficultyField,
     ],
   },
@@ -346,12 +359,14 @@ export const GAMES: Record<GameType, GameDefinition> = {
       badEmojis: "💣",
       catcherEmoji: "🧺",
       difficulty: "normal",
+      lives: 3,
     },
     fields: [
       durationField(45),
       emojiListField("goodEmojis", "Things to catch", "Space-separated emoji."),
       emojiListField("badEmojis", "Things to dodge", "Catching one costs a life."),
       emojiListField("catcherEmoji", "The basket", "What the player moves."),
+      livesField,
       difficultyField,
     ],
   },
@@ -378,11 +393,13 @@ export const GAMES: Record<GameType, GameDefinition> = {
       sliceEmojis: "🍉 🍊 🍏 🍍",
       bombEmoji: "💣",
       difficulty: "normal",
+      lives: 3,
     },
     fields: [
       durationField(45),
       emojiListField("sliceEmojis", "Things to slice", "Space-separated emoji."),
-      emojiListField("bombEmoji", "Bomb", "Slicing one ends the round."),
+      emojiListField("bombEmoji", "Bomb", "Slicing one costs a life."),
+      livesField,
       difficultyField,
     ],
   },
@@ -884,10 +901,16 @@ export const GAMES: Record<GameType, GameDefinition> = {
     winRule: "target",
     defaultTarget: 8,
     usesBlanks: false,
-    defaultConfig: { flyerEmoji: "🐤", pipeColor: "#16a34a", difficulty: "normal" },
+    defaultConfig: {
+      flyerEmoji: "🐤",
+      pipeColor: "#16a34a",
+      difficulty: "normal",
+      lives: 3,
+    },
     fields: [
       emojiListField("flyerEmoji", "The flyer", "Your mascot, an emoji."),
       { key: "pipeColor", label: "Pipe colour", type: "text", maxLength: 7 },
+      livesField,
       difficultyField,
     ],
   },

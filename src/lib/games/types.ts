@@ -72,8 +72,6 @@ export interface PublicGamesHub {
     playsCount: number;
     prizeTeasers: string[];
   }[];
-  // The business also runs the classic tile grid, so the hub can link to it.
-  hasGrid: boolean;
 }
 
 // What POST /start hands back before the player may play.

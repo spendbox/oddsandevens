@@ -22,20 +22,12 @@ export async function GET(
     return NextResponse.json({ error: "merchant_not_found" }, { status: 404 });
   }
 
-  const [{ data: games }, { data: grids }] = await Promise.all([
-    db
-      .from("games")
-      .select("id, slug, type, title, description, theme, plays_count")
-      .eq("merchant_id", merchant.id)
-      .eq("status", "active")
-      .order("created_at", { ascending: true }),
-    db
-      .from("grids")
-      .select("id")
-      .eq("merchant_id", merchant.id)
-      .eq("status", "active")
-      .limit(1),
-  ]);
+  const { data: games } = await db
+    .from("games")
+    .select("id, slug, type, title, description, theme, plays_count")
+    .eq("merchant_id", merchant.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
 
   const ids = (games ?? []).map((g) => g.id);
   const { data: prizes } = ids.length
@@ -69,7 +61,6 @@ export async function GET(
         .slice(0, 3)
         .map((p) => p.description),
     })),
-    hasGrid: (grids ?? []).length > 0,
   };
   return NextResponse.json(hub);
 }

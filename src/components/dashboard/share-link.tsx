@@ -13,12 +13,12 @@ export function ShareLink({
 }) {
   const [copied, setCopied] = useState(false);
   const url =
-    typeof window !== "undefined" ? `${window.location.origin}/g/${slug}` : `/g/${slug}`;
+    typeof window !== "undefined" ? `${window.location.origin}/p/${slug}` : `/p/${slug}`;
   return (
     <div className="card flex h-full flex-col gap-3 p-4 sm:p-5">
       <p className="section-title">
         <Link2 className="size-3.5" aria-hidden />
-        Your customer link ·{" "}
+        Your games link ·{" "}
         <span style={{ color: "var(--brand)" }}>{tier} tier</span>
       </p>
       <p
@@ -51,12 +51,12 @@ export function ShareLink({
           )}
         </button>
         <a
-          href={`/g/${slug}`}
+          href={`/p/${slug}`}
           target="_blank"
           rel="noopener noreferrer"
           className="btn-primary px-4 py-2.5 text-sm"
         >
-          <ExternalLink className="size-4" aria-hidden /> Visit page
+          <ExternalLink className="size-4" aria-hidden /> Open it
         </a>
       </div>
     </div>

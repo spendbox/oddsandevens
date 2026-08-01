@@ -1,40 +1,14 @@
 # Spendbox
 
 Branded-games platform for SMEs (built for Nigerian cloud kitchens first). A
-business builds games — a spin-to-win wheel, a scratch card, a quiz, an arcade
-high-score chase — brands them, and shares one link per game. Winning mints a
-one-time redemption code the customer shows at the counter.
-
-There are two families of game:
-
-- **[Branded games](#branded-games)** — twenty game types, each created from the
-  dashboard in about a minute and shared at `/p/<business>/<game>`.
-- **The tile grid** — the original shared 7×7 board at `/g/<business>`,
-  described below.
-
-Both mint the same redemption codes, feed the same loyalty points, and are
-redeemed through the same staff code box.
-
-## The tile grid
-
-A merchant hides rewards in a tile grid and shares one link (WhatsApp bio/posts).
-Customers tap **one tile per cooldown period**:
-
-- **Hit** → reveals a reward, emails the customer a unique 6-character
-  redemption code, and starts an expiry countdown (merchant-configurable,
-  1–60 days, default 30).
-- **Miss** → +1 loyalty point for that merchant and a 10-hour lockout. Points
-  expire on a rolling 7-day window (playing again extends the whole balance).
-- **Loyalty points** can be traded for a discount code through the same
-  redemption flow. The exchange rate is per-merchant (default **3 points → 2%**).
-
-Every grid is a fixed **7×7 board** (49 tiles) and is **shared**: each tile can
-be revealed exactly once by anyone, so the grid visibly depletes. When a grid is
-fully consumed it rests, then auto-resets with fresh stock after a
-merchant-configured cooldown.
+business builds a game — a spin-to-win wheel, a scratch card, a quiz, an arcade
+high-score chase — brands it, and shares one link per game. Winning mints a
+one-time redemption code the customer shows at the counter; not winning earns a
+loyalty point, and points trade for a discount at a per-merchant rate (default
+**3 points → 2%**, expiring on a rolling 7-day window).
 
 Customers can review everything they've earned across every business at
-**`/me`** — an email-only portal (v1 has no customer accounts).
+**`/me`** — an email-only portal (there are no customer accounts).
 
 ## Branded games
 
@@ -79,12 +53,12 @@ A round can only be graded through a token issued by `start`, each token grades
 exactly once, and a token left open for six hours is refused. The allowance is
 charged at `finish`, so an abandoned game costs the business nothing.
 
-A play that doesn't win still earns a loyalty point — games feed the same
-loyalty economy as the grid.
+A play that doesn't win still earns a loyalty point, and points trade for a
+discount code through the same staff redemption flow.
 
 ### Sharing
 
-- `/p/<business>` — the hub: every live game, plus the tile board if they run one
+- `/p/<business>` — the hub: every game the business has live
 - `/p/<business>/<game>` — one game, brandable per game (accent colour, hero)
 
 ### Game tier limits
@@ -94,7 +68,10 @@ loyalty economy as the grid.
 | free | 2 | 2 |
 | premium | unlimited | 10 |
 
-Plays are billed from the same annual allowance as grid taps (see below).
+A **play** is one round a customer finishes. Every merchant gets an annual
+allowance by tier (free 100/year, premium 5,000/year — both admin-tunable),
+plus top-up plays that never expire and can be bought on either plan. The
+allowance is charged when a round is graded, so abandoned games are free.
 
 ## Stack
 
@@ -107,29 +84,23 @@ Plays are billed from the same annual allowance as grid taps (see below).
 - **Paystack** — yearly premium checkout (initialize + verify). Enabled when
   `PAYSTACK_SECRET_KEY` is set; otherwise the upsell is hidden and tiers can
   still be toggled manually in the DB.
-- **Admin console** (`/admin`) — platform operator tools (merchants, shared
-  grid images, premium price), gated by environment-variable credentials.
+- **Admin console** (`/admin`) — platform operator tools (merchants, the shared
+  image library, premium price), gated by environment-variable credentials.
 
 ## Security model
 
-0. **Game odds and prize logic never reach the browser.** The public game
-   endpoint returns the authored config, the prize *labels*, and the
-   leaderboard — never a draw weight, and never the stock of anything still
-   winnable. Wins are decided in `finish_game_play` behind a single-use token.
-1. **The reward map never reaches the browser.** The public grid endpoint
-   (`GET /api/play/[slug]`) returns each active grid's dimensions and
-   already-revealed tiles only. Reward positions for unrevealed tiles exist
-   solely in Postgres.
-2. **Atomic clicks.** All game mutations are `SECURITY DEFINER` Postgres
-   functions (`supabase/migrations/0002_functions.sql` and later) using
-   `SELECT ... FOR UPDATE` row locks in a single transaction. Spamming the
-   click endpoint gets a uniform `tile_taken` error that never leaks whether
-   the tile held a reward; a reward's `max_redemptions` can't be over-claimed.
+1. **Odds and prize logic never reach the browser.** The public game endpoint
+   returns the authored config, the prize *labels*, and the leaderboard — never
+   a draw weight, and never the stock of anything still winnable. Wins are
+   decided in `finish_game_play` behind a single-use token.
+2. **Atomic mutations.** Every game mutation is a `SECURITY DEFINER` Postgres
+   function using `SELECT ... FOR UPDATE` row locks in a single transaction, so
+   a prize can never be over-claimed no matter how many people finish at once.
    A per-IP cooldown (hashed IP, salted via `IP_HASH_SALT`) backs up the
    per-email one.
 3. **Redemption by code only.** Staff type the customer's code into the
-   dashboard — a two-step flow resolves the code (cycling loyalty code, tile
-   reward, or game prize) and then redeems it. There is deliberately no
+   dashboard — a two-step flow resolves the code (cycling loyalty code or a
+   game prize) and then redeems it. There is deliberately no
    lookup-by-email redemption path, and the dashboard masks stored codes. Once
    redeemed or expired, a code is invalid (expiry is enforced lazily at
    redemption time).
@@ -140,22 +111,6 @@ Plays are billed from the same annual allowance as grid taps (see below).
    (`ADMIN_EMAIL` + `ADMIN_PASSWORD`, whose hash is the session cookie so
    rotating either invalidates every session) or any Supabase user whose email
    is on `ADMIN_EMAILS`.
-
-## Grid tier limits (hard caps in both API and SQL)
-
-Grid size is a fixed 7×7 on every tier — tiers differ by how much you can run
-and how you can theme it. (Game caps are in
-[Branded games](#game-tier-limits).)
-
-| Tier | Active grids | Rewards / grid | Grid auto-reset |
-|------|--------------|----------------|-----------------|
-| free | 1 | 2 | 7 days (fixed) |
-| premium | 10 | 10 | 7–365 days (configurable) |
-
-Premium also unlocks theming extras (custom-uploaded tile images and
-puzzle-piece tile shapes; logo, colors, and the image library are free on both
-tiers) and is billed yearly through Paystack — each payment or renewal adds
-365 days.
 
 ## Setup
 
@@ -168,7 +123,7 @@ tiers) and is billed yearly through Paystack — each payment or renewal adds
 
    (Local stack instead: `npx supabase start && npx supabase db reset` — this
    also runs `supabase/seed.sql`, which creates a test merchant
-   `seed-merchant@example.com` / `password123` with board `/g/mama-put-kitchen`.)
+   `seed-merchant@example.com` / `password123`.)
 
 2. **Configure env** — copy `.env.example` to `.env.local` and fill in the
    Supabase URL, anon key, and service-role key. Optional keys:
@@ -237,25 +192,23 @@ of truth; `supabase db push` tracks applied migrations server-side just like
 
 1. Sign up at `/signup` (confirm email if your project requires it), then log
    in at `/login`.
-2. On `/dashboard`: create your business profile (name + link slug), then use
-   the grid wizard to add a 7×7 grid with at least one reward.
-3. Open the customer link `/g/<slug>` in an incognito window, enter any email,
-   and click tiles. A miss earns a point and starts the 10-hour cooldown; a hit
-   shows the code (and emails it). Visit `/me` and enter the same email to see
-   points and codes across every business.
-4. Back on the dashboard, type the code into **Redeem a customer code** — it
-   redeems once, then rejects with "already redeemed".
-4b. **Games**: on `/dashboard` → Build → Games, hit *New game*, pick (say)
-   *Wheel of Fortune*, keep the defaults, and create it. Copy the link, open
-   `/p/<slug>/<game>` in an incognito window, verify an email, and spin. A win
-   emails a code that redeems in the same staff box; a loss adds a loyalty
-   point. Spin again to see the per-game cooldown, and check `/p/<slug>` for the
-   hub listing every live game.
-5. To test premium without paying: `update merchants set subscription_tier =
+2. On `/dashboard`: create your business profile (name + link slug), then add a
+   reward under **Build → Rewards**.
+3. **Build → Games → New game**. Pick *Wheel of Fortune*, keep the defaults, and
+   play it in the live preview beside the form — that preview runs the real
+   game against the settings you are editing, with the draw simulated locally.
+   Press *Create* to get the share link.
+4. Open `/p/<slug>/<game>` in an incognito window, verify an email, and spin. A
+   win emails a redemption code; a loss earns a loyalty point. Spin again to hit
+   the per-game cooldown, and open `/p/<slug>` for the hub of every live game.
+5. Back on the dashboard, type the code into **Redeem a customer code** — it
+   redeems once, then rejects with "already redeemed". Visit `/me` with the same
+   email to see codes and points across every business.
+6. To test premium without paying: `update merchants set subscription_tier =
    'premium', premium_expires_at = now() + interval '1 year';` in the SQL
-   editor, reload the dashboard, and you can run up to 10 grids with up to 10
-   rewards each and configure the grid reset window. With `PAYSTACK_SECRET_KEY`
-   set, the Settings tab instead offers a real (test-mode) checkout.
+   editor, reload the dashboard, and you can run unlimited games with up to 10
+   prizes each. With `PAYSTACK_SECRET_KEY` set, the Plans tab instead offers a
+   real (test-mode) checkout.
 
 ### SQL-level branded-game tests
 
@@ -283,44 +236,13 @@ select claimed, stock from game_prizes
  where game_id = (select id from games where slug = 'spin-to-win');
 ```
 
-### SQL-level grid tests
-
-Run in the Supabase SQL editor against a seeded/local stack (replace the slug
-if needed). The `play_tile` function returns jsonb you can inspect directly:
-
-```sql
--- Miss/hit + cooldown: second call must return {"result":"cooldown",...}
-select play_tile('mama-put-kitchen', 0, 0, 'tester1@example.com');
-select play_tile('mama-put-kitchen', 0, 1, 'tester1@example.com');
-
--- Tile already consumed: must return {"result":"error","error":"tile_taken"}
-select play_tile('mama-put-kitchen', 0, 0, 'tester2@example.com');
-
--- Grant points and redeem them for a discount code
-update customer_merchant_state set loyalty_points = 3;
-select redeem_loyalty_points('mama-put-kitchen', 'tester1@example.com');
-
--- Redeem a code (find one first): second attempt must fail 'already_redeemed'
-select redemption_code from unlocked_rewards where status = 'unredeemed';
-select redeem_code((select id from merchants where slug = 'mama-put-kitchen'), 'CODE__');
-select redeem_code((select id from merchants where slug = 'mama-put-kitchen'), 'CODE__');
-
--- Expiry: force-expire and confirm rejection
-update unlocked_rewards set expires_at = now() - interval '1 hour' where status = 'unredeemed';
-select redeem_code((select id from merchants where slug = 'mama-put-kitchen'), 'CODE__');
-```
-
 ## Project layout
 
 - `supabase/migrations/*.sql` — schema, RLS, and the atomic game functions.
-  `0001_init` (tables/indexes/RLS) and `0002_functions` (`play_tile`,
-  `redeem_code`, `redeem_loyalty_points`, `create_grid`) are the base; later
-  migrations add branding & loyalty (`0003`), puzzle grids, payments & admin
-  (`0004`), yearly premium codes & resets (`0005`), one-time reward codes &
-  details (`0006`), and the 30-day default reward validity (`0007`).
-  `0013` adds the branded-games platform (`games`, `game_prizes`, `game_plays`,
-  `create_game`, `start_game_play`, `finish_game_play`, and game-aware staff
-  lookup/redeem).
+  `0001`–`0012` build the merchant, customer, loyalty, payments and admin
+  foundations; **`0013` is the branded-games platform** (`games`,
+  `game_prizes`, `game_plays`, `create_game`, `start_game_play`,
+  `finish_game_play`, and the game-aware staff lookup/redeem).
 - `src/lib/games/catalog.ts` — the game catalogue: one declarative entry per
   game type (engine, defaults, setup-form schema). Shared by the API, the
   dashboard builder, and the player.
@@ -332,7 +254,6 @@ select redeem_code((select id from merchants where slug = 'mama-put-kitchen'), '
 - `src/app/api/customer/summary` — cross-merchant customer portal data
 - `src/app/api/merchant/*` — merchant endpoints (session cookie auth)
 - `src/app/api/admin/*` — platform admin endpoints (env-var auth)
-- `src/app/g/[slug]` — customer play page
 - `src/app/me` — customer loyalty portal (email-only)
 - `src/app/dashboard` — merchant dashboard (RLS reads, API writes); UI split
   into `src/components/dashboard/*`
@@ -344,7 +265,14 @@ select redeem_code((select id from merchants where slug = 'mama-put-kitchen'), '
 - Per-game analytics beyond plays / players / wins / redemptions
 - Editing a game's questions or artwork after launch from the dashboard (the
   API supports it; the builder only creates)
-- Grids larger than 7×7, or more than 10 rewards / 10 active grids per merchant
 - Customer accounts/auth (email-only identity)
-- Automatic expiry sweeps (expiry is enforced lazily at redemption; grid
-  resets happen lazily on the next read)
+- Automatic expiry sweeps (expiry is enforced lazily at redemption)
+
+## The retired tile board
+
+Spendbox began as a single game: a shared 7×7 board of hidden rewards at
+`/g/<business>`. It is no longer part of the product — nothing links to it, and
+the dashboard has no way to build one — but the route, the API and the
+`play_tile` SQL remain in place so that boards already shared on receipts keep
+working and codes they issued keep redeeming. New businesses only ever see
+games.

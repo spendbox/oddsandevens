@@ -22,7 +22,7 @@ export function StatsKpis({ stats }: { stats: MerchantStats | null }) {
       accent: "text-emerald-600 bg-emerald-50",
     },
     {
-      label: "Total taps",
+      label: "Total plays",
       value: stats.totalPlays,
       icon: Play,
       accent: "text-sky-600 bg-sky-50",

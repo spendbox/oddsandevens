@@ -76,7 +76,7 @@ export function RedeemBox({ onRedeemed }: { onRedeemed: () => Promise<void> }) {
       setOk(true);
       setMessage(`Redeemed: ${body.description} (customer: ${body.customer_email})`);
       reset();
-      // Tile rewards get reshuffled server-side on redemption; refresh the map.
+      // Redemption can reshuffle server-side state; refresh what we show.
       await onRedeemed();
       return;
     }

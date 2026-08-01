@@ -19,23 +19,19 @@ import type { SubscriptionTier } from "@/lib/constants";
 import { GameIcon } from "@/components/games/icons";
 
 /**
- * Home-tab strip: the one link that carries every game, plus a nudge to launch
- * the first one.
+ * Home-tab strip: how the games are doing, and a nudge to launch the first one.
+ * The shareable link itself lives in the link card right below.
  */
 export function GamesHighlight({
   games,
-  merchantSlug,
   onNewGame,
   onManage,
 }: {
   games: GameSummary[];
-  merchantSlug: string;
   onNewGame: () => void;
   onManage: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
   const live = games.filter((g) => g.status === "active");
-  const hubPath = `/p/${merchantSlug}`;
 
   return (
     <section className="card p-5">
@@ -75,42 +71,6 @@ export function GamesHighlight({
         </button>
       </div>
 
-      {live.length > 0 && (
-        <div className="mt-4">
-          <p className="section-title">Your games hub — one link for all of them</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-              {hubPath}
-            </code>
-            <button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(
-                    `${window.location.origin}${hubPath}`
-                  );
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 2000);
-                } catch {
-                  // Clipboard blocked — the path is on screen.
-                }
-              }}
-              className="btn-secondary text-sm"
-            >
-              <Copy className="size-4" aria-hidden />
-              {copied ? "Copied!" : "Copy"}
-            </button>
-            <a
-              href={hubPath}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-secondary text-sm"
-            >
-              <ExternalLink className="size-4" aria-hidden />
-              Open
-            </a>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

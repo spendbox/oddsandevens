@@ -54,6 +54,7 @@ export default function FallingCatcher({
   const livesRef = useRef(3);
   const once = useOnce();
 
+  const startingLives = clamp(Math.round(cfgNum(config, "lives", 3)), 1, 9);
   const duration = clamp(Math.round(cfgNum(config, "duration", 45)), 15, 180);
   const difficulty = difficultyScale(config);
   const good = emojiList(cfgStr(config, "goodEmojis", "🍕 🍔 🥤"), ["🍕"]);
@@ -137,11 +138,11 @@ export default function FallingCatcher({
   const start = () => {
     items.current = [];
     scoreRef.current = 0;
-    livesRef.current = 3;
+    livesRef.current = startingLives;
     nextSpawn.current = 0.8;
     basketX.current = 50;
     setScore(0);
-    setLives(3);
+    setLives(startingLives);
     setFrame({ basketX: 50, items: [] });
     setPhase("running");
   };
@@ -197,7 +198,7 @@ export default function FallingCatcher({
             title="Catch what falls"
             hint={`Slide to move the basket. Catch the good stuff, dodge ${bad.join(
               " "
-            )} — three of those and you're out.`}
+            )} — ${startingLives} of those and you're out.`}
             buttonLabel="Start catching"
             accent={accent}
             onStart={start}
