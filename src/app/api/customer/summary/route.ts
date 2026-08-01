@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     db
       .from("unlocked_rewards")
       .select(
-        "merchant_id, redemption_code, reward_type, discount_percent, status, expires_at, rewards(description)"
+        "merchant_id, redemption_code, reward_type, discount_percent, status, expires_at, rewards(description), game_prizes(description)"
       )
       .eq("customer_id", customer.id)
       .eq("status", "unredeemed")
@@ -48,8 +48,11 @@ export async function GET(req: Request) {
       description:
         u.reward_type === "loyalty_discount"
           ? `${u.discount_percent}% loyalty discount`
-          : ((u.rewards as unknown as { description: string } | null)
-              ?.description ?? "Tile reward"),
+          : u.reward_type === "game"
+            ? ((u.game_prizes as unknown as { description: string } | null)
+                ?.description ?? "Game prize")
+            : ((u.rewards as unknown as { description: string } | null)
+                ?.description ?? "Tile reward"),
       status: u.status,
       expiresAt: u.expires_at,
     });

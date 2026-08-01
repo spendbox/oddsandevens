@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Gift, Grid3x3, Hammer, Home, Palette, Users, Wallet, X } from "lucide-react";
+import {
+  Gamepad2,
+  Gift,
+  Grid3x3,
+  Hammer,
+  Home,
+  Palette,
+  Users,
+  Wallet,
+  X,
+} from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { TIER_LIMITS } from "@/lib/constants";
 import { useAutoRefresh } from "@/lib/use-auto-refresh";
@@ -11,7 +21,9 @@ import type {
   GridStats,
   MerchantPlan,
   MerchantStats,
+  RewardTemplate,
 } from "@/lib/types";
+import type { GameSummary } from "@/lib/games/types";
 import {
   effectiveTierNow,
   type Merchant,
@@ -26,6 +38,11 @@ import { PlaysWidget, PlansPanel } from "@/components/dashboard/plan";
 import { RedeemBox } from "@/components/dashboard/redeem-box";
 import { GridsManager } from "@/components/dashboard/grids-manager";
 import { GridWizard } from "@/components/dashboard/grid-wizard";
+import {
+  GamesHighlight,
+  GamesManager,
+} from "@/components/dashboard/games-manager";
+import { GameWizard } from "@/components/dashboard/game-wizard";
 import { RewardsManager } from "@/components/dashboard/rewards-manager";
 import { BrandSettings } from "@/components/dashboard/brand-settings";
 import { CustomersList } from "@/components/dashboard/customers-list";
@@ -33,7 +50,7 @@ import { UnlocksList } from "@/components/dashboard/unlocks-list";
 import { OnboardingForm } from "@/components/dashboard/onboarding-form";
 
 type Tab = "home" | "build" | "customers" | "plans" | "settings";
-type BuildSub = "grids" | "rewards";
+type BuildSub = "games" | "grids" | "rewards";
 
 const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }> }[] = [
   { key: "home", label: "Home", icon: Home },
@@ -54,10 +71,13 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<MerchantStats | null>(null);
   const [plan, setPlan] = useState<MerchantPlan | null>(null);
   const [hasReward, setHasReward] = useState(false);
+  const [rewardTemplates, setRewardTemplates] = useState<RewardTemplate[]>([]);
+  const [games, setGames] = useState<GameSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("home");
-  const [buildSub, setBuildSub] = useState<BuildSub>("grids");
+  const [buildSub, setBuildSub] = useState<BuildSub>("games");
   const [showWizard, setShowWizard] = useState(false);
+  const [showGameWizard, setShowGameWizard] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
 
   const fetchAll = useCallback(async (): Promise<Snapshot | "unauthenticated"> => {
@@ -76,6 +96,8 @@ export default function DashboardPage() {
       stats: null,
       plan: null,
       hasReward: false,
+      rewardTemplates: [],
+      games: [],
       loadError: null,
     };
 
@@ -96,12 +118,19 @@ export default function DashboardPage() {
     snap.merchant = m as Merchant | null;
     if (!m) return snap;
 
-    const [{ data: u }, customersRes, gridsRes, statsRes, planRes, rewardsRes] =
-      await Promise.all([
+    const [
+      { data: u },
+      customersRes,
+      gridsRes,
+      statsRes,
+      planRes,
+      rewardsRes,
+      gamesRes,
+    ] = await Promise.all([
         supabase
           .from("unlocked_rewards")
           .select(
-            "id, redemption_code, reward_type, discount_percent, status, unlocked_at, expires_at, rewards(description), customers(email)"
+            "id, redemption_code, reward_type, discount_percent, status, unlocked_at, expires_at, rewards(description), game_prizes(description), customers(email)"
           )
           .eq("merchant_id", m.id)
           .order("unlocked_at", { ascending: false })
@@ -117,6 +146,9 @@ export default function DashboardPage() {
         fetch("/api/merchant/reward-templates").then((res) =>
           res.ok ? res.json() : { rewards: [] }
         ),
+        fetch("/api/merchant/games").then((res) =>
+          res.ok ? res.json() : { games: [] }
+        ),
       ]);
     const now = Date.now();
     snap.unlocks = ((u as unknown as Omit<UnlockRow, "isExpired">[]) ?? []).map(
@@ -126,7 +158,9 @@ export default function DashboardPage() {
     snap.grids = (gridsRes?.grids as GridStats[]) ?? [];
     snap.stats = (statsRes as MerchantStats | null) ?? null;
     snap.plan = (planRes as MerchantPlan | null) ?? null;
-    snap.hasReward = ((rewardsRes?.rewards as unknown[]) ?? []).length > 0;
+    snap.rewardTemplates = (rewardsRes?.rewards as RewardTemplate[]) ?? [];
+    snap.hasReward = snap.rewardTemplates.length > 0;
+    snap.games = (gamesRes?.games as GameSummary[]) ?? [];
     return snap;
   }, []);
 
@@ -138,6 +172,8 @@ export default function DashboardPage() {
     setStats(snap.stats);
     setPlan(snap.plan);
     setHasReward(snap.hasReward);
+    setRewardTemplates(snap.rewardTemplates);
+    setGames(snap.games);
     setLoadError(snap.loadError);
     setLoading(false);
   }, []);
@@ -232,6 +268,12 @@ export default function DashboardPage() {
     setShowWizard(true);
   };
 
+  const openGameWizard = () => {
+    setTab("build");
+    setBuildSub("games");
+    setShowGameWizard(true);
+  };
+
   // The whole dashboard picks up the merchant's brand color.
   const brandStyle = {
     "--brand": merchant?.brand_color ?? "#059669",
@@ -278,6 +320,18 @@ export default function DashboardPage() {
               setBuildSub("rewards");
             }}
           />
+        ) : showGameWizard ? (
+          <GameWizard
+            tier={tier}
+            rewardTemplates={rewardTemplates}
+            onDone={async () => {
+              setShowGameWizard(false);
+              setTab("build");
+              setBuildSub("games");
+              await load();
+            }}
+            onCancel={() => setShowGameWizard(false)}
+          />
         ) : (
           <>
             {/* Tab bar: full-width segments on phones, inline pills upward. */}
@@ -314,6 +368,15 @@ export default function DashboardPage() {
                   onCreateGrid={openWizard}
                   onOpenSettings={() => setTab("settings")}
                 />
+                <GamesHighlight
+                  games={games}
+                  merchantSlug={merchant.slug}
+                  onNewGame={openGameWizard}
+                  onManage={() => {
+                    setTab("build");
+                    setBuildSub("games");
+                  }}
+                />
                 <ShareLink slug={merchant.slug} tier={tier} />
                 <PlaysWidget plan={plan} onManage={() => setTab("plans")} />
                 <StatsSummary stats={stats} />
@@ -327,6 +390,7 @@ export default function DashboardPage() {
                 <div className="inline-flex gap-1 rounded-xl border border-zinc-200 bg-white p-1">
                   {(
                     [
+                      { key: "games", label: "Games", icon: Gamepad2 },
                       { key: "grids", label: "Grids", icon: Grid3x3 },
                       { key: "rewards", label: "Rewards", icon: Gift },
                     ] as const
@@ -352,7 +416,15 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
-                {buildSub === "grids" ? (
+                {buildSub === "games" ? (
+                  <GamesManager
+                    games={games}
+                    tier={tier}
+                    merchantSlug={merchant.slug}
+                    onNewGame={() => setShowGameWizard(true)}
+                    onChanged={load}
+                  />
+                ) : buildSub === "grids" ? (
                   <GridsManager
                     grids={grids}
                     tier={tier}

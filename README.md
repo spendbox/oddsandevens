@@ -1,7 +1,23 @@
 # Spendbox
 
-Gamified loyalty widget for SMEs (built for Nigerian cloud kitchens first). A
-merchant hides rewards in a tile grid and shares one link (WhatsApp bio/posts).
+Branded-games platform for SMEs (built for Nigerian cloud kitchens first). A
+business builds games — a spin-to-win wheel, a scratch card, a quiz, an arcade
+high-score chase — brands them, and shares one link per game. Winning mints a
+one-time redemption code the customer shows at the counter.
+
+There are two families of game:
+
+- **[Branded games](#branded-games)** — twenty game types, each created from the
+  dashboard in about a minute and shared at `/p/<business>/<game>`.
+- **The tile grid** — the original shared 7×7 board at `/g/<business>`,
+  described below.
+
+Both mint the same redemption codes, feed the same loyalty points, and are
+redeemed through the same staff code box.
+
+## The tile grid
+
+A merchant hides rewards in a tile grid and shares one link (WhatsApp bio/posts).
 Customers tap **one tile per cooldown period**:
 
 - **Hit** → reveals a reward, emails the customer a unique 6-character
@@ -20,6 +36,66 @@ merchant-configured cooldown.
 Customers can review everything they've earned across every business at
 **`/me`** — an email-only portal (v1 has no customer accounts).
 
+## Branded games
+
+Every game a business can launch is one entry in `src/lib/games/catalog.ts`.
+That entry declares the game's award engine, its defaults, and its setup form,
+so the dashboard builder, the API validation, and the player page are all
+generated from it — adding a twenty-first game means one catalogue entry plus
+one component in `src/components/games/`.
+
+| Category | Games |
+|----------|-------|
+| **Instant win** | Wheel of Fortune · Digital Scratch Card · Mystery Gift / Pick-a-Box · Interactive Advent Calendar |
+| **Arcade & skill** | Endless Runner · Falling Objects / Catcher · Slice / Ninja Chop · Tile Merge · Memory Card Match · Whack-a-Mole · Flappy Flyer · Jigsaw / Photo Puzzle · Spot the Difference · Tic-Tac-Toe |
+| **Quiz & discover** | Product Recommender Quiz · Myth vs. Fact Trivia · Live Leaderboard Trivia · Virtual Lookbook / Room Builder |
+| **Community** | Digital Scavenger Hunt · Bracket / Knockout Poll |
+
+### The two award engines
+
+Twenty games, two ways of deciding a winner — both settled entirely in Postgres:
+
+1. **`chance`** (wheel, scratch card, mystery box, advent calendar). The server
+   runs a weighted draw over the game's segments. Real prizes only enter the
+   pool while they have stock; losing segments ("blanks") are always in it. The
+   response tells the client *which segment* it landed on, so the wheel animates
+   to a result it did not choose. **The odds never reach the browser.**
+2. **`score`** (everything else). The player plays, the client submits a score,
+   and the server awards the best prize whose `min_score` that score clears.
+   Scores are clamped to the game's `max_score`, so a forged submission can
+   never beat the honest ceiling.
+
+### The play lifecycle
+
+```
+POST /api/play/[slug]/games/[game]/start    → checks cooldown + allowance,
+                                              returns a single-use token
+   … the player plays; the game component only reports a score …
+POST /api/play/[slug]/games/[game]/finish   → grades it, charges one play,
+                                              mints the code, returns the result
+```
+
+A round can only be graded through a token issued by `start`, each token grades
+exactly once, and a token left open for six hours is refused. The allowance is
+charged at `finish`, so an abandoned game costs the business nothing.
+
+A play that doesn't win still earns a loyalty point — games feed the same
+loyalty economy as the grid.
+
+### Sharing
+
+- `/p/<business>` — the hub: every live game, plus the tile board if they run one
+- `/p/<business>/<game>` — one game, brandable per game (accent colour, hero)
+
+### Game tier limits
+
+| Tier | Live games | Prizes / game |
+|------|------------|---------------|
+| free | 2 | 2 |
+| premium | unlimited | 10 |
+
+Plays are billed from the same annual allowance as grid taps (see below).
+
 ## Stack
 
 - **Next.js 16** (App Router, TypeScript, Tailwind v4) — deploy on Vercel.
@@ -36,6 +112,10 @@ Customers can review everything they've earned across every business at
 
 ## Security model
 
+0. **Game odds and prize logic never reach the browser.** The public game
+   endpoint returns the authored config, the prize *labels*, and the
+   leaderboard — never a draw weight, and never the stock of anything still
+   winnable. Wins are decided in `finish_game_play` behind a single-use token.
 1. **The reward map never reaches the browser.** The public grid endpoint
    (`GET /api/play/[slug]`) returns each active grid's dimensions and
    already-revealed tiles only. Reward positions for unrevealed tiles exist
@@ -48,8 +128,8 @@ Customers can review everything they've earned across every business at
    A per-IP cooldown (hashed IP, salted via `IP_HASH_SALT`) backs up the
    per-email one.
 3. **Redemption by code only.** Staff type the customer's code into the
-   dashboard — a two-step flow resolves the code (cycling loyalty code or a
-   tile reward code) and then redeems it. There is deliberately no
+   dashboard — a two-step flow resolves the code (cycling loyalty code, tile
+   reward, or game prize) and then redeems it. There is deliberately no
    lookup-by-email redemption path, and the dashboard masks stored codes. Once
    redeemed or expired, a code is invalid (expiry is enforced lazily at
    redemption time).
@@ -61,10 +141,11 @@ Customers can review everything they've earned across every business at
    rotating either invalidates every session) or any Supabase user whose email
    is on `ADMIN_EMAILS`.
 
-## Tier limits (hard caps in both API and SQL)
+## Grid tier limits (hard caps in both API and SQL)
 
 Grid size is a fixed 7×7 on every tier — tiers differ by how much you can run
-and how you can theme it.
+and how you can theme it. (Game caps are in
+[Branded games](#game-tier-limits).)
 
 | Tier | Active grids | Rewards / grid | Grid auto-reset |
 |------|--------------|----------------|-----------------|
@@ -164,13 +245,45 @@ of truth; `supabase db push` tracks applied migrations server-side just like
    points and codes across every business.
 4. Back on the dashboard, type the code into **Redeem a customer code** — it
    redeems once, then rejects with "already redeemed".
+4b. **Games**: on `/dashboard` → Build → Games, hit *New game*, pick (say)
+   *Wheel of Fortune*, keep the defaults, and create it. Copy the link, open
+   `/p/<slug>/<game>` in an incognito window, verify an email, and spin. A win
+   emails a code that redeems in the same staff box; a loss adds a loyalty
+   point. Spin again to see the per-game cooldown, and check `/p/<slug>` for the
+   hub listing every live game.
 5. To test premium without paying: `update merchants set subscription_tier =
    'premium', premium_expires_at = now() + interval '1 year';` in the SQL
    editor, reload the dashboard, and you can run up to 10 grids with up to 10
    rewards each and configure the grid reset window. With `PAYSTACK_SECRET_KEY`
    set, the Settings tab instead offers a real (test-mode) checkout.
 
-### SQL-level game tests
+### SQL-level branded-game tests
+
+The game engine is testable without the app. Against a seeded stack:
+
+```sql
+-- Build a wheel: one prize with 2 in stock, three losing segments (25% win rate)
+select create_game(
+  (select id from merchants where slug = 'mama-put-kitchen'),
+  'spin-wheel', 'chance', 'Spin to Win', 'spin-to-win', null,
+  '{}'::jsonb, '{}'::jsonb,
+  '[{"kind":"prize","description":"Free coffee","stock":2,"weight":100},
+    {"kind":"blank","description":"Not this time","weight":100},
+    {"kind":"blank","description":"So close","weight":100},
+    {"kind":"blank","description":"Try tomorrow","weight":100}]'::jsonb,
+  0, 5, 1);
+
+-- Play a round (cooldown 0 above, so this can be looped)
+select start_game_play('mama-put-kitchen', 'spin-to-win', 'tester@example.com');
+select finish_game_play('<token from above>', 1, '{}'::jsonb);
+
+-- Grading the same token twice must fail with 'play_already_finished',
+-- and after 2 wins the prize is exhausted — every later spin is a loss.
+select claimed, stock from game_prizes
+ where game_id = (select id from games where slug = 'spin-to-win');
+```
+
+### SQL-level grid tests
 
 Run in the Supabase SQL editor against a seeded/local stack (replace the slug
 if needed). The `play_tile` function returns jsonb you can inspect directly:
@@ -205,6 +318,16 @@ select redeem_code((select id from merchants where slug = 'mama-put-kitchen'), '
   migrations add branding & loyalty (`0003`), puzzle grids, payments & admin
   (`0004`), yearly premium codes & resets (`0005`), one-time reward codes &
   details (`0006`), and the 30-day default reward validity (`0007`).
+  `0013` adds the branded-games platform (`games`, `game_prizes`, `game_plays`,
+  `create_game`, `start_game_play`, `finish_game_play`, and game-aware staff
+  lookup/redeem).
+- `src/lib/games/catalog.ts` — the game catalogue: one declarative entry per
+  game type (engine, defaults, setup-form schema). Shared by the API, the
+  dashboard builder, and the player.
+- `src/components/games/*` — one component per game type against the shared
+  contract in `kit.tsx`, plus the lazy registry in `index.tsx`
+- `src/app/p/[slug]` — the public game hub; `src/app/p/[slug]/[game]` — the
+  branded player shell (email gate, start/finish, result, leaderboard)
 - `src/app/api/play/[slug]/*` — public play endpoints (service role, no auth)
 - `src/app/api/customer/summary` — cross-merchant customer portal data
 - `src/app/api/merchant/*` — merchant endpoints (session cookie auth)
@@ -218,6 +341,9 @@ select redeem_code((select id from merchants where slug = 'mama-put-kitchen'), '
 
 ## Not in v1 (deliberately)
 
+- Per-game analytics beyond plays / players / wins / redemptions
+- Editing a game's questions or artwork after launch from the dashboard (the
+  API supports it; the builder only creates)
 - Grids larger than 7×7, or more than 10 rewards / 10 active grids per merchant
 - Customer accounts/auth (email-only identity)
 - Automatic expiry sweeps (expiry is enforced lazily at redemption; grid

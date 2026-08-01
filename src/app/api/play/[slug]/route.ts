@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { maskEmail } from "@/lib/mask";
 import type { PublicBoardState, PublicGrid } from "@/lib/types";
 
 // How many recent taps each grid's public activity ticker shows.
 const ACTIVITY_LIMIT = 8;
-
-// "jane.doe@gmail.com" -> "ja***@g***.com" — enough to feel real, never
-// enough to identify. Degenerate addresses fall back to full masking.
-function maskEmail(email: string): string {
-  const [local = "", domain = ""] = email.split("@");
-  const dot = domain.lastIndexOf(".");
-  const host = dot > 0 ? domain.slice(0, dot) : domain;
-  const tld = dot > 0 ? domain.slice(dot) : "";
-  const lead = (s: string, n: number) => (s.length > n ? s.slice(0, n) : s.slice(0, 1));
-  return `${lead(local, 2)}***@${lead(host, 1)}***${tld}`;
-}
 
 // Public board state for the play page: merchant branding plus every active
 // grid. Returns dimensions and already-revealed tiles only — reward positions

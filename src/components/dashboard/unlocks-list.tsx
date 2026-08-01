@@ -4,9 +4,13 @@ import { Ticket } from "lucide-react";
 import { formatDate, type UnlockRow } from "./shared";
 
 function description(u: UnlockRow): string {
-  return u.reward_type === "loyalty_discount"
-    ? `${u.discount_percent}% loyalty discount`
-    : (u.rewards?.description ?? "Tile reward");
+  if (u.reward_type === "loyalty_discount") {
+    return `${u.discount_percent}% loyalty discount`;
+  }
+  if (u.reward_type === "game") {
+    return u.game_prizes?.description ?? "Game prize";
+  }
+  return u.rewards?.description ?? "Tile reward";
 }
 
 function StatusBadge({ unlock }: { unlock: UnlockRow }) {

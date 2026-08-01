@@ -84,7 +84,7 @@ export async function GET(
     db
       .from("unlocked_rewards")
       .select(
-        "redemption_code, reward_type, discount_percent, status, expires_at, rewards(description)"
+        "redemption_code, reward_type, discount_percent, status, expires_at, rewards(description), game_prizes(description)"
       )
       .eq("customer_id", customer.id)
       .eq("merchant_id", merchant.id)
@@ -118,8 +118,11 @@ export async function GET(
       description:
         c.reward_type === "loyalty_discount"
           ? `${c.discount_percent ?? DEFAULT_DISCOUNT_PERCENT}% loyalty discount`
-          : ((c.rewards as unknown as { description: string } | null)
-              ?.description ?? "Tile reward"),
+          : c.reward_type === "game"
+            ? ((c.game_prizes as unknown as { description: string } | null)
+                ?.description ?? "Game prize")
+            : ((c.rewards as unknown as { description: string } | null)
+                ?.description ?? "Tile reward"),
       status: c.status,
       expiresAt: c.expires_at,
     })),

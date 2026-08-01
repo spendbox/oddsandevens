@@ -6,7 +6,9 @@ import type {
   GridStats,
   MerchantPlan,
   MerchantStats,
+  RewardTemplate,
 } from "@/lib/types";
+import type { GameSummary } from "@/lib/games/types";
 import type { SubscriptionTier } from "@/lib/constants";
 
 export interface Merchant {
@@ -35,6 +37,8 @@ export interface UnlockRow {
   // Computed at fetch time (render must stay pure, no Date.now() in JSX).
   isExpired: boolean;
   rewards: { description: string } | null;
+  // Set instead of `rewards` when the code came from a branded game.
+  game_prizes: { description: string } | null;
   customers: { email: string } | null;
 }
 
@@ -46,6 +50,8 @@ export interface Snapshot {
   stats: MerchantStats | null;
   plan: MerchantPlan | null;
   hasReward: boolean;
+  rewardTemplates: RewardTemplate[];
+  games: GameSummary[];
   // Set when the merchant query itself failed (e.g. schema out of date) —
   // never show onboarding in that case, the merchant may well exist.
   loadError: string | null;
