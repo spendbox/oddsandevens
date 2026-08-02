@@ -147,6 +147,29 @@ so with points gone it had nothing left to do. `/g/[slug]`, the grid APIs and
 the board component are deleted; the tables stay, because dropping tables is
 not something a copy change should do.
 
+### Getting paid: the split is real money, not a report
+
+Each business connects its own bank account, which we register with Paystack as
+a **subaccount** (`0021`, `src/app/api/merchant/payout/route.ts`). Every life
+purchase is initialised against it, so Paystack splits at settlement: the
+business's share goes to their bank and ours stays with us. Nobody moves money
+by hand. Paystack's `percentage_charge` is what the *subaccount* keeps, so it
+is set to 100 minus the platform share.
+
+The account number is resolved with the bank before it is saved, and the name
+that comes back is shown. A business shouldn't be asked to re-read ten digits
+it typed; it should be shown whose account those digits reached.
+
+**No payout account, no live game.** `publish_game` refuses, because a live
+game can sell extra plays immediately and taking a player's money with nowhere
+to send the business's half is the one failure here that would be somebody
+else's money. It is checked on publishing rather than on drafting, so the ask
+lands when it is obvious why it's being asked.
+
+A life purchase also records which game the player was on when they bought it,
+so each game can show what it earned. Hub purchases belong to no single game
+and stay at the business level.
+
 ### Money: what a player pays, split 70/30
 
 The only thing a *player* ever pays for is more plays: ₦250 for ten more this
