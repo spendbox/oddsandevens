@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Clock, Heart, Loader2, Share2, Trophy, Users, Zap } from "lucide-react";
-import { GameIcon } from "@/components/games/icons";
+import { GameLoop } from "@/components/games/game-loop";
 import { RANK_MEDALS, gameDef, themeAccent } from "@/lib/games/catalog";
 import { useCountdown } from "@/lib/games/use-countdown";
 import type { PublicGamesHub } from "@/lib/games/types";
@@ -276,16 +276,12 @@ function GameCard({
       className="arcade-panel group block p-4 transition hover:-translate-y-0.5 hover:brightness-110"
     >
       <div className="flex items-center gap-4">
-        <span
-          className="flex size-12 shrink-0 items-center justify-center rounded-xl text-white"
-          style={{
-            background: def
-              ? `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`
-              : accent,
-          }}
-        >
-          <GameIcon icon={def?.icon ?? "gamepad-2"} className="size-6" />
-        </span>
+        <GameLoop
+          type={game.type}
+          icon={def?.icon ?? "gamepad-2"}
+          swatch={def?.swatch}
+          className="size-12 rounded-xl"
+        />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-lg font-bold text-white">
             {game.title}

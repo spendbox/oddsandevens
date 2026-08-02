@@ -145,11 +145,12 @@ export function GameLoop({
   type,
   icon,
   swatch,
-  className = "size-11",
+  className = "size-11 rounded-xl",
 }: {
   type: string;
   icon: string;
   swatch?: [string, string];
+  /** Carries the size and the corner radius, so a badge can be any shape. */
   className?: string;
 }) {
   const Loop = LOOPS[type];
@@ -160,7 +161,7 @@ export function GameLoop({
   return (
     <span
       className={
-        "flex shrink-0 items-center justify-center overflow-hidden rounded-xl text-white " +
+        "flex shrink-0 items-center justify-center overflow-hidden text-white " +
         className
       }
       style={{ background }}

@@ -21,6 +21,7 @@ import {
   Trophy,
   Wand2,
 } from "lucide-react";
+import { GameLoop } from "@/components/games/game-loop";
 
 // The landing is a vertical deck of full-screen snap cards: each swipe up
 // snaps to the next section, and the section flips into view like a card
@@ -30,10 +31,30 @@ import {
 // The hero sample. This is the whole catalogue, not a selection from it, so
 // the labels have to stay in step with the games marked `competitive` in
 // `GAMES` — anything hidden there has to come out of here too.
-const DEMO_GAMES: { label: string; emoji: string; swatch: [string, string] }[] = [
-  { label: "Whack-a-Mole", emoji: "🔨", swatch: ["#a16207", "#16a34a"] },
-  { label: "Slice Ninja", emoji: "🗡️", swatch: ["#e11d48", "#f59e0b"] },
-  { label: "Match Three", emoji: "💎", swatch: ["#db2777", "#7c3aed"] },
+const DEMO_GAMES: {
+  label: string;
+  type: string;
+  icon: string;
+  swatch: [string, string];
+}[] = [
+  {
+    label: "Whack-a-Mole",
+    type: "whack-a-mole",
+    icon: "hammer",
+    swatch: ["#a16207", "#16a34a"],
+  },
+  {
+    label: "Slice Ninja",
+    type: "slice-ninja",
+    icon: "sword",
+    swatch: ["#e11d48", "#f59e0b"],
+  },
+  {
+    label: "Match Three",
+    type: "match-3",
+    icon: "gem",
+    swatch: ["#db2777", "#7c3aed"],
+  },
 ];
 
 const STEPS = [
@@ -443,14 +464,12 @@ export default function LandingPage() {
                   animation: `float-slow ${4.5 + (i % 3) * 0.6}s ease-in-out ${i * 250}ms infinite`,
                 }}
               >
-                <span
-                  className="flex size-9 items-center justify-center rounded-xl text-lg"
-                  style={{
-                    background: `linear-gradient(140deg, ${game.swatch[0]}, ${game.swatch[1]})`,
-                  }}
-                >
-                  {game.emoji}
-                </span>
+                <GameLoop
+                  type={game.type}
+                  icon={game.icon}
+                  swatch={game.swatch}
+                  className="size-9 rounded-xl"
+                />
                 <span className="text-[11px] font-semibold text-zinc-600">
                   {game.label}
                 </span>

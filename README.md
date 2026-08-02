@@ -166,6 +166,14 @@ to send the business's half is the one failure here that would be somebody
 else's money. It is checked on publishing rather than on drafting, so the ask
 lands when it is obvious why it's being asked.
 
+`create_game` refuses for the same reason (`0023`). It used to not — it inserts
+a game with status `active` directly, so for a while a business could create
+its way past a rule it could not publish its way past. Same story with the
+free tier's one live game: `0019` moved that cap into settings and taught
+`publish_game` to read it, while `create_game` kept its own hardcoded `2`. Both
+now read the one setting, and the podium cap (ten places, both tiers) is a
+setting too.
+
 A life purchase also records which game the player was on when they bought it,
 so each game can show what it earned. Hub purchases belong to no single game
 and stay at the business level.
@@ -269,6 +277,11 @@ jewel is swiped into a row and the row goes. Five SVG shapes and a keyframe
 each — no video file, no GIF, nothing to download, sharp at any size. Anyone
 whose system asks for less movement gets the plain icon back, and that swap is
 pure CSS, so it needs no JavaScript and survives hydration.
+
+The same badge runs everywhere a game is named: the dashboard's card and
+builder, the landing page's sample, the customer's hub, and the intro screen
+before a round. A customer deciding whether to tap gets the same answer the
+business got when it picked the game.
 
 Two details worth knowing. Mahjong boards are **dealt by solving them
 backwards**: the generator repeatedly takes two currently-free slots, gives
@@ -590,7 +603,8 @@ select rank, score, unlocked_reward_id is not null as got_code
   loyalty points** and adds `life_revenue`, the one place the 70/30 split is
   computed; **`0021` adds Paystack subaccounts** and makes a payout account a
   precondition of publishing; **`0022`** lets a business price its own block of
-  extra plays.
+  extra plays; **`0023`** makes `create_game` obey the same live-game cap,
+  payout requirement and podium length as `publish_game`.
 - `src/lib/games/catalog.ts` — the game catalogue: one declarative entry per
   game type (engine, defaults, setup-form schema). Shared by the API, the
   dashboard builder, and the player.

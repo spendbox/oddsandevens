@@ -11,7 +11,15 @@
 // else is pre-filled and editable later. The real game plays beside step 2.
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, Loader2, Sparkles, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  Crown,
+  Landmark,
+  Loader2,
+  Sparkles,
+  X,
+} from "lucide-react";
 import {
   COMPETITIVE_GAMES,
   DEFAULT_SEASON_DAYS,
@@ -51,6 +59,8 @@ export function GameWizard({
   onDone,
   onCancel,
   onCreateReward,
+  onUpgrade,
+  onSetUpPayouts,
 }: {
   tier: SubscriptionTier;
   brandColor: string;
@@ -60,8 +70,14 @@ export function GameWizard({
   onDone: () => void | Promise<void>;
   onCancel: () => void;
   onCreateReward?: () => void;
+  /** Opens the Plans tab, for when the free plan's one game is already live. */
+  onUpgrade?: () => void;
+  /** Opens Settings → Getting paid, for when there's nowhere to send money. */
+  onSetUpPayouts?: () => void;
 }) {
   const [step, setStep] = useState<Step>("pick");
+  // Which wall the save hit, when there's a one-tap way past it.
+  const [blocked, setBlocked] = useState<"games" | "payouts" | null>(null);
   const [category, setCategory] = useState<GameCategory>("arcade");
   const [type, setType] = useState<GameType | null>(null);
   const [title, setTitle] = useState("");
@@ -166,13 +182,20 @@ export function GameWizard({
     setBusy(false);
 
     if (!res.ok || !body?.ok) {
+      setBlocked(
+        body?.error === "too_many_games"
+          ? "games"
+          : body?.error === "no_payout_account"
+            ? "payouts"
+            : null
+      );
       setError(
         body?.error === "too_many_games"
-          ? "You're already running as many games as the free plan allows. Pause one, or upgrade to run more."
+          ? "The free plan runs one game at a time, and yours is live. Pause it to swap this one in, or upgrade and run both."
           : body?.error === "no_payout_account"
-            ? "Before a game can go live we need somewhere to send your money. Add your bank account under Settings → Getting paid — it takes a minute."
+            ? "Before a game can go live we need somewhere to send your money. Add your bank account and this goes straight up."
           : body?.error === "too_many_prizes"
-            ? `Your plan allows up to ${maxPrizes} prizes per game.`
+            ? `You can put up to ${maxPrizes} prizes on a podium.`
             : "We couldn't create that game. Check the details and try again."
       );
       return;
@@ -415,7 +438,29 @@ export function GameWizard({
                 their link with someone who plays.
               </div>
 
-              {error && <p className="alert-error">{error}</p>}
+              {error && (
+                <div className="alert-error">
+                  <p>{error}</p>
+                  {blocked === "games" && onUpgrade && (
+                    <button
+                      onClick={onUpgrade}
+                      className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98]"
+                    >
+                      <Crown className="size-4" aria-hidden />
+                      See Premium
+                    </button>
+                  )}
+                  {blocked === "payouts" && onSetUpPayouts && (
+                    <button
+                      onClick={onSetUpPayouts}
+                      className="btn-secondary mt-2 text-sm"
+                    >
+                      <Landmark className="size-4" aria-hidden />
+                      Add your bank account
+                    </button>
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={create}

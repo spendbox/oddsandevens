@@ -20,7 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Copy, Loader2, Share2, X, Zap } from "lucide-react";
 import { GameRenderer } from "@/components/games";
-import { GameIcon } from "@/components/games/icons";
+import { GameLoop } from "@/components/games/game-loop";
 import { EMAIL_STORAGE_KEY, VerifyModal } from "@/components/games/verify-modal";
 import { Tutorial, useTutorial } from "@/components/games/tutorial";
 import { RANK_MEDALS, gameDef, rankLabel, themeAccent } from "@/lib/games/catalog";
@@ -491,16 +491,12 @@ export default function GamePlayer({
         {/* ---- Intro: the marquee ---- */}
         {phase === "intro" && (
           <section className="arcade-panel overflow-hidden p-5 text-center sm:p-6">
-            <span
-              className="animate-float mx-auto flex size-20 items-center justify-center rounded-3xl text-white shadow-lg"
-              style={{
-                background: def
-                  ? `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`
-                  : accent,
-              }}
-            >
-              <GameIcon icon={def?.icon ?? "gamepad-2"} className="size-10" />
-            </span>
+            <GameLoop
+              type={game.type}
+              icon={def?.icon ?? "gamepad-2"}
+              swatch={def?.swatch}
+              className="animate-float mx-auto size-20 rounded-3xl shadow-lg"
+            />
 
             <h1 className="arcade-title mt-4 text-3xl leading-tight">
               {game.title}

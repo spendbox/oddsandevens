@@ -321,6 +321,22 @@ export default function DashboardPage() {
               await load();
             }}
             onCancel={() => setShowGameWizard(false)}
+            onUpgrade={
+              tier === "free"
+                ? () => {
+                    setShowGameWizard(false);
+                    setTab("plans");
+                  }
+                : undefined
+            }
+            onSetUpPayouts={
+              payoutReady
+                ? undefined
+                : () => {
+                    setShowGameWizard(false);
+                    setTab("settings");
+                  }
+            }
           />
         ) : (
           <>
