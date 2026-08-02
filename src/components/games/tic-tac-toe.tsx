@@ -155,8 +155,8 @@ export default function TicTacToe({ config, accent, submit, showResult }: GamePr
     <div className="w-full">
       <Hud
         items={[
-          { label: "Round", value: `${round}/${rounds}` },
-          { label: "Your wins", value: wins },
+          { label: "Round", value: `${round}/${rounds}`, icon: "🎯" },
+          { label: "Your wins", value: wins, icon: "🏆" },
         ]}
       />
       <div className="relative mx-auto max-w-xs">

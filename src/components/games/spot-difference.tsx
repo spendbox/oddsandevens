@@ -138,9 +138,9 @@ export default function SpotDifference({
     <div className="w-full">
       <Hud
         items={[
-          { label: "Found", value: `${found.length}/${totalToFind}` },
-          { label: "Time", value: `${timeLeft}s` },
-          { label: "Misses", value: misses },
+          { label: "Found", value: `${found.length}/${totalToFind}`, icon: "🔍" },
+          { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
+          { label: "Misses", value: misses, icon: "❌" },
         ]}
       />
 

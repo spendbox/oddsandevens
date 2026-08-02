@@ -275,6 +275,212 @@ body {
     user-select: none;
   }
 
+  /* -------------------------------------------------------------------
+     The arcade.
+
+     Everything a player sees — the hub, a game page, the playfield — lives
+     in a dark cabinet lit by the business's colour, because a game that
+     looks like a dashboard doesn't get played. The dashboard keeps the
+     white cards; none of this leaks into it.
+
+     `--brand` is the game's accent, set by the page.
+     ------------------------------------------------------------------- */
+
+  .arcade {
+    color: #f4f4f5;
+    background-color: #0a0a12;
+    background-image:
+      radial-gradient(
+        90rem 50rem at 50% -20%,
+        color-mix(in oklab, var(--brand), transparent 70%),
+        transparent 60%
+      ),
+      radial-gradient(
+        60rem 40rem at 110% 10%,
+        color-mix(in oklab, var(--brand), transparent 82%),
+        transparent 60%
+      ),
+      radial-gradient(50rem 40rem at -10% 60%, rgb(88 28 135 / 0.35), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  /* A panel in the cabinet: glass over the glow, lit along its top edge. */
+  .arcade-panel {
+    border-radius: 1.5rem;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.03));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      0 18px 45px rgb(0 0 0 / 0.45);
+    backdrop-filter: blur(12px);
+  }
+
+  /* The in-game HUD reading. Deliberately not .arcade-chip: this one sits on
+     the bright playfield, where a translucent white pill is invisible, so it
+     is dark-on-light while its cabinet cousin is light-on-dark. */
+  .hud-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold tabular-nums text-white;
+    background: rgb(24 24 27 / 0.88);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      0 2px 6px rgb(0 0 0 / 0.18);
+  }
+
+  /* One reading of one number: score, time left, lives, players. */
+  .arcade-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold tabular-nums;
+    color: #fafafa;
+    background: rgb(255 255 255 / 0.1);
+    border: 1px solid rgb(255 255 255 / 0.12);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  }
+
+  /* The one button that matters. Chunky, with a real edge under it that
+     collapses when pressed — the whole point is that it looks pressable
+     from across the room. */
+  .btn-play {
+    @apply relative inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-lg font-extrabold uppercase tracking-wide text-white transition-all duration-100;
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--brand), white 18%),
+      var(--brand)
+    );
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.45),
+      0 6px 0 color-mix(in oklab, var(--brand), black 42%),
+      0 12px 26px color-mix(in oklab, var(--brand), transparent 55%);
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  }
+  .btn-play:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+  .btn-play:active:not(:disabled) {
+    transform: translateY(5px);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      0 1px 0 color-mix(in oklab, var(--brand), black 42%),
+      0 4px 12px color-mix(in oklab, var(--brand), transparent 65%);
+  }
+  .btn-play:disabled {
+    cursor: not-allowed;
+    filter: grayscale(0.7);
+    opacity: 0.55;
+  }
+
+  /* Quiz answers. Same chunky edge as the play button, but the colour comes
+     from a utility class at the call site — right/wrong/neutral each want
+     their own, and a quiz where every answer looks identical is a form. */
+  .btn-answer {
+    @apply flex cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl px-4 py-5 text-base font-extrabold uppercase tracking-wide text-white transition-all duration-100;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  }
+  .btn-answer:active:not(:disabled) {
+    transform: translateY(4px);
+    box-shadow: none !important;
+  }
+  .btn-answer:disabled {
+    cursor: default;
+  }
+
+  /* The quieter twin: same shape, no colour. */
+  .btn-play-ghost {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl px-5 py-3 font-bold text-white/90 transition;
+    background: rgb(255 255 255 / 0.1);
+    border: 1px solid rgb(255 255 255 / 0.14);
+  }
+  .btn-play-ghost:hover {
+    background: rgb(255 255 255 / 0.16);
+  }
+
+  /* Game titles: heavy and tight, lit from above. */
+  .arcade-title {
+    @apply font-extrabold tracking-tight;
+    background-image: linear-gradient(180deg, #ffffff, #cbd5e1);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 2px 20px color-mix(in oklab, var(--brand), transparent 60%);
+  }
+
+  /* The playfield frame: a screen set into the cabinet. */
+  .arcade-screen {
+    border-radius: 1.25rem;
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.14),
+      inset 0 2px 30px rgb(0 0 0 / 0.25),
+      0 10px 30px rgb(0 0 0 / 0.4);
+  }
+
+  /* Darkened corners, so the eye lands in the middle of the play. */
+  .arcade-vignette::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: radial-gradient(
+      120% 90% at 50% 45%,
+      transparent 55%,
+      rgb(0 0 0 / 0.28) 100%
+    );
+  }
+
+  @keyframes arcade-pop {
+    0% {
+      transform: scale(0.7);
+      opacity: 0;
+    }
+    70% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  .animate-pop {
+    animation: arcade-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes arcade-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+  .animate-float {
+    animation: arcade-float 2.4s ease-in-out infinite;
+  }
+
+  @keyframes arcade-shine {
+    from {
+      background-position: -160% 0;
+    }
+    to {
+      background-position: 260% 0;
+    }
+  }
+  /* A highlight that sweeps across the play button every few seconds. */
+  .animate-shine::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 35%,
+      rgb(255 255 255 / 0.35) 50%,
+      transparent 65%
+    );
+    background-size: 200% 100%;
+    animation: arcade-shine 3.4s ease-in-out infinite;
+  }
+
   .card {
     @apply rounded-2xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.04)];
   }

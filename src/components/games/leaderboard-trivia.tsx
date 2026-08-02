@@ -14,6 +14,15 @@ import {
   type GameProps,
 } from "./kit";
 
+/** One colour per answer slot, in the order they are drawn. */
+const OPTION_SHADES = [
+  "bg-gradient-to-b from-sky-400 to-sky-600 shadow-[0_5px_0_#075985]",
+  "bg-gradient-to-b from-amber-400 to-amber-600 shadow-[0_5px_0_#92400e]",
+  "bg-gradient-to-b from-violet-400 to-violet-600 shadow-[0_5px_0_#5b21b6]",
+  "bg-gradient-to-b from-teal-400 to-teal-600 shadow-[0_5px_0_#115e59]",
+];
+const OPTION_MARKS = ["🔷", "🔶", "🟣", "🟢"];
+
 interface Question {
   prompt?: string;
   options?: string[];
@@ -116,46 +125,67 @@ export default function LeaderboardTrivia({
     <div className="relative flex flex-col gap-4">
       <Hud
         items={[
-          { label: "Question", value: `${step + 1}/${questions.length}` },
-          { label: "Score", value: score },
-          { label: "Correct", value: correct },
+          { label: "Question", value: `${step + 1}/${questions.length}`, icon: "❓" },
+          { label: "Score", value: score, icon: "⚡" },
+          { label: "Correct", value: correct, icon: "✅" },
         ]}
       />
 
-      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100">
+      {/* The clock is the drama: it drains, it turns red, it decides the
+          score. It gets to be the widest thing on the screen. */}
+      <div className="h-3 w-full overflow-hidden rounded-full bg-zinc-200 shadow-inner">
         <div
           className="h-full rounded-full transition-[width] duration-100 ease-linear"
           style={{
             width: `${(msLeft / (perQuestion * 1000)) * 100}%`,
-            backgroundColor: msLeft < perQuestion * 300 ? "#e11d48" : accent,
+            background:
+              msLeft < perQuestion * 300
+                ? "linear-gradient(90deg, #fb7185, #e11d48)"
+                : `linear-gradient(90deg, ${accent}, color-mix(in oklab, ${accent}, white 35%))`,
           }}
         />
       </div>
 
-      <h3 className="text-xl font-bold text-zinc-900">{question.prompt}</h3>
+      <div
+        className="flex min-h-28 items-center justify-center rounded-2xl p-5 text-center shadow-lg"
+        style={{
+          background: `linear-gradient(150deg, ${accent}, color-mix(in oklab, ${accent}, black 35%))`,
+        }}
+      >
+        <h3 className="text-xl font-bold leading-snug text-white drop-shadow">
+          {question.prompt}
+        </h3>
+      </div>
 
-      <div className="flex flex-col gap-2">
+      {/* Four colours, one per slot — the shape of the answer is as much a
+          memory as the words are. */}
+      <div className="grid gap-2 sm:grid-cols-2">
         {(question.options ?? []).map((option, i) => {
           const revealed = picked !== null;
           const isAnswer = i === answerIndex;
           const isPicked = picked === i;
+          const shade = OPTION_SHADES[i % OPTION_SHADES.length];
           return (
             <button
               key={i}
               onClick={() => answer(i)}
               disabled={revealed}
               className={
-                "cursor-pointer rounded-xl border px-4 py-3 text-left font-medium transition disabled:cursor-default " +
+                "btn-answer !flex-row !justify-start gap-3 !text-left !text-sm !normal-case " +
+                (revealed && !isAnswer && !isPicked ? "opacity-40 " : "") +
                 (revealed
                   ? isAnswer
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                    ? "bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-[0_5px_0_#065f46]"
                     : isPicked
-                      ? "border-rose-300 bg-rose-50 text-rose-900"
-                      : "border-zinc-200 bg-white text-zinc-400"
-                  : "border-zinc-200 bg-white text-zinc-800 hover:border-zinc-300 hover:bg-zinc-50 active:scale-[0.99]")
+                      ? "bg-gradient-to-b from-rose-400 to-rose-600 shadow-[0_5px_0_#9f1239]"
+                      : shade
+                  : shade)
               }
             >
-              {option}
+              <span className="emoji shrink-0 text-xl">
+                {revealed && isAnswer ? "✅" : revealed && isPicked ? "❌" : OPTION_MARKS[i % 4]}
+              </span>
+              <span className="min-w-0 flex-1">{option}</span>
             </button>
           );
         })}

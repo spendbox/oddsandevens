@@ -9,7 +9,7 @@
 // what makes it worth a leaderboard.
 
 import { useState } from "react";
-import { ActionButton, GradingOverlay, cfgList, type GameProps } from "./kit";
+import { ActionButton, GradingOverlay, Hud, cfgList, type GameProps } from "./kit";
 
 interface Statement {
   text?: string;
@@ -67,32 +67,44 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
 
   return (
     <div className="relative flex flex-col gap-4">
-      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        <span>Statement {step + 1}</span>
-        <span className="flex items-center gap-3">
-          <span>{correct} correct</span>
-          <span className="emoji tracking-normal">
-            {"❤️".repeat(Math.max(mistakesLeft, 0)) || "💔"}
-          </span>
-        </span>
-      </div>
+      <Hud
+        items={[
+          { label: "Statement", value: step + 1, icon: "❓" },
+          { label: "Correct", value: correct, icon: "✅" },
+          {
+            label: "Lives",
+            value: "❤️".repeat(Math.max(mistakesLeft, 0)) || "💔",
+            icon: "",
+          },
+        ]}
+      />
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-center shadow-sm">
-        <p className="text-lg font-semibold text-zinc-900">{current.text}</p>
+      {/* The statement is the whole screen: big, centred, on the accent. */}
+      <div
+        className="flex min-h-40 items-center justify-center rounded-2xl p-6 text-center shadow-lg"
+        style={{
+          background: `linear-gradient(150deg, ${accent}, color-mix(in oklab, ${accent}, black 35%))`,
+        }}
+      >
+        <p className="text-xl font-bold leading-snug text-white drop-shadow">
+          {current.text}
+        </p>
       </div>
 
       {answered === null ? (
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => answer(false)}
-            className="cursor-pointer rounded-xl bg-rose-100 px-4 py-4 font-bold text-rose-700 transition hover:bg-rose-200 active:scale-95"
+            className="btn-answer bg-gradient-to-b from-rose-400 to-rose-600 shadow-[0_5px_0_#9f1239]"
           >
+            <span className="emoji text-2xl">👎</span>
             MYTH
           </button>
           <button
             onClick={() => answer(true)}
-            className="cursor-pointer rounded-xl bg-emerald-100 px-4 py-4 font-bold text-emerald-700 transition hover:bg-emerald-200 active:scale-95"
+            className="btn-answer bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-[0_5px_0_#065f46]"
           >
+            <span className="emoji text-2xl">👍</span>
             FACT
           </button>
         </div>

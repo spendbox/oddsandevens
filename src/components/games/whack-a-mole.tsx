@@ -121,11 +121,11 @@ export default function WhackAMole({
     <div className="w-full">
       <Hud
         items={[
-          { label: "Score", value: score },
-          { label: "Time", value: `${timeLeft}s` },
+          { label: "Score", value: score, icon: "🔨" },
+          { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
         ]}
       />
-      <Stage ratio="1 / 1" className="bg-gradient-to-b from-amber-100 to-amber-50 p-3">
+      <Stage ratio="1 / 1" className="bg-gradient-to-b from-lime-200 via-amber-100 to-amber-200 p-3">
         <div
           className="grid h-full w-full gap-2"
           style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}

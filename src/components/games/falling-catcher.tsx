@@ -151,20 +151,23 @@ export default function FallingCatcher({
     <div className="w-full">
       <Hud
         items={[
-          { label: "Caught", value: score },
-          { label: "Time", value: `${timeLeft}s` },
-          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—" },
+          { label: "Caught", value: score, icon: "🧺" },
+          { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
+          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—", icon: "" },
         ]}
       />
       <Stage
         ratio="3 / 4"
-        className="bg-gradient-to-b from-indigo-50 to-white"
+        className="bg-gradient-to-b from-sky-300 via-sky-100 to-emerald-100"
         onPointerDown={trackPointer}
       >
         <div
           className="absolute inset-0"
           onPointerMove={(e) => phase === "running" && trackPointer(e)}
         />
+
+        {/* Ground, so the basket is standing on something. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[12%] bg-gradient-to-b from-emerald-300/70 to-emerald-500/70" />
 
         {frame.items.map((item) => (
           <span
@@ -206,9 +209,6 @@ export default function FallingCatcher({
         )}
         {phase === "grading" && <GradingOverlay />}
       </Stage>
-      <p className="mt-2 text-center text-sm text-zinc-500">
-        Drag anywhere to move.
-      </p>
     </div>
   );
 }

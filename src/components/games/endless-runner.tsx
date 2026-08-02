@@ -165,13 +165,13 @@ export default function EndlessRunner({
     <div className="w-full">
       <Hud
         items={[
-          { label: "Distance", value: `${score} m` },
-          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—" },
+          { label: "Distance", value: `${score}m`, icon: "🏃" },
+          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—", icon: "" },
         ]}
       />
       <Stage
         ratio="3 / 2"
-        className="bg-gradient-to-b from-sky-200 to-sky-50"
+        className="bg-gradient-to-b from-indigo-300 via-sky-200 to-amber-50"
         onPointerDown={jump}
       >
         {/* Ground */}
@@ -233,9 +233,6 @@ export default function EndlessRunner({
         )}
         {phase === "grading" && <GradingOverlay />}
       </Stage>
-      <p className="mt-2 text-center text-sm text-zinc-500">
-        Tap anywhere to jump.
-      </p>
     </div>
   );
 }

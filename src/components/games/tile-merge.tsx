@@ -158,10 +158,10 @@ export default function TileMerge({ config, accent, submit, showResult }: GamePr
 
   return (
     <div className="w-full">
-      <Hud items={[{ label: "Score", value: score }]} />
+      <Hud items={[{ label: "Score", value: score, icon: "⚡" }]} />
       <Stage
         ratio="1 / 1"
-        className="bg-zinc-300 p-2"
+        className="bg-gradient-to-b from-stone-400 to-stone-500 p-2"
         onPointerDown={(e) => {
           touchStart.current = { x: e.clientX, y: e.clientY };
         }}

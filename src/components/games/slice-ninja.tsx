@@ -156,9 +156,9 @@ export default function SliceNinja({
     <div className="w-full">
       <Hud
         items={[
-          { label: "Sliced", value: score },
-          { label: "Time", value: `${timeLeft}s` },
-          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—" },
+          { label: "Sliced", value: score, icon: "🔪" },
+          { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
+          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—", icon: "" },
         ]}
       />
       <Stage

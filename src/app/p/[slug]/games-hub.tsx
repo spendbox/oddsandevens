@@ -57,7 +57,7 @@ export default function GamesHub({ slug }: { slug: string }) {
 
   if (notFound) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6 text-center text-zinc-500">
+      <main className="arcade flex min-h-screen items-center justify-center p-6 text-center text-white/60">
         We couldn&apos;t find that business.
       </main>
     );
@@ -65,8 +65,8 @@ export default function GamesHub({ slug }: { slug: string }) {
 
   if (!hub) {
     return (
-      <main className="flex min-h-screen items-center justify-center text-zinc-400">
-        <span className="animate-pulse">Loading…</span>
+      <main className="arcade flex min-h-screen items-center justify-center">
+        <span className="animate-pulse text-4xl">🎮</span>
       </main>
     );
   }
@@ -76,7 +76,7 @@ export default function GamesHub({ slug }: { slug: string }) {
 
   return (
     <main
-      className="min-h-screen bg-zinc-50 p-4 pb-16 sm:p-6"
+      className="arcade min-h-screen p-4 pb-16 sm:p-6"
       style={{ "--brand": brand } as React.CSSProperties}
     >
       <div className="mx-auto flex max-w-lg flex-col gap-5">
@@ -97,11 +97,9 @@ export default function GamesHub({ slug }: { slug: string }) {
             </span>
           )}
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900">
-              {hub.host.businessName}
-            </h1>
+            <h1 className="arcade-title text-3xl">{hub.host.businessName}</h1>
             {hub.host.tagline && (
-              <p className="mt-0.5 text-sm text-zinc-500">{hub.host.tagline}</p>
+              <p className="mt-0.5 text-sm text-white/50">{hub.host.tagline}</p>
             )}
           </div>
         </header>
@@ -109,24 +107,23 @@ export default function GamesHub({ slug }: { slug: string }) {
         {/* Lives are one pool for the whole business, so they belong here
             rather than on any single game. */}
         {lives !== null && (
-          <div className="card flex items-center gap-3 p-4">
+          <div className="arcade-panel flex items-center gap-3 p-4">
             <span className="emoji text-xl">
               {"❤️".repeat(Math.min(lives, 6)) || "💔"}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-zinc-900">
+              <p className="text-sm font-bold text-white">
                 {lives > 0
                   ? `${lives} ${lives === 1 ? "play" : "plays"} left today`
                   : "No plays left today"}
               </p>
-              <p className="text-xs text-zinc-500">
-                Shared across every game here. Sharing earns more.
+              <p className="text-xs text-white/50">
+                Shared across every game here — sharing earns more.
               </p>
             </div>
             <button
               onClick={share}
-              className="btn-primary shrink-0 text-sm"
-              style={{ backgroundColor: brand }}
+              className="btn-play-ghost shrink-0 text-sm"
             >
               <Share2 className="size-4" aria-hidden />
               {copied ? "Copied" : "Share"}
@@ -135,8 +132,8 @@ export default function GamesHub({ slug }: { slug: string }) {
         )}
 
         {hub.games.length === 0 ? (
-          <p className="card p-6 text-center text-sm text-zinc-500">
-            No games are running right now — check back soon.
+          <p className="arcade-panel p-8 text-center text-sm text-white/50">
+            No games running right now — check back soon.
           </p>
         ) : (
           <div className="flex flex-col gap-4">
@@ -148,7 +145,7 @@ export default function GamesHub({ slug }: { slug: string }) {
 
         <Link
           href="/me"
-          className="text-center text-xs text-zinc-400 hover:text-zinc-600"
+          className="text-center text-xs text-white/35 hover:text-white/70"
         >
           See everything you&apos;ve won
         </Link>
@@ -173,7 +170,7 @@ function GameCard({
   return (
     <Link
       href={`/p/${slug}/${game.slug}`}
-      className="card group block p-4 transition hover:-translate-y-0.5 hover:shadow-md"
+      className="arcade-panel group block p-4 transition hover:-translate-y-0.5 hover:brightness-110"
     >
       <div className="flex items-center gap-4">
         <span
@@ -187,18 +184,21 @@ function GameCard({
           <GameIcon icon={def?.icon ?? "gamepad-2"} className="size-6" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold text-zinc-900">
+          <span className="block truncate text-lg font-bold text-white">
             {game.title}
           </span>
-          <span className="block truncate text-sm text-zinc-500">
+          <span className="block truncate text-sm text-white/45">
             {game.description || def?.tagline || "Tap to play"}
           </span>
         </span>
         <span
-          className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold text-white"
-          style={{ backgroundColor: accent }}
+          className="shrink-0 rounded-xl px-4 py-2 text-sm font-extrabold uppercase tracking-wide text-white"
+          style={{
+            backgroundImage: `linear-gradient(180deg, color-mix(in oklab, ${accent}, white 18%), ${accent})`,
+            boxShadow: `0 4px 0 color-mix(in oklab, ${accent}, black 42%)`,
+          }}
         >
-          {game.yourRank ? "Defend" : "Play"}
+          {game.yourRank ? "Defend" : "▶ Play"}
         </span>
       </div>
 
@@ -207,7 +207,7 @@ function GameCard({
           {game.prizeTeasers.map((teaser, i) => (
             <span
               key={i}
-              className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600"
+              className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/70"
             >
               {teaser}
             </span>
@@ -217,8 +217,8 @@ function GameCard({
 
       {/* This week's board */}
       {game.season && (
-        <div className="mt-3 rounded-xl border border-zinc-100 bg-zinc-50/70 p-3">
-          <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <div className="mt-3 rounded-2xl border border-white/10 bg-black/25 p-3">
+          <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-wider text-white/45">
             <span className="flex items-center gap-1">
               <Trophy className="size-3" aria-hidden /> This week
             </span>
@@ -237,8 +237,8 @@ function GameCard({
           </div>
 
           {game.leaderboard.length === 0 ? (
-            <p className="mt-2 text-xs text-zinc-500">
-              Nobody has played yet — first score takes first place.
+            <p className="mt-2 text-xs text-white/45">
+              Empty board — first score takes first place.
             </p>
           ) : (
             <ol className="mt-2 flex flex-col gap-1">
@@ -247,21 +247,21 @@ function GameCard({
                   key={row.rank}
                   className={
                     "flex items-center gap-2 rounded-lg px-2 py-1 text-xs " +
-                    (row.isYou ? "bg-white font-semibold shadow-sm" : "")
+                    (row.isYou ? "bg-white/15 font-bold text-white" : "")
                   }
                 >
                   <span className="emoji w-5 shrink-0 text-center">
                     {RANK_MEDALS[row.rank - 1] ?? row.rank}
                   </span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-zinc-600">
+                  <span className="min-w-0 flex-1 truncate font-mono text-white/60">
                     {row.isYou ? "You" : row.maskedEmail}
                   </span>
                   {row.prize && (
-                    <span className="hidden max-w-28 truncate text-zinc-500 sm:block">
+                    <span className="hidden max-w-28 truncate text-white/40 sm:block">
                       {row.prize}
                     </span>
                   )}
-                  <span className="shrink-0 tabular-nums text-zinc-900">
+                  <span className="shrink-0 font-bold tabular-nums text-white">
                     {row.score}
                   </span>
                 </li>
@@ -270,7 +270,7 @@ function GameCard({
           )}
 
           {game.yourRank && game.yourRank > game.leaderboard.length && (
-            <p className="mt-2 flex items-center gap-1 text-xs text-zinc-500">
+            <p className="mt-2 flex items-center gap-1 text-xs text-white/50">
               <Heart className="size-3" aria-hidden />
               You&apos;re #{game.yourRank} with {game.yourBest}.
             </p>

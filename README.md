@@ -120,6 +120,21 @@ wrote, questions generated from their profile (their products, city, busiest
 day), then a bank tagged by trade (`src/lib/games/questions.ts`). Myth-vs-fact
 runs until three wrong answers, so the score is how far you got.
 
+### The player surface is a cabinet, not a page
+
+Everything a player sees — the hub, a game page, the playfield — is drawn dark
+and lit by the business's colour (`.arcade*` in `globals.css`), with numbers in
+pills, medals instead of rank labels, and one enormous button. Prose was the
+main casualty: a rule that could be a heart, a clock or a medal is one, and
+while a round is running everything except the playfield gets out of the way.
+The screen itself stays bright inside the dark bezel, which is what makes a
+cabinet read as a cabinet.
+
+The chrome lives in `components/games/kit.tsx` — `Stage`, `Hud`, `ActionButton`,
+`StartOverlay`, `GradingOverlay` — so all twenty games share one look and a new
+one inherits it for free. The dashboard keeps its white cards; none of this
+leaks into it.
+
 ### Public boards, private players
 
 The leaderboard is public, so addresses are masked before they leave the server

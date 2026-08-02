@@ -158,7 +158,12 @@ export function cfgList<T>(config: GameConfig, key: string, fallback: T[]): T[] 
 // Chrome
 // ---------------------------------------------------------------------------
 
-/** The playfield: a fixed-ratio, rounded, overflow-clipped stage. */
+/**
+ * The playfield: a fixed-ratio screen set into the cabinet.
+ *
+ * The frame, the vignette and the HUD live here rather than in each game, so
+ * twenty games share one look and a new one gets it for free.
+ */
 export function Stage({
   children,
   ratio = "4 / 5",
@@ -178,7 +183,7 @@ export function Stage({
       onPointerDown={onPointerDown}
       style={{ aspectRatio: ratio }}
       className={
-        "relative w-full touch-none overflow-hidden rounded-2xl select-none " +
+        "arcade-screen arcade-vignette relative w-full touch-none overflow-hidden select-none " +
         className
       }
     >
@@ -187,26 +192,28 @@ export function Stage({
   );
 }
 
-/** Score / time / lives strip above the stage. */
+/**
+ * Score / time / lives, as pills.
+ *
+ * A number a player glances at twice a second shouldn't be under a caption:
+ * an icon carries the meaning and the value gets the size. `icon` is an emoji
+ * — ⏱ is a clock in any language.
+ */
 export function Hud({
   items,
 }: {
-  items: { label: string; value: string | number }[];
+  items: { label: string; value: string | number; icon?: string }[];
 }) {
   return (
-    <div className="mb-2 flex items-center justify-center gap-2">
+    <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
       {items.map((item) => (
-        <div
-          key={item.label}
-          className="flex-1 rounded-xl bg-zinc-100 px-3 py-1.5 text-center"
-        >
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-            {item.label}
-          </div>
-          <div className="text-lg font-bold tabular-nums text-zinc-900">
-            {item.value}
-          </div>
-        </div>
+        <span key={item.label} className="hud-chip" title={item.label}>
+          <span className="emoji text-base leading-none" aria-hidden>
+            {item.icon ?? "•"}
+          </span>
+          <span className="sr-only">{item.label}: </span>
+          {item.value}
+        </span>
       ))}
     </div>
   );
@@ -229,17 +236,19 @@ export function ActionButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      style={{ backgroundColor: accent }}
-      className={
-        "btn-primary w-full text-base disabled:opacity-60 " + className
-      }
+      style={{ "--brand": accent } as React.CSSProperties}
+      className={"btn-play " + className}
     >
       {children}
     </button>
   );
 }
 
-/** Shown over the stage before a round starts. */
+/**
+ * Shown over the stage before a round starts: what the game is, one line of
+ * how, and a button the size of a thumb. Anything longer than a line belongs
+ * in the game itself, not in front of it.
+ */
 export function StartOverlay({
   title,
   hint,
@@ -254,13 +263,15 @@ export function StartOverlay({
   onStart: () => void;
 }) {
   return (
-    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-zinc-900/70 p-6 text-center backdrop-blur-sm">
-      <h3 className="text-xl font-bold text-white">{title}</h3>
-      <p className="max-w-xs text-sm text-zinc-200">{hint}</p>
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-zinc-950/70 p-6 text-center backdrop-blur-sm">
+      <h3 className="animate-pop text-2xl font-extrabold tracking-tight text-white drop-shadow">
+        {title}
+      </h3>
+      <p className="max-w-xs text-sm leading-snug text-zinc-300">{hint}</p>
       <button
         onClick={onStart}
-        style={{ backgroundColor: accent }}
-        className="btn-primary mt-1 px-8"
+        style={{ "--brand": accent } as React.CSSProperties}
+        className="btn-play animate-shine mt-1 w-auto overflow-hidden px-10"
       >
         {buttonLabel}
       </button>
@@ -269,10 +280,11 @@ export function StartOverlay({
 }
 
 /** Shown over the stage while the server grades the round. */
-export function GradingOverlay({ label = "Checking your round…" }: { label?: string }) {
+export function GradingOverlay({ label = "Scoring" }: { label?: string }) {
   return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center bg-zinc-900/60 backdrop-blur-sm">
-      <span className="animate-pulse rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-zinc-800">
+    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-zinc-950/70 backdrop-blur-sm">
+      <span className="size-10 animate-spin rounded-full border-4 border-white/25 border-t-white" />
+      <span className="text-sm font-bold uppercase tracking-widest text-white/80">
         {label}
       </span>
     </div>

@@ -171,13 +171,13 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
     <div className="w-full">
       <Hud
         items={[
-          { label: "Gates", value: score },
-          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—" },
+          { label: "Gates", value: score, icon: "🚪" },
+          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—", icon: "" },
         ]}
       />
       <Stage
         ratio="3 / 4"
-        className="bg-gradient-to-b from-sky-300 to-sky-100"
+        className="bg-gradient-to-b from-sky-400 via-sky-200 to-amber-100"
         onPointerDown={flap}
       >
         {frame.pipes.map((pipe, i) => (
@@ -232,7 +232,6 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
         )}
         {phase === "grading" && <GradingOverlay />}
       </Stage>
-      <p className="mt-2 text-center text-sm text-zinc-500">Tap to flap.</p>
     </div>
   );
 }

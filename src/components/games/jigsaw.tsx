@@ -93,11 +93,11 @@ export default function Jigsaw({ config, accent, submit, showResult }: GameProps
     <div className="w-full">
       <Hud
         items={[
-          { label: "Time", value: `${timeLeft}s` },
-          { label: "Swaps", value: moves },
+          { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
+          { label: "Swaps", value: moves, icon: "🔄" },
         ]}
       />
-      <Stage ratio="1 / 1" className="bg-zinc-200 p-1">
+      <Stage ratio="1 / 1" className="bg-zinc-800 p-1">
         <div
           className="grid h-full w-full gap-0.5"
           style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}

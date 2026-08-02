@@ -119,9 +119,13 @@ export default function MemoryMatch({
     <div className="w-full">
       <Hud
         items={[
-          { label: "Pairs", value: `${cards.filter((c) => c.matched).length / 2}/${pairs}` },
-          { label: "Time", value: `${timeLeft}s` },
-          { label: "Flips", value: moves },
+          {
+            label: "Pairs",
+            value: `${cards.filter((c) => c.matched).length / 2}/${pairs}`,
+            icon: "🃏",
+          },
+          { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
+          { label: "Flips", value: moves, icon: "👆" },
         ]}
       />
       <div className="relative">
@@ -160,10 +164,6 @@ export default function MemoryMatch({
           </div>
         )}
       </div>
-      <p className="mt-3 text-center text-sm text-zinc-500">
-        Clear the board before the clock runs out — the faster you finish, the
-        higher your score.
-      </p>
     </div>
   );
 }
