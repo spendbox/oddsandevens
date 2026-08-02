@@ -120,6 +120,30 @@ wrote, questions generated from their profile (their products, city, busiest
 day), then a bank tagged by trade (`src/lib/games/questions.ts`). Myth-vs-fact
 runs until three wrong answers, so the score is how far you got.
 
+### Physics, and why a round is letterboxed
+
+The arcade games run on a fixed-timestep integrator (`useFixedStep` in
+`components/games/kit.tsx`): the world advances in constant 1/120s slices with
+the remainder carried to the next frame, so a 144Hz laptop and a throttled
+phone produce the same jump arc from the same tap and nothing tunnels through
+an obstacle during a long frame. Distances are in world units — the stage is
+100 units tall, its width follows its aspect — rather than percentages of two
+different axes, so hitboxes and speeds are tuned once.
+
+A round fills the screen, but the *playfield keeps the shape its game was
+tuned for* and is letterboxed inside that (`.stage-fill`). This is a
+leaderboard product: a player whose screen hands them three seconds of warning
+is not playing the same game as one who gets one, so every device gets the same
+world. Verified in a browser — a phone and a desktop reach the same distance in
+the same wall-clock time.
+
+The individual games got the forgivenesses that make an arcade game feel fair
+rather than cheap: coyote time and a jump buffer on the runner, a variable jump
+height, shrunken hitboxes, obstacle spacing derived from how far a jump
+actually carries, a basket with a real top speed, swept collision on falling
+items, and swipes tested as the segment between two pointer samples so a fast
+flick cuts what it passed over.
+
 ### The player surface is a cabinet, not a page
 
 Everything a player sees — the hub, a game page, the playfield — is drawn dark

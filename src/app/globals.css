@@ -405,6 +405,7 @@ body {
 
   /* The playfield frame: a screen set into the cabinet. */
   .arcade-screen {
+    width: 100%;
     border-radius: 1.25rem;
     box-shadow:
       inset 0 0 0 1px rgb(255 255 255 / 0.14),
@@ -424,6 +425,51 @@ body {
       transparent 55%,
       rgb(0 0 0 / 0.28) 100%
     );
+  }
+
+  /* Full-screen play.
+
+     A round should own the whole device rather than sit in a card halfway
+     down a page. What it must NOT do is change shape with the device: these
+     are leaderboard games, and a player whose screen gives them three seconds
+     of warning is not playing the same game as one who gets one. So the
+     playfield keeps the aspect ratio its game was tuned for and grows to the
+     largest size that fits — letterboxed, the way a console game is on a
+     widescreen TV — and the physics see the same world everywhere.
+
+     `> *` is the game component's own root: the games are written as a column
+     of HUD plus stage, so the column fills the height and the stage takes what
+     is left. */
+  .stage-fill {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    container-type: size;
+  }
+  .stage-fill > * {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 0;
+  }
+  .stage-fill .arcade-screen {
+    /* The largest box of this game's shape that fits the space available. */
+    width: min(100cqw, calc((100cqh - 3rem) * var(--stage-ratio, 0.75)));
+    height: min(100cqh - 3rem, calc(100cqw / var(--stage-ratio, 0.75)));
+    max-width: 100%;
+    margin-inline: auto;
+    flex: 0 0 auto;
+  }
+
+  /* Games with no stage — the quizzes, the calendar, the card grids — are laid
+     out in normal flow, so on a wide screen a square grid would grow until it
+     fell off the bottom. Capping the column against the available *height*
+     keeps them whole and centred at any size. */
+  .stage-fill > *:not(:has(.arcade-screen)) {
+    max-width: min(100%, calc(100cqh * 0.78));
+    margin-inline: auto;
+    overflow-y: auto;
   }
 
   @keyframes arcade-pop {

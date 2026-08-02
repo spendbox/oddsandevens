@@ -1,7 +1,14 @@
 "use client";
 
-// Catch the good stuff, dodge the rest. The basket tracks the pointer, so it
-// works with a thumb, a mouse, or the arrow keys.
+// Catch the good stuff, dodge the rest.
+//
+// The world is in units of stage height and integrated in fixed slices, so
+// items fall at the same rate whatever the screen or the frame rate. Two
+// things make it feel like a game rather than a hit test: the basket chases
+// the finger at a real top speed instead of teleporting under it, so there is
+// something to be good at; and a catch is tested against the path the item
+// travelled during the step, not just where it happens to be at the end of
+// one — a fast item can't fall straight through the basket.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -14,8 +21,9 @@ import {
   clamp,
   pick,
   useCountdown,
+  useFixedStep,
   useOnce,
-  useRaf,
+  useWorld,
   type GameProps,
 } from "./kit";
 import { difficultyScale, emojiList } from "@/lib/games/catalog";
@@ -29,7 +37,12 @@ interface Falling {
   bad: boolean;
 }
 
-const CATCH_Y = 84;
+const CATCH_Y = 82; // where the rim of the basket sits, in units
+const BASKET_W = 14;
+const ITEM_SIZE = 9;
+/** How fast the basket can move, in units per second. */
+const BASKET_SPEED = 165;
+const GRAVITY = 22; // items pick up speed as they fall
 
 export default function FallingCatcher({
   config,
@@ -46,10 +59,20 @@ export default function FallingCatcher({
     items: [],
   });
 
+  const world = useWorld<HTMLDivElement>();
+  // The physics loop needs the live width without re-subscribing every resize,
+  // and a ref may not be written during render — so an effect keeps it in step.
+  const widthRef = useRef(100);
+  useEffect(() => {
+    widthRef.current = world.unitsWide;
+  }, [world.unitsWide]);
+
   const basketX = useRef(50);
+  const targetX = useRef(50);
   const items = useRef<Falling[]>([]);
   const nextId = useRef(0);
-  const nextSpawn = useRef(0.8);
+  const nextSpawn = useRef(0.6);
+  const elapsed = useRef(0);
   const scoreRef = useRef(0);
   const livesRef = useRef(3);
   const once = useOnce();
@@ -74,8 +97,13 @@ export default function FallingCatcher({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === "ArrowLeft") basketX.current = clamp(basketX.current - 7, 4, 96);
-      if (e.code === "ArrowRight") basketX.current = clamp(basketX.current + 7, 4, 96);
+      const half = BASKET_W / 2;
+      if (e.code === "ArrowLeft") {
+        targetX.current = clamp(targetX.current - 9, half, widthRef.current - half);
+      }
+      if (e.code === "ArrowRight") {
+        targetX.current = clamp(targetX.current + 9, half, widthRef.current - half);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -83,53 +111,75 @@ export default function FallingCatcher({
 
   const trackPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    basketX.current = clamp(((e.clientX - rect.left) / rect.width) * 100, 4, 96);
+    const units = ((e.clientX - rect.left) / rect.width) * widthRef.current;
+    targetX.current = clamp(units, BASKET_W / 2, widthRef.current - BASKET_W / 2);
   };
 
-  useRaf(
+  useFixedStep(
     (dt) => {
+      elapsed.current += dt;
+
+      // --- The basket chases the finger, it doesn't teleport ---------------
+      const delta = targetX.current - basketX.current;
+      const step = BASKET_SPEED * dt;
+      basketX.current += Math.abs(delta) <= step ? delta : Math.sign(delta) * step;
+
+      // --- Spawning, quickening as the round goes on ----------------------
       nextSpawn.current -= dt;
       if (nextSpawn.current <= 0) {
         const isBad = Math.random() < 0.22;
-        items.current.push({
-          id: nextId.current++,
-          x: 6 + Math.random() * 88,
-          y: -8,
-          speed: (26 + Math.random() * 16) * difficulty,
-          emoji: isBad ? pick(bad) : pick(good),
-          bad: isBad,
-        });
-        nextSpawn.current = (0.75 + Math.random() * 0.5) / difficulty;
+        const margin = ITEM_SIZE;
+        items.current = [
+          ...items.current,
+          {
+            id: nextId.current++,
+            x: margin + Math.random() * (widthRef.current - margin * 2),
+            y: -ITEM_SIZE,
+            speed: (30 + Math.random() * 16) * difficulty,
+            emoji: isBad ? pick(bad) : pick(good),
+            bad: isBad,
+          },
+        ];
+        const pace = Math.max(0.34, 0.75 - elapsed.current * 0.006);
+        nextSpawn.current = (pace + Math.random() * 0.35) / difficulty;
       }
 
-      const moved = items.current.map((item) => ({
-        ...item,
-        y: item.y + item.speed * dt,
-      }));
-
+      // --- Fall, then test the path each item swept through ----------------
       const survivors: Falling[] = [];
-      for (const item of moved) {
-        const caught =
-          item.y >= CATCH_Y - 5 &&
-          item.y <= CATCH_Y + 8 &&
-          Math.abs(item.x - basketX.current) < 9;
-        if (caught) {
-          if (item.bad) {
-            livesRef.current -= 1;
-            setLives(livesRef.current);
-            if (livesRef.current <= 0) {
-              end();
-              return;
-            }
-          } else {
-            scoreRef.current += 1;
-            setScore(scoreRef.current);
-          }
+      let caught = 0;
+      let hit = 0;
+      for (const item of items.current) {
+        const speed = item.speed + GRAVITY * elapsed.current * 0.05;
+        const from = item.y;
+        const to = from + speed * dt;
+
+        // The rim is a band; an item counts as caught if its path crossed the
+        // band this step while the basket was under it.
+        const crossed = from <= CATCH_Y + 4 && to >= CATCH_Y - 4;
+        const overlapX =
+          Math.abs(item.x - basketX.current) < (BASKET_W + ITEM_SIZE) / 2.4;
+        if (crossed && overlapX) {
+          if (item.bad) hit += 1;
+          else caught += 1;
           continue;
         }
-        if (item.y < 112) survivors.push(item);
+        if (to < 108) survivors.push({ ...item, y: to, speed });
       }
       items.current = survivors;
+
+      if (caught > 0) {
+        scoreRef.current += caught;
+        setScore(scoreRef.current);
+      }
+      if (hit > 0) {
+        livesRef.current -= hit;
+        setLives(Math.max(livesRef.current, 0));
+        if (livesRef.current <= 0) {
+          end();
+          return;
+        }
+      }
+
       setFrame({ basketX: basketX.current, items: survivors });
     },
     phase === "running"
@@ -139,27 +189,36 @@ export default function FallingCatcher({
     items.current = [];
     scoreRef.current = 0;
     livesRef.current = startingLives;
-    nextSpawn.current = 0.8;
-    basketX.current = 50;
+    nextSpawn.current = 0.6;
+    elapsed.current = 0;
+    basketX.current = widthRef.current / 2;
+    targetX.current = widthRef.current / 2;
     setScore(0);
     setLives(startingLives);
-    setFrame({ basketX: 50, items: [] });
+    setFrame({ basketX: basketX.current, items: [] });
     setPhase("running");
   };
 
+  const size = (units: number) => `${units * world.pxPerUnit}px`;
+
   return (
-    <div className="w-full">
+    <div className="flex w-full flex-col">
       <Hud
         items={[
           { label: "Caught", value: score, icon: "🧺" },
           { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
-          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—", icon: "" },
+          {
+            label: "Lives",
+            value: "❤️".repeat(Math.max(lives, 0)) || "—",
+            icon: "",
+          },
         ]}
       />
       <Stage
         ratio="3 / 4"
         className="bg-gradient-to-b from-sky-300 via-sky-100 to-emerald-100"
         onPointerDown={trackPointer}
+        innerRef={world.ref}
       >
         <div
           className="absolute inset-0"
@@ -174,10 +233,9 @@ export default function FallingCatcher({
             key={item.id}
             className="emoji-piece absolute -translate-x-1/2"
             style={{
-              left: `${item.x}%`,
+              left: world.left(item.x),
               top: `${item.y}%`,
-              fontSize: "clamp(20px, 7vw, 34px)",
-              lineHeight: 1,
+              fontSize: size(ITEM_SIZE),
             }}
           >
             {item.emoji}
@@ -187,10 +245,9 @@ export default function FallingCatcher({
         <span
           className="emoji-piece absolute -translate-x-1/2"
           style={{
-            left: `${frame.basketX}%`,
-            top: `${CATCH_Y}%`,
-            fontSize: "clamp(28px, 10vw, 48px)",
-            lineHeight: 1,
+            left: world.left(frame.basketX),
+            top: `${CATCH_Y - 2}%`,
+            fontSize: size(BASKET_W),
           }}
         >
           {basket}
@@ -199,9 +256,7 @@ export default function FallingCatcher({
         {phase === "idle" && (
           <StartOverlay
             title="Catch what falls"
-            hint={`Slide to move the basket. Catch the good stuff, dodge ${bad.join(
-              " "
-            )} — ${startingLives} of those and you're out.`}
+            hint={`Slide to move the basket. Dodge ${bad.join(" ")}.`}
             buttonLabel="Start catching"
             accent={accent}
             onStart={start}

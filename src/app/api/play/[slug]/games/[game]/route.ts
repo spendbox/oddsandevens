@@ -83,6 +83,7 @@ export async function GET(
 
   // ---- This week's board -------------------------------------------------
   let season: GameSeason | null = null;
+  let seasonId: string | null = null;
   let leaderboard: LeaderboardEntry[] = [];
   let lastWinners: PastWinner[] = [];
   let playerCount = 0;
@@ -104,6 +105,7 @@ export async function GET(
       .maybeSingle();
 
     if (current) {
+      seasonId = current.id;
       season = {
         number: current.number,
         startsAt: current.starts_at,
@@ -269,7 +271,22 @@ export async function GET(
   // three statements. What the business wrote always makes the cut.
   const profile = (merchant.profile ?? {}) as BusinessProfile;
   const config: Record<string, unknown> = { ...(game.config ?? {}) };
-  if (game.type === "myth-fact") {
+  if (game.type === "advent-calendar") {
+    // The calendar scores by how many days you have come back this week, which
+    // only the server can count.
+    let openedDoors = 0;
+    if (customer && seasonId) {
+      const { count } = await db
+        .from("game_plays")
+        .select("id", { count: "exact", head: true })
+        .eq("game_id", game.id)
+        .eq("customer_id", customer.id)
+        .eq("season_id", seasonId)
+        .not("finished_at", "is", null);
+      openedDoors = count ?? 0;
+    }
+    config.openedDoors = openedDoors;
+  } else if (game.type === "myth-fact") {
     config.statements = buildMythStatements(config.statements, profile);
   } else if (game.type === "leaderboard-trivia") {
     config.questions = buildTriviaQuestions(

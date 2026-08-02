@@ -1,6 +1,12 @@
 "use client";
 
-// Tap-to-fly through the gaps. Percent-of-stage physics, one tap to play.
+// Tap-to-fly through the gaps.
+//
+// Same physics discipline as the runner: a world measured in units of stage
+// height, integrated in fixed slices, so the flap arc is identical on every
+// device. Pipes are spaced by distance rather than by "the last one is past
+// some line", which is what keeps the rhythm even as the game speeds up, and
+// the gap is placed so consecutive gaps are always reachable from one another.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -11,20 +17,25 @@ import {
   cfgNum,
   cfgStr,
   clamp,
+  useFixedStep,
   useOnce,
-  useRaf,
+  useWorld,
   type GameProps,
 } from "./kit";
 import { difficultyScale } from "@/lib/games/catalog";
 
-const FLYER_X = 22;
+const FLYER_X = 24;
 const FLYER_SIZE = 9;
-const GRAVITY = 150;
-const FLAP = -58;
-const GAP = 30; // % of stage height
-const PIPE_WIDTH = 13;
+const GRAVITY = 190; // units/s²
+const FLAP = -72; // units/s, upward
+const TERMINAL = 130; // fastest fall, so a long drop stays readable
+const GAP = 30; // units of clear air
+const PIPE_WIDTH = 14;
+/** The bird's hitbox is smaller than the bird — clipping a leaf is fine. */
+const FORGIVE = 0.72;
 
 interface Pipe {
+  id: number;
   x: number;
   gapCenter: number;
   passed: boolean;
@@ -42,9 +53,20 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
     hurt: boolean;
   }>({ y: 45, tilt: 0, pipes: [], hurt: false });
 
+  const world = useWorld<HTMLDivElement>();
+  // The physics loop needs the live width without re-subscribing every resize,
+  // and a ref may not be written during render — so an effect keeps it in step.
+  const widthRef = useRef(100);
+  useEffect(() => {
+    widthRef.current = world.unitsWide;
+  }, [world.unitsWide]);
+
   const y = useRef(45);
   const velocity = useRef(0);
   const pipes = useRef<Pipe[]>([]);
+  const nextId = useRef(0);
+  const gapLeft = useRef(0);
+  const lastCenter = useRef(50);
   const scoreRef = useRef(0);
   const livesRef = useRef(3);
   const graceRef = useRef(0);
@@ -55,7 +77,7 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
   const flyer = cfgStr(config, "flyerEmoji", "🐤");
   const pipeColor = cfgStr(config, "pipeColor", "#16a34a");
   const gap = GAP / difficulty;
-  const speed = 30 * difficulty;
+  const speed = 46 * difficulty;
 
   const flap = useCallback(() => {
     if (phase === "running") velocity.current = FLAP;
@@ -93,40 +115,61 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
     y.current = 45;
     velocity.current = 0;
     graceRef.current = 1.4;
-    pipes.current = pipes.current.filter((p) => p.x > FLYER_X + 30);
+    pipes.current = pipes.current.filter((p) => p.x > FLYER_X + 34);
     return true;
   }, [end]);
 
-  useRaf(
+  useFixedStep(
     (dt) => {
       graceRef.current = Math.max(0, graceRef.current - dt);
-      velocity.current += GRAVITY * dt;
+
+      velocity.current = Math.min(velocity.current + GRAVITY * dt, TERMINAL);
       y.current += velocity.current * dt;
 
       if (y.current < 0 || y.current > 100 - FLYER_SIZE) {
         if (!crash()) return;
       }
 
-      const spawned = [...pipes.current];
-      if (spawned.length === 0 || spawned[spawned.length - 1].x < 55) {
-        spawned.push({
-          x: 105,
-          gapCenter: 22 + Math.random() * 56,
-          passed: false,
-        });
+      // --- Pipes, spaced by distance --------------------------------------
+      gapLeft.current -= speed * dt;
+      if (gapLeft.current <= 0) {
+        // The next gap sits within one comfortable climb of the last one, so
+        // the run never demands an impossible jump between two gaps.
+        const drift = 26;
+        const center = clamp(
+          lastCenter.current + (Math.random() * 2 - 1) * drift,
+          gap / 2 + 8,
+          100 - gap / 2 - 8
+        );
+        lastCenter.current = center;
+        pipes.current = [
+          ...pipes.current,
+          {
+            id: nextId.current++,
+            x: widthRef.current + 4,
+            gapCenter: center,
+            passed: false,
+          },
+        ];
+        gapLeft.current = 58 + Math.random() * 14;
       }
-      pipes.current = spawned
+      pipes.current = pipes.current
         .map((p) => ({ ...p, x: p.x - speed * dt }))
-        .filter((p) => p.x > -PIPE_WIDTH - 2);
+        .filter((p) => p.x > -PIPE_WIDTH - 4);
 
+      // --- Collision -------------------------------------------------------
       if (graceRef.current === 0) {
+        const inset = (FLYER_SIZE * (1 - FORGIVE)) / 2;
+        const bx = FLYER_X + inset;
+        const bw = FLYER_SIZE * FORGIVE;
+        const by = y.current + inset;
+        const bh = FLYER_SIZE * FORGIVE;
         for (const pipe of pipes.current) {
-          const overlapX =
-            pipe.x < FLYER_X + FLYER_SIZE && pipe.x + PIPE_WIDTH > FLYER_X;
+          const overlapX = pipe.x < bx + bw && pipe.x + PIPE_WIDTH > bx;
           if (!overlapX) continue;
           const top = pipe.gapCenter - gap / 2;
           const bottom = pipe.gapCenter + gap / 2;
-          if (y.current < top || y.current + FLYER_SIZE > bottom) {
+          if (by < top || by + bh > bottom) {
             if (!crash()) return;
             break;
           }
@@ -144,9 +187,11 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
         scoreRef.current += gained;
         setScore(scoreRef.current);
       }
+
       setFrame({
         y: y.current,
-        tilt: clamp(velocity.current, -40, 60),
+        // Nose follows the flight path: up when climbing, down when diving.
+        tilt: clamp(velocity.current * 0.55, -28, 65),
         pipes: pipes.current,
         hurt: graceRef.current > 0,
       });
@@ -158,6 +203,8 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
     y.current = 45;
     velocity.current = 0;
     pipes.current = [];
+    gapLeft.current = 40;
+    lastCenter.current = 50;
     scoreRef.current = 0;
     livesRef.current = startingLives;
     graceRef.current = 0;
@@ -167,37 +214,44 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
     setPhase("running");
   };
 
+  const size = (units: number) => `${units * world.pxPerUnit}px`;
+
   return (
-    <div className="w-full">
+    <div className="flex w-full flex-col">
       <Hud
         items={[
           { label: "Gates", value: score, icon: "🚪" },
-          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—", icon: "" },
+          {
+            label: "Lives",
+            value: "❤️".repeat(Math.max(lives, 0)) || "—",
+            icon: "",
+          },
         ]}
       />
       <Stage
         ratio="3 / 4"
         className="bg-gradient-to-b from-sky-400 via-sky-200 to-amber-100"
         onPointerDown={flap}
+        innerRef={world.ref}
       >
-        {frame.pipes.map((pipe, i) => (
-          <div key={i}>
+        {frame.pipes.map((pipe) => (
+          <div key={pipe.id}>
             <div
-              className="absolute rounded-b-md"
+              className="absolute rounded-b-lg shadow-md"
               style={{
-                left: `${pipe.x}%`,
+                left: world.left(pipe.x),
                 top: 0,
-                width: `${PIPE_WIDTH}%`,
+                width: size(PIPE_WIDTH),
                 height: `${Math.max(pipe.gapCenter - gap / 2, 0)}%`,
                 background: pipeColor,
               }}
             />
             <div
-              className="absolute rounded-t-md"
+              className="absolute rounded-t-lg shadow-md"
               style={{
-                left: `${pipe.x}%`,
+                left: world.left(pipe.x),
                 top: `${pipe.gapCenter + gap / 2}%`,
-                width: `${PIPE_WIDTH}%`,
+                width: size(PIPE_WIDTH),
                 bottom: 0,
                 background: pipeColor,
               }}
@@ -208,10 +262,9 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
         <span
           className="emoji-piece absolute"
           style={{
-            left: `${FLYER_X}%`,
+            left: world.left(FLYER_X),
             top: `${frame.y}%`,
-            fontSize: "clamp(22px, 8vw, 38px)",
-            lineHeight: 1,
+            fontSize: size(FLYER_SIZE),
             transform: `rotate(${frame.tilt}deg)`,
             opacity: frame.hurt ? 0.45 : 1,
           }}
@@ -222,7 +275,7 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
         {phase === "idle" && (
           <StartOverlay
             title="Mind the gap"
-            hint={`Tap (or press space) to flap. You get ${startingLives} ${
+            hint={`Tap to flap. ${startingLives} ${
               startingLives === 1 ? "life" : "lives"
             }.`}
             buttonLabel="Start flying"

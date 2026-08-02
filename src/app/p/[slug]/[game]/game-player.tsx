@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Copy, Share2 } from "lucide-react";
+import { ChevronLeft, Copy, Share2, X } from "lucide-react";
 import { GameRenderer } from "@/components/games";
 import { GameIcon } from "@/components/games/icons";
 import { EMAIL_STORAGE_KEY, VerifyModal } from "@/components/games/verify-modal";
@@ -128,6 +128,17 @@ export default function GamePlayer({
   const load = useCallback(async () => {
     apply(await fetchGame());
   }, [fetchGame, apply]);
+
+  // A round owns the device: no page scrolling behind the playfield, and no
+  // rubber-banding on iOS while a finger is dragging a basket around.
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [phase]);
 
   useEffect(() => {
     let ignore = false;
@@ -288,6 +299,56 @@ export default function GamePlayer({
   const lives = player?.livesLeft ?? game.dailyLives;
   const playing = phase === "playing";
 
+  // ---- A round in progress owns the whole screen -------------------------
+  if (playing) {
+    return (
+      <main
+        className="arcade fixed inset-0 z-50 flex h-[100dvh] w-full flex-col p-2 sm:p-3"
+        style={brandStyle}
+      >
+        <div className="mb-2 flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => {
+              setToken(null);
+              setPhase("intro");
+            }}
+            aria-label="Leave the game"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/80 transition hover:bg-white/20"
+          >
+            <X className="size-5" aria-hidden />
+          </button>
+          <p className="min-w-0 flex-1 truncate text-sm font-bold text-white/85">
+            {game.title}
+          </p>
+          {isBoard && (
+            <span className="arcade-chip" title="Plays left today">
+              <span className="emoji text-base leading-none" aria-hidden>
+                {"❤️".repeat(Math.min(lives, 3)) || "💔"}
+              </span>
+              {lives > 3 ? `×${lives}` : ""}
+            </span>
+          )}
+        </div>
+
+        {/* The screen is bright inside the dark bezel — that's what makes a
+            cabinet read as a cabinet, and it keeps every game's own artwork
+            legible. `stage-fill` is what stretches the playfield to whatever
+            height is left, on any device. */}
+        <div className="stage-fill min-h-0 flex-1 rounded-2xl bg-gradient-to-b from-zinc-100 to-zinc-50 p-2 shadow-[inset_0_1px_3px_rgb(0_0_0/0.12)]">
+          <GameRenderer
+            type={game.type}
+            config={game.config}
+            prizes={game.prizes}
+            accent={accent}
+            canWin
+            submit={submit}
+            showResult={showResult}
+          />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="arcade min-h-screen p-4 pb-10 sm:p-6" style={brandStyle}>
       <div className="mx-auto flex max-w-lg flex-col gap-4">
@@ -336,26 +397,6 @@ export default function GamePlayer({
             </>
           )}
         </header>
-
-        {/* ---- Playing: the screen, and nothing else ---- */}
-        {playing && (
-          <section className="arcade-panel p-3 sm:p-4">
-            {/* The screen is bright inside the dark bezel — that's what makes a
-                cabinet read as a cabinet, and it keeps every game's own artwork
-                legible. */}
-            <div className="rounded-2xl bg-gradient-to-b from-zinc-100 to-zinc-50 p-2 shadow-[inset_0_1px_3px_rgb(0_0_0/0.12)]">
-              <GameRenderer
-                type={game.type}
-                config={game.config}
-                prizes={game.prizes}
-                accent={accent}
-                canWin
-                submit={submit}
-                showResult={showResult}
-              />
-            </div>
-          </section>
-        )}
 
         {/* ---- Result ---- */}
         {phase === "result" && outcome && (
@@ -490,7 +531,7 @@ export default function GamePlayer({
         )}
 
         {/* ---- The board, whenever we're not mid-round ---- */}
-        {isBoard && !playing && (
+        {isBoard && (
           <section className="arcade-panel p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className="flex items-center gap-1.5 text-sm font-bold text-white">
@@ -519,7 +560,7 @@ export default function GamePlayer({
         )}
 
         {/* ---- Sharing is how you get more plays ---- */}
-        {isBoard && shareUrl && !playing && (
+        {isBoard && shareUrl && (
           <button
             onClick={share}
             className="arcade-panel flex items-center gap-3 p-4 text-left transition hover:brightness-110"
@@ -545,7 +586,7 @@ export default function GamePlayer({
         )}
 
         {/* ---- Last week's podium ---- */}
-        {isBoard && game.lastWinners.length > 0 && !playing && (
+        {isBoard && game.lastWinners.length > 0 && (
           <section className="arcade-panel p-4">
             <h2 className="mb-2 text-xs font-bold uppercase tracking-wider text-white/45">
               Last week
@@ -571,7 +612,7 @@ export default function GamePlayer({
           </section>
         )}
 
-        {!playing && (
+        {(
           <div className="flex items-center justify-center gap-3 text-xs text-white/35">
             <Link href={`/p/${slug}`} className="hover:text-white/70">
               More games

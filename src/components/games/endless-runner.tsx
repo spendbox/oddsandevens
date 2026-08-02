@@ -1,7 +1,18 @@
 "use client";
 
-// One-button endless runner. Everything lives in percent-of-stage units so the
-// game plays identically on a phone and a desktop.
+// One-button endless runner.
+//
+// The world is measured in units where the stage is 100 tall and as many wide
+// as its aspect ratio makes it, and it is integrated in fixed slices — so the
+// jump arc is the same arc on a phone, on a desktop, at 30fps or 144fps, and
+// nothing tunnels through a cactus during a long frame.
+//
+// The jump has the three forgivenesses every runner needs: a coyote window so
+// stepping off the edge of a frame still counts as grounded, a buffer so a tap
+// landing a moment early still fires, and a variable height so a short tap is
+// a short hop. Obstacle spacing is derived from the current speed and the time
+// a jump actually takes, which means every gap is clearable — the game gets
+// faster, never unfair.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -12,19 +23,29 @@ import {
   cfgNum,
   cfgStr,
   clamp,
+  useFixedStep,
   useOnce,
-  useRaf,
+  useWorld,
   type GameProps,
 } from "./kit";
 import { difficultyScale } from "@/lib/games/catalog";
 
-const GROUND_Y = 82; // % from the top where the ground line sits
-const PLAYER_X = 14;
-const PLAYER_SIZE = 9;
-const JUMP_VELOCITY = 88;
-const GRAVITY = 230;
+// --- The world, in units of stage height ----------------------------------
+const GROUND_Y = 76; // where the runner's feet rest
+const PLAYER_X = 16;
+const PLAYER_W = 10;
+const PLAYER_H = 12;
+const GRAVITY = 300; // units/s²
+const JUMP_V = 125; // units/s -> a 26-unit apex, 0.83s in the air
+const JUMP_CUT = 0.45; // releasing early keeps this much of the rise
+const COYOTE = 0.1; // seconds after leaving the ground a jump still works
+const BUFFER = 0.12; // seconds before landing a tap is remembered
+const AIRTIME = (2 * JUMP_V) / GRAVITY;
+/** Boxes shrink before they're compared — a graze shouldn't cost a life. */
+const FORGIVE = 0.78;
 
 interface Obstacle {
+  id: number;
   x: number;
   height: number;
 }
@@ -38,19 +59,32 @@ export default function EndlessRunner({
   const [phase, setPhase] = useState<"idle" | "running" | "grading">("idle");
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
-  // The world lives in refs (mutated 60 times a second); this snapshot is what
-  // React actually renders, published once per frame.
+  // The world lives in refs (mutated 120 times a second); this snapshot is
+  // what React actually renders, published once per frame.
   const [frame, setFrame] = useState<{
     y: number;
     obstacles: Obstacle[];
     hurt: boolean;
   }>({ y: 0, obstacles: [], hurt: false });
 
-  const playerY = useRef(0); // height above the ground, in %
+  const world = useWorld<HTMLDivElement>();
+  // The physics loop needs the live width without re-subscribing every resize,
+  // and a ref may not be written during render — so an effect keeps it in step.
+  const widthRef = useRef(100);
+  useEffect(() => {
+    widthRef.current = world.unitsWide;
+  }, [world.unitsWide]);
+
+  const playerY = useRef(0); // height above the ground, in units
   const velocity = useRef(0);
+  const grounded = useRef(true);
+  const coyote = useRef(0);
+  const buffered = useRef(0);
+  const holding = useRef(false);
   const obstacles = useRef<Obstacle[]>([]);
+  const nextId = useRef(0);
   const distance = useRef(0);
-  const nextSpawn = useRef(1.2);
+  const gapLeft = useRef(60);
   const livesRef = useRef(3);
   // Seconds of invulnerability left after a hit, so one cactus can't take
   // every life in a single stride.
@@ -63,64 +97,104 @@ export default function EndlessRunner({
   const obstacleEmoji = cfgStr(config, "obstacleEmoji", "🌵");
   const groundColor = cfgStr(config, "groundColor", "#1f2937");
 
-  const jump = useCallback(() => {
+  const press = useCallback(() => {
     if (phase !== "running") return;
-    // Only from the ground — no mid-air double jumps.
-    if (playerY.current <= 0.5) velocity.current = JUMP_VELOCITY;
+    holding.current = true;
+    buffered.current = BUFFER;
   }, [phase]);
+
+  const release = useCallback(() => {
+    holding.current = false;
+    // Let go on the way up and the hop is a short one.
+    if (velocity.current > 0) velocity.current *= JUMP_CUT;
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Space" || e.code === "ArrowUp") {
         e.preventDefault();
-        jump();
+        press();
       }
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space" || e.code === "ArrowUp") release();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [jump]);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("pointerup", release);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("pointerup", release);
+    };
+  }, [press, release]);
 
   const end = useCallback(() => {
     once(() => {
       setPhase("grading");
-      const metres = Math.floor(distance.current);
+      const metres = Math.floor(distance.current / 6);
       void submit(metres).then((outcome) => {
         if (outcome) showResult();
       });
     });
   }, [once, submit, showResult]);
 
-  useRaf(
+  useFixedStep(
     (dt) => {
-      const speed = (34 + distance.current * 0.02) * difficulty;
-      distance.current += speed * dt * 0.55;
-      setScore(Math.floor(distance.current));
+      const speed = Math.min(48 + distance.current * 0.012, 105) * difficulty;
+      distance.current += speed * dt;
+      setScore(Math.floor(distance.current / 6));
 
-      // Player physics.
-      velocity.current -= GRAVITY * dt;
-      playerY.current = Math.max(0, playerY.current + velocity.current * dt);
-      if (playerY.current === 0) velocity.current = 0;
-
-      // Obstacles march left; spawn on a jittered timer.
-      nextSpawn.current -= dt;
-      const spawned = [...obstacles.current];
-      if (nextSpawn.current <= 0) {
-        spawned.push({ x: 105, height: 7 + Math.random() * 6 });
-        nextSpawn.current = (0.9 + Math.random() * 0.9) / difficulty;
+      // --- Jump: coyote time, buffered input, variable height -------------
+      coyote.current = grounded.current
+        ? COYOTE
+        : Math.max(0, coyote.current - dt);
+      buffered.current = Math.max(0, buffered.current - dt);
+      if (buffered.current > 0 && coyote.current > 0) {
+        velocity.current = JUMP_V;
+        grounded.current = false;
+        coyote.current = 0;
+        buffered.current = 0;
       }
-      obstacles.current = spawned
-        .map((o) => ({ ...o, x: o.x - speed * dt }))
-        .filter((o) => o.x > -12);
 
-      // Collision: overlapping boxes on both axes. A hit costs a life and
-      // buys a moment of grace rather than ending the run outright.
+      velocity.current -= GRAVITY * dt;
+      playerY.current += velocity.current * dt;
+      if (playerY.current <= 0) {
+        playerY.current = 0;
+        velocity.current = 0;
+        grounded.current = true;
+      }
+
+      // --- Obstacles ------------------------------------------------------
+      // The next gap is never shorter than the distance the runner covers in
+      // one jump, so every obstacle that appears can be cleared.
+      gapLeft.current -= speed * dt;
+      if (gapLeft.current <= 0) {
+        obstacles.current = [
+          ...obstacles.current,
+          {
+            id: nextId.current++,
+            x: widthRef.current + 8,
+            height: 9 + Math.random() * 8,
+          },
+        ];
+        const jumpDistance = speed * AIRTIME;
+        gapLeft.current = jumpDistance * (1.25 + Math.random() * 0.9);
+      }
+      obstacles.current = obstacles.current
+        .map((o) => ({ ...o, x: o.x - speed * dt }))
+        .filter((o) => o.x > -14);
+
+      // --- Collision: shrunken boxes on both axes -------------------------
       graceRef.current = Math.max(0, graceRef.current - dt);
       if (graceRef.current === 0) {
+        const px = PLAYER_X + (PLAYER_W * (1 - FORGIVE)) / 2;
+        const pw = PLAYER_W * FORGIVE;
         for (const obstacle of obstacles.current) {
-          const overlapX =
-            obstacle.x < PLAYER_X + PLAYER_SIZE * 0.7 &&
-            obstacle.x + 7 > PLAYER_X;
-          if (overlapX && playerY.current < obstacle.height * 0.85) {
+          const ow = 8 * FORGIVE;
+          const ox = obstacle.x + (8 * (1 - FORGIVE)) / 2;
+          const overlapX = ox < px + pw && ox + ow > px;
+          if (overlapX && playerY.current < obstacle.height * FORGIVE) {
             livesRef.current -= 1;
             setLives(livesRef.current);
             if (livesRef.current <= 0) {
@@ -131,7 +205,7 @@ export default function EndlessRunner({
             // Clear what's already on top of the runner so the grace period
             // is actually survivable.
             obstacles.current = obstacles.current.filter(
-              (o) => o.x > PLAYER_X + 24
+              (o) => o.x > PLAYER_X + 28
             );
             break;
           }
@@ -150,9 +224,12 @@ export default function EndlessRunner({
   const start = () => {
     playerY.current = 0;
     velocity.current = 0;
+    grounded.current = true;
+    coyote.current = COYOTE;
+    buffered.current = 0;
     obstacles.current = [];
     distance.current = 0;
-    nextSpawn.current = 1.2;
+    gapLeft.current = 70;
     graceRef.current = 0;
     livesRef.current = startingLives;
     setScore(0);
@@ -161,24 +238,31 @@ export default function EndlessRunner({
     setPhase("running");
   };
 
+  const size = (units: number) => `${units * world.pxPerUnit}px`;
+
   return (
-    <div className="w-full">
+    <div className="flex w-full flex-col">
       <Hud
         items={[
           { label: "Distance", value: `${score}m`, icon: "🏃" },
-          { label: "Lives", value: "❤️".repeat(Math.max(lives, 0)) || "—", icon: "" },
+          {
+            label: "Lives",
+            value: "❤️".repeat(Math.max(lives, 0)) || "—",
+            icon: "",
+          },
         ]}
       />
       <Stage
         ratio="3 / 2"
         className="bg-gradient-to-b from-indigo-300 via-sky-200 to-amber-50"
-        onPointerDown={jump}
+        onPointerDown={press}
+        innerRef={world.ref}
       >
         {/* Ground */}
         <div
           className="absolute inset-x-0"
           style={{
-            top: `${GROUND_Y + PLAYER_SIZE}%`,
+            top: `${GROUND_Y + PLAYER_H}%`,
             bottom: 0,
             background: groundColor,
           }}
@@ -190,11 +274,11 @@ export default function EndlessRunner({
         <div
           className="emoji-piece absolute flex items-end justify-center"
           style={{
-            left: `${PLAYER_X}%`,
+            left: world.left(PLAYER_X),
             top: `${GROUND_Y - frame.y}%`,
-            width: `${PLAYER_SIZE}%`,
-            fontSize: "clamp(20px, 7vw, 40px)",
-            lineHeight: 1,
+            width: size(PLAYER_W),
+            height: size(PLAYER_H),
+            fontSize: size(PLAYER_H),
             transform: "scaleX(-1)",
             // Flashes while the post-hit grace period is running.
             opacity: frame.hurt ? 0.45 : 1,
@@ -203,17 +287,16 @@ export default function EndlessRunner({
           {runner}
         </div>
 
-        {frame.obstacles.map((obstacle, i) => (
+        {frame.obstacles.map((obstacle) => (
           <div
-            key={i}
+            key={obstacle.id}
             className="emoji-piece absolute flex items-end justify-center"
             style={{
-              left: `${obstacle.x}%`,
-              top: `${GROUND_Y + PLAYER_SIZE - obstacle.height}%`,
+              left: world.left(obstacle.x),
+              top: `${GROUND_Y + PLAYER_H - obstacle.height}%`,
               height: `${obstacle.height}%`,
-              width: "7%",
-              fontSize: "clamp(18px, 6vw, 34px)",
-              lineHeight: 1,
+              width: size(8),
+              fontSize: size(obstacle.height),
             }}
           >
             {obstacleEmoji}
@@ -223,7 +306,7 @@ export default function EndlessRunner({
         {phase === "idle" && (
           <StartOverlay
             title="Ready to run?"
-            hint={`Tap the screen (or press space) to jump. You get ${startingLives} ${
+            hint={`Tap to jump — hold for a higher one. ${startingLives} ${
               startingLives === 1 ? "life" : "lives"
             }.`}
             buttonLabel="Start running"

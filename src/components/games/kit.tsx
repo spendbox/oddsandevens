@@ -83,6 +83,71 @@ export function useCountdown(seconds: number, active: boolean, onEnd: () => void
   return left;
 }
 
+/**
+ * A fixed-timestep integrator on top of the frame loop.
+ *
+ * Integrating with the frame delta means the physics change with the display:
+ * a 120Hz laptop and a 30Hz phone under load produce different jump heights
+ * from the same tap, and a long frame can teleport an object straight through
+ * an obstacle. This advances the world in constant slices instead, so a jump
+ * arc is the same arc everywhere and nothing tunnels. The leftover time is
+ * carried to the next frame, and a stall is capped rather than replayed — a
+ * backgrounded tab shouldn't come back and simulate ten seconds at once.
+ */
+export function useFixedStep(
+  callback: (dt: number) => void,
+  active: boolean,
+  step = 1 / 120
+) {
+  const cbRef = useRef(callback);
+  useLayoutEffect(() => {
+    cbRef.current = callback;
+  });
+  const carry = useRef(0);
+
+  useRaf(
+    (dt) => {
+      carry.current = Math.min(carry.current + dt, step * 10);
+      while (carry.current >= step) {
+        carry.current -= step;
+        cbRef.current(step);
+      }
+    },
+    active
+  );
+
+  // A fresh run should not inherit the previous one's leftover time.
+  useEffect(() => {
+    if (active) carry.current = 0;
+  }, [active]);
+}
+
+/**
+ * The world, in units where the stage is always 100 units tall.
+ *
+ * Percent-of-width for x and percent-of-height for y is the usual shortcut and
+ * it means the game changes shape with the screen: on a tall phone a 10-unit
+ * gap is narrow, on a wide desktop the same number is a chasm. Measuring the
+ * stage and deriving the width in *height* units keeps every distance
+ * comparable, so gravity, speeds and hitboxes are tuned once and hold at any
+ * aspect ratio. Sprites scale off `pxPerUnit` for the same reason.
+ */
+export function useWorld<T extends HTMLElement>() {
+  const { ref, width, height } = useElementSize<T>();
+  const unitsWide = height > 0 ? (width / height) * 100 : 100;
+  return {
+    ref,
+    width,
+    height,
+    /** How many units wide the stage is right now. */
+    unitsWide,
+    /** Pixels per world unit — multiply to size a sprite. */
+    pxPerUnit: height / 100,
+    /** World x -> CSS left percentage. */
+    left: (x: number) => `${(x / unitsWide) * 100}%`,
+  };
+}
+
 /** Element size, for games that need pixel coordinates. */
 export function useElementSize<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);
@@ -172,18 +237,29 @@ export function Stage({
   innerRef,
 }: {
   children: React.ReactNode;
+  /** "3 / 4" — the shape this game was tuned for, kept at every size. */
   ratio?: string;
   className?: string;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
   innerRef?: React.Ref<HTMLDivElement>;
 }) {
+  // The same ratio as a number, so full-screen play can size the stage to the
+  // largest box of this shape that fits (see `.stage-fill` in globals.css).
+  const [w, h] = ratio.split("/").map((part) => Number(part.trim()));
+  const numeric = Number.isFinite(w) && Number.isFinite(h) && h > 0 ? w / h : 0.75;
+
   return (
     <div
       ref={innerRef}
       onPointerDown={onPointerDown}
-      style={{ aspectRatio: ratio }}
+      style={
+        {
+          aspectRatio: ratio,
+          "--stage-ratio": numeric,
+        } as React.CSSProperties
+      }
       className={
-        "arcade-screen arcade-vignette relative w-full touch-none overflow-hidden select-none " +
+        "arcade-screen arcade-vignette relative touch-none overflow-hidden select-none " +
         className
       }
     >
