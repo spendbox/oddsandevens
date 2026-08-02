@@ -17,6 +17,7 @@
 
 import { useCallback, useEffect, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { Portal } from "./portal";
 
 export type ModalWidth = "sm" | "md" | "lg";
 
@@ -71,10 +72,11 @@ export function Modal({
   }, [onClose]);
 
   return (
-    <div
-      onClick={close}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/50 backdrop-blur-sm sm:items-center sm:p-4"
-    >
+    <Portal>
+      <div
+        onClick={close}
+        className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/50 backdrop-blur-sm sm:items-center sm:p-4"
+      >
       <div
         role="dialog"
         aria-modal="true"
@@ -119,8 +121,9 @@ export function Modal({
           <div className="shrink-0 border-t border-zinc-100 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-4">
             {footer}
           </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </Portal>
   );
 }

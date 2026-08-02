@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { EMAIL_REGEX } from "@/lib/constants";
+import { Portal } from "@/components/ui/portal";
 
 export const EMAIL_STORAGE_KEY = "tilehunt_email";
 
@@ -83,6 +84,7 @@ export function VerifyModal({
   }
 
   return (
+    <Portal>
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/60 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
@@ -195,6 +197,7 @@ export function VerifyModal({
           </>
         )}
       </form>
-    </div>
+      </div>
+    </Portal>
   );
 }

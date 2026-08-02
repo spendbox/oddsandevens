@@ -281,7 +281,18 @@ scrolling. The shared one caps itself at the *small* viewport (`svh`), pins its
 header and footer, scrolls only the middle, locks the body, and arrives as a
 sheet from the bottom on a phone.
 
-It also closes a tick late, and so does the emoji picker. Removing a dialog
+Every dialog is also **portalled to `<body>`** (`src/components/ui/portal.tsx`).
+That is not tidiness. An ancestor with a transform, filter, backdrop-filter,
+`contain` or `will-change` becomes the *containing block* for fixed
+descendants, so `fixed inset-0` stops meaning "the viewport" and starts meaning
+"that element". The dashboard is wrapped in `animate-fade-up`, whose fill-mode
+is `both` — its `translateY(0)` never goes away — so every dialog was being
+positioned against a page-height box and rendering at the top of the document.
+Open one while scrolled down and you had to scroll back up to find it. The
+portal fixes the class of bug, not the instance, and survives whoever adds an
+animation to a wrapper next.
+
+Dialogs also close a tick late, and so does the emoji picker. Removing one
 mid-click makes Chrome fire a second click at whatever is then under the
 pointer — often the control that opened it, so it shut and reopened in one
 tap.

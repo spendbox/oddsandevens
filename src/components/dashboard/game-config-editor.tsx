@@ -9,6 +9,7 @@ import { Check, ChevronDown, Plus, Search, Trash2, X } from "lucide-react";
 import type { ConfigField } from "@/lib/games/catalog";
 import { EMOJI_GROUPS, parseEmojiSet, searchEmoji } from "@/lib/games/emoji";
 import type { GameConfig } from "@/lib/games/types";
+import { Portal } from "@/components/ui/portal";
 
 /**
  * The emoji picker. One shared component for both field types: `emoji` picks
@@ -121,6 +122,7 @@ function EmojiPicker({
       </button>
 
       {open && (
+        <Portal>
         <div
           onClick={close}
           className="fixed inset-0 z-[60] flex items-end justify-center bg-zinc-900/50 backdrop-blur-sm sm:items-center sm:p-4"
@@ -262,6 +264,7 @@ function EmojiPicker({
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </>
   );
