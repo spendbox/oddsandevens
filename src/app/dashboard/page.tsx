@@ -2,16 +2,30 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Gift, Grid3x3, Hammer, Home, Palette, Users, Wallet, X } from "lucide-react";
+import {
+  Gamepad2,
+  Gift,
+  Hammer,
+  Home,
+  Palette,
+  Users,
+  Wallet,
+  X,
+} from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { TIER_LIMITS } from "@/lib/constants";
 import { useAutoRefresh } from "@/lib/use-auto-refresh";
 import type {
   CustomerSummary,
-  GridStats,
   MerchantPlan,
   MerchantStats,
+  RewardTemplate,
 } from "@/lib/types";
+import type { GameSummary } from "@/lib/games/types";
+import {
+  completionItems,
+  completionPercent,
+  type BusinessProfile,
+} from "@/lib/business/profile";
 import {
   effectiveTierNow,
   type Merchant,
@@ -20,20 +34,25 @@ import {
 } from "@/components/dashboard/shared";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { StatsSummary } from "@/components/dashboard/stats-summary";
+import { RevenueCard } from "@/components/dashboard/revenue-card";
 import { GettingStarted } from "@/components/dashboard/getting-started";
 import { ShareLink } from "@/components/dashboard/share-link";
 import { PlaysWidget, PlansPanel } from "@/components/dashboard/plan";
 import { RedeemBox } from "@/components/dashboard/redeem-box";
-import { GridsManager } from "@/components/dashboard/grids-manager";
-import { GridWizard } from "@/components/dashboard/grid-wizard";
+import {
+  GamesHighlight,
+  GamesManager,
+} from "@/components/dashboard/games-manager";
+import { GameWizard } from "@/components/dashboard/game-wizard";
+import { GameEditor } from "@/components/dashboard/game-editor";
+import { SettingsPanel } from "@/components/dashboard/settings-panel";
 import { RewardsManager } from "@/components/dashboard/rewards-manager";
-import { BrandSettings } from "@/components/dashboard/brand-settings";
 import { CustomersList } from "@/components/dashboard/customers-list";
 import { UnlocksList } from "@/components/dashboard/unlocks-list";
 import { OnboardingForm } from "@/components/dashboard/onboarding-form";
 
 type Tab = "home" | "build" | "customers" | "plans" | "settings";
-type BuildSub = "grids" | "rewards";
+type BuildSub = "games" | "rewards";
 
 const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }> }[] = [
   { key: "home", label: "Home", icon: Home },
@@ -48,41 +67,52 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
-  const [grids, setGrids] = useState<GridStats[]>([]);
   const [unlocks, setUnlocks] = useState<UnlockRow[]>([]);
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [stats, setStats] = useState<MerchantStats | null>(null);
   const [plan, setPlan] = useState<MerchantPlan | null>(null);
   const [hasReward, setHasReward] = useState(false);
+  const [rewardTemplates, setRewardTemplates] = useState<RewardTemplate[]>([]);
+  const [games, setGames] = useState<GameSummary[]>([]);
+  const [profile, setProfile] = useState<BusinessProfile>({});
+  const [editingGame, setEditingGame] = useState<GameSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("home");
-  const [buildSub, setBuildSub] = useState<BuildSub>("grids");
-  const [showWizard, setShowWizard] = useState(false);
+  const [buildSub, setBuildSub] = useState<BuildSub>("games");
+  const [showGameWizard, setShowGameWizard] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
 
   const fetchAll = useCallback(async (): Promise<Snapshot | "unauthenticated"> => {
     // Created lazily (not during render) so the page can prerender without env vars.
     const supabase = supabaseBrowser();
+
+    // The session cookie is what decides whether someone is signed in — not a
+    // round-trip to the auth server. Coming back with the back button, or on a
+    // flaky connection, that call can fail while the session is perfectly
+    // valid, and treating that as a sign-out is how a merchant loses their
+    // dashboard mid-task. Only a genuinely absent session logs anyone out.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return "unauthenticated";
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return "unauthenticated";
 
     const snap: Snapshot = {
       merchant: null,
-      grids: [],
       unlocks: [],
       customers: [],
       stats: null,
       plan: null,
       hasReward: false,
+      rewardTemplates: [],
+      games: [],
+      profile: {},
       loadError: null,
     };
 
     const { data: m, error: merchantError } = await supabase
       .from("merchants")
       .select(
-        "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
+        "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, whatsapp, contact_email, profile, paystack_subaccount_code, life_topup_price_kobo"
       )
       .maybeSingle();
     if (merchantError) {
@@ -96,12 +126,12 @@ export default function DashboardPage() {
     snap.merchant = m as Merchant | null;
     if (!m) return snap;
 
-    const [{ data: u }, customersRes, gridsRes, statsRes, planRes, rewardsRes] =
+    const [{ data: u }, customersRes, statsRes, planRes, rewardsRes, gamesRes] =
       await Promise.all([
         supabase
           .from("unlocked_rewards")
           .select(
-            "id, redemption_code, reward_type, discount_percent, status, unlocked_at, expires_at, rewards(description), customers(email)"
+            "id, redemption_code, reward_type, discount_percent, status, unlocked_at, expires_at, rewards(description), game_prizes(description), customers(email)"
           )
           .eq("merchant_id", m.id)
           .order("unlocked_at", { ascending: false })
@@ -109,13 +139,13 @@ export default function DashboardPage() {
         fetch("/api/merchant/customers").then((res) =>
           res.ok ? res.json() : { customers: [] }
         ),
-        fetch("/api/merchant/grids").then((res) =>
-          res.ok ? res.json() : { grids: [] }
-        ),
         fetch("/api/merchant/stats").then((res) => (res.ok ? res.json() : null)),
         fetch("/api/merchant/plan").then((res) => (res.ok ? res.json() : null)),
         fetch("/api/merchant/reward-templates").then((res) =>
           res.ok ? res.json() : { rewards: [] }
+        ),
+        fetch("/api/merchant/games").then((res) =>
+          res.ok ? res.json() : { games: [] }
         ),
       ]);
     const now = Date.now();
@@ -123,21 +153,25 @@ export default function DashboardPage() {
       (row) => ({ ...row, isExpired: new Date(row.expires_at).getTime() < now })
     );
     snap.customers = (customersRes?.customers as CustomerSummary[]) ?? [];
-    snap.grids = (gridsRes?.grids as GridStats[]) ?? [];
     snap.stats = (statsRes as MerchantStats | null) ?? null;
     snap.plan = (planRes as MerchantPlan | null) ?? null;
-    snap.hasReward = ((rewardsRes?.rewards as unknown[]) ?? []).length > 0;
+    snap.rewardTemplates = (rewardsRes?.rewards as RewardTemplate[]) ?? [];
+    snap.hasReward = snap.rewardTemplates.length > 0;
+    snap.games = (gamesRes?.games as GameSummary[]) ?? [];
+    snap.profile = ((m as { profile?: BusinessProfile }).profile ?? {}) as BusinessProfile;
     return snap;
   }, []);
 
   const applySnapshot = useCallback((snap: Snapshot) => {
     setMerchant(snap.merchant);
-    setGrids(snap.grids);
     setUnlocks(snap.unlocks);
     setCustomers(snap.customers);
     setStats(snap.stats);
     setPlan(snap.plan);
     setHasReward(snap.hasReward);
+    setRewardTemplates(snap.rewardTemplates);
+    setGames(snap.games);
+    setProfile(snap.profile);
     setLoadError(snap.loadError);
     setLoading(false);
   }, []);
@@ -145,7 +179,7 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     const snap = await fetchAll();
     if (snap === "unauthenticated") {
-      router.push("/signup");
+      router.replace("/signup");
       return;
     }
     applySnapshot(snap);
@@ -176,7 +210,7 @@ export default function DashboardPage() {
       const snap = await fetchAll();
       if (ignore) return;
       if (snap === "unauthenticated") {
-        router.push("/signup");
+        router.replace("/signup");
         return;
       }
       applySnapshot(snap);
@@ -185,7 +219,7 @@ export default function DashboardPage() {
           outcome === "upgraded"
             ? "Payment confirmed — your Premium year is active! 🎉"
             : outcome === "topped_up"
-              ? "Payment confirmed — your extra taps are ready! 🎉"
+              ? "Payment confirmed — your extra plays are ready! 🎉"
               : payError === "payment_pending"
                 ? "Payment received — we're confirming it now. Your account updates automatically the moment it clears."
                 : "We couldn't confirm that payment yet. If you were charged, it's applied automatically once it clears."
@@ -199,7 +233,7 @@ export default function DashboardPage() {
     };
   }, [fetchAll, router, applySnapshot]);
 
-  // Keep the dashboard live: new customers, taps, redemptions, and deletions
+  // Keep the dashboard live: new customers, plays, redemptions, and deletions
   // show up on their own. Unlike load(), a background poll never redirects to
   // login on a transient auth blip — that would log the merchant out for no
   // reason — it just skips the update.
@@ -222,14 +256,13 @@ export default function DashboardPage() {
     );
   }
 
-  const activeGrids = grids.filter((g) => g.status === "active");
+  const payoutReady = Boolean(merchant?.paystack_subaccount_code);
   const tier = merchant ? effectiveTierNow(merchant) : "free";
-  const limits = TIER_LIMITS[tier];
 
-  const openWizard = () => {
+  const openGameWizard = () => {
     setTab("build");
-    setBuildSub("grids");
-    setShowWizard(true);
+    setBuildSub("games");
+    setShowGameWizard(true);
   };
 
   // The whole dashboard picks up the merchant's brand color.
@@ -244,7 +277,7 @@ export default function DashboardPage() {
           merchant={merchant}
           onSignOut={async () => {
             await supabaseBrowser().auth.signOut();
-            router.push("/signup");
+            router.replace("/signup");
           }}
         />
 
@@ -261,22 +294,49 @@ export default function DashboardPage() {
           <div className="alert-error mt-6 max-w-xl px-4 py-3">{loadError}</div>
         ) : !merchant ? (
           <OnboardingForm onCreated={load} />
-        ) : showWizard ? (
-          <GridWizard
-            tier={tier}
-            willReplaceActive={tier === "free" && activeGrids.length > 0}
-            onDone={async () => {
-              setShowWizard(false);
-              setTab("build");
-              setBuildSub("grids");
-              await load();
-            }}
-            onCancel={() => setShowWizard(false)}
-            onManageRewards={() => {
-              setShowWizard(false);
+        ) : editingGame ? (
+          <GameEditor
+            game={editingGame}
+            brandColor={merchant.brand_color}
+            rewards={rewardTemplates}
+            onSaved={load}
+            onCancel={() => setEditingGame(null)}
+            onCreateReward={() => {
+              setEditingGame(null);
               setTab("build");
               setBuildSub("rewards");
             }}
+          />
+        ) : showGameWizard ? (
+          <GameWizard
+            tier={tier}
+            brandColor={merchant.brand_color}
+            businessName={merchant.business_name}
+            profile={profile}
+            rewardTemplates={rewardTemplates}
+            onDone={async () => {
+              setShowGameWizard(false);
+              setTab("build");
+              setBuildSub("games");
+              await load();
+            }}
+            onCancel={() => setShowGameWizard(false)}
+            onUpgrade={
+              tier === "free"
+                ? () => {
+                    setShowGameWizard(false);
+                    setTab("plans");
+                  }
+                : undefined
+            }
+            onSetUpPayouts={
+              payoutReady
+                ? undefined
+                : () => {
+                    setShowGameWizard(false);
+                    setTab("settings");
+                  }
+            }
           />
         ) : (
           <>
@@ -306,19 +366,33 @@ export default function DashboardPage() {
                 <GettingStarted
                   merchant={merchant}
                   hasReward={hasReward}
-                  hasGrid={grids.length > 0}
+                  hasGame={games.length > 0}
+                  hasProfile={Boolean(profile.industry)}
+                  profilePercent={completionPercent(
+                    completionItems(profile, merchant, {
+                      hasReward,
+                      hasGame: games.length > 0,
+                    })
+                  )}
                   onCreateReward={() => {
                     setTab("build");
                     setBuildSub("rewards");
                   }}
-                  onCreateGrid={openWizard}
+                  onCreateGame={openGameWizard}
                   onOpenSettings={() => setTab("settings")}
+                />
+                <GamesHighlight
+                  games={games}
+                  onNewGame={openGameWizard}
+                  onManage={() => {
+                    setTab("build");
+                    setBuildSub("games");
+                  }}
                 />
                 <ShareLink slug={merchant.slug} tier={tier} />
                 <PlaysWidget plan={plan} onManage={() => setTab("plans")} />
+                <RevenueCard revenue={stats?.revenue ?? null} />
                 <StatsSummary stats={stats} />
-                <RedeemBox onRedeemed={load} />
-                <UnlocksList unlocks={unlocks} />
               </div>
             )}
 
@@ -327,7 +401,7 @@ export default function DashboardPage() {
                 <div className="inline-flex gap-1 rounded-xl border border-zinc-200 bg-white p-1">
                   {(
                     [
-                      { key: "grids", label: "Grids", icon: Grid3x3 },
+                      { key: "games", label: "Games", icon: Gamepad2 },
                       { key: "rewards", label: "Rewards", icon: Gift },
                     ] as const
                   ).map(({ key, label, icon: Icon }) => (
@@ -352,14 +426,17 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
-                {buildSub === "grids" ? (
-                  <GridsManager
-                    grids={grids}
+                {buildSub === "games" ? (
+                  <GamesManager
+                    games={games}
                     tier={tier}
-                    activeCount={activeGrids.length}
-                    maxActive={limits.maxActiveGrids}
-                    onNewGrid={() => setShowWizard(true)}
+                    merchantSlug={merchant.slug}
+                    brandColor={merchant.brand_color}
+                    onNewGame={() => setShowGameWizard(true)}
+                    onEditGame={setEditingGame}
                     onChanged={load}
+                    onUpgrade={tier === "free" ? () => setTab("plans") : undefined}
+                    onSetUpPayouts={() => setTab("settings")}
                   />
                 ) : (
                   <RewardsManager onChanged={load} />
@@ -369,11 +446,9 @@ export default function DashboardPage() {
 
             {tab === "customers" && (
               <div className="mt-6 space-y-6">
-                <CustomersList
-                  customers={customers}
-                  pointsPerDiscount={merchant.points_per_discount}
-                  discountPercent={merchant.discount_percent}
-                />
+                <RedeemBox onRedeemed={load} />
+                <UnlocksList unlocks={unlocks} />
+                <CustomersList customers={customers} />
               </div>
             )}
 
@@ -388,8 +463,34 @@ export default function DashboardPage() {
             )}
 
             {tab === "settings" && (
-              <div className="mt-6 space-y-6">
-                <BrandSettings merchant={merchant} onSaved={load} />
+              <div className="mt-6">
+                <SettingsPanel
+                  merchant={merchant}
+                  profile={profile}
+                  profilePercent={completionPercent(
+                    completionItems(profile, merchant, {
+                      hasReward,
+                      hasGame: games.length > 0,
+                      payoutReady,
+                    })
+                  )}
+                  rewards={rewardTemplates}
+                  hasReward={hasReward}
+                  hasGame={games.length > 0}
+                  payoutReady={payoutReady}
+                  onRewardsChanged={load}
+                  onSaved={load}
+                  onProfileSaved={async (created) => {
+                    await load();
+                    if (created > 0) {
+                      setBanner(
+                        `We built ${created} game${created === 1 ? "" : "s"} from your answers — have a look under Build → Games.`
+                      );
+                      setTab("build");
+                      setBuildSub("games");
+                    }
+                  }}
+                />
               </div>
             )}
           </>

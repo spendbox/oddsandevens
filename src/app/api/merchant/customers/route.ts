@@ -5,9 +5,9 @@ import { COOLDOWN_HOURS } from "@/lib/constants";
 import type { CustomerSummary } from "@/lib/types";
 
 // Participating customers for the dashboard: everyone who has played this
-// merchant's grid, with points, active codes, and how far they are from a
-// loyalty discount. customer_merchant_state has no client RLS policy, so this
-// goes through the service role.
+// business's games, with the prizes they have won and not yet collected.
+// customer_merchant_state has no client RLS policy, so this goes through the
+// service role.
 export async function GET() {
   const { userId, merchant } = await getAuthedMerchant();
   if (!userId) {
@@ -23,7 +23,7 @@ export async function GET() {
     db
       .from("customer_merchant_state")
       .select(
-        "customer_id, last_played_at, loyalty_points, points_expire_at, total_plays, customers(email)"
+        "customer_id, last_played_at, total_plays, customers(email)"
       )
       .eq("merchant_id", merchant.id)
       .order("last_played_at", { ascending: false })
@@ -31,7 +31,7 @@ export async function GET() {
     db
       .from("unlocked_rewards")
       .select(
-        "customer_id, reward_type, discount_percent, status, expires_at, rewards(description)"
+        "customer_id, reward_type, discount_percent, status, expires_at, rewards(description), game_prizes(description)"
       )
       .eq("merchant_id", merchant.id),
   ]);
@@ -53,10 +53,13 @@ export async function GET() {
     if (u.status === "unredeemed" && new Date(u.expires_at).getTime() > now) {
       entry.active.push({
         description:
-          u.reward_type === "loyalty_discount"
-            ? `${u.discount_percent}% loyalty discount`
-            : ((u.rewards as unknown as { description: string } | null)
-                ?.description ?? "Tile reward"),
+          u.reward_type === "game"
+            ? ((u.game_prizes as unknown as { description: string } | null)
+                ?.description ?? "Game prize")
+            : u.reward_type === "loyalty_discount"
+              ? `${u.discount_percent}% discount`
+              : ((u.rewards as unknown as { description: string } | null)
+                  ?.description ?? "Reward"),
         expiresAt: u.expires_at,
       });
     }
@@ -68,37 +71,13 @@ export async function GET() {
     const nextPlayAt =
       cooldownEnd && cooldownEnd > now ? new Date(cooldownEnd).toISOString() : null;
 
-    // Rolling expiry: a lapsed balance reads as zero.
-    const pointsExpired =
-      s.points_expire_at != null &&
-      new Date(s.points_expire_at).getTime() <= now;
-    const loyaltyPoints = pointsExpired ? 0 : s.loyalty_points;
-
-    // One loyalty point per play, one play per cooldown window: the soonest a
-    // customer can afford a discount is pointsToDiscount plays from now.
-    const pointsToDiscount = Math.max(
-      merchant.points_per_discount - loyaltyPoints,
-      0
-    );
-    let discountReadyAt: string | null = null;
-    if (pointsToDiscount > 0) {
-      const start = cooldownEnd && cooldownEnd > now ? cooldownEnd : now;
-      discountReadyAt = new Date(
-        start + (pointsToDiscount - 1) * cooldownMs
-      ).toISOString();
-    }
-
     const entry = unlocksByCustomer.get(s.customer_id);
     return {
       email:
         (s.customers as unknown as { email: string } | null)?.email ?? "—",
-      loyaltyPoints,
-      pointsExpireAt: pointsExpired ? null : (s.points_expire_at ?? null),
       totalPlays: s.total_plays ?? 0,
       lastPlayedAt: s.last_played_at,
       nextPlayAt,
-      pointsToDiscount,
-      discountReadyAt,
       activeCodes: entry?.active ?? [],
       totalUnlocks: entry?.total ?? 0,
     };

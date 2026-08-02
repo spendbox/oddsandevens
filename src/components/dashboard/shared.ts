@@ -3,10 +3,12 @@
 
 import type {
   CustomerSummary,
-  GridStats,
   MerchantPlan,
   MerchantStats,
+  RewardTemplate,
 } from "@/lib/types";
+import type { GameSummary } from "@/lib/games/types";
+import type { BusinessProfile } from "@/lib/business/profile";
 import type { SubscriptionTier } from "@/lib/constants";
 
 export interface Merchant {
@@ -18,8 +20,10 @@ export interface Merchant {
   logo_url: string | null;
   tagline: string | null;
   brand_color: string;
-  points_per_discount: number;
-  discount_percent: number;
+  /** Present once payouts are wired up: their Paystack subaccount. */
+  paystack_subaccount_code?: string | null;
+  /** Their own price for a block of extra plays; null means platform default. */
+  life_topup_price_kobo?: number | null;
   whatsapp: string | null;
   contact_email: string | null;
 }
@@ -35,17 +39,21 @@ export interface UnlockRow {
   // Computed at fetch time (render must stay pure, no Date.now() in JSX).
   isExpired: boolean;
   rewards: { description: string } | null;
+  // Set instead of `rewards` when the code came from a branded game.
+  game_prizes: { description: string } | null;
   customers: { email: string } | null;
 }
 
 export interface Snapshot {
   merchant: Merchant | null;
-  grids: GridStats[];
   unlocks: UnlockRow[];
   customers: CustomerSummary[];
   stats: MerchantStats | null;
   plan: MerchantPlan | null;
   hasReward: boolean;
+  rewardTemplates: RewardTemplate[];
+  games: GameSummary[];
+  profile: BusinessProfile;
   // Set when the merchant query itself failed (e.g. schema out of date) —
   // never show onboarding in that case, the merchant may well exist.
   loadError: string | null;
@@ -93,4 +101,9 @@ export function formatDate(iso: string): string {
     month: "short",
     year: "numeric",
   });
+}
+
+/** Kobo as naira, rounded to whole naira: "₦2,500". */
+export function naira(kobo: number): string {
+  return `₦${Math.round(kobo / 100).toLocaleString()}`;
 }

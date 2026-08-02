@@ -3,10 +3,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAuthedMerchant } from "@/lib/merchant-auth";
 import type { StaffLookupResult } from "@/lib/types";
 
-// Staff redemption, step 1: resolve whatever code the customer showed —
-// their cycling loyalty code, their fixed reward code, or a legacy one-time
-// redemption code. The code itself is the credential; there is deliberately
-// no lookup-by-customer-email path.
+// Staff redemption, step 1: resolve the code the customer showed. The code
+// itself is the credential; there is deliberately no lookup-by-customer-email
+// path.
 export async function POST(req: Request) {
   const { userId, merchant } = await getAuthedMerchant();
   if (!userId) {

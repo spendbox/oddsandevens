@@ -19,18 +19,17 @@ export async function GET() {
       .limit(500),
     db
       .from("customer_merchant_state")
-      .select("customer_id, loyalty_points, total_plays"),
+      .select("customer_id, total_plays"),
   ]);
   if (error) {
     console.error("[admin customers] list failed:", error);
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 
-  const agg = new Map<string, { businesses: number; points: number; plays: number }>();
+  const agg = new Map<string, { businesses: number; plays: number }>();
   for (const s of states ?? []) {
-    const entry = agg.get(s.customer_id) ?? { businesses: 0, points: 0, plays: 0 };
+    const entry = agg.get(s.customer_id) ?? { businesses: 0, plays: 0 };
     entry.businesses += 1;
-    entry.points += s.loyalty_points;
     entry.plays += s.total_plays ?? 0;
     agg.set(s.customer_id, entry);
   }
@@ -41,7 +40,6 @@ export async function GET() {
       email: c.email,
       createdAt: c.created_at,
       businesses: agg.get(c.id)?.businesses ?? 0,
-      points: agg.get(c.id)?.points ?? 0,
       plays: agg.get(c.id)?.plays ?? 0,
     })),
   });

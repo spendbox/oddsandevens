@@ -6,15 +6,6 @@ export const COOLDOWN_HOURS = 10;
 // Every grid is a fixed 7x7 board.
 export const GRID_SIZE = 7;
 
-// Loyalty exchange defaults for new merchants; each merchant can override
-// points_per_discount / discount_percent from their dashboard.
-export const DEFAULT_POINTS_PER_DISCOUNT = 3;
-export const DEFAULT_DISCOUNT_PERCENT = 2;
-
-// Loyalty points live 7 days from the last play (rolling window: playing
-// again extends the whole balance).
-export const POINTS_EXPIRY_DAYS = 7;
-
 // Reward validity is configured in days on the dashboard.
 export const REWARD_EXPIRY_DAYS_MIN = 1;
 export const REWARD_EXPIRY_DAYS_MAX = 60;
@@ -60,6 +51,26 @@ export const DEFAULT_FREE_YEARLY_PLAYS = 100;
 export const DEFAULT_PREMIUM_YEARLY_PLAYS = 5000;
 // Top-ups are priced per 1,000 plays; the business buys any custom quantity.
 export const DEFAULT_TOPUP_PRICE_PER_1000_KOBO = 100_000; // ₦1,000 / 1,000 plays
+/**
+ * What a player pays for more plays, and how many they get. ₦250 for ten,
+ * good for the current week — the only thing a *player* ever pays for, and
+ * strictly optional: the free weekly three are enough to top a board.
+ * Overridden by app_settings (life_topup_price_kobo / life_topup_lives).
+ */
+export const DEFAULT_LIFE_TOPUP_PRICE_KOBO = 25_000; // ₦250
+export const DEFAULT_LIFE_TOPUP_LIVES = 10;
+/**
+ * A business can set its own price instead. Below ₦500 the Paystack fee eats
+ * most of it and the split stops being worth splitting, so that's the floor.
+ * Overridden by app_settings (life_topup_min_price_kobo).
+ */
+export const DEFAULT_LIFE_TOPUP_MIN_PRICE_KOBO = 50_000; // ₦500
+
+// What Spendbox keeps of a life purchase; the business keeps the rest. The
+// split itself is done in `life_revenue` — this is only the fallback for a
+// setting that hasn't been written yet.
+export const DEFAULT_PLATFORM_SHARE_PERCENT = 30;
+
 export const TOPUP_MIN_PLAYS = 100;
 export const TOPUP_MAX_PLAYS = 1_000_000;
 

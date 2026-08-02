@@ -4,18 +4,18 @@ import { useState } from "react";
 import {
   Check,
   Copy,
+  Gamepad2,
   Gift,
-  Grid3x3,
   HelpCircle,
   Palette,
   Share2,
   Sparkles,
 } from "lucide-react";
-import { DEFAULT_POINTS_PER_DISCOUNT } from "@/lib/constants";
+import { Modal } from "@/components/ui/modal";
 import type { Merchant } from "./shared";
 
 interface Step {
-  key: "reward" | "grid" | "brand" | "share";
+  key: "profile" | "reward" | "game" | "brand" | "share";
   title: string;
   description: string;
   done: boolean;
@@ -28,22 +28,28 @@ function sharedKey(merchantId: string) {
   return `th_shared_${merchantId}`;
 }
 
-// First-login guide: a three-step checklist (create a grid, brand the page,
-// share the link) with a short tutorial popup per step. Disappears once all
+// First-login guide: a short checklist (add a reward, launch a game, brand the
+// page, share the link) with a tutorial popup per step. Disappears once all
 // steps are done or the merchant dismisses it.
 export function GettingStarted({
   merchant,
   hasReward,
-  hasGrid,
+  hasGame,
+  hasProfile,
+  profilePercent,
   onCreateReward,
-  onCreateGrid,
+  onCreateGame,
   onOpenSettings,
 }: {
   merchant: Merchant;
   hasReward: boolean;
-  hasGrid: boolean;
+  hasGame: boolean;
+  /** Have they told us what kind of business they run? */
+  hasProfile: boolean;
+  /** How complete the picture of their business is, 0-100. */
+  profilePercent: number;
   onCreateReward: () => void;
-  onCreateGrid: () => void;
+  onCreateGame: () => void;
   onOpenSettings: () => void;
 }) {
   const [shared, setShared] = useState(
@@ -61,10 +67,26 @@ export function GettingStarted({
 
   const shareUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/g/${merchant.slug}`
-      : `/g/${merchant.slug}`;
+      ? `${window.location.origin}/p/${merchant.slug}`
+      : `/p/${merchant.slug}`;
 
   const steps: Step[] = [
+    {
+      key: "profile",
+      title: "Tell us about your business",
+      description:
+        hasProfile
+          ? `We know ${profilePercent}% of what we could — the rest sharpens your games.`
+          : "A minute of tapping and we'll write your first games for you.",
+      done: hasProfile,
+      actionLabel: hasProfile ? "Add more" : "Start here",
+      icon: <Sparkles className="size-4" aria-hidden />,
+      tutorial: [
+        "Open Settings and pick your trade, what you sell, and what you could give away — it's mostly tapping.",
+        "The moment you save, we write a handful of games built around those answers and put them under Build → Games.",
+        "You can keep adding detail later; the more we know, the better the games we write.",
+      ],
+    },
     {
       key: "reward",
       title: "Create a reward",
@@ -75,20 +97,20 @@ export function GettingStarted({
       tutorial: [
         "Open Build → Rewards and add the prizes you want to give away (e.g. \"Free plate of jollof\").",
         "Set how long each reward stays valid once a customer wins it.",
-        "You'll pick from these rewards when you build a grid, so create them first.",
+        "You'll pick from these rewards when you build a game, so create them first.",
       ],
     },
     {
-      key: "grid",
-      title: "Create your first grid",
-      description: "Hide your rewards under 49 tiles for customers to hunt.",
-      done: hasGrid,
-      actionLabel: "Create grid",
-      icon: <Grid3x3 className="size-4" aria-hidden />,
+      key: "game",
+      title: "Launch your first game",
+      description: "Whack-a-mole, slice ninja or match three.",
+      done: hasGame,
+      actionLabel: "Create game",
+      icon: <Gamepad2 className="size-4" aria-hidden />,
       tutorial: [
-        "A grid is a 7×7 board of hidden tiles. Customers tap one tile per visit.",
-        "Pick which of your rewards to hide and how many winning tiles each gets — the rest of the tiles earn loyalty points instead.",
-        "Rewards land on random tiles server-side, so nobody (not even you) knows where they are.",
+        "Open Build → Games and pick a game. Everything is pre-filled, and the preview lets you play it while you set it up.",
+        "Choose what the top of the leaderboard wins each week, and how many of each you'll give away.",
+        "Every score is settled on our servers, so a board can't be rigged from anyone's phone.",
       ],
     },
     {
@@ -99,9 +121,9 @@ export function GettingStarted({
       actionLabel: "Open settings",
       icon: <Palette className="size-4" aria-hidden />,
       tutorial: [
-        "Upload your logo and pick your brand color — the whole customer page (tiles included) takes on your colors.",
+        "Upload your logo and pick your brand color — every game you share takes on your colors.",
         "Add a tagline and contact details so customers can reach you.",
-        `Set your loyalty exchange rate: how many points (default ${DEFAULT_POINTS_PER_DISCOUNT}) buy what discount.`,
+        "Your colour carries into every game you share, so the page looks like your shop rather than like ours.",
       ],
     },
     {
@@ -112,7 +134,7 @@ export function GettingStarted({
       actionLabel: copied ? "Copied!" : "Copy link",
       icon: <Share2 className="size-4" aria-hidden />,
       tutorial: [
-        "Your customer page lives at the link on your dashboard — anyone with it can play.",
+        "Your games hub lives at the link on your dashboard, and every game also has its own link.",
         "Customers only need an email to join; they get a code by email when they win.",
         "Post the link on WhatsApp, Instagram, or print it as a QR code at the counter.",
       ],
@@ -123,8 +145,9 @@ export function GettingStarted({
   if (remaining === 0) return null;
 
   async function act(step: Step) {
-    if (step.key === "reward") onCreateReward();
-    else if (step.key === "grid") onCreateGrid();
+    if (step.key === "profile") onOpenSettings();
+    else if (step.key === "reward") onCreateReward();
+    else if (step.key === "game") onCreateGame();
     else if (step.key === "brand") onOpenSettings();
     else {
       await navigator.clipboard.writeText(shareUrl);
@@ -204,31 +227,17 @@ export function GettingStarted({
       </ul>
 
       {tutorial && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
-          onClick={() => setTutorial(null)}
-        >
-          <div
-            className="animate-pop-in card w-full max-w-sm p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                {tutorial.icon}
-              </span>
-              {tutorial.title}
-            </h3>
-            <ol className="mt-4 space-y-3">
-              {tutorial.tutorial.map((line, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm leading-relaxed text-zinc-600">
-                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-700">
-                    {i + 1}
-                  </span>
-                  {line}
-                </li>
-              ))}
-            </ol>
-            <div className="mt-5 flex gap-2">
+        <Modal
+          title={tutorial.title}
+          icon={
+            <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+              {tutorial.icon}
+            </span>
+          }
+          width="sm"
+          onClose={() => setTutorial(null)}
+          footer={
+            <div className="flex gap-2">
               <button
                 onClick={() => setTutorial(null)}
                 className="btn-secondary grow"
@@ -246,8 +255,22 @@ export function GettingStarted({
                 {tutorial.actionLabel}
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <ol className="space-y-3">
+            {tutorial.tutorial.map((line, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-2.5 text-sm leading-relaxed text-zinc-600"
+              >
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-700">
+                  {i + 1}
+                </span>
+                {line}
+              </li>
+            ))}
+          </ol>
+        </Modal>
       )}
     </section>
   );

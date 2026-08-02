@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  Boxes,
+  CalendarDays,
   ChevronDown,
-  Gift,
+  Gamepad2,
+  Gem,
+  Hammer,
   Link2,
   Mail,
   MessageCircle,
@@ -15,51 +17,69 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
-  Target,
+  Sword,
   Trophy,
-  Utensils,
-  X,
+  Wand2,
 } from "lucide-react";
+import { GameLoop } from "@/components/games/game-loop";
 
 // The landing is a vertical deck of full-screen snap cards: each swipe up
 // snaps to the next section, and the section flips into view like a card
 // being turned (see FlipCard). Everything is CSS-animated; the only JS is
 // two IntersectionObservers (flip trigger + active-dot tracking).
 
-// Decorative hero board: a fixed pattern with a few "winning" tiles that pop
-// on a loop.
-const DEMO_TILES: ("gift" | "miss" | "")[] = [
-  "", "", "miss", "", "", "gift",
-  "", "gift", "", "", "miss", "",
-  "miss", "", "", "gift", "", "",
-  "", "", "miss", "", "", "miss",
-  "", "gift", "", "miss", "", "",
-  "miss", "", "", "", "gift", "",
+// The hero sample. This is the whole catalogue, not a selection from it, so
+// the labels have to stay in step with the games marked `competitive` in
+// `GAMES` — anything hidden there has to come out of here too.
+const DEMO_GAMES: {
+  label: string;
+  type: string;
+  icon: string;
+  swatch: [string, string];
+}[] = [
+  {
+    label: "Whack-a-Mole",
+    type: "whack-a-mole",
+    icon: "hammer",
+    swatch: ["#a16207", "#16a34a"],
+  },
+  {
+    label: "Slice Ninja",
+    type: "slice-ninja",
+    icon: "sword",
+    swatch: ["#e11d48", "#f59e0b"],
+  },
+  {
+    label: "Match Three",
+    type: "match-3",
+    icon: "gem",
+    swatch: ["#db2777", "#7c3aed"],
+  },
 ];
 
 const STEPS = [
   {
-    Icon: Boxes,
-    title: "Hide your rewards",
-    text: "Drop your rewards onto a branded 7×7 grid. Positions are randomized server-side — even you can't see where they land.",
+    Icon: Gamepad2,
+    title: "Pick a game",
+    text: "Whack-a-mole, slice ninja, match three. Pick one and it's already written for your business — your products on it, your prizes in it.",
+  },
+  {
+    Icon: Wand2,
+    title: "Make it yours",
+    text: "Your logo, your colours, and the prizes for the top of the board. The real game plays right beside you as you set it up, so nothing has to be imagined.",
   },
   {
     Icon: Share2,
     title: "Share one link",
-    text: "Put a single link in your WhatsApp bio, on receipts, or a counter QR. No app, no sign-up for customers.",
-  },
-  {
-    Icon: Trophy,
-    title: "Watch them come back",
-    text: "One tap per visit: a win emails a redemption code, a miss earns loyalty points. Either way, they return.",
+    text: "Drop it in your WhatsApp bio, on receipts, or a counter QR. No app and no sign-up — when the week ends, the winners get a redemption code by email.",
   },
 ];
 
 const FEATURES = [
   {
-    Icon: Target,
-    title: "One tap per visit",
-    text: "A built-in cooldown keeps the game fair and gives customers a reason to come back tomorrow.",
+    Icon: Trophy,
+    title: "A weekly leaderboard",
+    text: "Every game is a competition that runs for a week. Top scores win the prizes you set, the board resets, and the chase starts again.",
   },
   {
     Icon: Mail,
@@ -68,17 +88,26 @@ const FEATURES = [
   },
   {
     Icon: ShieldCheck,
-    title: "Fraud-proof redemption",
-    text: "Staff redeem by code, never by looking up an email. A reward can't be over-claimed or double-dipped.",
+    title: "Scores you can trust",
+    text: "Every score is checked and recorded on our servers, and each player gets a fixed number of plays a week — so the board rewards skill, not a faster phone.",
   },
+];
+
+// An illustration of a finished week, not anyone's real board. Names are
+// masked on the live leaderboards the same way.
+const WEEK_BOARD = [
+  { medal: "🥇", name: "ad***a@gmail.com", score: "4,820" },
+  { medal: "🥈", name: "ch***u@gmail.com", score: "4,415" },
+  { medal: "🥉", name: "to***e@yahoo.com", score: "3,970" },
+  { medal: "4", name: "you", score: "3,201" },
 ];
 
 const SECTIONS = [
   { id: "hero", label: "Spendbox" },
-  { id: "story", label: "Amara's story" },
-  { id: "step-1", label: "Hide your rewards" },
-  { id: "step-2", label: "Share one link" },
-  { id: "step-3", label: "Watch them come back" },
+  { id: "story", label: "A week on Spendbox" },
+  { id: "step-1", label: "Pick a game" },
+  { id: "step-2", label: "Make it yours" },
+  { id: "step-3", label: "Share one link" },
   { id: "features", label: "Why it works" },
   { id: "pricing", label: "Pricing" },
   { id: "start", label: "Get started" },
@@ -155,34 +184,29 @@ function Deck({
 
 // --- Per-step animated visuals -------------------------------------------
 
-// Step 1: a mini grid shimmering while gift tiles pop — rewards being hidden.
-function HideRewardsVisual() {
-  const gifts = new Set([3, 7, 16, 21]);
+// Step 1: the catalogue — the three games drifting into view.
+function PickAGameVisual() {
+  const picks = [
+    { Icon: Hammer, className: "left-1 top-3", delay: "0ms" },
+    { Icon: Sword, className: "right-1 top-1", delay: "600ms" },
+    { Icon: Gem, className: "left-1/2 bottom-2 -translate-x-1/2", delay: "1200ms" },
+  ];
   return (
-    <div className="mx-auto grid w-44 grid-cols-5 gap-1" aria-hidden>
-      {Array.from({ length: 25 }, (_, i) => (
-        <div
-          key={i}
-          className="tile-live flex aspect-square items-center justify-center rounded-md"
-          style={{
-            animation: `tile-shimmer ${2400 + ((i * 131) % 1800)}ms ease-in-out ${(i * 97) % 1600}ms infinite`,
-          }}
+    <div className="relative mx-auto h-40 w-full max-w-xs" aria-hidden>
+      {picks.map(({ Icon, className, delay }) => (
+        <span
+          key={delay}
+          className={`absolute flex size-12 items-center justify-center rounded-2xl border border-emerald-100 bg-white text-emerald-600 shadow-lg ${className}`}
+          style={{ animation: `float-slow 5s ease-in-out ${delay} infinite` }}
         >
-          {gifts.has(i) && (
-            <Gift
-              className="size-3.5 text-white"
-              style={{
-                animation: `gift-pop ${3000 + ((i * 173) % 1400)}ms ease-in-out ${(i * 210) % 1200}ms infinite`,
-              }}
-            />
-          )}
-        </div>
+          <Icon className="size-6" />
+        </span>
       ))}
     </div>
   );
 }
 
-// Step 2: the one link with a sheen sweeping across it, channels floating around.
+// Step 3: the one link with a sheen sweeping across it, channels floating around.
 function ShareLinkVisual() {
   const orbit = [
     { Icon: MessageCircle, className: "-left-2 top-2", delay: "0ms" },
@@ -203,7 +227,7 @@ function ShareLinkVisual() {
       <div className="relative overflow-hidden rounded-full border border-emerald-200 bg-white px-5 py-2.5 font-mono text-sm text-emerald-700 shadow-lg">
         <span className="flex items-center gap-2">
           <Link2 className="size-4" />
-          spendbox.site/g/your-shop
+          spendbox.site/p/your-shop
         </span>
         <span
           className="pointer-events-none absolute inset-0"
@@ -219,12 +243,13 @@ function ShareLinkVisual() {
   );
 }
 
-// Step 3: the trophy pulsing with halo rings, loyalty points drifting in.
-function ComeBackVisual() {
+// Step 2: the game being dressed — it playing inside a phone, with the
+// settings that shaped it floating alongside.
+function MakeItYoursVisual() {
   const chips = [
-    { label: "+1 point", className: "-left-4 top-4", delay: "300ms" },
-    { label: "+1 point", className: "-right-6 top-14", delay: "1400ms" },
-    { label: "10% off", className: "left-0 bottom-0", delay: "2300ms" },
+    { label: "Your logo", className: "-left-3 top-3", delay: "300ms" },
+    { label: "Your prizes", className: "-right-4 top-16", delay: "1400ms" },
+    { label: "Your colours", className: "left-1 bottom-1", delay: "2300ms" },
   ];
   return (
     <div className="relative mx-auto flex h-40 w-full max-w-xs items-center justify-center" aria-hidden>
@@ -232,15 +257,11 @@ function ComeBackVisual() {
         className="absolute size-24 rounded-full bg-emerald-400/30"
         style={{ animation: "ring-pulse 2.4s ease-out infinite" }}
       />
-      <span
-        className="absolute size-24 rounded-full bg-emerald-400/30"
-        style={{ animation: "ring-pulse 2.4s ease-out 1.2s infinite" }}
-      />
-      <div
-        className="relative flex size-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-xl"
-        style={{ animation: "float-slow 4s ease-in-out infinite" }}
-      >
-        <Trophy className="size-10" />
+      <div className="relative flex h-32 w-20 items-center justify-center rounded-2xl border-4 border-zinc-900 bg-white shadow-xl">
+        <Gamepad2
+          className="size-12 text-emerald-600"
+          style={{ animation: "float-slow 3s ease-in-out infinite" }}
+        />
       </div>
       {chips.map(({ label, className, delay }) => (
         <span
@@ -256,7 +277,7 @@ function ComeBackVisual() {
   );
 }
 
-const STEP_VISUALS = [HideRewardsVisual, ShareLinkVisual, ComeBackVisual];
+const STEP_VISUALS = [PickAGameVisual, MakeItYoursVisual, ShareLinkVisual];
 
 // A "How it works" card: step chip, animated visual, icon, copy, deck dots.
 function StepCard({ index }: { index: number }) {
@@ -389,7 +410,7 @@ export default function LandingPage() {
             style={{ animationDelay: "0ms" }}
           >
             <Sparkles className="size-3.5" aria-hidden />
-            Gamified loyalty for your business
+            Branded games for your business
           </span>
 
           <h1
@@ -400,7 +421,7 @@ export default function LandingPage() {
               className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-lg sm:size-16"
               style={{ animation: "float-slow 5s ease-in-out infinite" }}
             >
-              <Boxes className="size-7 sm:size-9" aria-hidden />
+              <Gamepad2 className="size-7 sm:size-9" aria-hidden />
             </span>
             <span>
               Spend
@@ -414,9 +435,9 @@ export default function LandingPage() {
             className="animate-fade-up mt-5 max-w-xl text-balance text-lg leading-relaxed text-zinc-600"
             style={{ animationDelay: "160ms" }}
           >
-            Turn one-time shoppers into repeat buyers. Hide rewards inside a
-            beautifully branded grid, share one link, and let your customers
-            play to win their next perk.
+            Turn one-time shoppers into repeat buyers. Build a branded game —
+            whack-a-mole, slice ninja or match three — share one link, and let
+            your customers play their way up the leaderboard.
           </p>
 
           <div
@@ -429,49 +450,43 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          {/* Animated hero board */}
+          {/* Animated sample of the catalogue */}
           <div
-            className="animate-fade-up card mt-10 grid w-full max-w-[17rem] grid-cols-6 gap-1.5 p-3"
+            className="animate-fade-up mt-10 grid w-full max-w-md grid-cols-3 gap-2"
             style={{ animationDelay: "320ms" }}
             aria-hidden
           >
-            {DEMO_TILES.map((t, i) => (
+            {DEMO_GAMES.map((game, i) => (
               <div
-                key={i}
-                className={
-                  "flex aspect-square items-center justify-center rounded-lg " +
-                  (t === "gift"
-                    ? "bg-emerald-100 text-emerald-600 ring-1 ring-emerald-300"
-                    : t === "miss"
-                      ? "bg-zinc-100 text-zinc-300 ring-1 ring-zinc-200"
-                      : "tile-live")
-                }
-                style={
-                  t === ""
-                    ? {
-                        animation: `tile-shimmer ${2600 + ((i * 137) % 2000)}ms ease-in-out ${(i * 90) % 1800}ms infinite`,
-                      }
-                    : undefined
-                }
+                key={game.label}
+                className="card flex flex-col items-center gap-1.5 p-3"
+                style={{
+                  animation: `float-slow ${4.5 + (i % 3) * 0.6}s ease-in-out ${i * 250}ms infinite`,
+                }}
               >
-                {t === "gift" ? (
-                  <Gift
-                    className="size-4"
-                    style={{
-                      animation: `gift-pop ${3400 + ((i * 211) % 1600)}ms ease-in-out ${(i * 130) % 1500}ms infinite`,
-                    }}
-                  />
-                ) : t === "miss" ? (
-                  <X className="size-4" />
-                ) : null}
+                <GameLoop
+                  type={game.type}
+                  icon={game.icon}
+                  swatch={game.swatch}
+                  className="size-9 rounded-xl"
+                />
+                <span className="text-[11px] font-semibold text-zinc-600">
+                  {game.label}
+                </span>
               </div>
             ))}
           </div>
+          <p
+            className="animate-fade-up mt-3 text-xs font-medium text-zinc-400"
+            style={{ animationDelay: "400ms" }}
+          >
+            Three games, each one included on every plan.
+          </p>
         </div>
         <SwipeHint />
       </Deck>
 
-      {/* Card 2 — Case study: a food business selling loyalty rewards */}
+      {/* Card 2 — What a week actually looks like, start to finish */}
       <Deck id="story">
         <FlipCard className="flex justify-center">
           <div className="card relative w-full max-w-lg overflow-hidden p-8 text-center sm:p-10">
@@ -479,86 +494,72 @@ export default function LandingPage() {
               aria-hidden
               className="pointer-events-none absolute -right-4 -top-12 select-none text-[11rem] font-black leading-none text-emerald-500/[0.06]"
             >
-              ×
+              7
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
-              <Utensils className="size-3" aria-hidden />
-              Real-world play
+              <CalendarDays className="size-3" aria-hidden />
+              A week on Spendbox
             </span>
 
-            <p className="mt-6 text-6xl font-extrabold tracking-tight sm:text-7xl">
+            <h2 className="mt-6 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
+              One link, one board,
+              <br />
               <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-                3.5×
+                prizes on Monday
               </span>
-            </p>
-            <p className="mt-1 text-sm font-semibold uppercase tracking-[0.16em] text-zinc-400">
-              profit in one month
-            </p>
+            </h2>
 
-            {/* Before / after profit bars */}
-            <div
-              className="mx-auto mt-7 flex h-36 items-end justify-center gap-10"
-              aria-hidden
-            >
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-28 items-end">
-                  <div
-                    className="w-14 origin-bottom rounded-t-xl bg-zinc-200"
-                    style={{
-                      height: "28%",
-                      animation: "grow-bar 7s ease-in-out infinite",
-                    }}
-                  />
-                </div>
-                <span className="text-[11px] font-medium text-zinc-400">
-                  Before
-                </span>
-              </div>
-              <div className="relative flex flex-col items-center gap-2">
-                <span
-                  className="absolute -right-9 -top-1 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[11px] font-bold text-emerald-600 shadow-md"
-                  style={{ animation: "float-slow 4s ease-in-out infinite" }}
+            {/* The leaderboard the week is played for */}
+            <ol className="mx-auto mt-7 flex max-w-xs flex-col gap-2" aria-hidden>
+              {WEEK_BOARD.map((row, i) => (
+                <li
+                  key={row.name}
+                  className={
+                    "flex items-center gap-3 rounded-xl px-3 py-2 text-left " +
+                    (i === 0
+                      ? "bg-gradient-to-r from-emerald-50 to-teal-50 ring-1 ring-emerald-200"
+                      : "bg-zinc-50")
+                  }
+                  style={{
+                    animation: `float-slow ${5 + i}s ease-in-out ${i * 350}ms infinite`,
+                  }}
                 >
-                  +250%
-                </span>
-                <div className="flex h-28 items-end">
-                  <div
-                    className="w-14 origin-bottom rounded-t-xl bg-gradient-to-t from-emerald-600 to-teal-400"
-                    style={{
-                      height: "100%",
-                      animation: "grow-bar 7s ease-in-out 0.25s infinite",
-                    }}
-                  />
-                </div>
-                <span className="text-[11px] font-semibold text-emerald-700">
-                  With Spendbox
-                </span>
-              </div>
-            </div>
+                  <span className="w-5 shrink-0 text-center text-sm">
+                    {row.medal}
+                  </span>
+                  <span className="flex-1 truncate text-sm font-medium text-zinc-700">
+                    {row.name}
+                  </span>
+                  <span className="font-mono text-sm font-bold text-zinc-900">
+                    {row.score}
+                  </span>
+                </li>
+              ))}
+            </ol>
 
             <p className="mx-auto mt-7 max-w-md text-sm leading-relaxed text-zinc-600 sm:text-base">
-              Amara runs a jollof kitchen in Lagos. She hid free plates and
-              10%-off rewards in a Spendbox grid, put the link on every
-              takeaway receipt, and let customers play after each meal. Misses
-              earned loyalty points toward discounts, wins were meals — and her
-              regulars came back all month to keep their streaks.
+              Put your link on receipts, on a counter QR, in your WhatsApp bio.
+              Everyone who taps it gets three plays for the week and a place on
+              your board. When the week closes, whoever finished on top gets a
+              redemption code by email — and the board starts again from zero,
+              which is the reason they come back.
             </p>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-zinc-500">
               <span className="flex items-center gap-1.5">
-                <Trophy className="size-3.5 text-emerald-600" aria-hidden />
-                4× repeat visits
+                <Link2 className="size-3.5 text-emerald-600" aria-hidden />1
+                shared link
               </span>
               <span className="flex items-center gap-1.5">
                 <Star
                   className="size-3.5 fill-amber-400 text-amber-400"
                   aria-hidden
                 />
-                31 days
+                No app, no sign-up
               </span>
               <span className="flex items-center gap-1.5">
-                <Link2 className="size-3.5 text-emerald-600" aria-hidden />1
-                shared link
+                <Trophy className="size-3.5 text-emerald-600" aria-hidden />
+                Resets every week
               </span>
             </div>
           </div>
@@ -624,12 +625,12 @@ export default function LandingPage() {
                 <p className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">
                   100{" "}
                   <span className="text-base font-medium text-zinc-500">
-                    taps/yr
+                    plays/yr
                   </span>
                 </p>
                 <p className="mt-2 text-sm text-zinc-600">
-                  One live grid, two rewards, and your own branded board.
-                  Perfect for getting started.
+                  One live game with two prizes, branded to you — everyone who
+                  taps your link on the same leaderboard. Every game included.
                 </p>
               </div>
               <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/40 p-5">
@@ -642,18 +643,18 @@ export default function LandingPage() {
                 <p className="mt-1 text-3xl font-bold tracking-tight text-zinc-900">
                   5,000{" "}
                   <span className="text-base font-medium text-zinc-500">
-                    taps/yr
+                    plays/yr
                   </span>
                 </p>
                 <p className="mt-2 text-sm text-zinc-600">
-                  Unlimited grids, 10 rewards each, custom puzzle images, and
-                  interlocking tiles. Top up any time — on any plan.
+                  Unlimited live games, 10 prizes in each, and your own artwork
+                  throughout. Top up any time — on any plan.
                 </p>
               </div>
             </div>
             <p className="mt-4 text-center text-xs text-zinc-400">
-              A tap is one tile a customer flips. Need more? Buy top-up taps in
-              a click — no upgrade required.
+              A play is one round a customer finishes. Need more? Buy top-up
+              plays in a click — no upgrade required.
             </p>
           </FlipCard>
         </div>
@@ -668,17 +669,17 @@ export default function LandingPage() {
               className="flex size-16 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-xl"
               style={{ animation: "float-slow 5s ease-in-out infinite" }}
             >
-              <Boxes className="size-8" aria-hidden />
+              <Gamepad2 className="size-8" aria-hidden />
             </div>
             <h2 className="mt-6 max-w-xl text-balance text-4xl font-extrabold tracking-tight text-zinc-900 sm:text-5xl">
-              Ready to turn taps into repeat customers?
+              Ready to turn players into repeat customers?
             </h2>
             <p className="mt-4 max-w-md text-balance text-zinc-600">
-              Your first board takes about two minutes to set up — rewards,
-              brand colors, link and all.
+              Your first game takes about two minutes — pick it, play it in the
+              preview, share the link.
             </p>
             <Link href="/signup" className="btn-primary mt-8 text-base">
-              Create your first board
+              Build your first game
               <ArrowRight className="size-4" aria-hidden />
             </Link>
             <p className="mt-8 text-xs text-zinc-400">

@@ -8,11 +8,7 @@ import {
   type SubscriptionTier,
 } from "@/lib/constants";
 import type { MerchantPlan } from "@/lib/types";
-import { formatDate } from "./shared";
-
-function naira(kobo: number): string {
-  return `₦${Math.round(kobo / 100).toLocaleString()}`;
-}
+import { formatDate, naira } from "./shared";
 
 // Fraction of the annual base allowance still available (0..1), for the bar.
 function baseFraction(plan: MerchantPlan): number {
@@ -21,7 +17,7 @@ function baseFraction(plan: MerchantPlan): number {
 }
 
 // Compact home-page widget: plays left + one-tap routes into the Plans tab.
-// The "Go Premium" button only shows on the free tier — no permanent upsell.
+// The upgrade button only shows on the free tier — no permanent upsell.
 export function PlaysWidget({
   plan,
   onManage,
@@ -38,7 +34,7 @@ export function PlaysWidget({
         <div>
           <p className="section-title">
             <Gauge className="size-3.5" aria-hidden />
-            Taps left this year
+            Plays left this year
           </p>
           <p
             className={
@@ -63,7 +59,7 @@ export function PlaysWidget({
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98]"
             >
               <Crown className="size-4" aria-hidden />
-              Go Premium
+              Upgrade
             </button>
           )}
           <button onClick={onManage} className="btn-secondary px-3.5 py-2 text-sm">
@@ -138,7 +134,7 @@ export function PlansPanel({
       body?.error === "payments_not_configured"
         ? "Payments aren't configured yet — set PAYSTACK_SECRET_KEY on the server."
         : body?.error === "invalid_quantity"
-          ? `Choose between ${TOPUP_MIN_PLAYS.toLocaleString()} and ${TOPUP_MAX_PLAYS.toLocaleString()} taps.`
+          ? `Choose between ${TOPUP_MIN_PLAYS.toLocaleString()} and ${TOPUP_MAX_PLAYS.toLocaleString()} plays.`
           : "Couldn't start the payment. Try again."
     );
   }
@@ -166,7 +162,7 @@ export function PlansPanel({
       <div className="card p-5 sm:p-6">
         <p className="section-title">
           <Gauge className="size-3.5" aria-hidden />
-          Your taps
+          Your plays
         </p>
 
         <div className="mt-4 grid items-center gap-6 sm:grid-cols-[auto_1fr]">
@@ -174,7 +170,7 @@ export function PlansPanel({
             <p className="text-5xl font-bold tracking-tight text-zinc-900">
               {plan.playsRemaining.toLocaleString()}
             </p>
-            <p className="mt-1 text-sm text-zinc-500">taps remaining</p>
+            <p className="mt-1 text-sm text-zinc-500">plays remaining</p>
           </div>
 
           <dl className="grid grid-cols-3 gap-4">
@@ -213,8 +209,8 @@ export function PlansPanel({
           />
         </div>
         <p className="mt-2 text-xs text-zinc-400">
-          A tap is one tile a customer reveals. Your yearly allowance refills on
-          the reset date; topped-up taps never expire.
+          A play is one round a customer finishes. Your yearly allowance refills
+          on the reset date; topped-up plays never expire.
         </p>
       </div>
 
@@ -222,11 +218,11 @@ export function PlansPanel({
       <div className="card p-5">
         <p className="section-title">
           <Coins className="size-3.5" aria-hidden />
-          Buy more taps
+          Buy more plays
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-3">
           <label className="block">
-            <span className="field-label">Taps</span>
+            <span className="field-label">Plays</span>
             <input
               type="number"
               min={TOPUP_MIN_PLAYS}
@@ -255,7 +251,7 @@ export function PlansPanel({
             title={plan.paymentsEnabled ? undefined : "Payments not configured"}
           >
             <Zap className="size-4" aria-hidden />
-            {busyTopup ? "Redirecting…" : "Buy taps"}
+            {busyTopup ? "Redirecting…" : "Buy plays"}
           </button>
         </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -276,10 +272,10 @@ export function PlansPanel({
         <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-800">
           <Crown className="size-4" aria-hidden />
           {premium
-            ? "Premium plan"
+            ? "You're on Premium"
             : lapsed
               ? "Your Premium plan has ended"
-              : "Go Premium"}
+              : "Run more than one game"}
         </p>
         <p className="mt-1 text-sm text-zinc-600">
           {premium && premiumExpiresAt ? (
@@ -288,7 +284,7 @@ export function PlansPanel({
               <span className="font-medium text-zinc-800">
                 {formatDate(premiumExpiresAt)}
               </span>
-              . A renewal adds a full year on top and refreshes your yearly taps.
+              . Renewing adds another full year on top and refills your plays.
             </>
           ) : (
             <>
@@ -300,22 +296,21 @@ export function PlansPanel({
                   ·{" "}
                 </>
               )}
-              Get <span className="font-medium text-zinc-800">
-                {plan.premiumYearlyPlays.toLocaleString()} taps a year
-              </span>{" "}
-              (up from {plan.baseAllowance.toLocaleString()}), plus more grids,
-              rewards, and custom board styling.
+              Free gets you one live game and{" "}
+              {plan.baseAllowance.toLocaleString()} plays a year. Premium takes
+              the limit off games and raises you to{" "}
+              <span className="font-medium text-zinc-800">
+                {plan.premiumYearlyPlays.toLocaleString()} plays a year
+              </span>
+              . Everything else — every game, your branding, the full podium —
+              is on both.
             </>
           )}
         </p>
         <ul className="mt-3 grid gap-1.5 text-sm text-zinc-600 sm:grid-cols-2">
           {[
-            `${plan.premiumYearlyPlays.toLocaleString()} taps / year`,
-            "10 active grids",
-            "10 rewards per grid",
-            "Custom puzzle images",
-            "Interlocking tile shapes",
-            "Reset cooldowns up to a year",
+            `${plan.premiumYearlyPlays.toLocaleString()} plays a year, up from ${plan.baseAllowance.toLocaleString()}`,
+            "As many live games as you want, not one",
           ].map((f) => (
             <li key={f} className="flex items-center gap-1.5">
               <Sparkles className="size-3.5 text-amber-500" aria-hidden />

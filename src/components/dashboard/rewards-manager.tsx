@@ -28,7 +28,7 @@ const EMPTY: DraftState = {
 };
 
 // Build → Rewards: the merchant's reusable reward catalogue. Rewards are
-// created here first, then picked when building a grid.
+// created here first, then chosen as the prizes on a game's leaderboard.
 export function RewardsManager({ onChanged }: { onChanged?: () => void }) {
   const [rewards, setRewards] = useState<RewardTemplate[] | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -122,7 +122,8 @@ export function RewardsManager({ onChanged }: { onChanged?: () => void }) {
             Rewards
           </h2>
           <p className="mt-0.5 text-sm text-zinc-500">
-            Create your rewards here, then assign them when you build a grid.
+            Whatever you can give away. Set them up once, then hand them to the
+            top of a game&apos;s leaderboard.
           </p>
         </div>
         {draft === null && (
@@ -244,7 +245,8 @@ export function RewardsManager({ onChanged }: { onChanged?: () => void }) {
             <div className="rounded-xl border border-dashed border-zinc-200 p-8 text-center">
               <Gift className="mx-auto size-8 text-zinc-300" aria-hidden />
               <p className="mt-3 text-sm text-zinc-500">
-                No rewards yet. Create one to start building grids.
+                No rewards yet. Add one — a free coffee, 10% off, anything —
+                and it&apos;s ready to be a prize.
               </p>
             </div>
           )

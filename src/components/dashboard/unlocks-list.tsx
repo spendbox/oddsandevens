@@ -4,9 +4,13 @@ import { Ticket } from "lucide-react";
 import { formatDate, type UnlockRow } from "./shared";
 
 function description(u: UnlockRow): string {
-  return u.reward_type === "loyalty_discount"
-    ? `${u.discount_percent}% loyalty discount`
-    : (u.rewards?.description ?? "Tile reward");
+  if (u.reward_type === "loyalty_discount") {
+    return `${u.discount_percent}% discount`;
+  }
+  if (u.reward_type === "game") {
+    return u.game_prizes?.description ?? "Game prize";
+  }
+  return u.rewards?.description ?? "Tile reward";
 }
 
 function StatusBadge({ unlock }: { unlock: UnlockRow }) {
@@ -39,7 +43,7 @@ export function UnlocksList({ unlocks }: { unlocks: UnlockRow[] }) {
         Recent unlocks
       </h2>
       <p className="mt-1.5 text-xs text-zinc-500">
-        The latest rewards won and loyalty discounts redeemed.
+        The latest prizes won, and which have been collected.
       </p>
 
       {/* Phones: roomy stacked cards. */}
