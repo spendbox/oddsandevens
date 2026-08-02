@@ -303,7 +303,7 @@ export default function GamePlayer({
   if (playing) {
     return (
       <main
-        className="arcade fixed inset-0 z-50 flex h-[100dvh] w-full flex-col p-2 sm:p-3"
+        className="arcade fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-3"
         style={brandStyle}
       >
         <div className="mb-2 flex shrink-0 items-center gap-2">

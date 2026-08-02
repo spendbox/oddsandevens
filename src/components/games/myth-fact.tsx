@@ -8,8 +8,15 @@
 // What ends it is getting three wrong: the score is how far you got, which is
 // what makes it worth a leaderboard.
 
-import { useState } from "react";
-import { ActionButton, GradingOverlay, Hud, cfgList, type GameProps } from "./kit";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActionButton,
+  GradingOverlay,
+  Hud,
+  cfgList,
+  clamp,
+  type GameProps,
+} from "./kit";
 
 interface Statement {
   text?: string;
@@ -19,6 +26,11 @@ interface Statement {
 
 /** Wrong answers allowed before the run ends. */
 const MISTAKES_ALLOWED = 3;
+/** A right answer, and the bonus for answering it quickly. */
+const CORRECT_POINTS = 100;
+const SPEED_BONUS = 100;
+/** How long you have before the speed bonus is gone, in ms. */
+const SPEED_WINDOW = 6000;
 
 export default function MythFact({ config, accent, submit, showResult }: GameProps) {
   const statements = cfgList<Statement>(config, "statements", []).filter(
@@ -29,7 +41,16 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
   const [answered, setAnswered] = useState<boolean | null>(null);
   const [correct, setCorrect] = useState(0);
   const [wrong, setWrong] = useState(0);
+  const [score, setScore] = useState(0);
+  const [gained, setGained] = useState(0);
   const [grading, setGrading] = useState(false);
+  const scoreRef = useRef(0);
+  // Stamped when a statement goes on screen, so the answer can be timed.
+  const shownAt = useRef(0);
+
+  useEffect(() => {
+    shownAt.current = Date.now();
+  }, [step]);
 
   if (statements.length === 0) {
     return (
@@ -49,8 +70,20 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
   const answer = (saidFact: boolean) => {
     if (answered !== null) return;
     setAnswered(saidFact);
-    if (saidFact === isFact) setCorrect((c) => c + 1);
-    else setWrong((w) => w + 1);
+    if (saidFact !== isFact) {
+      setWrong((w) => w + 1);
+      setGained(0);
+      return;
+    }
+    // Knowing it is worth a hundred; knowing it straight away is worth two.
+    // Counting correct answers alone put every good player on the same score.
+    const took = Date.now() - shownAt.current;
+    const quickness = clamp(1 - took / SPEED_WINDOW, 0, 1);
+    const points = CORRECT_POINTS + Math.round(SPEED_BONUS * quickness);
+    scoreRef.current += points;
+    setScore(scoreRef.current);
+    setGained(points);
+    setCorrect((c) => c + 1);
   };
 
   const next = async () => {
@@ -60,7 +93,11 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
       return;
     }
     setGrading(true);
-    const outcome = await submit(correct, { seen: step + 1, wrong });
+    const outcome = await submit(scoreRef.current, {
+      correct,
+      seen: step + 1,
+      wrong,
+    });
     if (outcome) showResult();
     else setGrading(false);
   };
@@ -69,7 +106,7 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
     <div className="relative flex flex-col gap-4">
       <Hud
         items={[
-          { label: "Statement", value: step + 1, icon: "❓" },
+          { label: "Score", value: score, icon: "⚡" },
           { label: "Correct", value: correct, icon: "✅" },
           {
             label: "Lives",
@@ -119,7 +156,7 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
             }
           >
             <p className="font-bold">
-              {wasRight ? "Correct!" : "Not quite."} It&apos;s a{" "}
+              {wasRight ? `Correct! +${gained}` : "Not quite."} It&apos;s a{" "}
               {isFact ? "FACT" : "MYTH"}.
             </p>
             {current.explanation && <p className="mt-1">{current.explanation}</p>}

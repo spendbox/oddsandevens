@@ -23,7 +23,6 @@ const loading = () => (
 const SpinWheel = dynamic(() => import("./spin-wheel"), { ssr: false, loading });
 const ScratchCard = dynamic(() => import("./scratch-card"), { ssr: false, loading });
 const MysteryBox = dynamic(() => import("./mystery-box"), { ssr: false, loading });
-const AdventCalendar = dynamic(() => import("./advent-calendar"), { ssr: false, loading });
 const EndlessRunner = dynamic(() => import("./endless-runner"), { ssr: false, loading });
 const FallingCatcher = dynamic(() => import("./falling-catcher"), { ssr: false, loading });
 const SliceNinja = dynamic(() => import("./slice-ninja"), { ssr: false, loading });
@@ -37,7 +36,6 @@ const ScavengerHunt = dynamic(() => import("./scavenger-hunt"), { ssr: false, lo
 const BracketPoll = dynamic(() => import("./bracket-poll"), { ssr: false, loading });
 const WhackAMole = dynamic(() => import("./whack-a-mole"), { ssr: false, loading });
 const Flappy = dynamic(() => import("./flappy"), { ssr: false, loading });
-const Jigsaw = dynamic(() => import("./jigsaw"), { ssr: false, loading });
 const SpotDifference = dynamic(() => import("./spot-difference"), { ssr: false, loading });
 const TicTacToe = dynamic(() => import("./tic-tac-toe"), { ssr: false, loading });
 
@@ -49,8 +47,6 @@ export function GameRenderer({ type, ...props }: GameProps & { type: string }) {
       return <ScratchCard {...props} />;
     case "mystery-box":
       return <MysteryBox {...props} />;
-    case "advent-calendar":
-      return <AdventCalendar {...props} />;
     case "endless-runner":
       return <EndlessRunner {...props} />;
     case "falling-catcher":
@@ -77,8 +73,6 @@ export function GameRenderer({ type, ...props }: GameProps & { type: string }) {
       return <WhackAMole {...props} />;
     case "flappy":
       return <Flappy {...props} />;
-    case "jigsaw":
-      return <Jigsaw {...props} />;
     case "spot-difference":
       return <SpotDifference {...props} />;
     case "tic-tac-toe":

@@ -77,7 +77,7 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
   const flyer = cfgStr(config, "flyerEmoji", "🐤");
   const pipeColor = cfgStr(config, "pipeColor", "#16a34a");
   const gap = GAP / difficulty;
-  const speed = 46 * difficulty;
+  const speed = 42 * difficulty;
 
   const flap = useCallback(() => {
     if (phase === "running") velocity.current = FLAP;
@@ -151,7 +151,7 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
             passed: false,
           },
         ];
-        gapLeft.current = 58 + Math.random() * 14;
+        gapLeft.current = 52 + Math.random() * 12;
       }
       pipes.current = pipes.current
         .map((p) => ({ ...p, x: p.x - speed * dt }))
@@ -229,7 +229,7 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
         ]}
       />
       <Stage
-        ratio="3 / 4"
+        ratio="2 / 3"
         className="bg-gradient-to-b from-sky-400 via-sky-200 to-amber-100"
         onPointerDown={flap}
         innerRef={world.ref}

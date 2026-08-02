@@ -281,7 +281,7 @@ export function Hud({
   items: { label: string; value: string | number; icon?: string }[];
 }) {
   return (
-    <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
+    <div className="hud-row mb-2 flex flex-wrap items-center justify-center gap-2">
       {items.map((item) => (
         <span key={item.label} className="hud-chip" title={item.label}>
           <span className="emoji text-base leading-none" aria-hidden>

@@ -114,11 +114,30 @@ addressed, under someone else's email).
 
 ### Question games deal a fresh round every time
 
-A quiz with three authored questions is a quiz you finish once. `myth-fact` and
-`leaderboard-trivia` are dealt per round from three sources — what the business
-wrote, questions generated from their profile (their products, city, busiest
-day), then a bank tagged by trade (`src/lib/games/questions.ts`). Myth-vs-fact
-runs until three wrong answers, so the score is how far you got.
+A quiz with three authored questions is a quiz you finish once. Trivia builds a
+pool of **250 questions per game per week** (`src/lib/games/questions.ts`): what
+the business wrote, questions generated from their profile (their products,
+city, busiest day), a general bank, then arithmetic a customer can do in their
+head — minted from parameters rather than hand-written. The pool is seeded on
+"game id + season number", so it is stable all week and different the next; each
+round deals twelve out of it, so two plays an hour apart are two quizzes.
+Myth-vs-fact deals the same way and runs until three wrong answers.
+
+### Only games that can be won on points
+
+The builder offers ten games, and every one of them ranks cleanly on a weekly
+board: Endless Runner, Falling Catcher, Slice Ninja, Tile Merge, Whack-a-Mole,
+Flappy, Memory Match, Live Leaderboard Trivia, Spot the Difference, and Myth vs
+Fact. Anything whose score was a placeholder — the wheel, the scratch card, the
+mystery box, the recommender, the lookbook, the poll, the hunt, tic-tac-toe —
+stays out of the builder; existing ones keep running in instant-win mode.
+
+Where a score was a small integer, several good players landed on the same
+number and the board was decided by who played first. Those are scored on speed
+now: a mole is worth 100 hit the moment it appears and 20 hit at the last
+moment, each difference found pays a base plus the seconds left on the clock
+(and clearing the board pays the rest of the clock again), and a myth answered
+instantly is worth twice one answered slowly.
 
 ### Physics, and why a round is letterboxed
 

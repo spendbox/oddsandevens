@@ -215,7 +215,7 @@ export default function FallingCatcher({
         ]}
       />
       <Stage
-        ratio="3 / 4"
+        ratio="2 / 3"
         className="bg-gradient-to-b from-sky-300 via-sky-100 to-emerald-100"
         onPointerDown={trackPointer}
         innerRef={world.ref}

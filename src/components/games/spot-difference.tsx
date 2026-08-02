@@ -4,7 +4,7 @@
 // marked; with none it generates an emoji grid puzzle so the game still works
 // out of the box.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   GradingOverlay,
   Hud,
@@ -27,6 +27,14 @@ const FALLBACK_FACES = ["🍎", "🍊", "🍋", "🍇", "🍓", "🥝", "🍑", 
 const FALLBACK_COLS = 6;
 const FALLBACK_ROWS = 8;
 const FALLBACK_DIFFS = 5;
+
+/** Every find is worth this, plus the seconds still on the clock. */
+const FIND_BASE = 100;
+const FIND_SPEED = 8;
+/** Clearing the board pays out the rest of the clock again. */
+const CLEAR_BONUS = 20;
+/** A wrong tap. Looking has to cost something or tapping everywhere wins. */
+const MISS_PENALTY = 40;
 
 export default function SpotDifference({
   config,
@@ -75,15 +83,29 @@ export default function SpotDifference({
   const [grading, setGrading] = useState(false);
   const [running, setRunning] = useState(true);
   const foundRef = useRef<number[]>([]);
+  const [score, setScore] = useState(0);
+  const scoreRef = useRef(0);
+  const [float, setFloat] = useState<{ points: number; nth: number } | null>(null);
+  // The countdown's own value, readable from an event handler.
+  const secondsLeft = useRef(0);
   const once = useOnce();
 
   const finish = useCallback(() => {
     once(() => {
       setRunning(false);
       setGrading(true);
-      void submit(foundRef.current.length, {
+      // Finding them all with time to spare is worth far more than finding
+      // them all as the clock dies — otherwise every good player ties on
+      // "found 5 of 5" and the board is decided by who played first.
+      const cleared = foundRef.current.length >= totalToFind;
+      const total = Math.max(
+        scoreRef.current + (cleared ? secondsLeft.current * CLEAR_BONUS : 0),
+        0
+      );
+      void submit(total, {
         found: foundRef.current.length,
         of: totalToFind,
+        cleared,
       }).then((outcome) => {
         if (outcome) showResult();
       });
@@ -91,12 +113,22 @@ export default function SpotDifference({
   }, [once, submit, showResult, totalToFind]);
 
   const timeLeft = useCountdown(timeLimit, running, finish);
+  useEffect(() => {
+    secondsLeft.current = timeLeft;
+  }, [timeLeft]);
 
   const register = (index: number) => {
     if (grading || found.includes(index)) return;
     const next = [...found, index];
     foundRef.current = next;
     setFound(next);
+
+    // Each find is worth a base plus whatever is left on the clock.
+    const points = FIND_BASE + secondsLeft.current * FIND_SPEED;
+    scoreRef.current += points;
+    setScore(scoreRef.current);
+    setFloat({ points, nth: next.length });
+
     if (next.length >= totalToFind) window.setTimeout(finish, 600);
   };
 
@@ -109,7 +141,11 @@ export default function SpotDifference({
       (spot) => Math.hypot(spot.x - x, spot.y - y) <= spot.r
     );
     if (hit >= 0) register(hit);
-    else setMisses((m) => m + 1);
+    else {
+      setMisses((m) => m + 1);
+      scoreRef.current = Math.max(scoreRef.current - MISS_PENALTY, 0);
+      setScore(scoreRef.current);
+    }
   };
 
   const markers = (
@@ -138,11 +174,23 @@ export default function SpotDifference({
     <div className="w-full">
       <Hud
         items={[
+          { label: "Score", value: score, icon: "⚡" },
           { label: "Found", value: `${found.length}/${totalToFind}`, icon: "🔍" },
           { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
           { label: "Misses", value: misses, icon: "❌" },
         ]}
       />
+
+      {/* What the last find was worth — the clock bonus is the whole point,
+          so it has to be visible while it is being earned. */}
+      {float && (
+        <p
+          key={float.nth}
+          className="animate-pop -mt-1 mb-1 text-center text-sm font-extrabold text-emerald-600"
+        >
+          +{float.points}
+        </p>
+      )}
 
       <div className="relative">
         {imageMode ? (
@@ -185,7 +233,14 @@ export default function SpotDifference({
                       onClick={() => {
                         if (grading) return;
                         if (diffIndex >= 0) register(diffIndex);
-                        else setMisses((m) => m + 1);
+                        else {
+                          setMisses((m) => m + 1);
+                          scoreRef.current = Math.max(
+                            scoreRef.current - MISS_PENALTY,
+                            0
+                          );
+                          setScore(scoreRef.current);
+                        }
                       }}
                       className="emoji-piece flex aspect-square items-center justify-center rounded-md transition"
                       style={{

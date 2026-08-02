@@ -40,14 +40,47 @@ interface Tossed {
   emoji: string;
   bomb: boolean;
   sliced: boolean;
+  /** Which side of the cut this piece is — whole fruit have none. */
+  half?: "left" | "right";
 }
+
+/** A short-lived splash of juice, or the flash of a bomb going off. */
+interface Burst {
+  id: number;
+  x: number;
+  y: number;
+  kind: "juice" | "boom";
+  colour: string;
+  born: number;
+}
+
+/** Juice colours, so a sliced melon doesn't spray orange. */
+const JUICE: Record<string, string> = {
+  "🍉": "#fb7185",
+  "🍊": "#fb923c",
+  "🍏": "#a3e635",
+  "🍎": "#f87171",
+  "🍍": "#fbbf24",
+  "🍋": "#facc15",
+  "🍇": "#c084fc",
+  "🍓": "#fb7185",
+  "🥝": "#84cc16",
+  "🍑": "#fdba74",
+  "🥭": "#fb923c",
+  "🫐": "#818cf8",
+};
+const DEFAULT_JUICE = "#f472b6";
+/** How long a burst stays on screen, in seconds. */
+const BURST_LIFE = 0.55;
 
 const GRAVITY = 120; // units/s²
 const SIZE = 11; // fruit diameter in units
 /** Slice radius: a little wider than the fruit, so a near miss still counts. */
 const BLADE = 7.5;
 /** How many pointer samples the blade trail remembers. */
-const TRAIL = 8;
+const TRAIL = 10;
+/** …and for how long. A blade leaves a streak, not a diagram of the swipe. */
+const TRAIL_LIFE = 0.22;
 
 export default function SliceNinja({
   config,
@@ -61,7 +94,9 @@ export default function SliceNinja({
   const [combo, setCombo] = useState(0);
   // Physics in refs; this snapshot is what React renders each frame.
   const [frame, setFrame] = useState<Tossed[]>([]);
-  const [trail, setTrail] = useState<{ x: number; y: number }[]>([]);
+  const [trail, setTrail] = useState<{ x: number; y: number; born: number }[]>([]);
+  const [bursts, setBursts] = useState<Burst[]>([]);
+  const [shake, setShake] = useState(false);
 
   const world = useWorld<HTMLDivElement>();
   // The physics loop needs the live width without re-subscribing every resize,
@@ -78,8 +113,10 @@ export default function SliceNinja({
   const livesRef = useRef(3);
   const slicing = useRef(false);
   const last = useRef<{ x: number; y: number } | null>(null);
-  const points = useRef<{ x: number; y: number }[]>([]);
+  const points = useRef<{ x: number; y: number; born: number }[]>([]);
   const swipeHits = useRef(0);
+  const burstList = useRef<Burst[]>([]);
+  const clock = useRef(0);
   const once = useOnce();
 
   const startingLives = clamp(Math.round(cfgNum(config, "lives", 3)), 1, 9);
@@ -102,6 +139,30 @@ export default function SliceNinja({
   useFixedStep(
     (dt) => {
       const width = widthRef.current;
+      clock.current += dt;
+
+      // The streak behind the blade decays; without this a slow drag paints a
+      // permanent line across the screen.
+      if (points.current.length > 0) {
+        const fresh = points.current.filter(
+          (t) => clock.current - t.born < TRAIL_LIFE
+        );
+        if (fresh.length !== points.current.length) {
+          points.current = fresh;
+          setTrail(fresh);
+        }
+      }
+
+      // Bursts fade on their own clock, in world time like everything else.
+      if (burstList.current.length > 0) {
+        const alive = burstList.current.filter(
+          (b) => clock.current - b.born < BURST_LIFE
+        );
+        if (alive.length !== burstList.current.length) {
+          burstList.current = alive;
+          setBursts(alive);
+        }
+      }
 
       // --- Toss: aimed so the arc peaks in view ---------------------------
       nextToss.current -= dt;
@@ -177,37 +238,85 @@ export default function SliceNinja({
   const sliceAlong = (to: { x: number; y: number }) => {
     const from = last.current ?? to;
     last.current = to;
-    points.current = [...points.current, to].slice(-TRAIL);
+    points.current = [
+      ...points.current,
+      { ...to, born: clock.current },
+    ].slice(-TRAIL);
     setTrail(points.current);
+
+    // The angle of the cut decides which way the halves fly.
+    const cut = Math.atan2(to.y - from.y, to.x - from.x);
+    const apartX = Math.sin(cut) * 26;
+    const apartY = -Math.cos(cut) * 26;
 
     let hits = 0;
     let hitBomb = false;
-    const next = objects.current.map((obj) => {
-      if (obj.sliced) return obj;
-      const d = distanceToSegment(obj.x, obj.y, from.x, from.y, to.x, to.y);
-      if (d > BLADE) return obj;
+    const next: Tossed[] = [];
+    const newBursts: Burst[] = [];
+
+    for (const obj of objects.current) {
+      const missed =
+        obj.sliced ||
+        distanceToSegment(obj.x, obj.y, from.x, from.y, to.x, to.y) > BLADE;
+      if (missed) {
+        next.push(obj);
+        continue;
+      }
+
       if (obj.bomb) {
         hitBomb = true;
-        return { ...obj, sliced: true };
+        newBursts.push({
+          id: nextId.current++,
+          x: obj.x,
+          y: obj.y,
+          kind: "boom",
+          colour: "#f97316",
+          born: clock.current,
+        });
+        // The bomb is gone — it went off. Nothing to animate falling.
+        continue;
       }
+
       hits += 1;
-      // A sliced piece is flicked up and spun before it drops out of the stage.
-      return {
-        ...obj,
-        sliced: true,
-        vy: Math.min(obj.vy, -18),
-        spin: obj.spin * 2.5,
-      };
-    });
+      // The fruit becomes two halves: same flight, pushed apart along the
+      // perpendicular of the cut, each spinning away from the blade.
+      const juice = JUICE[obj.emoji] ?? DEFAULT_JUICE;
+      newBursts.push({
+        id: nextId.current++,
+        x: obj.x,
+        y: obj.y,
+        kind: "juice",
+        colour: juice,
+        born: clock.current,
+      });
+      for (const half of ["left", "right"] as const) {
+        const away = half === "left" ? 1 : -1;
+        next.push({
+          ...obj,
+          id: nextId.current++,
+          sliced: true,
+          half,
+          vx: obj.vx + apartX * away,
+          vy: Math.min(obj.vy, -12) + apartY * away,
+          spin: 140 * away,
+        });
+      }
+    }
 
     objects.current = next;
     setFrame(next);
+    if (newBursts.length > 0) {
+      burstList.current = [...burstList.current, ...newBursts];
+      setBursts(burstList.current);
+    }
 
     if (hitBomb) {
       livesRef.current -= 1;
       setLives(Math.max(livesRef.current, 0));
       swipeHits.current = 0;
       setCombo(0);
+      setShake(true);
+      window.setTimeout(() => setShake(false), 420);
       if (livesRef.current <= 0) {
         end();
         return;
@@ -234,8 +343,11 @@ export default function SliceNinja({
     setScore(0);
     setCombo(0);
     setLives(startingLives);
+    burstList.current = [];
+    clock.current = 0;
     setFrame([]);
     setTrail([]);
+    setBursts([]);
     setPhase("running");
   };
 
@@ -264,8 +376,11 @@ export default function SliceNinja({
         ]}
       />
       <Stage
-        ratio="3 / 4"
-        className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-700"
+        ratio="2 / 3"
+        className={
+          "bg-gradient-to-b from-slate-900 via-slate-800 to-slate-700 " +
+          (shake ? "animate-shake" : "")
+        }
         onPointerDown={(e) => {
           if (phase !== "running") return;
           slicing.current = true;
@@ -292,11 +407,46 @@ export default function SliceNinja({
               left: world.left(obj.x),
               top: `${obj.y}%`,
               fontSize: size(SIZE),
-              opacity: obj.sliced ? 0.3 : 1,
               transform: `translate(-50%, -50%) rotate(${obj.angle}deg)`,
+              // A halved fruit is the same glyph shown through half a window,
+              // which is what makes the two pieces look like one thing cut in
+              // two rather than two smaller fruit.
+              clipPath: obj.half
+                ? obj.half === "left"
+                  ? "inset(0 50% 0 0)"
+                  : "inset(0 0 0 50%)"
+                : undefined,
             }}
           >
             {obj.emoji}
+          </span>
+        ))}
+
+        {/* Juice where a fruit was cut, and the flash where a bomb was. */}
+        {bursts.map((burst) => (
+          <span
+            key={burst.id}
+            className="pointer-events-none absolute"
+            style={{
+              left: world.left(burst.x),
+              top: `${burst.y}%`,
+              width: size(burst.kind === "boom" ? 34 : 20),
+              height: size(burst.kind === "boom" ? 34 : 20),
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            {burst.kind === "boom" ? (
+              <span className="animate-blast emoji-piece flex size-full items-center justify-center text-[3em] leading-none">
+                💥
+              </span>
+            ) : (
+              <span
+                className="animate-splash block size-full rounded-full"
+                style={{
+                  background: `radial-gradient(circle, ${burst.colour} 0%, ${burst.colour}00 70%)`,
+                }}
+              />
+            )}
           </span>
         ))}
 
@@ -308,14 +458,23 @@ export default function SliceNinja({
             preserveAspectRatio="none"
             aria-hidden
           >
-            <polyline
-              points={trail.map((p) => `${p.x},${p.y}`).join(" ")}
-              fill="none"
-              stroke="rgba(255,255,255,0.85)"
-              strokeWidth={1.6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            {trail.slice(1).map((point, i) => {
+              const previous = trail[i];
+              // Older segments are thinner and fainter — a tapered streak.
+              const age = (i + 1) / trail.length;
+              return (
+                <line
+                  key={`${point.born}-${i}`}
+                  x1={previous.x}
+                  y1={previous.y}
+                  x2={point.x}
+                  y2={point.y}
+                  stroke={`rgba(255,255,255,${0.15 + age * 0.75})`}
+                  strokeWidth={0.6 + age * 1.8}
+                  strokeLinecap="round"
+                />
+              );
+            })}
           </svg>
         )}
 

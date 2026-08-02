@@ -254,17 +254,41 @@ const DAY_NAMES = [
   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
 ];
 
-/** One question with the right answer shuffled out of first place. */
-function scrambled(prompt: string, answer: string, wrong: string[]): TriviaQuestion | null {
-  const options = shuffle([answer, ...wrong.slice(0, 3)]);
-  if (options.length < 3) return null;
+/**
+ * One question with the right answer shuffled out of first place.
+ *
+ * Distractors are deduped against the answer and each other: a generated
+ * question that offers the same value twice is unanswerable, and one where a
+ * distractor *equals* the answer is worse than unanswerable.
+ */
+function scrambled(
+  prompt: string,
+  answer: string,
+  wrong: string[],
+  rand: () => number = Math.random
+): TriviaQuestion | null {
+  const distinct: string[] = [];
+  for (const candidate of wrong) {
+    if (candidate === answer || distinct.includes(candidate)) continue;
+    distinct.push(candidate);
+    if (distinct.length === 3) break;
+  }
+  if (distinct.length < 2) return null;
+  const options = shuffleWith([answer, ...distinct], rand);
   return { prompt, options, answerIndex: options.indexOf(answer) };
 }
 
-/** Questions only this business's own customers can answer. */
+/**
+ * Questions only this business's own customers can answer.
+ *
+ * `rand` is threaded through rather than reaching for Math.random so the
+ * week's pool is genuinely the week's pool — same seed, same questions, same
+ * option order, on every request.
+ */
 function businessTrivia(
   profile: BusinessProfile,
-  businessName: string
+  businessName: string,
+  rand: () => number = Math.random
 ): TriviaQuestion[] {
   const out: TriviaQuestion[] = [];
   const sells = (profile.sells ?? []).filter((s) => s.trim().length > 0);
@@ -274,7 +298,8 @@ function businessTrivia(
     const q = scrambled(
       `Which of these can you actually get at ${businessName}?`,
       product,
-      shuffle(decoys)
+      shuffleWith(decoys, rand),
+      rand
     );
     if (q) out.push(q);
   }
@@ -283,7 +308,11 @@ function businessTrivia(
     const q = scrambled(
       `Which city is ${businessName} in?`,
       profile.city,
-      shuffle(CITIES.filter((c) => c.toLowerCase() !== profile.city!.toLowerCase()))
+      shuffleWith(
+        CITIES.filter((c) => c.toLowerCase() !== profile.city!.toLowerCase()),
+        rand
+      ),
+      rand
     );
     if (q) out.push(q);
   }
@@ -292,7 +321,8 @@ function businessTrivia(
     const q = scrambled(
       `Which day is ${businessName} busiest?`,
       profile.busiestDay,
-      shuffle(DAY_NAMES.filter((d) => d !== profile.busiestDay))
+      shuffleWith(DAY_NAMES.filter((d) => d !== profile.busiestDay), rand),
+      rand
     );
     if (q) out.push(q);
   }
@@ -302,12 +332,11 @@ function businessTrivia(
     const q = scrambled(
       `Which of these has ${businessName} actually given away?`,
       offers[0],
-      shuffle([
-        "A brand new car",
-        "A week in Dubai",
-        "A season ticket",
-        "A television",
-      ])
+      shuffleWith(
+        ["A brand new car", "A week in Dubai", "A season ticket", "A television"],
+        rand
+      ),
+      rand
     );
     if (q) out.push(q);
   }
@@ -369,6 +398,234 @@ export function buildMythStatements(
   return shuffle([...mine, ...rest.slice(0, Math.max(count - mine.length, 0))]);
 }
 
+/** How many questions a game's weekly pool holds at most. */
+export const TRIVIA_POOL_SIZE = 250;
+
+/**
+ * A small deterministic PRNG, seeded from a string.
+ *
+ * The weekly pool has to be the *same* pool all week — a player who saw a
+ * question on Monday should meet it again on Thursday, not get a fresh
+ * universe every request — but it also has to differ from the next game's and
+ * from next week's. Seeding on "game id + season number" gives exactly that,
+ * with nothing stored.
+ */
+function seededRandom(seed: string): () => number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  let state = h >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleWith<T>(items: T[], rand: () => number): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+const naira = (amount: number) => `₦${amount.toLocaleString("en-NG")}`;
+
+/**
+ * Minted questions: arithmetic a shopkeeper's customer can do in their head,
+ * with one unarguable answer and three near misses.
+ *
+ * Hand-writing 250 questions a week is not a thing anyone will do, and a bank
+ * of 20 gets memorised by Tuesday. These generators mint as many as the pool
+ * needs from parameters the seed picks, which keeps every week's quiz new
+ * without anyone writing a word.
+ */
+function mintedQuestions(rand: () => number, want: number): TriviaQuestion[] {
+  const out: TriviaQuestion[] = [];
+  const seen = new Set<string>();
+  const add = (prompt: string, answer: string, wrong: string[]) => {
+    if (seen.has(prompt)) return;
+    const question = scrambled(prompt, answer, wrong, rand);
+    // A generated question whose distractors collided with the answer is
+    // dropped rather than shipped ambiguous.
+    if (!question) return;
+    seen.add(prompt);
+    out.push(question);
+  };
+  const pickInt = (min: number, max: number) =>
+    min + Math.floor(rand() * (max - min + 1));
+
+  // Each pass through the generators mints one of each kind.
+  while (out.length < want) {
+    const before = out.length;
+
+    // Discount off a price.
+    {
+      const price = pickInt(2, 40) * 500;
+      const off = [5, 10, 15, 20, 25, 50][pickInt(0, 5)];
+      const pay = price - (price * off) / 100;
+      add(
+        `A ${naira(price)} item is ${off}% off. What do you pay?`,
+        naira(pay),
+        [
+          naira(price - off),
+          naira(pay + price * 0.05),
+          naira(price / 2),
+          naira(price),
+        ]
+      );
+    }
+
+    // Change from a note.
+    {
+      const price = pickInt(3, 19) * 250;
+      const note = Math.ceil(price / 1000) * 1000 + 1000;
+      add(
+        `You pay ${naira(note)} for a ${naira(price)} order. What is your change?`,
+        naira(note - price),
+        [
+          naira(note - price + 250),
+          naira(note - price + 500),
+          naira(price),
+          naira(note),
+        ]
+      );
+    }
+
+    // Packs.
+    {
+      const per = pickInt(3, 12);
+      const packs = pickInt(3, 12);
+      add(
+        `How many packs of ${per} make ${per * packs} items?`,
+        `${packs}`,
+        [`${packs + 1}`, `${packs - 1}`, `${packs + 2}`, `${packs * 2}`]
+      );
+    }
+
+    // Opening hours.
+    {
+      const open = pickInt(6, 10);
+      const close = pickInt(4, 10);
+      const hours = 12 - open + close;
+      add(
+        `A shop opens at ${open}am and closes at ${close}pm. How many hours is it open?`,
+        `${hours}`,
+        [`${hours + 1}`, `${hours - 1}`, `${hours + 2}`, `${hours + 3}`]
+      );
+    }
+
+    // Loyalty points.
+    {
+      const unit = [100, 200, 250, 500][pickInt(0, 3)];
+      const points = pickInt(3, 20);
+      add(
+        `You earn 1 point per ${naira(unit)} spent. How many points for ${naira(unit * points)}?`,
+        `${points}`,
+        [`${points * 2}`, `${points + 1}`, `${points + 5}`, `${points * 10}`]
+      );
+    }
+
+    // Doubling sequence.
+    {
+      const start = pickInt(1, 9);
+      const seq = [start, start * 2, start * 4, start * 8];
+      add(
+        `What comes next: ${seq.join(", ")}…?`,
+        `${start * 16}`,
+        [`${start * 12}`, `${start * 10}`, `${start * 20}`, `${start * 24}`]
+      );
+    }
+
+    // Units.
+    {
+      const kg = pickInt(2, 9);
+      add(`How many grams are in ${kg}kg?`, `${kg * 1000}`, [
+        `${kg * 100}`,
+        `${kg * 10000}`,
+        `${kg * 500}`,
+        `${kg * 250}`,
+      ]);
+    }
+
+    // Minutes.
+    {
+      const hrs = pickInt(2, 11);
+      add(`How many minutes are in ${hrs} hours?`, `${hrs * 60}`, [
+        `${hrs * 100}`,
+        `${hrs * 30}`,
+        `${hrs * 90}`,
+        `${hrs * 45}`,
+      ]);
+    }
+
+    // Splitting a bill.
+    {
+      const people = pickInt(2, 8);
+      const each = pickInt(2, 12) * 250;
+      add(
+        `${people} friends split a ${naira(each * people)} bill evenly. What does each pay?`,
+        naira(each),
+        [naira(each + 250), naira(each * 2), naira(each - 250), naira(each + 500)]
+      );
+    }
+
+    // Buy-one-get-one maths.
+    {
+      const unit = pickInt(2, 12) * 250;
+      const bought = pickInt(2, 6) * 2;
+      add(
+        `Buy one get one free on a ${naira(unit)} item. What do ${bought} cost?`,
+        naira((bought / 2) * unit),
+        [
+          naira(bought * unit),
+          naira((bought / 2) * unit + unit),
+          naira(unit),
+          naira((bought / 2 + 1) * unit + unit),
+        ]
+      );
+    }
+
+    // Nothing new this pass (the parameters collided) — stop rather than spin.
+    if (out.length === before) break;
+  }
+  return out.slice(0, want);
+}
+
+/**
+ * This game's pool for this week: everything the business wrote, everything we
+ * can say about them, the general bank, then minted questions up to
+ * TRIVIA_POOL_SIZE. Stable for the whole season, different next season.
+ */
+export function buildTriviaPool(
+  authored: TriviaQuestion[],
+  profile: BusinessProfile,
+  businessName: string,
+  seed: string,
+  size = TRIVIA_POOL_SIZE
+): TriviaQuestion[] {
+  const rand = seededRandom(seed);
+  const known = dedupe(
+    [
+      ...authored,
+      ...shuffleWith(businessTrivia(profile, businessName, rand), rand),
+      ...shuffleWith(GENERAL_TRIVIA, rand),
+    ],
+    (q) => q.prompt
+  );
+  const minted = mintedQuestions(rand, Math.max(size - known.length, 0));
+  return shuffleWith(dedupe([...known, ...minted], (q) => q.prompt), rand).slice(
+    0,
+    size
+  );
+}
+
 /**
  * A round of trivia: the authored questions, then ones written from what we
  * know about the business, then general knowledge to fill.
@@ -377,6 +634,8 @@ export function buildTriviaQuestions(
   authored: unknown,
   profile: BusinessProfile,
   businessName: string,
+  /** Identifies the week — the pool is stable within it. */
+  seed: string,
   count = TRIVIA_ROUND_SIZE
 ): TriviaQuestion[] {
   const own = (Array.isArray(authored) ? authored : [])
@@ -394,13 +653,14 @@ export function buildTriviaQuestions(
     })
     .filter((q) => q.prompt.length > 0 && q.options.length >= 2);
 
-  const generated = businessTrivia(profile, businessName);
-  const pool = dedupe(
-    [...own, ...shuffle(generated), ...shuffle(GENERAL_TRIVIA)],
-    (q) => q.prompt
-  );
-
-  const mine = pool.filter((q) => own.some((o) => o.prompt === q.prompt));
+  // The week's pool, then this round's hand out of it. The business's own
+  // questions are always in the hand; the rest is dealt at random, so two
+  // plays an hour apart are two different quizzes out of the same 250.
+  const pool = buildTriviaPool(own, profile, businessName, seed);
+  const mine = own.filter((q) => pool.some((p) => p.prompt === q.prompt));
   const rest = pool.filter((q) => !own.some((o) => o.prompt === q.prompt));
-  return shuffle([...mine, ...rest.slice(0, Math.max(count - mine.length, 0))]);
+  return shuffle([
+    ...mine.slice(0, count),
+    ...shuffle(rest).slice(0, Math.max(count - mine.length, 0)),
+  ]);
 }
