@@ -245,7 +245,7 @@ export function GameWizard({
               onClick={() => setBrowsing(true)}
               className="btn-secondary mt-4"
             >
-              Browse all 20 games instead
+              Browse all five games instead
             </button>
           </>
         ) : (

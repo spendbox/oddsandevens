@@ -230,34 +230,61 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
       />
       <Stage
         ratio="2 / 3"
-        className="bg-gradient-to-b from-sky-400 via-sky-200 to-amber-100"
+        className="bg-[radial-gradient(circle_at_78%_16%,#fef9c3_0%,#fde68a_9%,transparent_26%),linear-gradient(#38bdf8_0%,#7dd3fc_46%,#bae6fd_72%,#fed7aa_100%)]"
         onPointerDown={flap}
         innerRef={world.ref}
       >
-        {frame.pipes.map((pipe) => (
-          <div key={pipe.id}>
-            <div
-              className="absolute rounded-b-lg shadow-md"
-              style={{
-                left: world.left(pipe.x),
-                top: 0,
-                width: size(PIPE_WIDTH),
-                height: `${Math.max(pipe.gapCenter - gap / 2, 0)}%`,
-                background: pipeColor,
-              }}
-            />
-            <div
-              className="absolute rounded-t-lg shadow-md"
-              style={{
-                left: world.left(pipe.x),
-                top: `${pipe.gapCenter + gap / 2}%`,
-                width: size(PIPE_WIDTH),
-                bottom: 0,
-                background: pipeColor,
-              }}
-            />
-          </div>
-        ))}
+        {frame.pipes.map((pipe) => {
+          const pipeStyle = { "--pipe": pipeColor } as React.CSSProperties;
+          const capHeight = size(4);
+          const capOverhang = size(1.2);
+          return (
+            <div key={pipe.id}>
+              {/* Upper pipe: body, then the rim at its open end. */}
+              <div
+                className="pipe3d absolute"
+                style={{
+                  ...pipeStyle,
+                  left: world.left(pipe.x),
+                  top: 0,
+                  width: size(PIPE_WIDTH),
+                  height: `${Math.max(pipe.gapCenter - gap / 2, 0)}%`,
+                }}
+              />
+              <div
+                className="pipe3d-cap absolute"
+                style={{
+                  ...pipeStyle,
+                  left: `calc(${world.left(pipe.x)} - ${capOverhang})`,
+                  top: `calc(${Math.max(pipe.gapCenter - gap / 2, 0)}% - ${capHeight})`,
+                  width: `calc(${size(PIPE_WIDTH)} + ${capOverhang} * 2)`,
+                  height: capHeight,
+                }}
+              />
+
+              <div
+                className="pipe3d absolute"
+                style={{
+                  ...pipeStyle,
+                  left: world.left(pipe.x),
+                  top: `${pipe.gapCenter + gap / 2}%`,
+                  width: size(PIPE_WIDTH),
+                  bottom: 0,
+                }}
+              />
+              <div
+                className="pipe3d-cap absolute"
+                style={{
+                  ...pipeStyle,
+                  left: `calc(${world.left(pipe.x)} - ${capOverhang})`,
+                  top: `${pipe.gapCenter + gap / 2}%`,
+                  width: `calc(${size(PIPE_WIDTH)} + ${capOverhang} * 2)`,
+                  height: capHeight,
+                }}
+              />
+            </div>
+          );
+        })}
 
         <span
           className="emoji-piece absolute"

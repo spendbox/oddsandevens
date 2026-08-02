@@ -47,7 +47,7 @@ genuinely frees a slot, and resuming can't sneak past the cap.
 Every game a business can launch is one entry in `src/lib/games/catalog.ts`.
 That entry declares the game's award engine, its defaults, and its setup form,
 so the dashboard builder, the API validation, and the player page are all
-generated from it — adding a twenty-first game means one catalogue entry plus
+generated from it — adding a sixth game means one catalogue entry plus
 one component in `src/components/games/`.
 
 Only games that can carry a leaderboard are offered (`competitive: true` in the
@@ -112,32 +112,40 @@ that cookie rather than from the request body, which is both the memory (no more
 codes on every visit) and the proof (a round can't be opened, or a prize
 addressed, under someone else's email).
 
-### Question games deal a fresh round every time
+### Five games
 
-A quiz with three authored questions is a quiz you finish once. Trivia builds a
-pool of **250 questions per game per week** (`src/lib/games/questions.ts`): what
-the business wrote, questions generated from their profile (their products,
-city, busiest day), a general bank, then arithmetic a customer can do in their
-head — minted from parameters rather than hand-written. The pool is seeded on
-"game id + season number", so it is stable all week and different the next; each
-round deals twelve out of it, so two plays an hour apart are two quizzes.
-Myth-vs-fact deals the same way and runs until three wrong answers.
+The builder offers five, and nothing else is reachable from anywhere in the
+product:
 
-### Only games that can be won on points
+| Game | What the score is |
+|---|---|
+| Whack-a-Mole | 100 for a mole hit on sight, 20 at the last moment |
+| Slice Ninja | slices, plus a bonus for cutting several in one swipe |
+| Flappy | gates cleared |
+| 3D Mahjong | 100 a pair, and the rest of the clock for clearing the stack |
+| Match Three | 30 a jewel, multiplied by the cascade it starts |
 
-The builder offers ten games, and every one of them ranks cleanly on a weekly
-board: Endless Runner, Falling Catcher, Slice Ninja, Tile Merge, Whack-a-Mole,
-Flappy, Memory Match, Live Leaderboard Trivia, Spot the Difference, and Myth vs
-Fact. Anything whose score was a placeholder — the wheel, the scratch card, the
-mystery box, the recommender, the lookbook, the poll, the hunt, tic-tac-toe —
-stays out of the builder; existing ones keep running in instant-win mode.
+Every one produces a score with enough spread to rank a week's leaderboard; a
+game where everyone competent finishes on the same number is a game the board
+can't rank, and none of those survived. Retired types stay in the database's
+type constraint so a business's published game keeps resolving, but they can't
+be created and the player is told plainly when one has ended.
 
-Where a score was a small integer, several good players landed on the same
-number and the board was decided by who played first. Those are scored on speed
-now: a mole is worth 100 hit the moment it appears and 20 hit at the last
-moment, each difference found pays a base plus the seconds left on the clock
-(and clearing the board pays the rest of the clock again), and a myth answered
-instantly is worth twice one answered slowly.
+### Assets are built, not downloaded
+
+The jewels, mahjong tiles, mole holes and pipes are CSS: a lit top surface, a
+darker side for thickness, an inner shadow where light doesn't reach, a cast
+shadow beneath (`.gem`, `.tile3d`, `.hole3d`, `.pipe3d` in `globals.css`). One
+light source, top-left, throughout. It costs the player no extra bytes, keeps
+every piece recolourable by the business's brand, and stays sharp at any size —
+WebGL would buy real perspective and cost a megabyte and a battery.
+
+Two details worth knowing. Mahjong boards are **dealt by solving them
+backwards**: the generator repeatedly takes two currently-free slots, gives
+them the same face and removes them, so replaying that sequence forwards is a
+solution and every board can be cleared. And match-three jewels differ by
+*shape* as well as colour, because a board readable only by hue is unplayable
+for the one in twelve men who can't separate red from green.
 
 ### Physics, and why a round is letterboxed
 
@@ -174,7 +182,7 @@ The screen itself stays bright inside the dark bezel, which is what makes a
 cabinet read as a cabinet.
 
 The chrome lives in `components/games/kit.tsx` — `Stage`, `Hud`, `ActionButton`,
-`StartOverlay`, `GradingOverlay` — so all twenty games share one look and a new
+`StartOverlay`, `GradingOverlay` — so every game shares one look and a new
 one inherits it for free. The dashboard keeps its white cards; none of this
 leaks into it.
 

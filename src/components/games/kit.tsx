@@ -227,7 +227,7 @@ export function cfgList<T>(config: GameConfig, key: string, fallback: T[]): T[] 
  * The playfield: a fixed-ratio screen set into the cabinet.
  *
  * The frame, the vignette and the HUD live here rather than in each game, so
- * twenty games share one look and a new one gets it for free.
+ * every game shares one look and a new one gets it for free.
  */
 export function Stage({
   children,

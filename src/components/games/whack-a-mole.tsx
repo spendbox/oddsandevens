@@ -158,7 +158,10 @@ export default function WhackAMole({
           { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
         ]}
       />
-      <Stage ratio="1 / 1" className="bg-gradient-to-b from-lime-200 via-amber-100 to-amber-200 p-3">
+      <Stage
+        ratio="1 / 1"
+        className="bg-[radial-gradient(ellipse_at_50%_20%,#bef264_0%,#a3e635_35%,#84cc16_70%,#65a30d_100%)] p-3"
+      >
         <div
           className="grid h-full w-full gap-2"
           style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
@@ -168,14 +171,19 @@ export default function WhackAMole({
               key={i}
               onPointerDown={() => whack(i)}
               aria-label={`Hole ${i + 1}`}
-              className="relative flex items-center justify-center rounded-full border-4 border-amber-800/20 bg-amber-900/15 transition active:scale-95"
+              className="hole3d relative flex items-center justify-center overflow-hidden transition active:scale-95"
             >
               <span
-                className="emoji-piece transition-transform duration-150"
+                className="emoji-piece transition-transform duration-150 ease-out"
                 style={{
-                  fontSize: "clamp(22px, 8vw, 44px)",
+                  fontSize: "clamp(30px, 11vw, 64px)",
                   lineHeight: 1,
-                  transform: hole.visible && !hole.hit ? "scale(1)" : "scale(0)",
+                  // Up out of the hole, not fading in above it.
+                  transform:
+                    hole.visible && !hole.hit
+                      ? "translateY(-8%) scale(1)"
+                      : "translateY(70%) scale(0.8)",
+                  opacity: hole.visible && !hole.hit ? 1 : 0,
                 }}
               >
                 {hole.decoy ? decoy : target}

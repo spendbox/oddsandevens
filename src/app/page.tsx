@@ -43,7 +43,7 @@ const STEPS = [
   {
     Icon: Gamepad2,
     title: "Pick a game",
-    text: "Twenty to choose from — a prize wheel, a scratch card, a quiz, an arcade high-score chase. Pick one and it's already working.",
+    text: "Five to choose from — whack-a-mole, slice, flappy, 3D mahjong, match three. Pick one and it's already working.",
   },
   {
     Icon: Wand2,
@@ -411,8 +411,8 @@ export default function LandingPage() {
             style={{ animationDelay: "160ms" }}
           >
             Turn one-time shoppers into repeat buyers. Build a branded game —
-            a prize wheel, a scratch card, a quiz, an arcade chase — share one
-            link, and let your customers play to win their next perk.
+            whack-a-mole, slice, flappy, 3D mahjong, match three — share one
+            link, and let your customers play their way up the leaderboard.
           </p>
 
           <div

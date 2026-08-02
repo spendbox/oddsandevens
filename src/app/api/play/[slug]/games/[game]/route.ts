@@ -3,8 +3,6 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { maskEmail } from "@/lib/mask";
 import { playerEmail } from "@/lib/player-session";
 import { gameDef } from "@/lib/games/catalog";
-import { buildMythStatements, buildTriviaQuestions } from "@/lib/games/questions";
-import type { BusinessProfile } from "@/lib/business/profile";
 import type {
   GameSeason,
   LeaderboardEntry,
@@ -264,30 +262,13 @@ export async function GET(
     contactEmail: merchant.contact_email,
   };
 
-  // Question games are dealt a fresh round every time this page is opened, so
-  // playing three times a day is three different quizzes rather than the same
-  // three statements. What the business wrote always makes the cut.
-  const profile = (merchant.profile ?? {}) as BusinessProfile;
-  const config: Record<string, unknown> = { ...(game.config ?? {}) };
-  if (game.type === "myth-fact") {
-    config.statements = buildMythStatements(config.statements, profile);
-  } else if (game.type === "leaderboard-trivia") {
-    config.questions = buildTriviaQuestions(
-      config.questions,
-      profile,
-      merchant.business_name,
-      // The pool is this game's, this week's.
-      `${game.id}:${season?.number ?? 0}`
-    ).map((q) => ({ ...q, answerIndex: q.answerIndex + 1 }));
-  }
-
   const publicGame: PublicGame = {
     slug: game.slug,
     type: game.type,
     engine: game.engine,
     title: game.title,
     description: game.description,
-    config,
+    config: game.config ?? {},
     theme: game.theme ?? {},
     cooldownHours: game.cooldown_hours,
     maxWinsPerPlayer: game.max_wins_per_player,

@@ -37,9 +37,6 @@ export interface SuggestionInput {
   }[];
 }
 
-const has = (goals: string[] | undefined, key: string) =>
-  (goals ?? []).includes(key);
-
 /**
  * The podium. First place is their best reward or stated offer; second is the
  * next one down. Stock is how many weeks the prize can be won for.
@@ -86,26 +83,8 @@ export function suggestGames(input: SuggestionInput): GameBlueprint[] {
   const trade = pack.label.split(" ")[0];
   const blueprints: GameBlueprint[] = [];
 
-  // 1. The catcher. Instantly understood, forty-five seconds a go, and every
-  //    item on screen is something the business sells.
-  blueprints.push({
-    type: "falling-catcher",
-    title: `Catch the ${trade.toLowerCase()} drop`,
-    description: "Catch what falls, dodge what doesn't belong.",
-    config: {
-      ...GAMES["falling-catcher"].defaultConfig,
-      goodEmojis: pack.items.slice(0, 3).join(" "),
-      badEmojis: pack.hazard,
-      lives: 3,
-      duration: 45,
-    },
-    prizes,
-    cooldownHours: 0,
-    maxWins: 1,
-    why: "Understood in a second, over in forty-five — the easiest board to get people onto.",
-  });
-
-  // 2. Whack-a-mole. Nobody needs the rules explained.
+  // 1. Whack-a-mole. Nobody needs the rules explained, and the reflex scoring
+  //    means the board separates people from their first go.
   blueprints.push({
     type: "whack-a-mole",
     title: `Whack it at ${businessName}`,
@@ -121,87 +100,65 @@ export function suggestGames(input: SuggestionInput): GameBlueprint[] {
     why: "Pure reflex — the game people replay hardest when they're two points off the top.",
   });
 
-  // 3. Myth vs fact. Teaches something true about the trade.
+  // 2. Match three. The one everybody already knows how to play, which makes
+  //    it the game a first-timer stays on longest.
   blueprints.push({
-    type: "myth-fact",
-    title: `${trade} myths, busted`,
-    description: "Statements about our trade. Which ones are actually true?",
-    config: { statements: pack.mythFacts },
+    type: "match-3",
+    title: `${businessName} Match`,
+    description: "Swap two jewels, line up three, watch the board fall.",
+    config: { ...GAMES["match-3"].defaultConfig },
     prizes,
     cooldownHours: 0,
     maxWins: 1,
-    why: "Cheap credibility: players leave knowing something true about what you sell.",
+    why: "Everyone has played this before — nobody bounces off it, and the cascades are what get shared.",
   });
 
-  // 4. Memory match, dressed in their products.
+  // 3. Mahjong, with the tiles showing what the business sells.
   blueprints.push({
-    type: "memory-match",
-    title: `${businessName} memory match`,
-    description: "Clear the board as fast as you can.",
+    type: "mahjong-3d",
+    title: `${trade} mahjong`,
+    description: "Clear the stack, pair by pair, before the clock does.",
     config: {
-      ...GAMES["memory-match"].defaultConfig,
-      faces: pack.items.join(" "),
-      pairs: 6,
-      timeLimit: 90,
+      ...GAMES["mahjong-3d"].defaultConfig,
+      faces: items.slice(0, 8).join(" "),
     },
     prizes,
     cooldownHours: 0,
     maxWins: 1,
-    why: "Every flip is another look at what you sell, and the clock makes it competitive.",
+    why: "The quiet one: it holds attention for minutes at a time, and every tile is a product.",
   });
 
-  // 5. The runner, for a longer-tail high score.
+  // 4. Slicing. The most physical of the five, and the best-looking.
   blueprints.push({
-    type: "endless-runner",
-    title: `The ${businessName} run`,
-    description: "How far can you get?",
+    type: "slice-ninja",
+    title: `Slice the ${trade.toLowerCase()}`,
+    description: `Swipe through what's tossed up. Avoid the ${pack.hazard}.`,
     config: {
-      ...GAMES["endless-runner"].defaultConfig,
-      runnerEmoji: pack.mascot,
-      obstacleEmoji: pack.hazard,
-      lives: 3,
+      ...GAMES["slice-ninja"].defaultConfig,
+      sliceEmojis: pack.items.slice(0, 4).join(" "),
+      bombEmoji: pack.hazard,
+      duration: 45,
     },
     prizes,
     cooldownHours: 0,
     maxWins: 1,
-    why: has(profile.goals, "awareness")
-      ? "The distances get absurd, which is exactly what people screenshot."
-      : "A score that keeps creeping up all week, so the board never settles.",
+    why: "The one people show other people — a good swipe looks good.",
   });
 
-  // 6. Trivia about the business itself, when they've told us enough.
-  if (items.length >= 2 || profile.city || profile.funFact) {
+  // 5. Flappy, for the goal that wants sharing above all.
+  if ((profile.goals ?? []).includes("awareness")) {
     blueprints.push({
-      type: "leaderboard-trivia",
-      title: `How well do you know ${businessName}?`,
-      description: "Answer fast — the clock is worth points.",
+      type: "flappy",
+      title: `${pack.mascot} through ${businessName}`,
+      description: "One tap to flap. How many gates can you clear?",
       config: {
-        secondsPerQuestion: 15,
-        questions: [
-          {
-            prompt: profile.funFact
-              ? `True or not: ${profile.funFact}`
-              : `Which of these do we sell?`,
-            options: [...items.slice(0, 3), "None of these"],
-            answerIndex: 1,
-          },
-          {
-            prompt: profile.city
-              ? "Which city are we in?"
-              : "Which of these is on our menu?",
-            options: profile.city
-              ? [profile.city, "Abuja", "Kano", "Ibadan"]
-              : [...items.slice(0, 3), "Motorcycles"],
-            answerIndex: 1,
-          },
-        ],
+        ...GAMES["flappy"].defaultConfig,
+        flyerEmoji: pack.mascot,
       },
       prizes,
       cooldownHours: 0,
       maxWins: 1,
-      why: has(profile.goals, "data")
-        ? "Speed scoring makes it a real race, and the answers tell you what people know about you."
-        : "Regulars have an edge, which is exactly the point.",
+      why: "Brutally hard, endlessly retried — the scores people argue about.",
     });
   }
 
