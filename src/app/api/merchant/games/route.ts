@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { effectiveTier, getAuthedMerchant } from "@/lib/merchant-auth";
-import { GAME_TIER_LIMITS, gameDef, slugifyGameTitle } from "@/lib/games/catalog";
+import {
+  DEFAULT_DAILY_LIVES,
+  DEFAULT_MAX_BONUS_LIVES,
+  DEFAULT_SEASON_DAYS,
+  GAME_TIER_LIMITS,
+  gameDef,
+  slugifyGameTitle,
+} from "@/lib/games/catalog";
 import { sanitizeConfig, sanitizeTheme } from "@/lib/games/config";
 import { parsePrizes } from "@/lib/games/prizes";
 import type { GameSummary } from "@/lib/games/types";
@@ -20,6 +27,7 @@ interface PrizeRow {
   claimed: number;
   weight: number;
   min_score: number;
+  award_rank: number | null;
   position: number;
 }
 
@@ -36,7 +44,7 @@ export async function GET() {
   const { data: games, error } = await db
     .from("games")
     .select(
-      "id, slug, type, engine, title, description, status, source, config, theme, cooldown_hours, max_wins_per_player, plays_count, wins_count, created_at"
+      "id, slug, type, engine, title, description, status, source, config, theme, cooldown_hours, max_wins_per_player, award_mode, season_days, daily_lives, max_bonus_lives, plays_count, wins_count, created_at"
     )
     .eq("merchant_id", merchant.id)
     .neq("status", "archived")
@@ -53,7 +61,7 @@ export async function GET() {
     db
       .from("game_prizes")
       .select(
-        "id, game_id, kind, description, details, icon, expiry_days, stock, claimed, weight, min_score, position"
+        "id, game_id, kind, description, details, icon, expiry_days, stock, claimed, weight, min_score, award_rank, position"
       )
       .in("game_id", ids)
       .order("position", { ascending: true }),
@@ -105,6 +113,10 @@ export async function GET() {
     theme: g.theme ?? {},
     cooldownHours: g.cooldown_hours,
     maxWinsPerPlayer: g.max_wins_per_player,
+    awardMode: g.award_mode === "leaderboard" ? "leaderboard" : "instant",
+    seasonDays: g.season_days,
+    dailyLives: g.daily_lives,
+    maxBonusLives: g.max_bonus_lives,
     playsCount: g.plays_count,
     winsCount: g.wins_count,
     createdAt: g.created_at,
@@ -123,6 +135,7 @@ export async function GET() {
         claimed: p.claimed,
         weight: p.weight,
         minScore: p.min_score,
+        awardRank: p.award_rank,
         position: p.position,
       })),
   }));
@@ -171,6 +184,13 @@ export async function POST(req: Request) {
 
   const cooldownHours = Number(b.cooldownHours ?? def.cooldownHours);
   const maxWins = Number(b.maxWinsPerPlayer ?? 1);
+  const seasonDays = Number(b.seasonDays ?? DEFAULT_SEASON_DAYS);
+
+  // Only competitive games can be created now; the instant-win ones stay in
+  // the codebase for what's already published.
+  if (!def.competitive) {
+    return NextResponse.json({ error: "game_type_retired" }, { status: 400 });
+  }
 
   const db = supabaseAdmin();
 
@@ -205,6 +225,10 @@ export async function POST(req: Request) {
       : def.cooldownHours,
     p_max_wins: Number.isFinite(maxWins) ? Math.round(maxWins) : 1,
     p_max_score: def.maxScore,
+    p_award_mode: def.competitive ? "leaderboard" : "instant",
+    p_season_days: Number.isFinite(seasonDays) ? Math.round(seasonDays) : DEFAULT_SEASON_DAYS,
+    p_daily_lives: DEFAULT_DAILY_LIVES,
+    p_max_bonus_lives: DEFAULT_MAX_BONUS_LIVES,
   });
   if (error) {
     console.error("[merchant games] create_game failed:", error);

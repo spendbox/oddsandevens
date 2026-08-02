@@ -2,8 +2,14 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAuthedMerchant } from "@/lib/merchant-auth";
 import { canSuggestGames, type BusinessProfile } from "@/lib/business/profile";
-import { GAMES, slugifyGameTitle } from "@/lib/games/catalog";
-import { buildChanceSlots, buildScoreSlots } from "@/lib/games/slots";
+import {
+  DEFAULT_DAILY_LIVES,
+  DEFAULT_MAX_BONUS_LIVES,
+  DEFAULT_SEASON_DAYS,
+  GAMES,
+  slugifyGameTitle,
+} from "@/lib/games/catalog";
+import { buildRankSlots } from "@/lib/games/slots";
 import { suggestGames } from "@/lib/games/suggest";
 
 // Writes ready-made games for a business out of what they told us about
@@ -67,11 +73,9 @@ export async function POST() {
   for (const blueprint of blueprints) {
     const def = GAMES[blueprint.type];
     const named = blueprint.prizes.filter((p) => p.description.trim().length > 0);
-    const slots =
-      def.engine === "chance"
-        ? buildChanceSlots(named, blueprint.winPercent)
-        : buildScoreSlots(named);
-    if (def.engine === "chance" && slots.length === 0) continue;
+    // Every suggested game is a weekly competition: one prize per place.
+    const slots = buildRankSlots(named);
+    if (slots.length === 0) continue;
 
     // Slugs are per-merchant; suffix rather than fail on a clash.
     const base = slugifyGameTitle(blueprint.title);
@@ -96,6 +100,10 @@ export async function POST() {
       p_max_score: def.maxScore,
       p_status: "draft",
       p_source: "suggested",
+      p_award_mode: "leaderboard",
+      p_season_days: DEFAULT_SEASON_DAYS,
+      p_daily_lives: DEFAULT_DAILY_LIVES,
+      p_max_bonus_lives: DEFAULT_MAX_BONUS_LIVES,
     });
     if (error) {
       console.error("[games suggest] create_game failed:", error);

@@ -38,8 +38,16 @@ export type GameType = (typeof GAME_TYPES)[number];
 
 export const GAME_CATEGORIES = [
   { key: "instant-win", label: "Instant win", blurb: "Tap, reveal, walk away with a code." },
-  { key: "arcade", label: "Arcade & skill", blurb: "Play for a high score, win at a target." },
-  { key: "quiz", label: "Quiz & discover", blurb: "Teach, recommend, and capture interest." },
+  {
+    key: "arcade",
+    label: "Arcade & skill",
+    blurb: "Play for a high score. The top of the weekly board takes the prizes.",
+  },
+  {
+    key: "quiz",
+    label: "Quiz & knowledge",
+    blurb: "Know your stuff, answer fast, climb the board.",
+  },
   { key: "community", label: "Community", blurb: "Get people voting, hunting, and coming back." },
 ] as const;
 
@@ -56,13 +64,19 @@ export type ConfigFieldType =
   | "toggle"
   | "select"
   | "image"
-  | "list";
+  | "list"
+  /** One emoji, chosen from a picker. */
+  | "emoji"
+  /** Several emoji, chosen from a picker; stored space-separated. */
+  | "emoji-set";
 
 export interface ConfigField {
   key: string;
   label: string;
   type: ConfigFieldType;
   help?: string;
+  /** emoji-set only: how many may be chosen. */
+  maxPicks?: number;
   placeholder?: string;
   min?: number;
   max?: number;
@@ -97,6 +111,12 @@ export interface GameDefinition {
   maxScore: number;
   /** Score games only: is a high-score table meaningful? */
   hasLeaderboard: boolean;
+  /**
+   * Can this game carry a weekly leaderboard competition? Only competitive
+   * games are offered in the builder — the rest stay in the codebase so games
+   * already published keep working, but nobody can create a new one.
+   */
+  competitive: boolean;
   /** How the score reads to a human ("points", "correct answers"…). */
   scoreLabel: string;
   /**
@@ -136,15 +156,27 @@ const difficultyField: ConfigField = {
   ],
 };
 
-const emojiListField = (
+/** One emoji, from the picker. */
+const emojiField = (key: string, label: string, help: string): ConfigField => ({
+  key,
+  label,
+  type: "emoji",
+  help,
+  maxLength: 8,
+});
+
+/** A handful of emoji, from the picker; stored space-separated. */
+const emojiSetField = (
   key: string,
   label: string,
-  help: string
+  help: string,
+  maxPicks = 5
 ): ConfigField => ({
   key,
   label,
-  type: "text",
+  type: "emoji-set",
   help,
+  maxPicks,
   maxLength: 60,
 });
 
@@ -177,6 +209,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 24,
     maxScore: 1,
     hasLeaderboard: false,
+    competitive: false,
     scoreLabel: "spins",
     winRule: "draw",
     defaultTarget: 0,
@@ -213,6 +246,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 24,
     maxScore: 1,
     hasLeaderboard: false,
+    competitive: false,
     scoreLabel: "cards",
     winRule: "draw",
     defaultTarget: 0,
@@ -251,6 +285,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 24,
     maxScore: 1,
     hasLeaderboard: false,
+    competitive: false,
     scoreLabel: "picks",
     winRule: "draw",
     defaultTarget: 0,
@@ -259,7 +294,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     fields: [
       { key: "prompt", label: "Prompt", type: "text", maxLength: 40 },
       { key: "boxCount", label: "How many boxes", type: "number", min: 2, max: 9 },
-      emojiListField("boxEmoji", "Box emoji", "Shown on every closed box."),
+      emojiField("boxEmoji", "Box emoji", "Shown on every closed box."),
     ],
   },
 
@@ -276,6 +311,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 20,
     maxScore: 1,
     hasLeaderboard: false,
+    competitive: false,
     scoreLabel: "doors",
     winRule: "draw",
     defaultTarget: 0,
@@ -300,7 +336,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
         label: "Lock doors until their day",
         type: "toggle",
       },
-      emojiListField("doorEmoji", "Door emoji", "Decorates each closed door."),
+      emojiField("doorEmoji", "Door emoji", "Decorates each closed door."),
     ],
   },
 
@@ -317,6 +353,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 100000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "metres",
     winRule: "target",
     defaultTarget: 300,
@@ -329,8 +366,8 @@ export const GAMES: Record<GameType, GameDefinition> = {
       lives: 3,
     },
     fields: [
-      emojiListField("runnerEmoji", "Runner", "Your mascot, an emoji."),
-      emojiListField("obstacleEmoji", "Obstacle", "What they jump over."),
+      emojiField("runnerEmoji", "Runner", "Your mascot, an emoji."),
+      emojiField("obstacleEmoji", "Obstacle", "What they jump over."),
       livesField,
       difficultyField,
     ],
@@ -349,6 +386,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 100000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "points",
     winRule: "target",
     defaultTarget: 25,
@@ -363,9 +401,9 @@ export const GAMES: Record<GameType, GameDefinition> = {
     },
     fields: [
       durationField(45),
-      emojiListField("goodEmojis", "Things to catch", "Space-separated emoji."),
-      emojiListField("badEmojis", "Things to dodge", "Catching one costs a life."),
-      emojiListField("catcherEmoji", "The basket", "What the player moves."),
+      emojiSetField("goodEmojis", "Things to catch", "Space-separated emoji."),
+      emojiField("badEmojis", "Things to dodge", "Catching one costs a life."),
+      emojiField("catcherEmoji", "The basket", "What the player moves."),
       livesField,
       difficultyField,
     ],
@@ -384,6 +422,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 100000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "points",
     winRule: "target",
     defaultTarget: 20,
@@ -397,8 +436,8 @@ export const GAMES: Record<GameType, GameDefinition> = {
     },
     fields: [
       durationField(45),
-      emojiListField("sliceEmojis", "Things to slice", "Space-separated emoji."),
-      emojiListField("bombEmoji", "Bomb", "Slicing one costs a life."),
+      emojiSetField("sliceEmojis", "Things to slice", "Space-separated emoji."),
+      emojiField("bombEmoji", "Bomb", "Slicing one costs a life."),
       livesField,
       difficultyField,
     ],
@@ -417,6 +456,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 100000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "points",
     winRule: "target",
     defaultTarget: 400,
@@ -455,6 +495,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 12,
     maxScore: 100,
     hasLeaderboard: false,
+    competitive: false,
     scoreLabel: "answers",
     winRule: "finish",
     defaultTarget: 0,
@@ -541,6 +582,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 12,
     maxScore: 100,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "correct",
     winRule: "target",
     defaultTarget: 3,
@@ -595,6 +637,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 10000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "points",
     winRule: "target",
     defaultTarget: 500,
@@ -602,7 +645,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     defaultConfig: { pairs: 6, faces: "🍕 🍔 🌮 🍜 🍩 ☕ 🥗 🍣", timeLimit: 90 },
     fields: [
       { key: "pairs", label: "How many pairs", type: "number", min: 3, max: 10 },
-      emojiListField("faces", "Card faces", "Space-separated emoji — one per pair."),
+      emojiSetField("faces", "Card faces", "Space-separated emoji — one per pair."),
       {
         key: "timeLimit",
         label: "Time limit (seconds)",
@@ -627,6 +670,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 12,
     maxScore: 100,
     hasLeaderboard: false,
+    competitive: false,
     scoreLabel: "looks",
     winRule: "finish",
     defaultTarget: 0,
@@ -694,6 +738,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 12,
     maxScore: 100000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "points",
     winRule: "target",
     defaultTarget: 300,
@@ -766,6 +811,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 0,
     maxScore: 100,
     hasLeaderboard: false,
+    competitive: false,
     scoreLabel: "clues found",
     winRule: "target",
     defaultTarget: 3,
@@ -809,6 +855,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 24,
     maxScore: 100,
     hasLeaderboard: false,
+    competitive: false,
     scoreLabel: "votes",
     winRule: "finish",
     defaultTarget: 0,
@@ -855,6 +902,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 100000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "points",
     winRule: "target",
     defaultTarget: 20,
@@ -878,8 +926,8 @@ export const GAMES: Record<GameType, GameDefinition> = {
           { value: "12", label: "12 (3 × 4)" },
         ],
       },
-      emojiListField("targetEmoji", "Hit this", "Worth points."),
-      emojiListField("decoyEmoji", "Avoid this", "Costs points."),
+      emojiField("targetEmoji", "Hit this", "Worth points."),
+      emojiField("decoyEmoji", "Avoid this", "Costs points."),
       difficultyField,
     ],
   },
@@ -897,6 +945,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 100000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "gates",
     winRule: "target",
     defaultTarget: 8,
@@ -908,7 +957,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
       lives: 3,
     },
     fields: [
-      emojiListField("flyerEmoji", "The flyer", "Your mascot, an emoji."),
+      emojiField("flyerEmoji", "The flyer", "Your mascot, an emoji."),
       { key: "pipeColor", label: "Pipe colour", type: "text", maxLength: 7 },
       livesField,
       difficultyField,
@@ -928,6 +977,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 10000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "points",
     winRule: "target",
     defaultTarget: 400,
@@ -967,6 +1017,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 1000,
     hasLeaderboard: true,
+    competitive: true,
     scoreLabel: "found",
     winRule: "target",
     defaultTarget: 3,
@@ -1012,6 +1063,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 12,
     maxScore: 100,
     hasLeaderboard: false,
+    competitive: false,
     scoreLabel: "wins",
     winRule: "target",
     defaultTarget: 1,
@@ -1041,13 +1093,29 @@ export const GAMES: Record<GameType, GameDefinition> = {
         max: 5,
         help: "The score is how many of these rounds the player wins.",
       },
-      emojiListField("playerMark", "Player's mark", "An emoji or letter."),
-      emojiListField("houseMark", "House's mark", "An emoji or letter."),
+      emojiField("playerMark", "Player's mark", "An emoji or letter."),
+      emojiField("houseMark", "House's mark", "An emoji or letter."),
     ],
   },
 };
 
 export const GAME_LIST: GameDefinition[] = GAME_TYPES.map((t) => GAMES[t]);
+
+/**
+ * The games a business can actually launch: ones that can carry a weekly
+ * leaderboard. The rest stay in the codebase so anything already published
+ * keeps running, but they are never offered again.
+ */
+export const COMPETITIVE_GAMES: GameDefinition[] = GAME_LIST.filter(
+  (g) => g.competitive
+);
+
+/** Only the categories that still have games in them. */
+export function competitiveCategories() {
+  return GAME_CATEGORIES.filter((c) =>
+    COMPETITIVE_GAMES.some((g) => g.category === c.key)
+  );
+}
 
 export function isGameType(value: string): value is GameType {
   return (GAME_TYPES as readonly string[]).includes(value);
@@ -1058,7 +1126,7 @@ export function gameDef(type: string): GameDefinition | null {
 }
 
 export function gamesInCategory(category: GameCategory): GameDefinition[] {
-  return GAME_LIST.filter((g) => g.category === category);
+  return COMPETITIVE_GAMES.filter((g) => g.category === category);
 }
 
 // ---------------------------------------------------------------------------
@@ -1072,6 +1140,34 @@ export const GAME_TIER_LIMITS = {
 
 // Total slots (prizes + blanks) any single game may carry.
 export const MAX_PRIZE_SLOTS = 24;
+
+// ---------------------------------------------------------------------------
+// Weekly competition defaults (mirrored in create_game).
+// ---------------------------------------------------------------------------
+
+/** How long a leaderboard runs before the prizes go out and it resets. */
+export const DEFAULT_SEASON_DAYS = 7;
+/** Plays per player per day. */
+export const DEFAULT_DAILY_LIVES = 3;
+/** Extra plays a player can earn in a day by sharing their link. */
+export const DEFAULT_MAX_BONUS_LIVES = 3;
+
+/** "1st place", "2nd place"… for the prize rows and the board. */
+export function rankLabel(rank: number): string {
+  const suffix =
+    rank % 100 >= 11 && rank % 100 <= 13
+      ? "th"
+      : rank % 10 === 1
+        ? "st"
+        : rank % 10 === 2
+          ? "nd"
+          : rank % 10 === 3
+            ? "rd"
+            : "th";
+  return `${rank}${suffix} place`;
+}
+
+export const RANK_MEDALS = ["🥇", "🥈", "🥉"] as const;
 
 // ---------------------------------------------------------------------------
 // Config helpers used by both the builder and the players.

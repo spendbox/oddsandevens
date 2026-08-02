@@ -4,9 +4,129 @@
 // catalogue. Every game type gets a working editor for free — including the
 // nested ones (a quiz's questions, each with its own list of answers).
 
-import { Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 import type { ConfigField } from "@/lib/games/catalog";
+import { EMOJI_GROUPS, parseEmojiSet } from "@/lib/games/emoji";
 import type { GameConfig } from "@/lib/games/types";
+
+/**
+ * The emoji picker. One shared component for both field types: `emoji` picks
+ * exactly one, `emoji-set` picks up to `maxPicks`. Nothing is typed, so the
+ * value can only ever be an emoji the players' devices can render.
+ */
+function EmojiPicker({
+  value,
+  multiple,
+  maxPicks,
+  onChange,
+}: {
+  value: string;
+  multiple: boolean;
+  maxPicks: number;
+  onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [group, setGroup] = useState(EMOJI_GROUPS[0].key);
+  const picked = multiple
+    ? parseEmojiSet(value)
+    : value.trim().length > 0
+      ? [value.trim()]
+      : [];
+
+  const toggle = (emoji: string) => {
+    if (!multiple) {
+      onChange(emoji);
+      setOpen(false);
+      return;
+    }
+    const next = picked.includes(emoji)
+      ? picked.filter((e) => e !== emoji)
+      : picked.length >= maxPicks
+        ? [...picked.slice(1), emoji]
+        : [...picked, emoji];
+    onChange(next.join(" "));
+  };
+
+  const active = EMOJI_GROUPS.find((g) => g.key === group) ?? EMOJI_GROUPS[0];
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="input-field flex items-center justify-between gap-2 text-left"
+      >
+        <span className="flex flex-wrap items-center gap-1 text-xl leading-none">
+          {picked.length > 0 ? (
+            picked.map((e) => <span key={e}>{e}</span>)
+          ) : (
+            <span className="text-sm text-zinc-400">Choose{multiple ? " a few" : ""}…</span>
+          )}
+        </span>
+        <ChevronDown
+          className={"size-4 shrink-0 text-zinc-400 transition " + (open ? "rotate-180" : "")}
+          aria-hidden
+        />
+      </button>
+
+      {open && (
+        <div className="mt-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
+          <div className="flex flex-wrap gap-1 border-b border-zinc-100 pb-2">
+            {EMOJI_GROUPS.map((g) => (
+              <button
+                key={g.key}
+                type="button"
+                onClick={() => setGroup(g.key)}
+                className={
+                  "rounded-lg px-2 py-1 text-xs font-medium transition " +
+                  (group === g.key
+                    ? "bg-zinc-900 text-white"
+                    : "text-zinc-500 hover:bg-zinc-100")
+                }
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-2 grid max-h-48 grid-cols-8 gap-1 overflow-y-auto sm:grid-cols-10">
+            {active.emoji.map((emoji) => {
+              const isPicked = picked.includes(emoji);
+              return (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => toggle(emoji)}
+                  aria-pressed={isPicked}
+                  className={
+                    "relative flex aspect-square items-center justify-center rounded-lg text-xl transition hover:bg-zinc-100 " +
+                    (isPicked ? "bg-[var(--brand)]/10 ring-2 ring-[var(--brand)]" : "")
+                  }
+                >
+                  {emoji}
+                  {isPicked && (
+                    <Check
+                      className="absolute -right-0.5 -top-0.5 size-3 rounded-full bg-[var(--brand)] p-px text-white"
+                      aria-hidden
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {multiple && (
+            <p className="mt-2 text-xs text-zinc-500">
+              {picked.length} of {maxPicks} chosen — picking another swaps the
+              oldest out.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Value = unknown;
 
@@ -14,6 +134,9 @@ function defaultFor(field: ConfigField): Value {
   switch (field.type) {
     case "list":
       return [];
+    case "emoji":
+    case "emoji-set":
+      return "";
     case "toggle":
       return false;
     case "number":
@@ -40,6 +163,16 @@ function FieldInput({
   onChange: (next: Value) => void;
 }) {
   switch (field.type) {
+    case "emoji":
+    case "emoji-set":
+      return (
+        <EmojiPicker
+          value={String(value ?? "")}
+          multiple={field.type === "emoji-set"}
+          maxPicks={field.maxPicks ?? 5}
+          onChange={onChange}
+        />
+      );
     case "textarea":
       return (
         <textarea

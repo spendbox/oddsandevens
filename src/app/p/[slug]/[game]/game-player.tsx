@@ -2,34 +2,40 @@
 
 // The branded game shell.
 //
-// It owns everything that is the same for all twenty games: the business's
-// branding, the email gate, opening a play (which gets the single-use token),
-// handing the round to the right game component, and showing the result — the
-// prize code, the loyalty points, the leaderboard, the cooldown.
+// A game is a weekly competition: play as often as your lives allow, get your
+// best run onto the public board, and the top places take the prizes when the
+// week closes. This owns everything around the game itself — the business's
+// branding, the email gate, lives, the board, the countdown, and the share
+// link that earns another life.
 //
-// The game components themselves only play and report a score.
+// The game components only play and report a score.
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Copy, Share2, Trophy } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock,
+  Copy,
+  Heart,
+  Share2,
+  Trophy,
+} from "lucide-react";
 import { GameRenderer } from "@/components/games";
 import { EMAIL_STORAGE_KEY, VerifyModal } from "@/components/games/verify-modal";
-import { gameDef, themeAccent } from "@/lib/games/catalog";
-import type {
-  GameOutcome,
-  PublicGame,
-  PublicGameHost,
-} from "@/lib/games/types";
+import { RANK_MEDALS, gameDef, rankLabel, themeAccent } from "@/lib/games/catalog";
+import type { GameOutcome, PublicGame, PublicGameHost } from "@/lib/games/types";
 
 interface PlayerState {
-  nextPlayAt: string | null;
+  livesLeft: number;
   bestScore: number;
-  wins: number;
-  canWin: boolean;
+  rank: number | null;
+  shareCode: string | null;
+  nextPlayAt: string | null;
 }
 
 type Phase = "loading" | "intro" | "playing" | "result";
 
+/** Live "3d 4h" / "2h 11m" / "44s" countdown. */
 function useCountdown(target: string | null): string | null {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -40,10 +46,13 @@ function useCountdown(target: string | null): string | null {
   if (!target) return null;
   const ms = new Date(target).getTime() - now;
   if (ms <= 0) return null;
-  const hours = Math.floor(ms / 3_600_000);
-  const minutes = Math.floor((ms % 3_600_000) / 60_000);
-  const seconds = Math.floor((ms % 60_000) / 1000);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m ${seconds}s`;
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  const s = Math.floor((ms % 60_000) / 1000);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 export default function GamePlayer({
@@ -60,20 +69,27 @@ export default function GamePlayer({
   const [email, setEmail] = useState<string | null>(null);
   const [showVerify, setShowVerify] = useState(false);
   const [token, setToken] = useState<string | null>(null);
-  const [canWin, setCanWin] = useState(true);
   const [outcome, setOutcome] = useState<GameOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"code" | "share" | null>(null);
+  const [lifeEarned, setLifeEarned] = useState(false);
 
   const def = game ? gameDef(game.type) : null;
   const accent = themeAccent(game?.theme, host?.brandColor ?? "#059669");
+  const isBoard = game?.awardMode === "leaderboard";
+  const seasonLeft = useCountdown(game?.season?.endsAt ?? null);
   const cooldownLeft = useCountdown(
     outcome?.nextPlayAt ?? player?.nextPlayAt ?? null
   );
 
-  // Fetching is kept free of setState so the effect below only ever updates
-  // state from a resolved promise, never synchronously during the effect.
+  // Someone else's share code, if this page was opened from their link.
+  const [referral] = useState(() => {
+    if (typeof window === "undefined") return null;
+    const code = new URLSearchParams(window.location.search).get("ref");
+    return code ? code.trim().toUpperCase() : null;
+  });
+
   const fetchGame = useCallback(async () => {
     let known: string | null = null;
     try {
@@ -130,8 +146,6 @@ export default function GamePlayer({
     };
   }, [fetchGame, apply]);
 
-  // Open a play: the server checks the cooldown and the allowance, and hands
-  // back the token the finish call needs.
   const startPlay = async (playerEmail: string) => {
     setStarting(true);
     setError(null);
@@ -150,25 +164,28 @@ export default function GamePlayer({
 
     if (body?.result === "started") {
       setToken(body.token as string);
-      setCanWin(body.canWin !== false);
       setOutcome(null);
       setPhase("playing");
       return;
     }
+    if (body?.result === "no_lives") {
+      setError("You're out of lives for today. Share your link for another, or come back tomorrow.");
+      void load();
+      return;
+    }
     if (body?.result === "cooldown") {
       setPlayer((current) => ({
-        nextPlayAt: body.nextPlayAt as string,
+        livesLeft: current?.livesLeft ?? 0,
         bestScore: current?.bestScore ?? 0,
-        wins: current?.wins ?? 0,
-        canWin: current?.canWin ?? true,
+        rank: current?.rank ?? null,
+        shareCode: current?.shareCode ?? null,
+        nextPlayAt: body.nextPlayAt as string,
       }));
       setError("You've already played — come back when the timer is up.");
       return;
     }
     if (body?.result === "no_plays") {
-      setError(
-        "This business has paused their games for now. Check back a little later."
-      );
+      setError("This business has paused their games for now. Check back a little later.");
       return;
     }
     if (body?.error === "email_not_verified") {
@@ -178,7 +195,6 @@ export default function GamePlayer({
     setError("Something went wrong starting your game. Try again.");
   };
 
-  // Handed to the game component: grade this round.
   const submit = useCallback(
     async (score: number, meta?: Record<string, unknown>) => {
       if (!token) return null;
@@ -204,15 +220,56 @@ export default function GamePlayer({
       const result = body as GameOutcome;
       setOutcome(result);
       setToken(null);
+
+      // Playing a round is what pays the person who invited you.
+      if (referral && email) {
+        fetch(
+          `/api/play/${encodeURIComponent(slug)}/games/${encodeURIComponent(
+            gameSlug
+          )}/refer`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: referral, email }),
+          }
+        ).catch(() => {});
+      }
       return result;
     },
-    [token, slug, gameSlug]
+    [token, slug, gameSlug, referral, email]
   );
 
   const showResult = useCallback(() => {
     setPhase("result");
     void load();
   }, [load]);
+
+  const shareUrl =
+    player?.shareCode && typeof window !== "undefined"
+      ? `${window.location.origin}/p/${slug}/${gameSlug}?ref=${player.shareCode}`
+      : null;
+
+  const share = async () => {
+    if (!shareUrl || !game) return;
+    const text = `I'm ${
+      player?.rank ? `#${player.rank}` : "playing"
+    } on ${game.title} at ${host?.businessName}. Beat me and win — you get a free go through my link.`;
+    // The share sheet where there is one, the clipboard everywhere else.
+    const canShare =
+      typeof navigator !== "undefined" && typeof navigator.share === "function";
+    try {
+      if (canShare) {
+        await navigator.share({ title: game.title, text, url: shareUrl });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopied("share");
+        window.setTimeout(() => setCopied(null), 2000);
+      }
+      setLifeEarned(true);
+    } catch {
+      // Cancelled or blocked — nothing to do.
+    }
+  };
 
   if (phase === "loading" && !game) {
     return (
@@ -233,31 +290,23 @@ export default function GamePlayer({
     );
   }
 
-  const realPrizes = game.prizes.filter((p) => p.kind === "prize");
+  const rankedPrizes = game.prizes
+    .filter((p) => p.kind === "prize")
+    .sort((a, b) => (a.awardRank ?? 99) - (b.awardRank ?? 99));
   const brandStyle = { "--brand": accent } as React.CSSProperties;
+  const lives = player?.livesLeft ?? game.dailyLives;
 
   return (
-    <main
-      className="min-h-screen bg-zinc-50 p-4 pb-16 sm:p-6"
-      style={brandStyle}
-    >
+    <main className="min-h-screen bg-zinc-50 p-4 pb-16 sm:p-6" style={brandStyle}>
       <div className="mx-auto flex max-w-lg flex-col gap-4">
         {/* Business header */}
         <header className="flex items-center gap-3">
-          <Link
-            href={`/p/${slug}`}
-            className="btn-ghost px-2"
-            aria-label="All games"
-          >
+          <Link href={`/p/${slug}`} className="btn-ghost px-2" aria-label="All games">
             <ArrowLeft className="size-4" aria-hidden />
           </Link>
           {host.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={host.logoUrl}
-              alt=""
-              className="size-9 rounded-xl object-cover"
-            />
+            <img src={host.logoUrl} alt="" className="size-9 rounded-xl object-cover" />
           ) : (
             <span
               className="flex size-9 items-center justify-center rounded-xl text-xs font-bold text-white"
@@ -267,9 +316,7 @@ export default function GamePlayer({
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-zinc-900">
-              {host.businessName}
-            </p>
+            <p className="truncate font-semibold text-zinc-900">{host.businessName}</p>
             {host.tagline && (
               <p className="truncate text-xs text-zinc-500">{host.tagline}</p>
             )}
@@ -282,16 +329,40 @@ export default function GamePlayer({
             <p className="mt-1 text-sm text-zinc-600">{game.description}</p>
           )}
 
+          {/* Week + lives strip */}
+          {isBoard && (
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-zinc-100 px-3 py-2">
+                <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                  <Clock className="size-3" aria-hidden /> Prizes in
+                </p>
+                <p className="text-lg font-bold tabular-nums text-zinc-900">
+                  {seasonLeft ?? "Closing…"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-zinc-100 px-3 py-2">
+                <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                  <Heart className="size-3" aria-hidden /> Lives today
+                </p>
+                <p className="text-lg font-bold text-zinc-900">
+                  {"❤️".repeat(Math.min(lives, 6)) || "—"}
+                </p>
+              </div>
+            </div>
+          )}
+
           {error && <p className="alert-error mt-4">{error}</p>}
 
           {/* ---- Intro ---- */}
           {phase === "intro" && (
             <div className="mt-5 flex flex-col gap-4">
-              {realPrizes.length > 0 && (
+              {rankedPrizes.length > 0 && (
                 <div>
-                  <p className="section-title">Up for grabs</p>
+                  <p className="section-title">
+                    {isBoard ? "This week's prizes" : "Up for grabs"}
+                  </p>
                   <ul className="mt-2 flex flex-col gap-1.5">
-                    {realPrizes.map((prize) => (
+                    {rankedPrizes.map((prize, i) => (
                       <li
                         key={prize.position}
                         className={
@@ -301,43 +372,44 @@ export default function GamePlayer({
                             : "border-zinc-200 bg-white text-zinc-800")
                         }
                       >
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">
-                            {prize.description}
-                          </span>
-                          {prize.details && (
-                            <span className="block truncate text-xs text-zinc-500">
-                              {prize.details}
+                        <span className="flex min-w-0 items-center gap-2">
+                          {isBoard && (
+                            <span className="shrink-0 text-lg">
+                              {RANK_MEDALS[i] ?? "🎖️"}
                             </span>
                           )}
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">
+                              {prize.description}
+                            </span>
+                            <span className="block truncate text-xs text-zinc-500">
+                              {isBoard
+                                ? rankLabel(prize.awardRank ?? i + 1)
+                                : (prize.details ?? "")}
+                            </span>
+                          </span>
                         </span>
-                        {prize.soldOut ? (
+                        {prize.soldOut && (
                           <span className="shrink-0 text-xs font-semibold uppercase">
                             Gone
                           </span>
-                        ) : (
-                          def?.winRule === "target" && (
-                            <span
-                              className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold text-white"
-                              style={{ backgroundColor: accent }}
-                            >
-                              {prize.minScore}+ {def.scoreLabel}
-                            </span>
-                          )
                         )}
                       </li>
                     ))}
                   </ul>
+                  {isBoard && (
+                    <p className="mt-2 text-xs text-zinc-500">
+                      Highest scores when the clock runs out take the prizes.
+                      Codes are emailed to the winners.
+                    </p>
+                  )}
                 </div>
               )}
 
               {cooldownLeft ? (
                 <div className="rounded-xl bg-zinc-100 px-4 py-3 text-center text-sm text-zinc-600">
                   You&apos;ve played already. Next go in{" "}
-                  <span className="font-semibold text-zinc-900">
-                    {cooldownLeft}
-                  </span>
-                  .
+                  <span className="font-semibold text-zinc-900">{cooldownLeft}</span>.
                 </div>
               ) : (
                 <button
@@ -348,17 +420,25 @@ export default function GamePlayer({
                     }
                     void startPlay(email);
                   }}
-                  disabled={starting}
+                  disabled={starting || (isBoard && lives <= 0)}
                   style={{ backgroundColor: accent }}
                   className="btn-primary w-full text-base"
                 >
-                  {starting ? "Getting ready…" : "Play now"}
+                  {starting
+                    ? "Getting ready…"
+                    : isBoard && lives <= 0
+                      ? "No lives left today"
+                      : player?.bestScore
+                        ? "Play again"
+                        : "Play now"}
                 </button>
               )}
 
-              {player && player.bestScore > 0 && def?.hasLeaderboard && (
+              {isBoard && player && (
                 <p className="text-center text-xs text-zinc-500">
-                  Your best: {player.bestScore} {def.scoreLabel}
+                  {player.rank
+                    ? `Your best this week: ${player.bestScore} — currently #${player.rank}.`
+                    : "You're not on this week's board yet."}
                 </p>
               )}
             </div>
@@ -372,7 +452,7 @@ export default function GamePlayer({
                 config={game.config}
                 prizes={game.prizes}
                 accent={accent}
-                canWin={canWin}
+                canWin
                 submit={submit}
                 showResult={showResult}
               />
@@ -385,14 +465,15 @@ export default function GamePlayer({
               outcome={outcome}
               accent={accent}
               scoreLabel={def?.scoreLabel ?? "points"}
-              showScore={def?.hasLeaderboard ?? false}
-              cooldownLeft={cooldownLeft}
-              copied={copied}
+              isBoard={isBoard}
+              seasonLeft={seasonLeft}
+              topPrize={rankedPrizes[0]?.description ?? null}
+              copied={copied === "code"}
               onCopy={async (code) => {
                 try {
                   await navigator.clipboard.writeText(code);
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 2000);
+                  setCopied("code");
+                  window.setTimeout(() => setCopied(null), 2000);
                 } catch {
                   // Clipboard blocked — the code is on screen anyway.
                 }
@@ -406,31 +487,135 @@ export default function GamePlayer({
           )}
         </div>
 
-        {/* Leaderboard */}
-        {def?.hasLeaderboard && game.leaderboard.length > 0 && (
+        {/* Share for a life */}
+        {isBoard && shareUrl && (
           <div className="card p-5">
             <p className="section-title">
-              <Trophy className="size-3.5" aria-hidden /> Top players
+              <Share2 className="size-3.5" aria-hidden /> Out of lives?
             </p>
+            <p className="mt-1 text-sm text-zinc-600">
+              Send your link to someone. When they play, you get an extra life
+              today — up to {game.maxBonusLives} of them.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                {shareUrl}
+              </code>
+              <button
+                onClick={share}
+                className="btn-primary text-sm"
+                style={{ backgroundColor: accent }}
+              >
+                {copied === "share" ? (
+                  <>
+                    <Copy className="size-4" aria-hidden />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="size-4" aria-hidden />
+                    Share
+                  </>
+                )}
+              </button>
+            </div>
+            {lifeEarned && (
+              <p className="mt-2 text-xs text-emerald-700">
+                Shared — your life lands as soon as they finish a round.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* This week's board */}
+        {isBoard && (
+          <div className="card p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="section-title">
+                <Trophy className="size-3.5" aria-hidden /> This week&apos;s board
+              </p>
+              <span className="text-xs text-zinc-400">
+                {game.playerCount} playing
+              </span>
+            </div>
+
+            {game.leaderboard.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-500">
+                Nobody has scored yet this week. First run takes first place.
+              </p>
+            ) : (
+              <ol className="mt-3 flex flex-col gap-1.5">
+                {game.leaderboard.map((entry) => (
+                  <li
+                    key={`${entry.rank}-${entry.maskedEmail}`}
+                    className={
+                      "flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm " +
+                      (entry.isYou ? "ring-2" : "odd:bg-zinc-50")
+                    }
+                    style={
+                      entry.isYou
+                        ? {
+                            backgroundColor: `${accent}14`,
+                            boxShadow: `inset 0 0 0 2px ${accent}`,
+                          }
+                        : undefined
+                    }
+                  >
+                    <span className="w-7 shrink-0 text-center text-base">
+                      {RANK_MEDALS[entry.rank - 1] ?? (
+                        <span className="text-xs font-bold text-zinc-400">
+                          {entry.rank}
+                        </span>
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-600">
+                      {entry.maskedEmail}
+                      {entry.isYou && (
+                        <span
+                          className="ml-1.5 font-sans text-[10px] font-bold uppercase"
+                          style={{ color: accent }}
+                        >
+                          you
+                        </span>
+                      )}
+                    </span>
+                    {entry.prize && (
+                      <span className="hidden max-w-[8rem] truncate text-xs text-zinc-400 sm:block">
+                        {entry.prize}
+                      </span>
+                    )}
+                    <span className="font-semibold tabular-nums text-zinc-900">
+                      {entry.score}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            <p className="mt-3 text-xs text-zinc-400">
+              Names are hidden — only you can tell which row is yours.
+            </p>
+          </div>
+        )}
+
+        {/* Last week */}
+        {isBoard && game.lastWinners.length > 0 && (
+          <div className="card p-5">
+            <p className="section-title">Last week&apos;s winners</p>
             <ol className="mt-3 flex flex-col gap-1.5">
-              {game.leaderboard.map((entry) => (
+              {game.lastWinners.map((winner) => (
                 <li
-                  key={`${entry.rank}-${entry.maskedEmail}`}
+                  key={winner.rank}
                   className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm odd:bg-zinc-50"
                 >
-                  <span
-                    className="flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                    style={{
-                      backgroundColor: entry.rank <= 3 ? accent : "#a1a1aa",
-                    }}
-                  >
-                    {entry.rank}
+                  <span className="w-7 shrink-0 text-center text-base">
+                    {RANK_MEDALS[winner.rank - 1] ?? winner.rank}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-zinc-600">
-                    {entry.maskedEmail}
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-600">
+                    {winner.maskedEmail}
                   </span>
-                  <span className="font-semibold tabular-nums text-zinc-900">
-                    {entry.score}
+                  <span className="truncate text-xs text-zinc-500">
+                    {winner.prize ?? "—"}
                   </span>
                 </li>
               ))}
@@ -476,8 +661,9 @@ function ResultPanel({
   outcome,
   accent,
   scoreLabel,
-  showScore,
-  cooldownLeft,
+  isBoard,
+  seasonLeft,
+  topPrize,
   copied,
   onCopy,
   onPlayAgain,
@@ -485,12 +671,83 @@ function ResultPanel({
   outcome: GameOutcome;
   accent: string;
   scoreLabel: string;
-  showScore: boolean;
-  cooldownLeft: string | null;
+  isBoard: boolean;
+  seasonLeft: string | null;
+  topPrize: string | null;
   copied: boolean;
   onCopy: (code: string) => void;
   onPlayAgain: () => void;
 }) {
+  // ---- Leaderboard result ------------------------------------------------
+  if (isBoard || outcome.result === "scored") {
+    const isBest = outcome.score >= outcome.bestScore && outcome.score > 0;
+    const onPodium = outcome.rank !== null && outcome.rank <= 3;
+    return (
+      <div className="mt-5 flex flex-col items-center gap-4 text-center">
+        <span className="text-5xl">
+          {onPodium ? (RANK_MEDALS[(outcome.rank ?? 1) - 1] ?? "🏆") : isBest ? "🔥" : "👏"}
+        </span>
+        <div>
+          <h2 className="text-2xl font-bold text-zinc-900">
+            {outcome.score} {scoreLabel}
+          </h2>
+          <p className="mt-1 text-sm" style={{ color: accent }}>
+            {outcome.rank
+              ? `${rankLabel(outcome.rank)} this week`
+              : "On the board"}
+            {isBest && outcome.score > 0 ? " · new personal best" : ""}
+          </p>
+        </div>
+
+        <div className="flex w-full gap-2">
+          <div className="flex-1 rounded-xl bg-zinc-100 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Your best
+            </p>
+            <p className="text-lg font-bold text-zinc-900">{outcome.bestScore}</p>
+          </div>
+          <div className="flex-1 rounded-xl bg-zinc-100 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Lives left
+            </p>
+            <p className="text-lg font-bold text-zinc-900">
+              {"❤️".repeat(Math.min(outcome.livesLeft, 6)) || "0"}
+            </p>
+          </div>
+        </div>
+
+        {onPodium && topPrize && (
+          <p className="w-full rounded-xl border-2 border-dashed p-3 text-sm" style={{ borderColor: accent }}>
+            Hold your place until the week ends and the prize is yours. We&apos;ll
+            email the code.
+          </p>
+        )}
+
+        <p className="text-xs text-zinc-500">
+          {seasonLeft
+            ? `Prizes go out in ${seasonLeft}.`
+            : "The week is closing — prizes are on their way."}
+        </p>
+
+        {outcome.livesLeft > 0 ? (
+          <button
+            onClick={onPlayAgain}
+            style={{ backgroundColor: accent }}
+            className="btn-primary w-full"
+          >
+            Play again ({outcome.livesLeft} left)
+          </button>
+        ) : (
+          <p className="text-sm text-zinc-600">
+            That was your last life today. Share your link for another, or come
+            back tomorrow.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // ---- Instant-win result (games published before the change) ------------
   const won = outcome.result === "win";
   return (
     <div className="mt-5 flex flex-col items-center gap-4 text-center">
@@ -510,33 +767,6 @@ function ResultPanel({
         )}
       </div>
 
-      {showScore && (
-        <div className="flex w-full gap-2">
-          <div className="flex-1 rounded-xl bg-zinc-100 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-              Your score
-            </p>
-            <p className="text-lg font-bold text-zinc-900">
-              {outcome.score} {scoreLabel}
-            </p>
-          </div>
-          <div className="flex-1 rounded-xl bg-zinc-100 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-              Best
-            </p>
-            <p className="text-lg font-bold text-zinc-900">{outcome.bestScore}</p>
-          </div>
-          {outcome.rank !== null && (
-            <div className="flex-1 rounded-xl bg-zinc-100 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                Rank
-              </p>
-              <p className="text-lg font-bold text-zinc-900">#{outcome.rank}</p>
-            </div>
-          )}
-        </div>
-      )}
-
       {won && outcome.code && (
         <div className="w-full rounded-2xl border-2 border-dashed p-4" style={{ borderColor: accent }}>
           <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -545,70 +775,23 @@ function ResultPanel({
           <p className="mt-1 font-mono text-3xl font-bold tracking-[0.3em] text-zinc-900">
             {outcome.code}
           </p>
-          {outcome.prize?.details && (
-            <p className="mt-1 text-xs text-zinc-500">{outcome.prize.details}</p>
-          )}
-          <div className="mt-3 flex justify-center gap-2">
-            <button onClick={() => onCopy(outcome.code!)} className="btn-secondary text-sm">
-              <Copy className="size-4" aria-hidden />
-              {copied ? "Copied!" : "Copy code"}
-            </button>
-            {typeof navigator !== "undefined" && "share" in navigator && (
-              <button
-                onClick={() =>
-                  navigator
-                    .share({
-                      title: outcome.prize?.description ?? "My prize",
-                      text: `I won ${outcome.prize?.description}! Code: ${outcome.code}`,
-                    })
-                    .catch(() => {})
-                }
-                className="btn-secondary text-sm"
-              >
-                <Share2 className="size-4" aria-hidden />
-                Share
-              </button>
-            )}
-          </div>
-          <p className="mt-3 text-xs text-zinc-500">
-            We emailed it to you too. It expires{" "}
-            {outcome.expiresAt
-              ? new Date(outcome.expiresAt).toLocaleDateString()
-              : "soon"}
-            .
-          </p>
+          <button
+            onClick={() => onCopy(outcome.code!)}
+            className="btn-secondary mt-3 text-sm"
+          >
+            <Copy className="size-4" aria-hidden />
+            {copied ? "Copied!" : "Copy code"}
+          </button>
         </div>
       )}
 
-      {!won && outcome.loyaltyPoints > 0 && (
-        <div className="w-full rounded-xl bg-zinc-100 px-4 py-3">
-          <p className="text-sm text-zinc-600">
-            Loyalty points:{" "}
-            <span className="font-bold text-zinc-900">
-              {outcome.loyaltyPoints}
-            </span>
-          </p>
-          {outcome.loyaltyCode && (
-            <p className="mt-1 font-mono text-sm tracking-widest text-zinc-700">
-              {outcome.loyaltyCode}
-            </p>
-          )}
-        </div>
-      )}
-
-      {cooldownLeft ? (
-        <p className="text-sm text-zinc-500">
-          Next play in <span className="font-semibold">{cooldownLeft}</span>.
-        </p>
-      ) : (
-        <button
-          onClick={onPlayAgain}
-          style={{ backgroundColor: accent }}
-          className="btn-primary w-full"
-        >
-          Play again
-        </button>
-      )}
+      <button
+        onClick={onPlayAgain}
+        style={{ backgroundColor: accent }}
+        className="btn-primary w-full"
+      >
+        Play again
+      </button>
     </div>
   );
 }

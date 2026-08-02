@@ -1,11 +1,14 @@
 # Spendbox
 
 Branded-games platform for SMEs (built for Nigerian cloud kitchens first). A
-business builds a game — a spin-to-win wheel, a scratch card, a quiz, an arcade
-high-score chase — brands it, and shares one link per game. Winning mints a
-one-time redemption code the customer shows at the counter; not winning earns a
-loyalty point, and points trade for a discount at a per-merchant rate (default
-**3 points → 2%**, expiring on a rolling 7-day window).
+business builds a game — an arcade high-score chase, a timed quiz — brands it,
+and shares one link. Players compete on a public leaderboard all week; when the
+week closes the top places take the prizes and their one-time redemption codes
+arrive by email, to be shown at the counter. Then the board resets and it starts
+again.
+
+Players get three lives a day per game, and can earn more by sharing their own
+link with someone who plays.
 
 Customers can review everything they've earned across every business at
 **`/me`** — an email-only portal (there are no customer accounts).
@@ -47,43 +50,79 @@ so the dashboard builder, the API validation, and the player page are all
 generated from it — adding a twenty-first game means one catalogue entry plus
 one component in `src/components/games/`.
 
+Only games that can carry a leaderboard are offered (`competitive: true` in the
+catalogue). The rest stay in the codebase so anything already published keeps
+working, but they can't be created.
+
 | Category | Games |
 |----------|-------|
-| **Instant win** | Wheel of Fortune · Digital Scratch Card · Mystery Gift / Pick-a-Box · Interactive Advent Calendar |
-| **Arcade & skill** | Endless Runner · Falling Objects / Catcher · Slice / Ninja Chop · Tile Merge · Memory Card Match · Whack-a-Mole · Flappy Flyer · Jigsaw / Photo Puzzle · Spot the Difference · Tic-Tac-Toe |
-| **Quiz & discover** | Product Recommender Quiz · Myth vs. Fact Trivia · Live Leaderboard Trivia · Virtual Lookbook / Room Builder |
-| **Community** | Digital Scavenger Hunt · Bracket / Knockout Poll |
+| **Arcade & skill** | Endless Runner · Falling Objects / Catcher · Slice / Ninja Chop · Tile Merge · Memory Card Match · Whack-a-Mole · Flappy Flyer · Jigsaw / Photo Puzzle · Spot the Difference |
+| **Quiz & knowledge** | Live Leaderboard Trivia · Myth vs. Fact Trivia |
+| *Retired (still runs, can't be created)* | Wheel of Fortune · Scratch Card · Pick-a-Box · Advent Calendar · Product Recommender · Lookbook · Scavenger Hunt · Bracket Poll · Tic-Tac-Toe |
 
-### The two award engines
+Artwork is chosen from a curated emoji picker (`src/lib/games/emoji.ts`) rather
+than typed: emoji are awkward to type, easy to paste wrong, and impossible to
+validate as free text. Anything not in the picker is dropped by the sanitiser.
 
-Twenty games, two ways of deciding a winner — both settled entirely in Postgres:
+### Every game is a weekly competition
 
-1. **`chance`** (wheel, scratch card, mystery box, advent calendar). The server
-   runs a weighted draw over the game's segments. Real prizes only enter the
-   pool while they have stock; losing segments ("blanks") are always in it. The
-   response tells the client *which segment* it landed on, so the wheel animates
-   to a result it did not choose. **The odds never reach the browser.**
-2. **`score`** (everything else). The player plays, the client submits a score,
-   and the server awards the best prize whose `min_score` that score clears.
-   Scores are clamped to the game's `max_score`, so a forged submission can
-   never beat the honest ceiling.
+A game runs a **season** — a week by default. Players compete on a public
+leaderboard; when the week closes, the prizes go to the top places by rank, the
+codes are emailed to the winners, and a fresh empty board opens.
+
+- **Seasons** (`game_seasons`) close lazily: any read of the play page calls
+  `close_due_game_season`, which ranks the board, mints the winners' codes,
+  records them in `game_season_winners`, and opens the next week. A unique
+  partial index guarantees exactly one open season per game, so a burst of
+  simultaneous readers can't double-pay.
+- **Ranking** is best score per player, ties broken by whoever got there first
+  — the same rule the live board and the payout both use.
+- **Prizes carry a rank** (`game_prizes.award_rank`): first row is first place.
+- **Emails** are sent by `src/lib/games/season-mail.ts`, which drains the
+  winners that `close_due_game_season` left unnotified. Marking happens after
+  the send, so a failure retries rather than dropping someone's prize.
+- Scores are clamped to the game's `max_score`, so a forged submission can
+  never beat the honest ceiling.
+
+The older **instant-win** games (wheel, scratch card, mystery box, advent
+calendar) can no longer be created, but everything already published keeps
+running: `games.award_mode` is `'instant'` for those and the weighted-draw path
+is untouched.
+
+### Lives, and sharing for more
+
+Because the prize is the rank rather than the play, playing often is the point.
+Each player gets **3 lives a day per game** (`games.daily_lives`). Every graded
+round spends one.
+
+Out of lives? Share your own link — `/p/<business>/<game>?ref=CODE` — and when
+someone plays through it you get an extra life that day, up to three
+(`games.max_bonus_lives`). The credit is tied to the invited player *finishing a
+round*, not to opening the link: a page view is free to farm, a round costs the
+visitor their time and the business a play from its allowance. One life per
+person invited, ever.
+
+### Public boards, private players
+
+The leaderboard is public, so addresses are masked before they leave the server
+(`src/lib/mask.ts`): around 70% starred out, with fixed-width runs so the mask
+leaks neither the characters nor the length. `ja********@********.com`. The
+board marks the reader's own row, so nobody needs to decode anything.
 
 ### The play lifecycle
 
 ```
-POST /api/play/[slug]/games/[game]/start    → checks cooldown + allowance,
+POST /api/play/[slug]/games/[game]/start    → checks lives + allowance,
                                               returns a single-use token
    … the player plays; the game component only reports a score …
-POST /api/play/[slug]/games/[game]/finish   → grades it, charges one play,
-                                              mints the code, returns the result
+POST /api/play/[slug]/games/[game]/finish   → grades it, spends a life, charges
+                                              one play, puts the score on the board
+POST /api/play/[slug]/games/[game]/refer    → credits whoever invited this player
 ```
 
 A round can only be graded through a token issued by `start`, each token grades
 exactly once, and a token left open for six hours is refused. The allowance is
 charged at `finish`, so an abandoned game costs the business nothing.
-
-A play that doesn't win still earns a loyalty point, and points trade for a
-discount code through the same staff redemption flow.
 
 ### Sharing
 
@@ -233,13 +272,18 @@ of truth; `supabase db push` tracks applied migrations server-side just like
    opens the full editor, and *Publish & share* takes it live and copies the
    link. Building one by hand from *New game* takes two steps: pick, then
    confirm the prize.
-4. Open `/p/<slug>/<game>` in an incognito window, verify an email, and spin. A
-   win emails a redemption code; a loss earns a loyalty point. Spin again to hit
-   the per-game cooldown, and open `/p/<slug>` for the hub of every live game.
-5. Back on the dashboard, type the code into **Redeem a customer code** — it
+4. Open `/p/<slug>/<game>` in an incognito window, verify an email, and play. The
+   score lands on this week's board; play twice more and you're out of lives.
+   Copy your share link, open it in another browser, play a round there — your
+   first browser gets a life back.
+5. To watch a week close without waiting: `update game_seasons set ends_at =
+   now() - interval '1 minute' where status = 'open';` then reload the play
+   page. The prizes go to the top places, the winners get their codes by email,
+   and a fresh empty board opens.
+6. Back on the dashboard, type the code into **Redeem a customer code** — it
    redeems once, then rejects with "already redeemed". Visit `/me` with the same
    email to see codes and points across every business.
-6. To test premium without paying: `update merchants set subscription_tier =
+7. To test premium without paying: `update merchants set subscription_tier =
    'premium', premium_expires_at = now() + interval '1 year';` in the SQL
    editor, reload the dashboard, and you can run unlimited games with up to 10
    prizes each. With `PAYSTACK_SECRET_KEY` set, the Plans tab instead offers a
@@ -250,25 +294,25 @@ of truth; `supabase db push` tracks applied migrations server-side just like
 The game engine is testable without the app. Against a seeded stack:
 
 ```sql
--- Build a wheel: one prize with 2 in stock, three losing segments (25% win rate)
+-- A weekly competition with a three-place podium
 select create_game(
   (select id from merchants where slug = 'mama-put-kitchen'),
-  'spin-wheel', 'chance', 'Spin to Win', 'spin-to-win', null,
+  'whack-a-mole', 'score', 'Whack it', 'weekly-game', null,
   '{}'::jsonb, '{}'::jsonb,
-  '[{"kind":"prize","description":"Free coffee","stock":2,"weight":100},
-    {"kind":"blank","description":"Not this time","weight":100},
-    {"kind":"blank","description":"So close","weight":100},
-    {"kind":"blank","description":"Try tomorrow","weight":100}]'::jsonb,
-  0, 5, 1);
+  '[{"kind":"prize","description":"Free meal","stock":12,"award_rank":1},
+    {"kind":"prize","description":"Free drink","stock":12,"award_rank":2},
+    {"kind":"prize","description":"10% off","stock":12,"award_rank":3}]'::jsonb,
+  0, 1, 100000, 'active', 'manual', 'leaderboard', 7, 3, 3);
 
--- Play a round (cooldown 0 above, so this can be looped)
-select start_game_play('mama-put-kitchen', 'spin-to-win', 'tester@example.com');
-select finish_game_play('<token from above>', 1, '{}'::jsonb);
+-- Play a round. Three a day; the fourth start returns 'no_lives'.
+select start_game_play('mama-put-kitchen', 'weekly-game', 'tester@example.com');
+select finish_game_play('<token from above>', 250, '{}'::jsonb);   -- 'scored'
 
--- Grading the same token twice must fail with 'play_already_finished',
--- and after 2 wins the prize is exhausted — every later spin is a loss.
-select claimed, stock from game_prizes
- where game_id = (select id from games where slug = 'spin-to-win');
+-- Close the week early and see the prizes go out
+update game_seasons set ends_at = now() - interval '1 minute' where status = 'open';
+select close_due_game_season((select id from games where slug = 'weekly-game'));
+select rank, score, unlocked_reward_id is not null as got_code
+  from game_season_winners order by rank;
 ```
 
 ## Project layout
@@ -279,7 +323,9 @@ select claimed, stock from game_prizes
   `game_prizes`, `game_plays`, `create_game`, `start_game_play`,
   `finish_game_play`, and the game-aware staff lookup/redeem); **`0014` adds the
   business knowledge base** (`merchants.profile`), draft games, and
-  `publish_game`.
+  `publish_game`; **`0015` turns games into weekly competitions**
+  (`game_seasons`, `game_season_winners`, `game_lives`, `game_referrals`,
+  `close_due_game_season`, rank-based prizes).
 - `src/lib/games/catalog.ts` — the game catalogue: one declarative entry per
   game type (engine, defaults, setup-form schema). Shared by the API, the
   dashboard builder, and the player.

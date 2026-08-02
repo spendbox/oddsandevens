@@ -4,16 +4,18 @@ import { maskEmail } from "@/lib/mask";
 import { EMAIL_REGEX } from "@/lib/constants";
 import { gameDef } from "@/lib/games/catalog";
 import type {
+  GameSeason,
   LeaderboardEntry,
+  PastWinner,
   PublicGame,
   PublicGameHost,
 } from "@/lib/games/types";
 
-const LEADERBOARD_LIMIT = 10;
+const LEADERBOARD_LIMIT = 20;
 
 // One game as the player is allowed to see it: the authored config, the prize
-// labels, the high-score table — and never a draw weight or a live stock count
-// for anything still winnable.
+// labels, and this week's leaderboard with every address masked. Never a draw
+// weight, and never the stock of anything still winnable.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ slug: string; game: string }> }
@@ -35,7 +37,7 @@ export async function GET(
   const { data: game } = await db
     .from("games")
     .select(
-      "id, slug, type, engine, title, description, status, config, theme, cooldown_hours, max_wins_per_player, plays_count, wins_count"
+      "id, slug, type, engine, title, description, status, config, theme, cooldown_hours, max_wins_per_player, plays_count, wins_count, award_mode, season_days, daily_lives, max_bonus_lives"
     )
     .eq("merchant_id", merchant.id)
     .eq("slug", gameSlug.toLowerCase())
@@ -47,55 +49,203 @@ export async function GET(
     return NextResponse.json({ error: "game_paused" }, { status: 403 });
   }
 
+  const isLeaderboard = game.award_mode === "leaderboard";
+
+  // Reading the page is when a finished week gets settled: prizes go out, the
+  // board resets, and the next week opens.
+  if (isLeaderboard) {
+    await db.rpc("close_due_game_season", { p_game_id: game.id });
+  }
+
   const def = gameDef(game.type);
   const { data: prizes } = await db
     .from("game_prizes")
-    .select("position, kind, description, details, icon, min_score, stock, claimed")
+    .select(
+      "position, kind, description, details, icon, min_score, award_rank, stock, claimed"
+    )
     .eq("game_id", game.id)
     .order("position", { ascending: true });
 
-  // The leaderboard only exists for games whose score means something.
-  let leaderboard: LeaderboardEntry[] = [];
-  if (def?.hasLeaderboard) {
-    const { data: plays } = await db
-      .from("game_plays")
-      .select("customer_id, score, finished_at")
-      .eq("game_id", game.id)
-      .not("finished_at", "is", null)
-      .not("customer_id", "is", null)
-      .order("score", { ascending: false })
-      .limit(200);
+  const prizeByRank = new Map(
+    (prizes ?? [])
+      .filter((p) => p.kind === "prize" && p.award_rank !== null)
+      .map((p) => [p.award_rank as number, p.description as string])
+  );
 
-    // One row per player: their personal best.
-    const best = new Map<string, { score: number; at: string }>();
-    for (const p of plays ?? []) {
-      const current = best.get(p.customer_id as string);
-      if (!current || p.score > current.score) {
-        best.set(p.customer_id as string, {
-          score: p.score,
-          at: p.finished_at as string,
-        });
+  // Who's asking — so we can mark their row on the board and count their lives.
+  const email = (new URL(req.url).searchParams.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  const { data: customer } = EMAIL_REGEX.test(email)
+    ? await db.from("customers").select("id").eq("email", email).maybeSingle()
+    : { data: null };
+
+  // ---- This week's board -------------------------------------------------
+  let season: GameSeason | null = null;
+  let leaderboard: LeaderboardEntry[] = [];
+  let lastWinners: PastWinner[] = [];
+  let playerCount = 0;
+  let player: {
+    livesLeft: number;
+    bestScore: number;
+    rank: number | null;
+    shareCode: string | null;
+    nextPlayAt: string | null;
+  } | null = null;
+
+  if (isLeaderboard) {
+    const { data: current } = await db
+      .from("game_seasons")
+      .select("id, number, starts_at, ends_at")
+      .eq("game_id", game.id)
+      .eq("status", "open")
+      .maybeSingle();
+
+    if (current) {
+      season = {
+        number: current.number,
+        startsAt: current.starts_at,
+        endsAt: current.ends_at,
+      };
+
+      const { data: plays } = await db
+        .from("game_plays")
+        .select("customer_id, score, finished_at")
+        .eq("season_id", current.id)
+        .not("finished_at", "is", null)
+        .not("customer_id", "is", null)
+        .gt("score", 0)
+        .order("score", { ascending: false })
+        .limit(500);
+
+      // One row per player: their best run this week, ties to whoever got
+      // there first — the same rule close_due_game_season pays out on.
+      const best = new Map<string, { score: number; at: string }>();
+      for (const p of plays ?? []) {
+        const current = best.get(p.customer_id as string);
+        if (
+          !current ||
+          p.score > current.score ||
+          (p.score === current.score &&
+            new Date(p.finished_at as string) < new Date(current.at))
+        ) {
+          best.set(p.customer_id as string, {
+            score: p.score,
+            at: p.finished_at as string,
+          });
+        }
+      }
+      playerCount = best.size;
+
+      const ranked = [...best.entries()].sort(
+        (a, b) =>
+          b[1].score - a[1].score ||
+          new Date(a[1].at).getTime() - new Date(b[1].at).getTime()
+      );
+      const top = ranked.slice(0, LEADERBOARD_LIMIT);
+
+      const { data: customers } = top.length
+        ? await db
+            .from("customers")
+            .select("id, email")
+            .in(
+              "id",
+              top.map(([id]) => id)
+            )
+        : { data: [] as { id: string; email: string }[] };
+      const emailById = new Map((customers ?? []).map((c) => [c.id, c.email]));
+
+      leaderboard = top.map(([id, entry], index) => ({
+        maskedEmail: maskEmail(emailById.get(id) ?? "player@unknown.com"),
+        score: entry.score,
+        at: entry.at,
+        rank: index + 1,
+        prize: prizeByRank.get(index + 1) ?? null,
+        isYou: customer?.id === id,
+      }));
+
+      if (customer) {
+        const myIndex = ranked.findIndex(([id]) => id === customer.id);
+        const [{ data: lives }, { data: shareCode }] = await Promise.all([
+          db.rpc("game_lives_left", {
+            p_game_id: game.id,
+            p_customer_id: customer.id,
+          }),
+          db.rpc("get_or_create_referral", {
+            p_game_id: game.id,
+            p_customer_id: customer.id,
+          }),
+        ]);
+        player = {
+          livesLeft: Number(lives ?? 0),
+          bestScore: myIndex >= 0 ? ranked[myIndex][1].score : 0,
+          rank: myIndex >= 0 ? myIndex + 1 : null,
+          shareCode: (shareCode as string | null) ?? null,
+          nextPlayAt: null,
+        };
       }
     }
-    const top = [...best.entries()]
-      .sort((a, b) => b[1].score - a[1].score)
-      .slice(0, LEADERBOARD_LIMIT);
-    const { data: customers } = top.length
-      ? await db
-          .from("customers")
-          .select("id, email")
-          .in(
-            "id",
-            top.map(([id]) => id)
-          )
-      : { data: [] as { id: string; email: string }[] };
-    const emailById = new Map((customers ?? []).map((c) => [c.id, c.email]));
-    leaderboard = top.map(([id, entry], index) => ({
-      maskedEmail: maskEmail(emailById.get(id) ?? "player@unknown.com"),
-      score: entry.score,
-      at: entry.at,
-      rank: index + 1,
-    }));
+
+    // How the previous week finished, so the board has some history on it.
+    const { data: closed } = await db
+      .from("game_seasons")
+      .select("id")
+      .eq("game_id", game.id)
+      .eq("status", "closed")
+      .order("ends_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (closed) {
+      const { data: winners } = await db
+        .from("game_season_winners")
+        .select("rank, score, customer_id, prize_id")
+        .eq("season_id", closed.id)
+        .order("rank", { ascending: true })
+        .limit(5);
+
+      const winnerIds = (winners ?? [])
+        .map((w) => w.customer_id)
+        .filter((id): id is string => id !== null);
+      const { data: winnerCustomers } = winnerIds.length
+        ? await db.from("customers").select("id, email").in("id", winnerIds)
+        : { data: [] as { id: string; email: string }[] };
+      const emailById = new Map(
+        (winnerCustomers ?? []).map((c) => [c.id, c.email])
+      );
+      lastWinners = (winners ?? []).map((w) => ({
+        rank: w.rank,
+        maskedEmail: maskEmail(
+          emailById.get(w.customer_id ?? "") ?? "player@unknown.com"
+        ),
+        score: w.score,
+        prize: prizeByRank.get(w.rank) ?? null,
+      }));
+    }
+  } else if (customer) {
+    // Instant-win games keep their cooldown.
+    const { data: mine } = await db
+      .from("game_plays")
+      .select("score, won, finished_at")
+      .eq("game_id", game.id)
+      .eq("customer_id", customer.id)
+      .not("finished_at", "is", null);
+    const rows = mine ?? [];
+    const lastAt = rows.reduce<number>(
+      (max, r) => Math.max(max, new Date(r.finished_at as string).getTime()),
+      0
+    );
+    const nextAt =
+      game.cooldown_hours > 0 && lastAt > 0
+        ? lastAt + game.cooldown_hours * 3600_000
+        : 0;
+    player = {
+      livesLeft: 0,
+      bestScore: rows.reduce((max, r) => Math.max(max, r.score), 0),
+      rank: null,
+      shareCode: null,
+      nextPlayAt: nextAt > Date.now() ? new Date(nextAt).toISOString() : null,
+    };
   }
 
   const host: PublicGameHost = {
@@ -125,57 +275,21 @@ export async function GET(
       details: p.details,
       icon: p.icon,
       minScore: p.min_score,
-      // "Sold out" is safe to publish: it can only ever make the wheel honest.
+      awardRank: p.award_rank,
+      // "Sold out" is safe to publish: it can only ever make the game honest.
       soldOut: p.kind === "prize" && p.claimed >= p.stock,
     })),
     playsCount: game.plays_count,
     winsCount: game.wins_count,
-    hasLeaderboard: def?.hasLeaderboard ?? false,
+    hasLeaderboard: isLeaderboard || (def?.hasLeaderboard ?? false),
     leaderboard,
+    awardMode: isLeaderboard ? "leaderboard" : "instant",
+    season,
+    lastWinners,
+    dailyLives: game.daily_lives,
+    maxBonusLives: game.max_bonus_lives,
+    playerCount,
   };
-
-  // A returning player gets their cooldown and personal best alongside.
-  const email = (new URL(req.url).searchParams.get("email") ?? "")
-    .trim()
-    .toLowerCase();
-  let player: {
-    nextPlayAt: string | null;
-    bestScore: number;
-    wins: number;
-    canWin: boolean;
-  } | null = null;
-  if (EMAIL_REGEX.test(email)) {
-    const { data: customer } = await db
-      .from("customers")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle();
-    if (customer) {
-      const { data: mine } = await db
-        .from("game_plays")
-        .select("score, won, finished_at")
-        .eq("game_id", game.id)
-        .eq("customer_id", customer.id)
-        .not("finished_at", "is", null);
-      const rows = mine ?? [];
-      const wins = rows.filter((r) => r.won).length;
-      const lastAt = rows.reduce<number>(
-        (max, r) => Math.max(max, new Date(r.finished_at as string).getTime()),
-        0
-      );
-      const nextAt =
-        game.cooldown_hours > 0 && lastAt > 0
-          ? lastAt + game.cooldown_hours * 3600_000
-          : 0;
-      player = {
-        nextPlayAt:
-          nextAt > Date.now() ? new Date(nextAt).toISOString() : null,
-        bestScore: rows.reduce((max, r) => Math.max(max, r.score), 0),
-        wins,
-        canWin: wins < game.max_wins_per_player,
-      };
-    }
-  }
 
   return NextResponse.json({ host, game: publicGame, player });
 }

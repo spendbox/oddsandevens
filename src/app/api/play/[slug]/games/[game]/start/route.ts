@@ -62,12 +62,19 @@ export async function POST(
       result: "started",
       token: String(raw.token),
       canWin: raw.can_win !== false,
+      livesLeft: Number(raw.lives_left ?? 0),
     };
     return NextResponse.json(payload);
   }
   if (result === "cooldown") {
     return NextResponse.json(
       { result: "cooldown", nextPlayAt: raw.next_play_at },
+      { status: 429 }
+    );
+  }
+  if (result === "no_lives") {
+    return NextResponse.json(
+      { result: "no_lives", nextLivesAt: raw.next_lives_at },
       { status: 429 }
     );
   }

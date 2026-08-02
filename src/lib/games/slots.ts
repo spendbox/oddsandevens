@@ -12,6 +12,8 @@ export interface PrizeRow {
   expiryDays: number;
   stock: number;
   minScore: number;
+  /** Leaderboard games: which place on the weekly board wins this. */
+  awardRank?: number;
 }
 
 const BLANK_LABELS = [
@@ -81,6 +83,27 @@ export function buildScoreSlots(prizes: PrizeRow[]): PrizeDraft[] {
   }));
 }
 
+/**
+ * Leaderboard games: one slot per place. The order of the rows *is* the order
+ * of the podium — first row wins first place — and stock is fixed at one,
+ * because there is only one first place a week.
+ */
+export function buildRankSlots(prizes: PrizeRow[]): PrizeDraft[] {
+  return prizes.map((prize, index) => ({
+    kind: "prize" as const,
+    description: prize.description,
+    details: prize.details || null,
+    icon: prize.icon,
+    expiry_days: prize.expiryDays,
+    // One winner per place per week, and the week can run for a while, so the
+    // stock is what caps how many weeks this prize can be won in total.
+    stock: Math.max(prize.stock, 1),
+    weight: 1,
+    min_score: 0,
+    award_rank: prize.awardRank ?? index + 1,
+  }));
+}
+
 /** The same slots as a player would receive them, for the preview. */
 export function slotsAsPublic(slots: PrizeDraft[]): PublicPrizeSlot[] {
   return slots.map((slot, position) => ({
@@ -90,6 +113,7 @@ export function slotsAsPublic(slots: PrizeDraft[]): PublicPrizeSlot[] {
     details: slot.details ?? null,
     icon: slot.icon ?? null,
     minScore: slot.min_score ?? 0,
+    awardRank: slot.award_rank ?? null,
     soldOut: false,
   }));
 }

@@ -5,12 +5,15 @@ import {
   sendMerchantHitEmail,
   sendRewardUnlockedEmail,
 } from "@/lib/email";
+import { notifySeasonWinners } from "@/lib/games/season-mail";
 import type { GameOutcome } from "@/lib/games/types";
 
-// Grades a play. Every rule that decides whether the player won — the weighted
-// draw, the score threshold, the stock lock, the per-player win cap — runs
-// inside finish_game_play, so a doctored client can at worst submit a score,
-// and the server clamps that to the game's ceiling.
+// Grades a play.
+//
+// On a leaderboard game the score simply goes on this week's board and a life
+// is spent — the prizes belong to the ranks at the end of the week, and are
+// handed out by close_due_game_season. On an instant-win game the old rules
+// still apply.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ slug: string }> }
@@ -29,7 +32,7 @@ export async function POST(
   }
 
   // The meta blob is the player's own record of the round (quiz answers, the
-  // look they built, the bracket they voted). Capped so it stays a note.
+  // look they built). Capped so it stays a note.
   let meta: unknown = {};
   if (body?.meta && typeof body.meta === "object") {
     const serialized = JSON.stringify(body.meta);
@@ -65,7 +68,8 @@ export async function POST(
 
   const prize = (raw.prize as GameOutcome["prize"]) ?? null;
   const outcome: GameOutcome = {
-    result: result === "win" ? "win" : "lose",
+    result:
+      result === "win" ? "win" : result === "scored" ? "scored" : "lose",
     segmentIndex:
       typeof raw.segment_index === "number" ? raw.segment_index : null,
     prize,
@@ -79,9 +83,10 @@ export async function POST(
     loyaltyCode: (raw.loyalty_code as string | null) ?? null,
     canWinAgain: raw.can_win_again !== false,
     nextPlayAt: (raw.next_play_at as string | null) ?? null,
+    livesLeft: Number(raw.lives_left ?? 0),
+    seasonEndsAt: (raw.season_ends_at as string | null) ?? null,
   };
 
-  // Emails are best-effort and never affect the committed result.
   const { data: merchant } = await db
     .from("merchants")
     .select(
@@ -90,6 +95,17 @@ export async function POST(
     .eq("slug", slug.toLowerCase())
     .maybeSingle();
 
+  // A leaderboard round is over the moment it's on the board. Prize emails for
+  // this game go out when the week closes, not now.
+  if (outcome.result === "scored") {
+    if (merchant) {
+      // Best-effort: post any prize emails a just-closed week left pending.
+      await notifySeasonWinners(db, merchant.id);
+    }
+    return NextResponse.json(outcome);
+  }
+
+  // ---- Instant-win games: emails as before -------------------------------
   const { data: play } = await db
     .from("game_plays")
     .select("customer_id")
@@ -129,7 +145,6 @@ export async function POST(
       outcome.loyaltyPoints % merchant.points_per_discount === 0 &&
       outcome.loyaltyCode
     ) {
-      // This play just completed a discount cycle — their loyalty code is live.
       await sendLoyaltyUnlockedEmail({
         to: playerEmail,
         businessName: merchant.business_name,

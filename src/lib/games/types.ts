@@ -1,6 +1,13 @@
 // Shapes shared by the games API, the dashboard builder, and the players.
 
 export type GameEngine = "chance" | "score";
+
+/**
+ * How a game hands out prizes.
+ *   "leaderboard" — the weekly board: top places win when the week closes.
+ *   "instant"     — the older model, kept alive for games already published.
+ */
+export type GameAwardMode = "leaderboard" | "instant";
 export type GameStatus = "draft" | "active" | "paused" | "archived";
 
 // Per-type settings authored in the builder (shape defined by each game's
@@ -22,6 +29,8 @@ export interface PublicPrizeSlot {
   icon: string | null;
   // Score games publish the bar to clear — that's the whole point of playing.
   minScore: number;
+  /** Leaderboard games: which place on the board wins this. */
+  awardRank: number | null;
   soldOut: boolean;
 }
 
@@ -30,6 +39,25 @@ export interface LeaderboardEntry {
   score: number;
   at: string;
   rank: number;
+  /** The prize waiting at this place, if there is one. */
+  prize: string | null;
+  /** True for the row belonging to the player looking at the board. */
+  isYou: boolean;
+}
+
+/** The week a leaderboard is running. */
+export interface GameSeason {
+  number: number;
+  startsAt: string;
+  endsAt: string;
+}
+
+/** What the last completed week paid out. */
+export interface PastWinner {
+  rank: number;
+  maskedEmail: string;
+  score: number;
+  prize: string | null;
 }
 
 // Everything the public player page needs for one game.
@@ -48,6 +76,17 @@ export interface PublicGame {
   winsCount: number;
   hasLeaderboard: boolean;
   leaderboard: LeaderboardEntry[];
+  awardMode: GameAwardMode;
+  /** Leaderboard games: the week that's running now. */
+  season: GameSeason | null;
+  /** Leaderboard games: how the last week finished. */
+  lastWinners: PastWinner[];
+  /** How many plays a player gets each day, before sharing. */
+  dailyLives: number;
+  /** How many extra plays sharing can earn in a day. */
+  maxBonusLives: number;
+  /** How many people are on this week's board. */
+  playerCount: number;
 }
 
 // The business behind the games, for the branded shell.
@@ -76,14 +115,16 @@ export interface PublicGamesHub {
 
 // What POST /start hands back before the player may play.
 export type StartPlayResult =
-  | { result: "started"; token: string; canWin: boolean }
+  | { result: "started"; token: string; canWin: boolean; livesLeft: number }
   | { result: "cooldown"; nextPlayAt: string }
+  | { result: "no_lives"; nextLivesAt: string }
   | { result: "no_plays" }
   | { result: "error"; error: string };
 
 // What POST /finish grades the play into.
 export interface GameOutcome {
-  result: "win" | "lose" | "no_plays";
+  /** "scored" is the leaderboard result: the run went on the board. */
+  result: "win" | "lose" | "scored" | "no_plays";
   // Chance games: which segment the server landed on, so the wheel/box/card
   // can animate to a result it did not choose.
   segmentIndex: number | null;
@@ -98,6 +139,9 @@ export interface GameOutcome {
   loyaltyCode: string | null;
   canWinAgain: boolean;
   nextPlayAt: string | null;
+  /** Leaderboard games: plays left today, and when the week closes. */
+  livesLeft: number;
+  seasonEndsAt: string | null;
 }
 
 // One game in the merchant's dashboard list.
@@ -115,6 +159,10 @@ export interface GameSummary {
   theme: GameTheme;
   cooldownHours: number;
   maxWinsPerPlayer: number;
+  awardMode: GameAwardMode;
+  seasonDays: number;
+  dailyLives: number;
+  maxBonusLives: number;
   playsCount: number;
   winsCount: number;
   createdAt: string;
@@ -131,6 +179,7 @@ export interface GameSummary {
     claimed: number;
     weight: number;
     minScore: number;
+    awardRank: number | null;
     position: number;
   }[];
 }
@@ -145,4 +194,6 @@ export interface PrizeDraft {
   stock?: number;
   weight?: number;
   min_score?: number;
+  /** Leaderboard games: which place wins this. */
+  award_rank?: number;
 }

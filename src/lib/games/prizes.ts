@@ -31,6 +31,9 @@ export function parsePrizes(raw: unknown): PrizeDraft[] | null {
     const stock = Number(p?.stock ?? 1);
     const weight = Number(p?.weight ?? 1);
     const minScore = Number(p?.min_score ?? 0);
+    const rawRank = p?.award_rank;
+    const awardRank =
+      rawRank === undefined || rawRank === null ? null : Number(rawRank);
     if (
       !Number.isFinite(expiryDays) ||
       !Number.isFinite(stock) ||
@@ -49,6 +52,9 @@ export function parsePrizes(raw: unknown): PrizeDraft[] | null {
       stock: kind === "blank" ? 0 : Math.min(Math.max(Math.round(stock), 1), 100000),
       weight: Math.min(Math.max(Math.round(weight), 0), 10000),
       min_score: Math.min(Math.max(Math.round(minScore), 0), 100000000),
+      ...(awardRank !== null && Number.isFinite(awardRank)
+        ? { award_rank: Math.min(Math.max(Math.round(awardRank), 1), 100) }
+        : {}),
     });
   }
   return out;

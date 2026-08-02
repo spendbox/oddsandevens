@@ -8,39 +8,51 @@
 
 import { useState } from "react";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
-import { GAMES, type GameType } from "@/lib/games/catalog";
-import { buildChanceSlots, buildScoreSlots, type PrizeRow } from "@/lib/games/slots";
+import {
+  GAMES,
+  RANK_MEDALS,
+  rankLabel,
+  type GameType,
+} from "@/lib/games/catalog";
+import {
+  buildChanceSlots,
+  buildRankSlots,
+  buildScoreSlots,
+  type PrizeRow,
+} from "@/lib/games/slots";
 import type { GameConfig, GameSummary } from "@/lib/games/types";
 import { GameIcon } from "@/components/games/icons";
 import { GameConfigEditor } from "./game-config-editor";
 import { GamePreview } from "./game-preview";
 
-const PLAY_FREQUENCY = [
-  { value: 0, label: "As often as they like" },
-  { value: 6, label: "A few times a day" },
-  { value: 12, label: "Twice a day" },
-  { value: 24, label: "Once a day" },
-  { value: 168, label: "Once a week" },
+const SEASON_LENGTHS = [
+  { value: 7, label: "Every week" },
+  { value: 14, label: "Every two weeks" },
+  { value: 30, label: "Every month" },
+  { value: 1, label: "Every day" },
 ];
 
-const WIN_LIMIT = [
-  { value: 1, label: "One prize, then they're done" },
-  { value: 2, label: "Up to two prizes" },
-  { value: 3, label: "Up to three prizes" },
-  { value: 100, label: "As many as they can win" },
+const LIVES_PER_DAY = [
+  { value: 1, label: "1 a day" },
+  { value: 3, label: "3 a day" },
+  { value: 5, label: "5 a day" },
+  { value: 10, label: "10 a day" },
 ];
 
 /** Existing prize slots back into the editable rows the builder uses. */
 function toPrizeRows(game: GameSummary): PrizeRow[] {
-  const real = game.prizes.filter((p) => p.kind === "prize");
-  return real.map((p) => ({
-    description: p.description,
-    details: p.details ?? "",
-    icon: p.icon,
-    expiryDays: p.expiryDays,
-    stock: p.stock,
-    minScore: p.minScore,
-  }));
+  return game.prizes
+    .filter((p) => p.kind === "prize")
+    .sort((a, b) => (a.awardRank ?? 99) - (b.awardRank ?? 99))
+    .map((p, i) => ({
+      description: p.description,
+      details: p.details ?? "",
+      icon: p.icon,
+      expiryDays: p.expiryDays,
+      stock: p.stock,
+      minScore: p.minScore,
+      awardRank: p.awardRank ?? i + 1,
+    }));
 }
 
 /** Recover the win chance a chance game was built with, for the slider. */
@@ -65,13 +77,14 @@ export function GameEditor({
   onCancel: () => void;
 }) {
   const def = GAMES[game.type as GameType];
+  const isBoard = game.awardMode === "leaderboard";
   const [title, setTitle] = useState(game.title);
   const [description, setDescription] = useState(game.description ?? "");
   const [config, setConfig] = useState<GameConfig>(game.config ?? {});
   const [prizes, setPrizes] = useState<PrizeRow[]>(() => toPrizeRows(game));
   const [winPercent, setWinPercent] = useState(() => inferWinPercent(game));
-  const [cooldownHours, setCooldownHours] = useState(game.cooldownHours);
-  const [maxWins, setMaxWins] = useState(game.maxWinsPerPlayer);
+  const [seasonDays, setSeasonDays] = useState(game.seasonDays);
+  const [dailyLives, setDailyLives] = useState(game.dailyLives);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,8 +100,9 @@ export function GameEditor({
     setBusy(true);
     setError(null);
     const named = prizes.filter((p) => p.description.trim().length > 0);
-    const slots =
-      def.engine === "chance"
+    const slots = isBoard
+      ? buildRankSlots(named)
+      : def.engine === "chance"
         ? buildChanceSlots(named, winPercent)
         : buildScoreSlots(named);
 
@@ -100,8 +114,8 @@ export function GameEditor({
         description: description.trim(),
         config,
         prizes: slots,
-        cooldownHours,
-        maxWinsPerPlayer: maxWins,
+        seasonDays,
+        dailyLives,
       }),
     });
     setBusy(false);
@@ -195,13 +209,16 @@ export function GameEditor({
               </div>
 
               <div>
-                <p className="section-title">Prizes</p>
-                {game.prizes.some((p) => p.claimed > 0) && (
-                  <p className="mt-1 text-xs text-zinc-500">
-                    Some of these have already been won. You can raise the
-                    numbers, but not below what&apos;s gone out.
-                  </p>
-                )}
+                <p className="section-title">
+                  {isBoard ? "The weekly podium" : "Prizes"}
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {isBoard
+                    ? "These go to the top places when the week closes, and the codes are emailed to the winners."
+                    : "What a player can win."}
+                  {game.prizes.some((p) => p.claimed > 0) &&
+                    " Some have already been won — you can raise the numbers, but not below what's gone out."}
+                </p>
               </div>
 
               {prizes.map((prize, index) => (
@@ -209,6 +226,28 @@ export function GameEditor({
                   key={index}
                   className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3"
                 >
+                  {isBoard && (
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                        <span className="text-base">
+                          {RANK_MEDALS[index] ?? "🎖️"}
+                        </span>
+                        {rankLabel(index + 1)}
+                      </span>
+                      {index > 0 && (
+                        <button
+                          onClick={() => {
+                            setPrizes(prizes.filter((_, i) => i !== index));
+                            setSaved(false);
+                          }}
+                          className="btn-ghost px-2 text-xs text-zinc-400 hover:text-rose-600"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <input
                     value={prize.description}
                     onChange={(e) =>
@@ -226,7 +265,9 @@ export function GameEditor({
                   />
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="field-label">How many</span>
+                      <span className="field-label">
+                        {isBoard ? "Weeks you can cover" : "How many"}
+                      </span>
                       <input
                         type="number"
                         min={1}
@@ -237,7 +278,7 @@ export function GameEditor({
                         className="input-field"
                       />
                     </label>
-                    {def.winRule === "target" ? (
+                    {!isBoard && def.winRule === "target" ? (
                       <label className="block">
                         <span className="field-label">
                           Score needed ({def.scoreLabel})
@@ -254,7 +295,7 @@ export function GameEditor({
                       </label>
                     ) : (
                       <label className="block">
-                        <span className="field-label">Valid for (days)</span>
+                        <span className="field-label">Code valid for (days)</span>
                         <input
                           type="number"
                           min={1}
@@ -273,26 +314,32 @@ export function GameEditor({
                 </div>
               ))}
 
-              <button
-                onClick={() =>
-                  setPrizes([
-                    ...prizes,
-                    {
-                      description: "",
-                      details: "",
-                      icon: null,
-                      expiryDays: 30,
-                      stock: 10,
-                      minScore: def.defaultTarget,
-                    },
-                  ])
-                }
-                className="btn-secondary self-start text-sm"
-              >
-                Add another prize
-              </button>
+              {(!isBoard || prizes.length < 3) && (
+                <button
+                  onClick={() => {
+                    setPrizes([
+                      ...prizes,
+                      {
+                        description: "",
+                        details: "",
+                        icon: null,
+                        expiryDays: 30,
+                        stock: isBoard ? 12 : 10,
+                        minScore: isBoard ? 0 : def.defaultTarget,
+                        awardRank: prizes.length + 1,
+                      },
+                    ]);
+                    setSaved(false);
+                  }}
+                  className="btn-secondary self-start text-sm"
+                >
+                  {isBoard
+                    ? `Add ${rankLabel(prizes.length + 1).toLowerCase()}`
+                    : "Add another prize"}
+                </button>
+              )}
 
-              {def.engine === "chance" && (
+              {!isBoard && def.engine === "chance" && (
                 <label className="block rounded-xl border border-zinc-200 p-3">
                   <span className="field-label">
                     How often should someone win? ({winPercent}%)
@@ -311,44 +358,51 @@ export function GameEditor({
                 </label>
               )}
 
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="block">
-                  <span className="field-label">How often can one person play?</span>
-                  <select
-                    value={cooldownHours}
-                    onChange={(e) => {
-                      setCooldownHours(Number(e.target.value));
-                      setSaved(false);
-                    }}
-                    className="input-field"
-                  >
-                    {PLAY_FREQUENCY.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="field-label">
-                    How many prizes can one person win?
-                  </span>
-                  <select
-                    value={maxWins}
-                    onChange={(e) => {
-                      setMaxWins(Number(e.target.value));
-                      setSaved(false);
-                    }}
-                    className="input-field"
-                  >
-                    {WIN_LIMIT.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+              {isBoard && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="field-label">When do prizes go out?</span>
+                    <select
+                      value={seasonDays}
+                      onChange={(e) => {
+                        setSeasonDays(Number(e.target.value));
+                        setSaved(false);
+                      }}
+                      className="input-field"
+                    >
+                      {SEASON_LENGTHS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mt-1 block text-xs text-zinc-500">
+                      Takes effect from the next round — the week that&apos;s
+                      already running finishes as it started.
+                    </span>
+                  </label>
+                  <label className="block">
+                    <span className="field-label">Lives per player</span>
+                    <select
+                      value={dailyLives}
+                      onChange={(e) => {
+                        setDailyLives(Number(e.target.value));
+                        setSaved(false);
+                      }}
+                      className="input-field"
+                    >
+                      {LIVES_PER_DAY.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mt-1 block text-xs text-zinc-500">
+                      Plus up to {game.maxBonusLives} more a day for sharing.
+                    </span>
+                  </label>
+                </div>
+              )}
 
               {error && <p className="alert-error">{error}</p>}
 

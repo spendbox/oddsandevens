@@ -7,6 +7,7 @@
 // player component knows how to read.
 
 import type { ConfigField, GameDefinition } from "./catalog";
+import { isAllowedEmoji, parseEmojiSet } from "./emoji";
 import type { GameConfig, GameTheme } from "./types";
 
 // Hard ceilings so a config can never become a storage or payload problem.
@@ -22,6 +23,17 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function sanitizeScalar(field: ConfigField, value: unknown): unknown {
   switch (field.type) {
+    // Emoji only ever come from the picker, so anything not in it is dropped
+    // rather than trusted — that's what keeps a game from rendering a glyph
+    // half the phones out there can't draw.
+    case "emoji": {
+      const s = String(value ?? "").trim();
+      return isAllowedEmoji(s) ? s : "";
+    }
+    case "emoji-set": {
+      const picks = parseEmojiSet(value).slice(0, field.maxPicks ?? 5);
+      return picks.join(" ");
+    }
     case "toggle":
       return typeof value === "boolean" ? value : value === "true";
     case "number": {

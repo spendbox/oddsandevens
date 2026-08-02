@@ -92,6 +92,22 @@ export async function PATCH(
     }
     patch.max_wins_per_player = Math.round(wins);
   }
+  if (body.seasonDays !== undefined) {
+    const days = Number(body.seasonDays);
+    if (!Number.isFinite(days) || days < 1 || days > 90) {
+      return NextResponse.json({ error: "invalid_season" }, { status: 400 });
+    }
+    // The week already running keeps the length it started with; this takes
+    // effect when the next one opens.
+    patch.season_days = Math.round(days);
+  }
+  if (body.dailyLives !== undefined) {
+    const lives = Number(body.dailyLives);
+    if (!Number.isFinite(lives) || lives < 1 || lives > 20) {
+      return NextResponse.json({ error: "invalid_lives" }, { status: 400 });
+    }
+    patch.daily_lives = Math.round(lives);
+  }
 
   const { error: updateError } = await db
     .from("games")
@@ -176,6 +192,7 @@ export async function PATCH(
         stock: Math.max(draft.stock ?? 1, claimed),
         weight: draft.weight ?? 1,
         min_score: draft.min_score ?? 0,
+        award_rank: draft.award_rank ?? null,
         position: i,
       };
       if (draftId && claimedById.has(draftId)) {

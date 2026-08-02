@@ -4,22 +4,27 @@
 //
 //   1. Pick one — from the games we already wrote for this business, or from
 //      the full catalogue.
-//   2. Confirm the prize and go live.
+//   2. Set the prizes for the podium and go live.
 //
-// Everything else is pre-filled and can be changed later from the editor. The
-// real game plays beside step 2 the whole time.
+// Every game is a weekly competition: players chase a public leaderboard, and
+// when the week closes the top places get their codes by email. Everything
+// else is pre-filled and editable later. The real game plays beside step 2.
 
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, Loader2, Sparkles, Wand2 } from "lucide-react";
 import {
+  COMPETITIVE_GAMES,
+  DEFAULT_SEASON_DAYS,
   GAMES,
-  GAME_CATEGORIES,
   GAME_TIER_LIMITS,
+  RANK_MEDALS,
+  competitiveCategories,
+  rankLabel,
   type GameCategory,
   type GameDefinition,
   type GameType,
 } from "@/lib/games/catalog";
-import { buildChanceSlots, buildScoreSlots, type PrizeRow } from "@/lib/games/slots";
+import { buildRankSlots, type PrizeRow } from "@/lib/games/slots";
 import { suggestGames, type GameBlueprint } from "@/lib/games/suggest";
 import type { BusinessProfile } from "@/lib/business/profile";
 import type { GameConfig } from "@/lib/games/types";
@@ -30,13 +35,12 @@ import { GamePreview } from "./game-preview";
 
 type Step = "pick" | "prize" | "done";
 
-// Replay limits in the words a shop owner would use, not hours.
-const PLAY_FREQUENCY = [
-  { value: 0, label: "As often as they like" },
-  { value: 6, label: "A few times a day" },
-  { value: 12, label: "Twice a day" },
-  { value: 24, label: "Once a day" },
-  { value: 168, label: "Once a week" },
+// How long a leaderboard runs before the prizes go out and it resets.
+const SEASON_LENGTHS = [
+  { value: 7, label: "Every week" },
+  { value: 14, label: "Every two weeks" },
+  { value: 30, label: "Every month" },
+  { value: 1, label: "Every day" },
 ];
 
 export function GameWizard({
@@ -58,15 +62,13 @@ export function GameWizard({
 }) {
   const [step, setStep] = useState<Step>("pick");
   const [browsing, setBrowsing] = useState(false);
-  const [category, setCategory] = useState<GameCategory>("instant-win");
+  const [category, setCategory] = useState<GameCategory>("arcade");
   const [type, setType] = useState<GameType | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [config, setConfig] = useState<GameConfig>({});
   const [prizes, setPrizes] = useState<PrizeRow[]>([]);
-  const [winPercent, setWinPercent] = useState(25);
-  const [cooldownHours, setCooldownHours] = useState(24);
-  const [maxWins, setMaxWins] = useState(1);
+  const [seasonDays, setSeasonDays] = useState(DEFAULT_SEASON_DAYS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -93,11 +95,12 @@ export function GameWizard({
     [businessName, profile, rewardTemplates]
   );
 
+  // Only competitive games can be created — the instant-win ones are retired.
   const gallery = useMemo(
     () =>
-      GAME_CATEGORIES.map((c) => ({
+      competitiveCategories().map((c) => ({
         ...c,
-        games: Object.values(GAMES).filter((g) => g.category === c.key),
+        games: COMPETITIVE_GAMES.filter((g) => g.category === c.key),
       })),
     []
   );
@@ -108,9 +111,7 @@ export function GameWizard({
     setDescription(blueprint.description);
     setConfig(blueprint.config);
     setPrizes(blueprint.prizes);
-    setWinPercent(blueprint.winPercent || 25);
-    setCooldownHours(blueprint.cooldownHours);
-    setMaxWins(blueprint.maxWins);
+    setSeasonDays(DEFAULT_SEASON_DAYS);
     setStep("prize");
   };
 
@@ -121,17 +122,16 @@ export function GameWizard({
     setTitle(`${chosen.label} at ${businessName}`.slice(0, 80));
     setDescription(chosen.tagline);
     setConfig({ ...chosen.defaultConfig });
-    setCooldownHours(chosen.cooldownHours);
-    setWinPercent(25);
-    setMaxWins(1);
+    setSeasonDays(DEFAULT_SEASON_DAYS);
     setPrizes([
       {
         description: first?.description ?? offer ?? "10% off your next order",
         details: first?.details ?? "",
         icon: first?.icon ?? null,
         expiryDays: first?.default_expiry_days ?? 30,
-        stock: 25,
-        minScore: chosen.defaultTarget,
+        stock: 12,
+        minScore: 0,
+        awardRank: 1,
       },
     ]);
     setStep("prize");
@@ -144,17 +144,15 @@ export function GameWizard({
   const create = async () => {
     if (!def) return;
     const named = prizes.filter((p) => p.description.trim().length > 0);
-    if (def.engine === "chance" && named.length === 0) {
-      setError("Give it at least one prize — a wheel needs something to win.");
+    if (named.length === 0) {
+      setError("Give first place something to win.");
       return;
     }
 
     setBusy(true);
     setError(null);
-    const slots =
-      def.engine === "chance"
-        ? buildChanceSlots(named, winPercent)
-        : buildScoreSlots(named);
+    // One prize per place: the order of the rows is the order of the podium.
+    const slots = buildRankSlots(named);
 
     const res = await fetch("/api/merchant/games", {
       method: "POST",
@@ -165,8 +163,7 @@ export function GameWizard({
         description: description.trim(),
         config,
         prizes: slots,
-        cooldownHours,
-        maxWinsPerPlayer: maxWins,
+        seasonDays,
       }),
     });
     const body = await res.json().catch(() => null);
@@ -421,11 +418,11 @@ export function GameWizard({
               </label>
 
               <div>
-                <p className="section-title">What can they win?</p>
+                <p className="section-title">The weekly podium</p>
                 <p className="mt-1 text-xs text-zinc-500">
-                  {def.engine === "chance"
-                    ? "Winners are drawn on our servers, so nobody can rig it from their phone."
-                    : "They win the best prize they earn — play the preview to see what a real score looks like."}
+                  Players chase a public leaderboard. When the week closes, these
+                  prizes go to the top places and the codes are emailed to them.
+                  Then the board resets and it starts again.
                 </p>
               </div>
 
@@ -435,10 +432,11 @@ export function GameWizard({
                   className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3"
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                      Prize {index + 1}
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                      <span className="text-base">{RANK_MEDALS[index] ?? "🎖️"}</span>
+                      {rankLabel(index + 1)}
                     </span>
-                    {prizes.length > 1 && (
+                    {index > 0 && (
                       <button
                         onClick={() =>
                           setPrizes(prizes.filter((_, i) => i !== index))
@@ -456,18 +454,22 @@ export function GameWizard({
                       updatePrize(index, { description: e.target.value })
                     }
                     maxLength={200}
-                    placeholder="Free coffee with any pastry"
+                    placeholder={
+                      index === 0
+                        ? "Free coffee with any pastry"
+                        : "Something a bit smaller"
+                    }
                     className="input-field"
                     list="game-reward-suggestions"
                   />
 
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="field-label">How many to give away?</span>
+                      <span className="field-label">Weeks you can cover</span>
                       <input
                         type="number"
                         min={1}
-                        max={100000}
+                        max={520}
                         value={prize.stock}
                         onChange={(e) =>
                           updatePrize(index, { stock: Number(e.target.value) })
@@ -475,40 +477,21 @@ export function GameWizard({
                         className="input-field"
                       />
                     </label>
-                    {def.winRule === "target" ? (
-                      <label className="block">
-                        <span className="field-label">
-                          Score they need ({def.scoreLabel})
-                        </span>
-                        <input
-                          type="number"
-                          min={0}
-                          value={prize.minScore}
-                          onChange={(e) =>
-                            updatePrize(index, {
-                              minScore: Number(e.target.value),
-                            })
-                          }
-                          className="input-field"
-                        />
-                      </label>
-                    ) : (
-                      <label className="block">
-                        <span className="field-label">Code valid for (days)</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={60}
-                          value={prize.expiryDays}
-                          onChange={(e) =>
-                            updatePrize(index, {
-                              expiryDays: Number(e.target.value),
-                            })
-                          }
-                          className="input-field"
-                        />
-                      </label>
-                    )}
+                    <label className="block">
+                      <span className="field-label">Code valid for (days)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={prize.expiryDays}
+                        onChange={(e) =>
+                          updatePrize(index, {
+                            expiryDays: Number(e.target.value),
+                          })
+                        }
+                        className="input-field"
+                      />
+                    </label>
                   </div>
                 </div>
               ))}
@@ -519,7 +502,7 @@ export function GameWizard({
                 ))}
               </datalist>
 
-              {prizes.length < maxPrizes && (
+              {prizes.length < Math.min(maxPrizes, 3) && (
                 <button
                   onClick={() =>
                     setPrizes([
@@ -529,51 +512,42 @@ export function GameWizard({
                         details: "",
                         icon: null,
                         expiryDays: 30,
-                        stock: 10,
-                        minScore: (def.defaultTarget ?? 0) * (prizes.length + 1),
+                        stock: 12,
+                        minScore: 0,
+                        awardRank: prizes.length + 1,
                       },
                     ])
                   }
                   className="btn-secondary self-start text-sm"
                 >
-                  Add another prize
+                  Add {rankLabel(prizes.length + 1).toLowerCase()}
                 </button>
               )}
 
-              {def.engine === "chance" && (
-                <label className="block rounded-xl border border-zinc-200 p-3">
-                  <span className="field-label">
-                    How often should someone win? ({winPercent}%)
-                  </span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={100}
-                    value={winPercent}
-                    onChange={(e) => setWinPercent(Number(e.target.value))}
-                    className="w-full accent-[var(--brand)]"
-                  />
-                  <span className="text-xs text-zinc-500">
-                    About {winPercent} in every 100 plays lands on a prize. Spin
-                    the preview a few times to feel it.
-                  </span>
-                </label>
-              )}
-
               <label className="block">
-                <span className="field-label">How often can one person play?</span>
+                <span className="field-label">When do prizes go out?</span>
                 <select
-                  value={cooldownHours}
-                  onChange={(e) => setCooldownHours(Number(e.target.value))}
+                  value={seasonDays}
+                  onChange={(e) => setSeasonDays(Number(e.target.value))}
                   className="input-field"
                 >
-                  {PLAY_FREQUENCY.map((option) => (
+                  {SEASON_LENGTHS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
                 </select>
+                <span className="mt-1 block text-xs text-zinc-500">
+                  The board resets each time, so everyone starts level again.
+                </span>
               </label>
+
+              <div className="rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-600">
+                Players get{" "}
+                <span className="font-semibold text-zinc-900">3 lives a day</span>{" "}
+                on this game, and can earn up to 3 more by sharing their link
+                with someone who plays.
+              </div>
 
               {error && <p className="alert-error">{error}</p>}
 
@@ -609,7 +583,6 @@ export function GameWizard({
             def={def}
             config={config}
             prizes={prizes}
-            winPercent={winPercent}
             accent={brandColor || "#059669"}
           />
         </div>

@@ -3,9 +3,9 @@
 // The builder's live preview: the real game, playing against the settings the
 // business is editing right now, in the phone frame their customers will see.
 //
-// Nothing here touches the server. `submit` runs the same rules the Postgres
-// engine runs — a weighted draw for chance games, a score threshold for the
-// rest — so what the preview does is what the live game will do.
+// Nothing here touches the server. For a competitive game the round simply
+// lands a score, exactly as it will on the real weekly board; for the retired
+// instant-win games it runs the same draw the Postgres engine runs.
 
 import { useMemo, useState } from "react";
 import { RotateCcw, Smartphone } from "lucide-react";
@@ -13,6 +13,7 @@ import { GameRenderer } from "@/components/games";
 import type { GameDefinition } from "@/lib/games/catalog";
 import {
   buildChanceSlots,
+  buildRankSlots,
   buildScoreSlots,
   slotsAsPublic,
   type PrizeRow,
@@ -24,6 +25,28 @@ function simulate(
   slots: PrizeDraft[],
   score: number
 ): GameOutcome {
+  // Competitive games don't decide a prize at the end of a round — the score
+  // goes on the board and the week decides.
+  if (def.competitive) {
+    return {
+      result: "scored",
+      segmentIndex: null,
+      prize: null,
+      code: null,
+      expiresAt: null,
+      score,
+      bestScore: score,
+      rank: 1,
+      loyaltyPoints: 0,
+      pointsExpireAt: null,
+      loyaltyCode: null,
+      canWinAgain: true,
+      nextPlayAt: null,
+      livesLeft: 2,
+      seasonEndsAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    };
+  }
+
   let index = -1;
 
   if (def.engine === "chance") {
@@ -75,6 +98,8 @@ function simulate(
     loyaltyCode: null,
     canWinAgain: true,
     nextPlayAt: null,
+    livesLeft: 2,
+    seasonEndsAt: null,
   };
 }
 
@@ -82,13 +107,14 @@ export function GamePreview({
   def,
   config,
   prizes,
-  winPercent,
+  winPercent = 25,
   accent,
 }: {
   def: GameDefinition;
   config: GameConfig;
   prizes: PrizeRow[];
-  winPercent: number;
+  /** Instant-win games only: the odds the wheel was built with. */
+  winPercent?: number;
   accent: string;
 }) {
   const [round, setRound] = useState(0);
@@ -111,6 +137,7 @@ export function GamePreview({
               minScore: def.defaultTarget,
             },
           ];
+    if (def.competitive) return buildRankSlots(rows);
     return def.engine === "chance"
       ? buildChanceSlots(rows, winPercent)
       : buildScoreSlots(rows);
@@ -149,24 +176,37 @@ export function GamePreview({
           {revealed && outcome ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <span className="text-4xl">
-                {outcome.result === "win" ? "🎉" : "🙂"}
+                {outcome.result === "scored"
+                  ? "🏆"
+                  : outcome.result === "win"
+                    ? "🎉"
+                    : "🙂"}
               </span>
-              <p className="text-lg font-bold text-zinc-900">
-                {outcome.result === "win"
-                  ? outcome.prize?.description
-                  : "No prize this time"}
-              </p>
-              {outcome.result === "win" ? (
-                <p className="font-mono text-2xl font-bold tracking-[0.3em] text-zinc-900">
-                  ABC123
-                </p>
+              {outcome.result === "scored" ? (
+                <>
+                  <p className="text-lg font-bold text-zinc-900">
+                    {outcome.score} {def.scoreLabel}
+                  </p>
+                  <p className="text-sm text-zinc-500">
+                    That would go straight onto this week&apos;s board.
+                  </p>
+                </>
               ) : (
-                <p className="text-sm text-zinc-500">
-                  They still earn a loyalty point.
-                </p>
+                <>
+                  <p className="text-lg font-bold text-zinc-900">
+                    {outcome.result === "win"
+                      ? outcome.prize?.description
+                      : "No prize this time"}
+                  </p>
+                  {outcome.result === "win" && (
+                    <p className="font-mono text-2xl font-bold tracking-[0.3em] text-zinc-900">
+                      ABC123
+                    </p>
+                  )}
+                </>
               )}
               <p className="text-xs text-zinc-400">
-                Preview only — no code was issued.
+                Preview only — nothing was recorded.
               </p>
               <button
                 onClick={replay}

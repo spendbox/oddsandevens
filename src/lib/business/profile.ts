@@ -194,7 +194,7 @@ export const INDUSTRIES: IndustryPack[] = [
     label: "Pharmacy / health",
     emoji: "💊",
     items: ["💊", "🩺", "🧴", "🌡️", "🩹"],
-    hazard: "🚬",
+    hazard: "🍭",
     mascot: "🧑‍⚕️",
     sellsExamples: ["Prescriptions", "Vitamins", "Skincare", "First aid"],
     offerExamples: ["Free blood-pressure check", "15% off vitamins", "Free delivery"],
