@@ -373,6 +373,10 @@ export default function SliceNinja({
             value: "❤️".repeat(Math.max(lives, 0)) || "—",
             icon: "",
           },
+          // Stays up for the whole round. The hazard is whatever the business
+          // chose, so there is no way to know it except by being shown it —
+          // and finding out by losing a life is how a player stops playing.
+          { label: "Don't slice", value: bomb, icon: "🚫" },
         ]}
       />
       <Stage
@@ -398,6 +402,27 @@ export default function SliceNinja({
           onPointerUp={endSwipe}
           onPointerLeave={endSwipe}
         />
+
+        {/* A hazard in flight wears a red warning ring. The emoji alone isn't
+            enough at the size and speed these move, and it may be something
+            the player has never been told is dangerous — the ring is the same
+            colour wherever the business's choice lands. */}
+        {frame
+          .filter((obj) => obj.bomb && !obj.half)
+          .map((obj) => (
+            <span
+              key={`ring-${obj.id}`}
+              aria-hidden
+              className="danger-ring pointer-events-none absolute"
+              style={{
+                left: world.left(obj.x),
+                top: `${obj.y}%`,
+                width: size(SIZE * 1.5),
+                height: size(SIZE * 1.5),
+                transform: "translate(-50%, -50%)",
+              }}
+            />
+          ))}
 
         {frame.map((obj) => (
           <span
@@ -487,7 +512,11 @@ export default function SliceNinja({
         {phase === "idle" && (
           <StartOverlay
             title="Slice everything"
-            hint={`Swipe to slice. Every ${bomb} costs a life.`}
+            hint="Swipe through what's thrown up. One of these is not like the others."
+            legend={[
+              ...fruit.slice(0, 3).map((emoji) => ({ emoji, label: "Slice" })),
+              { emoji: bomb, label: "Avoid", avoid: true },
+            ]}
             buttonLabel="Start slicing"
             accent={accent}
             onStart={start}

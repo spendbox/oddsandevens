@@ -4,7 +4,7 @@
 // catalogue. Every game type gets a working editor for free — including the
 // nested ones (a quiz's questions, each with its own list of answers).
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, ChevronDown, Plus, Search, Trash2, X } from "lucide-react";
 import type { ConfigField } from "@/lib/games/catalog";
 import { EMOJI_GROUPS, parseEmojiSet, searchEmoji } from "@/lib/games/emoji";
@@ -15,9 +15,16 @@ import type { GameConfig } from "@/lib/games/types";
  * exactly one, `emoji-set` picks up to `maxPicks`. Nothing is typed, so the
  * value can only ever be an emoji the players' devices can render.
  *
- * The set is a few hundred strong now, which is past the point where scrolling
- * a grid works — so it opens on search. Type "coffee" and you get ☕ without
- * knowing it lives under Drinks.
+ * It opens as a sheet rather than as a dropdown in the form. The dropdown was
+ * unusable on a phone: it appeared inside an already-scrolling modal, the
+ * autofocused search box threw the keyboard up over most of it, and what was
+ * left was a 224px window onto a few hundred emoji. A sheet gets the full
+ * height of the screen, and the keyboard only appears if someone asks for it
+ * by tapping search.
+ *
+ * The set is a few hundred strong, which is past the point where scrolling a
+ * grid works — hence search. Type "coffee" and you get ☕ without knowing it
+ * lives under Drinks.
  */
 function EmojiPicker({
   value,
@@ -33,16 +40,54 @@ function EmojiPicker({
   const [open, setOpen] = useState(false);
   const [group, setGroup] = useState(EMOJI_GROUPS[0].key);
   const [query, setQuery] = useState("");
+  // Only grab focus where a keyboard is already out: on a touch screen,
+  // focusing the search box covers the emoji with the thing you'd use to
+  // avoid looking at them.
+  const [focusSearch, setFocusSearch] = useState(false);
+
   const picked = multiple
     ? parseEmojiSet(value)
     : value.trim().length > 0
       ? [value.trim()]
       : [];
 
+  // The sheet covers the screen, so the page behind it must not scroll with it.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const openPicker = () => {
+    setFocusSearch(window.matchMedia("(pointer: fine)").matches);
+    setQuery("");
+    setOpen(true);
+  };
+
+  /**
+   * Closes on the next tick rather than inside the click that asked for it.
+   *
+   * Taking the sheet out of the DOM mid-dispatch makes Chrome fire a second
+   * click at whatever is now under the pointer — and often enough that is the
+   * field which opens the sheet, so it shut and reopened in one tap. Leaving
+   * it mounted for the rest of the dispatch costs a frame and nothing else.
+   */
+  const close = useCallback(() => {
+    window.setTimeout(() => setOpen(false), 0);
+  }, []);
+
   const toggle = (emoji: string) => {
     if (!multiple) {
       onChange(emoji);
-      setOpen(false);
+      close();
       return;
     }
     const next = picked.includes(emoji)
@@ -54,14 +99,13 @@ function EmojiPicker({
   };
 
   const active = EMOJI_GROUPS.find((g) => g.key === group) ?? EMOJI_GROUPS[0];
-  const results = searchEmoji(query);
-  const showing = query.trim().length > 0 ? results : active.emoji;
+  const showing = query.trim().length > 0 ? searchEmoji(query) : active.emoji;
 
   return (
-    <div>
+    <>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={openPicker}
         className="input-field flex items-center justify-between gap-2 text-left"
       >
         <span className="emoji flex flex-wrap items-center gap-1.5 text-2xl leading-none">
@@ -73,102 +117,153 @@ function EmojiPicker({
             </span>
           )}
         </span>
-        <ChevronDown
-          className={"size-4 shrink-0 text-zinc-400 transition " + (open ? "rotate-180" : "")}
-          aria-hidden
-        />
+        <ChevronDown className="size-4 shrink-0 text-zinc-400" aria-hidden />
       </button>
 
       {open && (
-        <div className="mt-2 rounded-2xl border border-zinc-200 bg-white p-2.5 shadow-lg">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
-              aria-hidden
-            />
-            <input
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search — coffee, trophy, fire…"
-              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-2 pl-8 pr-8 text-sm outline-none focus:border-zinc-300 focus:bg-white"
-            />
-            {query && (
+        <div
+          onClick={close}
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-zinc-900/50 backdrop-blur-sm sm:items-center sm:p-4"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Choose an emoji"
+            onClick={(event) => event.stopPropagation()}
+            className="flex max-h-[88svh] w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:max-h-[36rem] sm:max-w-lg sm:rounded-3xl"
+          >
+            {/* Grab handle — the thing that says "this sheet moves". */}
+            <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
+              <span className="h-1 w-10 rounded-full bg-zinc-300" />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-3">
+              <p className="text-sm font-semibold text-zinc-900">
+                {multiple ? `Pick up to ${maxPicks}` : "Pick one"}
+              </p>
               <button
                 type="button"
-                onClick={() => setQuery("")}
-                aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                onClick={close}
+                aria-label="Close"
+                className="-mr-1.5 flex size-9 items-center justify-center rounded-full text-zinc-500 active:bg-zinc-100"
               >
-                <X className="size-4" aria-hidden />
+                <X className="size-5" aria-hidden />
               </button>
-            )}
-          </div>
-
-          {query.trim().length === 0 && (
-            <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
-              {EMOJI_GROUPS.map((g) => (
-                <button
-                  key={g.key}
-                  type="button"
-                  onClick={() => setGroup(g.key)}
-                  title={g.label}
-                  className={
-                    "flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition " +
-                    (group === g.key
-                      ? "bg-zinc-900 text-white"
-                      : "text-zinc-500 hover:bg-zinc-100")
-                  }
-                >
-                  <span className="emoji text-base leading-none">{g.icon}</span>
-                  {g.label}
-                </button>
-              ))}
             </div>
-          )}
 
-          <div className="mt-2 grid max-h-56 grid-cols-6 gap-1 overflow-y-auto sm:grid-cols-9">
-            {showing.map((option) => {
-              const isPicked = picked.includes(option.char);
-              return (
-                <button
-                  key={option.char}
-                  type="button"
-                  onClick={() => toggle(option.char)}
-                  aria-pressed={isPicked}
-                  title={option.name}
-                  className={
-                    "emoji relative flex aspect-square items-center justify-center rounded-xl text-2xl transition hover:scale-110 hover:bg-zinc-100 " +
-                    (isPicked ? "bg-[var(--brand)]/10 ring-2 ring-[var(--brand)]" : "")
-                  }
-                >
-                  {option.char}
-                  {isPicked && (
-                    <Check
-                      className="absolute -right-0.5 -top-0.5 size-3 rounded-full bg-[var(--brand)] p-px text-white"
-                      aria-hidden
-                    />
-                  )}
-                </button>
-              );
-            })}
+            <div className="px-4 pb-2">
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+                  aria-hidden
+                />
+                <input
+                  autoFocus={focusSearch}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search — coffee, trophy, fire…"
+                  // 16px or bigger, or iOS zooms the whole page on focus.
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 py-2.5 pl-9 pr-9 text-base outline-none focus:border-zinc-300 focus:bg-white"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear search"
+                    className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-zinc-400 active:bg-zinc-100"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {query.trim().length === 0 && (
+              <div className="flex gap-1.5 overflow-x-auto px-4 pb-2">
+                {EMOJI_GROUPS.map((g) => (
+                  <button
+                    key={g.key}
+                    type="button"
+                    onClick={() => setGroup(g.key)}
+                    className={
+                      "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition " +
+                      (group === g.key
+                        ? "bg-zinc-900 text-white"
+                        : "bg-zinc-100 text-zinc-600")
+                    }
+                  >
+                    <span className="emoji text-base leading-none">{g.icon}</span>
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-2">
+              <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8">
+                {showing.map((option) => {
+                  const isPicked = picked.includes(option.char);
+                  return (
+                    <button
+                      key={option.char}
+                      type="button"
+                      onClick={() => toggle(option.char)}
+                      aria-pressed={isPicked}
+                      title={option.name}
+                      className={
+                        "emoji relative flex aspect-square items-center justify-center rounded-xl text-3xl transition active:scale-90 sm:text-2xl " +
+                        (isPicked
+                          ? "bg-[var(--brand)]/10 ring-2 ring-[var(--brand)]"
+                          : "active:bg-zinc-100")
+                      }
+                    >
+                      {option.char}
+                      {isPicked && (
+                        <Check
+                          className="absolute right-0.5 top-0.5 size-3.5 rounded-full bg-[var(--brand)] p-0.5 text-white"
+                          aria-hidden
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {showing.length === 0 && (
+                <p className="px-1 py-8 text-center text-sm text-zinc-500">
+                  Nothing matches “{query}”. Try a plainer word.
+                </p>
+              )}
+            </div>
+
+            {/* Sits below the safe area on a phone, so the home bar can't
+                cover the button that closes the sheet. */}
+            <div className="border-t border-zinc-100 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+              {multiple ? (
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-zinc-500">
+                    {picked.length} of {maxPicks} chosen
+                    {picked.length >= maxPicks && " — the next swaps the oldest out"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={close}
+                    className="btn-primary shrink-0 px-5 py-2 text-sm"
+                    style={{ backgroundColor: "var(--brand)" }}
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <p className="text-center text-xs text-zinc-500">
+                  Tap one to choose it.
+                </p>
+              )}
+            </div>
           </div>
-
-          {showing.length === 0 && (
-            <p className="px-1 py-3 text-center text-xs text-zinc-500">
-              Nothing matches “{query}”. Try a plainer word.
-            </p>
-          )}
-
-          {multiple && (
-            <p className="mt-2 text-xs text-zinc-500">
-              {picked.length} of {maxPicks} chosen — picking another swaps the
-              oldest out.
-            </p>
-          )}
         </div>
       )}
-    </div>
+    </>
   );
 }
 

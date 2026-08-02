@@ -103,7 +103,7 @@ export function GettingStarted({
     {
       key: "game",
       title: "Launch your first game",
-      description: "Whack-a-mole, slice, flappy, mahjong or match three.",
+      description: "Whack-a-mole, slice ninja or match three.",
       done: hasGame,
       actionLabel: "Create game",
       icon: <Gamepad2 className="size-4" aria-hidden />,

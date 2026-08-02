@@ -15,6 +15,7 @@ import {
   Rocket,
   Sparkles,
   Trash2,
+  Trophy,
 } from "lucide-react";
 import { GAME_TIER_LIMITS, GAMES, gameDef, type GameType } from "@/lib/games/catalog";
 import type { PrizeRow } from "@/lib/games/slots";
@@ -22,6 +23,7 @@ import type { GameSummary } from "@/lib/games/types";
 import type { SubscriptionTier } from "@/lib/constants";
 import { GameIcon } from "@/components/games/icons";
 import { GamePreview } from "./game-preview";
+import { GameLeaderboard } from "./game-leaderboard";
 
 /**
  * Home-tab strip: how the games are doing, and a nudge to launch the first one.
@@ -108,6 +110,7 @@ export function GamesManager({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<GameSummary | null>(null);
+  const [boardFor, setBoardFor] = useState<GameSummary | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const drafts = games.filter((g) => g.status === "draft");
@@ -233,8 +236,9 @@ export function GamesManager({
             {drafts.length > 0 && <p className="section-title">Published</p>}
             {atLimit && (
               <p className="alert-error">
-                You&apos;re running the maximum number of live games on your plan.
-                Upgrade for unlimited games, or pause one.
+                {maxGames === 1
+                  ? "Your plan runs one live game at a time — which keeps everyone on one leaderboard. Upgrade for unlimited games, or pause this one to publish another."
+                  : "You're running the maximum number of live games on your plan. Upgrade for unlimited games, or pause one."}
               </p>
             )}
 
@@ -339,6 +343,13 @@ export function GamesManager({
                   </div>
 
                   <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setBoardFor(game)}
+                      className="btn-ghost"
+                    >
+                      <Trophy className="size-4" aria-hidden />
+                      Leaderboard
+                    </button>
                     <button
                       onClick={() => onEditGame(game)}
                       className="btn-ghost"
@@ -495,6 +506,13 @@ export function GamesManager({
           game={previewing}
           brandColor={brandColor}
           onClose={() => setPreviewing(null)}
+        />
+      )}
+
+      {boardFor && (
+        <GameLeaderboard
+          gameId={boardFor.id}
+          onClose={() => setBoardFor(null)}
         />
       )}
     </section>

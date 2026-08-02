@@ -208,7 +208,11 @@ export const GAMES: Record<GameType, GameDefinition> = {
     fields: [
       durationField(45),
       emojiSetField("sliceEmojis", "Things to slice", "Space-separated emoji."),
-      emojiField("bombEmoji", "Bomb", "Slicing one costs a life."),
+      emojiField(
+        "bombEmoji",
+        "What to avoid",
+        "Shown to the player before the round and ringed in red in play. Slicing it costs a life."
+      ),
       livesField,
       difficultyField,
     ],
@@ -270,7 +274,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 6,
     maxScore: 100000,
     hasLeaderboard: true,
-    competitive: true,
+    competitive: false,
     scoreLabel: "gates",
     winRule: "target",
     defaultTarget: 8,
@@ -301,7 +305,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
     cooldownHours: 0,
     maxScore: 100000,
     hasLeaderboard: true,
-    competitive: true,
+    competitive: false,
     scoreLabel: "points",
     winRule: "target",
     defaultTarget: 800,
@@ -430,7 +434,7 @@ export function gamesInCategory(category: GameCategory): GameDefinition[] {
 // ---------------------------------------------------------------------------
 
 export const GAME_TIER_LIMITS = {
-  free: { maxGames: 2, maxPrizes: 2 },
+  free: { maxGames: 1, maxPrizes: 2 },
   premium: { maxGames: Number.POSITIVE_INFINITY, maxPrizes: 10 },
 } as const;
 

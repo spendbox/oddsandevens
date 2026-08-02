@@ -311,9 +311,9 @@ export function PlansPanel({
         <ul className="mt-3 grid gap-1.5 text-sm text-zinc-600 sm:grid-cols-2">
           {[
             `${plan.premiumYearlyPlays.toLocaleString()} plays / year`,
-            "Unlimited live games",
+            "Unlimited live games (free runs one)",
             "10 prizes per game",
-            "All 20 game types",
+            "Every game type",
             "Custom artwork and colours",
             "Leaderboards on every score game",
           ].map((f) => (

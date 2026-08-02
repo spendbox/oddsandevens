@@ -65,12 +65,6 @@ function podium(input: SuggestionInput): PrizeRow[] {
   return [pick(0), pick(1)].filter((p): p is PrizeRow => p !== null);
 }
 
-/** What they sell, falling back to the industry's examples. */
-function products(input: SuggestionInput): string[] {
-  const own = (input.profile.sells ?? []).filter((s) => s.trim().length > 0);
-  return own.length > 0 ? own : industryPack(input.profile.industry).sellsExamples;
-}
-
 /**
  * Writes the games. Ordered best-first: the list is capped by the caller, and
  * the first few are the ones we'd stake the business's first impression on.
@@ -78,7 +72,6 @@ function products(input: SuggestionInput): string[] {
 export function suggestGames(input: SuggestionInput): GameBlueprint[] {
   const { businessName, profile } = input;
   const pack = industryPack(profile.industry);
-  const items = products(input);
   const prizes = podium(input);
   const trade = pack.label.split(" ")[0];
   const blueprints: GameBlueprint[] = [];
@@ -113,22 +106,7 @@ export function suggestGames(input: SuggestionInput): GameBlueprint[] {
     why: "Everyone has played this before — nobody bounces off it, and the cascades are what get shared.",
   });
 
-  // 3. Mahjong, with the tiles showing what the business sells.
-  blueprints.push({
-    type: "mahjong-3d",
-    title: `${trade} mahjong`,
-    description: "Clear the stack, pair by pair, before the clock does.",
-    config: {
-      ...GAMES["mahjong-3d"].defaultConfig,
-      faces: items.slice(0, 8).join(" "),
-    },
-    prizes,
-    cooldownHours: 0,
-    maxWins: 1,
-    why: "The quiet one: it holds attention for minutes at a time, and every tile is a product.",
-  });
-
-  // 4. Slicing. The most physical of the five, and the best-looking.
+  // 3. Slicing. The most physical of the three, and the best-looking.
   blueprints.push({
     type: "slice-ninja",
     title: `Slice the ${trade.toLowerCase()}`,
@@ -143,25 +121,6 @@ export function suggestGames(input: SuggestionInput): GameBlueprint[] {
     cooldownHours: 0,
     maxWins: 1,
     why: "The one people show other people — a good swipe looks good.",
-  });
-
-  // 5. Flappy. Listed for everyone rather than only the businesses chasing
-  //    awareness: there are five games in total, so this list *is* the
-  //    catalogue, and leaving one out would put it out of reach entirely.
-  blueprints.push({
-    type: "flappy",
-    title: `${pack.mascot} through ${businessName}`,
-    description: "One tap to flap. How many gates can you clear?",
-    config: {
-      ...GAMES["flappy"].defaultConfig,
-      flyerEmoji: pack.mascot,
-    },
-    prizes,
-    cooldownHours: 0,
-    maxWins: 1,
-    why: (profile.goals ?? []).includes("awareness")
-      ? "Brutally hard, endlessly retried — the scores people argue about."
-      : "The hardest of the five, and the one people retry the most.",
   });
 
   return blueprints;

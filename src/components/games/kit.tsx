@@ -325,15 +325,29 @@ export function ActionButton({
  * how, and a button the size of a thumb. Anything longer than a line belongs
  * in the game itself, not in front of it.
  */
+/**
+ * A game whose targets and hazards are chosen by the business can't explain
+ * itself in words — "avoid the bomb" is wrong the moment a shop picks 🌶️. So
+ * the overlay can show the actual glyphs, side by side, green against red.
+ */
+export interface StartLegendItem {
+  emoji: string;
+  label: string;
+  /** Red and crossed rather than green and ticked. */
+  avoid?: boolean;
+}
+
 export function StartOverlay({
   title,
   hint,
+  legend,
   buttonLabel,
   accent,
   onStart,
 }: {
   title: string;
   hint: string;
+  legend?: StartLegendItem[];
   buttonLabel: string;
   accent: string;
   onStart: () => void;
@@ -344,6 +358,33 @@ export function StartOverlay({
         {title}
       </h3>
       <p className="max-w-xs text-sm leading-snug text-zinc-300">{hint}</p>
+
+      {legend && legend.length > 0 && (
+        <ul className="flex flex-wrap items-stretch justify-center gap-2">
+          {legend.map((item) => (
+            <li
+              key={item.label + item.emoji}
+              className={
+                "flex min-w-24 flex-col items-center gap-1 rounded-2xl border px-3 py-2 " +
+                (item.avoid
+                  ? "border-rose-400/50 bg-rose-500/15"
+                  : "border-emerald-400/50 bg-emerald-500/15")
+              }
+            >
+              <span className="emoji text-3xl leading-none">{item.emoji}</span>
+              <span
+                className={
+                  "text-[10px] font-bold uppercase tracking-wider " +
+                  (item.avoid ? "text-rose-200" : "text-emerald-200")
+                }
+              >
+                {item.label}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <button
         onClick={onStart}
         style={{ "--brand": accent } as React.CSSProperties}

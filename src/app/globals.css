@@ -275,6 +275,40 @@ body {
     user-select: none;
   }
 
+  /* The ring drawn around anything a player must not touch. The hazard is
+     whichever emoji the business picked, so it can't be recognised on sight —
+     the ring is the part that is always the same, and it pulses because a
+     static outline reads as decoration at the speed these things move. */
+  .danger-ring {
+    border-radius: 9999px;
+    border: 2px dashed rgb(248 113 113 / 0.9);
+    background: radial-gradient(
+      circle,
+      rgb(244 63 94 / 0.28) 0%,
+      rgb(244 63 94 / 0) 68%
+    );
+    box-shadow: 0 0 12px rgb(244 63 94 / 0.55);
+    animation: danger-pulse 0.9s ease-in-out infinite;
+  }
+
+  @keyframes danger-pulse {
+    0%,
+    100% {
+      opacity: 0.75;
+      transform: translate(-50%, -50%) scale(0.92);
+    }
+    50% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.06);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .danger-ring {
+      animation: none;
+    }
+  }
+
   /* -------------------------------------------------------------------
      The arcade.
 

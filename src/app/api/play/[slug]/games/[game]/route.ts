@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { maskEmail } from "@/lib/mask";
 import { playerEmail } from "@/lib/player-session";
 import { gameDef } from "@/lib/games/catalog";
+import { rankSeason } from "@/lib/games/board";
 import type {
   GameSeason,
   LeaderboardEntry,
@@ -118,30 +119,9 @@ export async function GET(
         .order("score", { ascending: false })
         .limit(500);
 
-      // One row per player: their best run this week, ties to whoever got
-      // there first — the same rule close_due_game_season pays out on.
-      const best = new Map<string, { score: number; at: string }>();
-      for (const p of plays ?? []) {
-        const current = best.get(p.customer_id as string);
-        if (
-          !current ||
-          p.score > current.score ||
-          (p.score === current.score &&
-            new Date(p.finished_at as string) < new Date(current.at))
-        ) {
-          best.set(p.customer_id as string, {
-            score: p.score,
-            at: p.finished_at as string,
-          });
-        }
-      }
-      playerCount = best.size;
+      const ranked = rankSeason(plays ?? []);
+      playerCount = ranked.length;
 
-      const ranked = [...best.entries()].sort(
-        (a, b) =>
-          b[1].score - a[1].score ||
-          new Date(a[1].at).getTime() - new Date(b[1].at).getTime()
-      );
       const top = ranked.slice(0, LEADERBOARD_LIMIT);
 
       const { data: customers } = top.length
@@ -150,22 +130,24 @@ export async function GET(
             .select("id, email")
             .in(
               "id",
-              top.map(([id]) => id)
+              top.map((entry) => entry.customerId)
             )
         : { data: [] as { id: string; email: string }[] };
       const emailById = new Map((customers ?? []).map((c) => [c.id, c.email]));
 
-      leaderboard = top.map(([id, entry], index) => ({
-        maskedEmail: maskEmail(emailById.get(id) ?? "player@unknown.com"),
+      leaderboard = top.map((entry, index) => ({
+        maskedEmail: maskEmail(
+          emailById.get(entry.customerId) ?? "player@unknown.com"
+        ),
         score: entry.score,
         at: entry.at,
         rank: index + 1,
         prize: prizeByRank.get(index + 1) ?? null,
-        isYou: customer?.id === id,
+        isYou: customer?.id === entry.customerId,
       }));
 
       if (customer && email) {
-        const myIndex = ranked.findIndex(([id]) => id === customer.id);
+        const myIndex = ranked.findIndex((e) => e.customerId === customer.id);
         // Lives are one pool per business, so this is the same number on every
         // game the business runs.
         const [{ data: lives }, { data: shareCode }] = await Promise.all([
@@ -181,7 +163,7 @@ export async function GET(
         player = {
           email,
           livesLeft: Number(lives ?? 0),
-          bestScore: myIndex >= 0 ? ranked[myIndex][1].score : 0,
+          bestScore: myIndex >= 0 ? ranked[myIndex].score : 0,
           rank: myIndex >= 0 ? myIndex + 1 : null,
           shareCode: (shareCode as string | null) ?? null,
           nextPlayAt: null,

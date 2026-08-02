@@ -48,22 +48,32 @@ genuinely frees a slot, and resuming can't sneak past the cap.
 Every game a business can launch is one entry in `src/lib/games/catalog.ts`.
 That entry declares the game's award engine, its defaults, and its setup form,
 so the dashboard builder, the API validation, and the player page are all
-generated from it — adding a sixth game means one catalogue entry plus
-one component in `src/components/games/`.
+generated from it — adding a game means one catalogue entry plus one component
+in `src/components/games/`.
 
-Only games that can carry a leaderboard are offered (`competitive: true` in the
-catalogue). The rest stay in the codebase so anything already published keeps
-working, but they can't be created.
+Only games marked `competitive: true` are offered. Everything else stays in the
+codebase, and anything already published on one of those types keeps running —
+they simply can't be created any more.
 
-| Category | Games |
-|----------|-------|
-| **Arcade & skill** | Endless Runner · Falling Objects / Catcher · Slice / Ninja Chop · Tile Merge · Memory Card Match · Whack-a-Mole · Flappy Flyer · Jigsaw / Photo Puzzle · Spot the Difference |
-| **Quiz & knowledge** | Live Leaderboard Trivia · Myth vs. Fact Trivia |
-| *Retired (still runs, can't be created)* | Wheel of Fortune · Scratch Card · Pick-a-Box · Advent Calendar · Product Recommender · Lookbook · Scavenger Hunt · Bracket Poll · Tic-Tac-Toe |
+| | Games |
+|---|---|
+| **Offered** | Whack-a-Mole · Slice Ninja · Match Three |
+| *Written but hidden* | Flappy Flyer · 3D Mahjong |
 
 Artwork is chosen from a curated emoji picker (`src/lib/games/emoji.ts`) rather
 than typed: emoji are awkward to type, easy to paste wrong, and impossible to
 validate as free text. Anything not in the picker is dropped by the sanitiser.
+
+The picker opens as a **sheet** rather than a dropdown in the form
+(`EmojiPicker` in `src/components/dashboard/game-config-editor.tsx`). As a
+dropdown it was unusable on a phone: it opened inside an already-scrolling
+modal, autofocused its search box so the keyboard covered most of it, and left
+a 224px window onto several hundred emoji. The sheet takes the height of the
+screen and only focuses search where a pointer is fine — a laptop — so a phone
+sees emoji, not a keyboard. It also closes on the *next* tick rather than
+inside the click that asked for it: removing it mid-dispatch made Chrome fire a
+second click at whatever was then under the pointer, which was often the field
+that opens it, so it shut and reopened in one tap.
 
 ### Every game is a weekly competition
 
@@ -95,8 +105,8 @@ is untouched.
 Because the prize is the rank rather than the play, playing often is the point —
 but a board that rewards whoever had the most spare minutes isn't a competition.
 So each player gets **3 lives a week per business** (`merchants.weekly_lives`),
-shared across every game that business runs: five games hand out three plays a
-week, not fifteen. The week runs Monday to Monday (`week_start()`), and every
+shared across every game that business runs: three games hand out three plays a
+week, not nine. The week runs Monday to Monday (`week_start()`), and every
 graded round spends one, from `merchant_lives`.
 
 Out of lives? Two ways to get more:
@@ -124,28 +134,37 @@ that cookie rather than from the request body, which is both the memory (no more
 codes on every visit) and the proof (a round can't be opened, or a prize
 addressed, under someone else's email).
 
-### Five games
+### Three games
 
-The builder offers five, and nothing else is reachable from anywhere in the
+The builder offers three, and nothing else is reachable from anywhere in the
 product:
 
 | Game | What the score is |
 |---|---|
 | Whack-a-Mole | 100 for a mole hit on sight, 20 at the last moment |
 | Slice Ninja | slices, plus a bonus for cutting several in one swipe |
-| Flappy | gates cleared |
-| 3D Mahjong | 100 a pair, and the rest of the clock for clearing the stack |
 | Match Three | 30 a jewel, multiplied by the cascade it starts |
+
+Flappy and 3D Mahjong are written and working but **hidden** — `competitive:
+false` in the catalogue, which takes them out of the builder, the suggestion
+engine and every marketing surface while leaving anything already published
+resolving. Mahjong is hidden on looks rather than on mechanics; a board that
+doesn't hold up next to a real mahjong app isn't worth a business's name on it.
+Unhiding either is a one-line change plus a pass over the copy that counts
+games.
 
 Moves are made by dragging, not tapping: in Match Three the jewel follows the
 finger, the neighbour it would displace slides the other way, and letting go
 either completes the swap or springs it back — a swap that makes no match costs
 nothing but the gesture. Tapping still selects, because a keyboard has no
-pointer. Mahjong's tile faces are vector icons rather than emoji
-(`src/lib/games/tile-icons.tsx`): the business still picks its tiles with the
-emoji picker it knows, and each choice maps to the nearest icon, because a
-device without the right emoji font turns a matching game into a board of
-identical boxes.
+pointer.
+
+Slice Ninja names its own hazard. The thing to avoid is whichever emoji the
+business chose, so "don't slice the bomb" may be a lie — instead the start
+overlay shows the real glyphs side by side, green to slice against red to
+avoid, a chip stays in the HUD for the whole round, and anything dangerous
+flies inside a pulsing red ring (`.danger-ring`). Finding out what costs a life
+by losing one is how a player stops playing.
 
 Every game explains itself once before the first round
 (`src/components/games/tutorial.tsx`) — three lines, then never again on that
@@ -220,6 +239,16 @@ The leaderboard is public, so addresses are masked before they leave the server
 leaks neither the characters nor the length. `ja********@********.com`. The
 board marks the reader's own row, so nobody needs to decode anything.
 
+The business sees the same board **unmasked**, in the dashboard, behind the
+*Leaderboard* button on each published game
+(`GET /api/merchant/games/[id]/leaderboard`). It is the same ranking — both
+surfaces call `rankSeason` in `src/lib/games/board.ts`, which is also the rule
+`close_due_game_season` pays out on, so what the dashboard shows on Sunday
+night is who gets the code on Monday morning. Addresses are in the clear there
+because the owner is the one matching a code to a face at the counter, and they
+already see those addresses under Customers. It also shows weeks already
+settled: who won, the code that went out, and whether it has been redeemed.
+
 ### The play lifecycle
 
 ```
@@ -244,11 +273,18 @@ charged at `finish`, so an abandoned game costs the business nothing.
 
 | Tier | Live games | Prizes / game |
 |------|------------|---------------|
-| free | 2 | 2 |
+| free | 1 | 2 |
 | premium | unlimited | 10 |
 
 Drafts don't count — a business can hold as many ready-made games as we write
 for them and publish the ones they want.
+
+The free tier runs **one** live game, and that isn't only a paywall: two free
+games split a business's own audience across two leaderboards, and half a board
+is a thinner prize draw than a whole one. The cap lives in `app_settings`
+(`free_live_games`), so a promotion can lift it without a migration, and it is
+checked on *publishing* — a business already running two keeps both, it just
+can't add a third.
 
 A **play** is one round a customer finishes. Every merchant gets an annual
 allowance by tier (free 100/year, premium 5,000/year — both admin-tunable),

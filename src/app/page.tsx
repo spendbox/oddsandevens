@@ -4,13 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  Bird,
   CalendarDays,
   ChevronDown,
   Gamepad2,
   Gem,
   Hammer,
-  Layers,
   Link2,
   Mail,
   MessageCircle,
@@ -29,13 +27,12 @@ import {
 // being turned (see FlipCard). Everything is CSS-animated; the only JS is
 // two IntersectionObservers (flip trigger + active-dot tracking).
 
-// The hero sample. These are the five games — the whole catalogue, not a
-// selection from it, so the labels have to stay in step with `GAMES`.
+// The hero sample. This is the whole catalogue, not a selection from it, so
+// the labels have to stay in step with the games marked `competitive` in
+// `GAMES` — anything hidden there has to come out of here too.
 const DEMO_GAMES: { label: string; emoji: string; swatch: [string, string] }[] = [
   { label: "Whack-a-Mole", emoji: "🔨", swatch: ["#a16207", "#16a34a"] },
   { label: "Slice Ninja", emoji: "🗡️", swatch: ["#e11d48", "#f59e0b"] },
-  { label: "Flappy Flyer", emoji: "🐦", swatch: ["#0ea5e9", "#84cc16"] },
-  { label: "3D Mahjong", emoji: "🀄", swatch: ["#0f766e", "#f59e0b"] },
   { label: "Match Three", emoji: "💎", swatch: ["#db2777", "#7c3aed"] },
 ];
 
@@ -43,7 +40,7 @@ const STEPS = [
   {
     Icon: Gamepad2,
     title: "Pick a game",
-    text: "Five to choose from — whack-a-mole, slice, flappy, 3D mahjong, match three. Pick one and it's already written for your business.",
+    text: "Whack-a-mole, slice ninja, match three. Pick one and it's already written for your business — your products on it, your prizes in it.",
   },
   {
     Icon: Wand2,
@@ -166,14 +163,12 @@ function Deck({
 
 // --- Per-step animated visuals -------------------------------------------
 
-// Step 1: the catalogue — the five games drifting into view.
+// Step 1: the catalogue — the three games drifting into view.
 function PickAGameVisual() {
   const picks = [
-    { Icon: Hammer, className: "left-0 top-2", delay: "0ms" },
-    { Icon: Sword, className: "right-1 top-0", delay: "500ms" },
-    { Icon: Bird, className: "left-6 bottom-1", delay: "1000ms" },
-    { Icon: Layers, className: "right-6 bottom-3", delay: "1500ms" },
-    { Icon: Gem, className: "left-1/2 top-10 -translate-x-1/2", delay: "750ms" },
+    { Icon: Hammer, className: "left-1 top-3", delay: "0ms" },
+    { Icon: Sword, className: "right-1 top-1", delay: "600ms" },
+    { Icon: Gem, className: "left-1/2 bottom-2 -translate-x-1/2", delay: "1200ms" },
   ];
   return (
     <div className="relative mx-auto h-40 w-full max-w-xs" aria-hidden>
@@ -420,8 +415,8 @@ export default function LandingPage() {
             style={{ animationDelay: "160ms" }}
           >
             Turn one-time shoppers into repeat buyers. Build a branded game —
-            whack-a-mole, slice, flappy, 3D mahjong, match three — share one
-            link, and let your customers play their way up the leaderboard.
+            whack-a-mole, slice ninja or match three — share one link, and let
+            your customers play their way up the leaderboard.
           </p>
 
           <div
@@ -466,7 +461,7 @@ export default function LandingPage() {
             className="animate-fade-up mt-3 text-xs font-medium text-zinc-400"
             style={{ animationDelay: "400ms" }}
           >
-            Five games. Every one of them included on every plan.
+            Three games, each one included on every plan.
           </p>
         </div>
         <SwipeHint />
@@ -615,8 +610,8 @@ export default function LandingPage() {
                   </span>
                 </p>
                 <p className="mt-2 text-sm text-zinc-600">
-                  Two live games with two prizes each, branded to you. All five
-                  games included. Perfect for getting started.
+                  One live game with two prizes, branded to you — everyone who
+                  taps your link on the same leaderboard. Every game included.
                 </p>
               </div>
               <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/40 p-5">
