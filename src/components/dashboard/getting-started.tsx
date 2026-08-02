@@ -15,7 +15,7 @@ import { DEFAULT_POINTS_PER_DISCOUNT } from "@/lib/constants";
 import type { Merchant } from "./shared";
 
 interface Step {
-  key: "reward" | "game" | "brand" | "share";
+  key: "profile" | "reward" | "game" | "brand" | "share";
   title: string;
   description: string;
   done: boolean;
@@ -35,6 +35,8 @@ export function GettingStarted({
   merchant,
   hasReward,
   hasGame,
+  hasProfile,
+  profilePercent,
   onCreateReward,
   onCreateGame,
   onOpenSettings,
@@ -42,6 +44,10 @@ export function GettingStarted({
   merchant: Merchant;
   hasReward: boolean;
   hasGame: boolean;
+  /** Have they told us what kind of business they run? */
+  hasProfile: boolean;
+  /** How complete the picture of their business is, 0-100. */
+  profilePercent: number;
   onCreateReward: () => void;
   onCreateGame: () => void;
   onOpenSettings: () => void;
@@ -65,6 +71,22 @@ export function GettingStarted({
       : `/p/${merchant.slug}`;
 
   const steps: Step[] = [
+    {
+      key: "profile",
+      title: "Tell us about your business",
+      description:
+        hasProfile
+          ? `We know ${profilePercent}% of what we could — the rest sharpens your games.`
+          : "A minute of tapping and we'll write your first games for you.",
+      done: hasProfile,
+      actionLabel: hasProfile ? "Add more" : "Start here",
+      icon: <Sparkles className="size-4" aria-hidden />,
+      tutorial: [
+        "Open Settings and pick your trade, what you sell, and what you could give away — it's mostly tapping.",
+        "The moment you save, we write a handful of games built around those answers and put them under Build → Games.",
+        "You can keep adding detail later; the more we know, the better the games we write.",
+      ],
+    },
     {
       key: "reward",
       title: "Create a reward",
@@ -123,7 +145,8 @@ export function GettingStarted({
   if (remaining === 0) return null;
 
   async function act(step: Step) {
-    if (step.key === "reward") onCreateReward();
+    if (step.key === "profile") onOpenSettings();
+    else if (step.key === "reward") onCreateReward();
     else if (step.key === "game") onCreateGame();
     else if (step.key === "brand") onOpenSettings();
     else {

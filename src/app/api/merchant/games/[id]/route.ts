@@ -54,11 +54,19 @@ export async function PATCH(
   if (typeof body.description === "string") {
     patch.description = body.description.trim().slice(0, 300) || null;
   }
+  // Going live is the one transition with a cap on it, so it goes through
+  // publish_game rather than a plain update — that way resuming a paused game
+  // is checked exactly like publishing a draft.
+  let publishing = false;
   if (typeof body.status === "string") {
-    if (!["active", "paused", "archived"].includes(body.status)) {
+    if (!["draft", "active", "paused", "archived"].includes(body.status)) {
       return NextResponse.json({ error: "invalid_status" }, { status: 400 });
     }
-    patch.status = body.status;
+    if (body.status === "active") {
+      publishing = true;
+    } else {
+      patch.status = body.status;
+    }
   }
   if (body.config !== undefined) {
     const config = sanitizeConfig(def, body.config);
@@ -93,6 +101,24 @@ export async function PATCH(
   if (updateError) {
     console.error("[merchant games] update failed:", updateError);
     return NextResponse.json({ error: "internal" }, { status: 500 });
+  }
+
+  if (publishing) {
+    const { data, error } = await db.rpc("publish_game", {
+      p_merchant_id: merchant.id,
+      p_game_id: game.id,
+    });
+    if (error) {
+      console.error("[merchant games] publish_game failed:", error);
+      return NextResponse.json({ error: "internal" }, { status: 500 });
+    }
+    const result = data as { result: string; error?: string };
+    if (result.result !== "published") {
+      return NextResponse.json(
+        { error: result.error ?? "publish_failed" },
+        { status: 400 }
+      );
+    }
   }
 
   if (body.prizes !== undefined) {

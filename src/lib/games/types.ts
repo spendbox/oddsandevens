@@ -1,7 +1,7 @@
 // Shapes shared by the games API, the dashboard builder, and the players.
 
 export type GameEngine = "chance" | "score";
-export type GameStatus = "active" | "paused" | "archived";
+export type GameStatus = "draft" | "active" | "paused" | "archived";
 
 // Per-type settings authored in the builder (shape defined by each game's
 // `fields` in the catalog) and read by that game's component.
@@ -109,6 +109,8 @@ export interface GameSummary {
   title: string;
   description: string | null;
   status: GameStatus;
+  /** "suggested" games are the ones we wrote from the business's answers. */
+  source: "manual" | "suggested";
   config: GameConfig;
   theme: GameTheme;
   cooldownHours: number;

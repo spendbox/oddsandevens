@@ -8,6 +8,7 @@ import type {
   RewardTemplate,
 } from "@/lib/types";
 import type { GameSummary } from "@/lib/games/types";
+import type { BusinessProfile } from "@/lib/business/profile";
 import type { SubscriptionTier } from "@/lib/constants";
 
 export interface Merchant {
@@ -50,6 +51,7 @@ export interface Snapshot {
   hasReward: boolean;
   rewardTemplates: RewardTemplate[];
   games: GameSummary[];
+  profile: BusinessProfile;
   // Set when the merchant query itself failed (e.g. schema out of date) —
   // never show onboarding in that case, the merchant may well exist.
   loadError: string | null;

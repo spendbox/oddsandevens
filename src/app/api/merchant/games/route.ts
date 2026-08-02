@@ -36,7 +36,7 @@ export async function GET() {
   const { data: games, error } = await db
     .from("games")
     .select(
-      "id, slug, type, engine, title, description, status, config, theme, cooldown_hours, max_wins_per_player, plays_count, wins_count, created_at"
+      "id, slug, type, engine, title, description, status, source, config, theme, cooldown_hours, max_wins_per_player, plays_count, wins_count, created_at"
     )
     .eq("merchant_id", merchant.id)
     .neq("status", "archived")
@@ -100,6 +100,7 @@ export async function GET() {
     title: g.title,
     description: g.description,
     status: g.status,
+    source: g.source === "suggested" ? "suggested" : "manual",
     config: g.config ?? {},
     theme: g.theme ?? {},
     cooldownHours: g.cooldown_hours,

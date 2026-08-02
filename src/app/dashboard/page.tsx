@@ -22,6 +22,11 @@ import type {
 } from "@/lib/types";
 import type { GameSummary } from "@/lib/games/types";
 import {
+  completionItems,
+  completionPercent,
+  type BusinessProfile,
+} from "@/lib/business/profile";
+import {
   effectiveTierNow,
   type Merchant,
   type Snapshot,
@@ -38,6 +43,8 @@ import {
   GamesManager,
 } from "@/components/dashboard/games-manager";
 import { GameWizard } from "@/components/dashboard/game-wizard";
+import { GameEditor } from "@/components/dashboard/game-editor";
+import { BusinessProfileCard } from "@/components/dashboard/business-profile";
 import { RewardsManager } from "@/components/dashboard/rewards-manager";
 import { BrandSettings } from "@/components/dashboard/brand-settings";
 import { CustomersList } from "@/components/dashboard/customers-list";
@@ -67,6 +74,8 @@ export default function DashboardPage() {
   const [hasReward, setHasReward] = useState(false);
   const [rewardTemplates, setRewardTemplates] = useState<RewardTemplate[]>([]);
   const [games, setGames] = useState<GameSummary[]>([]);
+  const [profile, setProfile] = useState<BusinessProfile>({});
+  const [editingGame, setEditingGame] = useState<GameSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("home");
   const [buildSub, setBuildSub] = useState<BuildSub>("games");
@@ -90,13 +99,14 @@ export default function DashboardPage() {
       hasReward: false,
       rewardTemplates: [],
       games: [],
+      profile: {},
       loadError: null,
     };
 
     const { data: m, error: merchantError } = await supabase
       .from("merchants")
       .select(
-        "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
+        "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email, profile"
       )
       .maybeSingle();
     if (merchantError) {
@@ -142,6 +152,7 @@ export default function DashboardPage() {
     snap.rewardTemplates = (rewardsRes?.rewards as RewardTemplate[]) ?? [];
     snap.hasReward = snap.rewardTemplates.length > 0;
     snap.games = (gamesRes?.games as GameSummary[]) ?? [];
+    snap.profile = ((m as { profile?: BusinessProfile }).profile ?? {}) as BusinessProfile;
     return snap;
   }, []);
 
@@ -154,6 +165,7 @@ export default function DashboardPage() {
     setHasReward(snap.hasReward);
     setRewardTemplates(snap.rewardTemplates);
     setGames(snap.games);
+    setProfile(snap.profile);
     setLoadError(snap.loadError);
     setLoading(false);
   }, []);
@@ -275,10 +287,19 @@ export default function DashboardPage() {
           <div className="alert-error mt-6 max-w-xl px-4 py-3">{loadError}</div>
         ) : !merchant ? (
           <OnboardingForm onCreated={load} />
+        ) : editingGame ? (
+          <GameEditor
+            game={editingGame}
+            brandColor={merchant.brand_color}
+            onSaved={load}
+            onCancel={() => setEditingGame(null)}
+          />
         ) : showGameWizard ? (
           <GameWizard
             tier={tier}
             brandColor={merchant.brand_color}
+            businessName={merchant.business_name}
+            profile={profile}
             rewardTemplates={rewardTemplates}
             onDone={async () => {
               setShowGameWizard(false);
@@ -317,6 +338,13 @@ export default function DashboardPage() {
                   merchant={merchant}
                   hasReward={hasReward}
                   hasGame={games.length > 0}
+                  hasProfile={Boolean(profile.industry)}
+                  profilePercent={completionPercent(
+                    completionItems(profile, merchant, {
+                      hasReward,
+                      hasGame: games.length > 0,
+                    })
+                  )}
                   onCreateReward={() => {
                     setTab("build");
                     setBuildSub("rewards");
@@ -375,7 +403,9 @@ export default function DashboardPage() {
                     games={games}
                     tier={tier}
                     merchantSlug={merchant.slug}
+                    brandColor={merchant.brand_color}
                     onNewGame={() => setShowGameWizard(true)}
+                    onEditGame={setEditingGame}
                     onChanged={load}
                   />
                 ) : (
@@ -406,6 +436,22 @@ export default function DashboardPage() {
 
             {tab === "settings" && (
               <div className="mt-6 space-y-6">
+                <BusinessProfileCard
+                  merchant={merchant}
+                  profile={profile}
+                  hasReward={hasReward}
+                  hasGame={games.length > 0}
+                  onSaved={async (created) => {
+                    await load();
+                    if (created > 0) {
+                      setBanner(
+                        `We built ${created} game${created === 1 ? "" : "s"} from your answers — have a look under Build → Games.`
+                      );
+                      setTab("build");
+                      setBuildSub("games");
+                    }
+                  }}
+                />
                 <BrandSettings merchant={merchant} onSaved={load} />
               </div>
             )}

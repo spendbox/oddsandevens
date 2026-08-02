@@ -10,6 +10,35 @@ loyalty point, and points trade for a discount at a per-merchant rate (default
 Customers can review everything they've earned across every business at
 **`/me`** — an email-only portal (there are no customer accounts).
 
+## Tell us about the business, get games back
+
+A business answers a short, mostly-tappable questionnaire — trade, top sellers,
+what they could give away, what they want out of it — and we write them a set of
+finished games. Those land as **drafts**: fully configured, playable in a
+preview, editable, and invisible to customers until published.
+
+- `src/lib/business/profile.ts` — the knowledge base: the questions, an industry
+  pack per trade (artwork, sample products, myth-vs-fact statements), and the
+  completeness scoring behind the progress bar.
+- `src/lib/games/suggest.ts` — turns those answers into finished blueprints:
+  titles built from the business name, quiz outcomes built from their menu,
+  arcade items built from their trade, prizes built from their offers.
+- `POST /api/merchant/games/suggest` — writes the blueprints as drafts.
+  Idempotent by game type, so answering more questions later tops up what's
+  missing rather than duplicating what's there.
+
+Creating a game by hand is **two steps**: pick one (from the games written for
+you, or the full catalogue), then confirm the prize and publish. Everything else
+is pre-filled, and questions, artwork and wording are edited afterwards from the
+game's own editor.
+
+### Draft, live, paused
+
+`games.status` is one of `draft`, `active`, `paused`, `archived`. The per-tier
+cap counts only `active` games, and **every** transition into `active` goes
+through `publish_game` — so drafts and paused games are free to hold, pausing
+genuinely frees a slot, and resuming can't sneak past the cap.
+
 ## Branded games
 
 Every game a business can launch is one entry in `src/lib/games/catalog.ts`.
@@ -67,6 +96,9 @@ discount code through the same staff redemption flow.
 |------|------------|---------------|
 | free | 2 | 2 |
 | premium | unlimited | 10 |
+
+Drafts don't count — a business can hold as many ready-made games as we write
+for them and publish the ones they want.
 
 A **play** is one round a customer finishes. Every merchant gets an annual
 allowance by tier (free 100/year, premium 5,000/year — both admin-tunable),
@@ -192,12 +224,15 @@ of truth; `supabase db push` tracks applied migrations server-side just like
 
 1. Sign up at `/signup` (confirm email if your project requires it), then log
    in at `/login`.
-2. On `/dashboard`: create your business profile (name + link slug), then add a
-   reward under **Build → Rewards**.
-3. **Build → Games → New game**. Pick *Wheel of Fortune*, keep the defaults, and
-   play it in the live preview beside the form — that preview runs the real
-   game against the settings you are editing, with the draw simulated locally.
-   Press *Create* to get the share link.
+2. On `/dashboard`: create your business profile (name + link slug), then open
+   **Settings → About your business**. Tap a trade, a goal or two, and save —
+   the progress bar moves as you tap, and saving writes a handful of games from
+   your answers.
+3. **Build → Games** now has a *Ready for you* shelf. *Try it* plays a draft in
+   a preview (the real game, draw simulated locally, no code issued), *Edit*
+   opens the full editor, and *Publish & share* takes it live and copies the
+   link. Building one by hand from *New game* takes two steps: pick, then
+   confirm the prize.
 4. Open `/p/<slug>/<game>` in an incognito window, verify an email, and spin. A
    win emails a redemption code; a loss earns a loyalty point. Spin again to hit
    the per-game cooldown, and open `/p/<slug>` for the hub of every live game.
@@ -242,7 +277,9 @@ select claimed, stock from game_prizes
   `0001`–`0012` build the merchant, customer, loyalty, payments and admin
   foundations; **`0013` is the branded-games platform** (`games`,
   `game_prizes`, `game_plays`, `create_game`, `start_game_play`,
-  `finish_game_play`, and the game-aware staff lookup/redeem).
+  `finish_game_play`, and the game-aware staff lookup/redeem); **`0014` adds the
+  business knowledge base** (`merchants.profile`), draft games, and
+  `publish_game`.
 - `src/lib/games/catalog.ts` — the game catalogue: one declarative entry per
   game type (engine, defaults, setup-form schema). Shared by the API, the
   dashboard builder, and the player.
@@ -263,8 +300,8 @@ select claimed, stock from game_prizes
 ## Not in v1 (deliberately)
 
 - Per-game analytics beyond plays / players / wins / redemptions
-- Editing a game's questions or artwork after launch from the dashboard (the
-  API supports it; the builder only creates)
+- Regenerating a single suggestion (the endpoint tops up missing game types;
+  it won't rewrite one you already have)
 - Customer accounts/auth (email-only identity)
 - Automatic expiry sweeps (expiry is enforced lazily at redemption)
 
