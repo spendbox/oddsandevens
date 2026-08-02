@@ -45,9 +45,8 @@ import {
 } from "@/components/dashboard/games-manager";
 import { GameWizard } from "@/components/dashboard/game-wizard";
 import { GameEditor } from "@/components/dashboard/game-editor";
-import { BusinessProfileCard } from "@/components/dashboard/business-profile";
+import { SettingsPanel } from "@/components/dashboard/settings-panel";
 import { RewardsManager } from "@/components/dashboard/rewards-manager";
-import { BrandSettings } from "@/components/dashboard/brand-settings";
 import { CustomersList } from "@/components/dashboard/customers-list";
 import { UnlocksList } from "@/components/dashboard/unlocks-list";
 import { OnboardingForm } from "@/components/dashboard/onboarding-form";
@@ -257,6 +256,7 @@ export default function DashboardPage() {
     );
   }
 
+  const payoutReady = Boolean(merchant?.paystack_subaccount_code);
   const tier = merchant ? effectiveTierNow(merchant) : "free";
 
   const openGameWizard = () => {
@@ -371,7 +371,6 @@ export default function DashboardPage() {
                 <PlaysWidget plan={plan} onManage={() => setTab("plans")} />
                 <RevenueCard revenue={stats?.revenue ?? null} />
                 <StatsSummary stats={stats} />
-                <RedeemBox onRedeemed={load} />
                 <UnlocksList unlocks={unlocks} />
               </div>
             )}
@@ -415,6 +414,8 @@ export default function DashboardPage() {
                     onNewGame={() => setShowGameWizard(true)}
                     onEditGame={setEditingGame}
                     onChanged={load}
+                    onUpgrade={tier === "free" ? () => setTab("plans") : undefined}
+                    onSetUpPayouts={() => setTab("settings")}
                   />
                 ) : (
                   <RewardsManager onChanged={load} />
@@ -424,9 +425,8 @@ export default function DashboardPage() {
 
             {tab === "customers" && (
               <div className="mt-6 space-y-6">
-                <CustomersList
-                  customers={customers}
-                />
+                <RedeemBox onRedeemed={load} />
+                <CustomersList customers={customers} />
               </div>
             )}
 
@@ -441,15 +441,24 @@ export default function DashboardPage() {
             )}
 
             {tab === "settings" && (
-              <div className="mt-6 space-y-6">
-                <BusinessProfileCard
+              <div className="mt-6">
+                <SettingsPanel
                   merchant={merchant}
                   profile={profile}
+                  profilePercent={completionPercent(
+                    completionItems(profile, merchant, {
+                      hasReward,
+                      hasGame: games.length > 0,
+                      payoutReady,
+                    })
+                  )}
                   rewards={rewardTemplates}
                   hasReward={hasReward}
                   hasGame={games.length > 0}
+                  payoutReady={payoutReady}
                   onRewardsChanged={load}
-                  onSaved={async (created) => {
+                  onSaved={load}
+                  onProfileSaved={async (created) => {
                     await load();
                     if (created > 0) {
                       setBanner(
@@ -460,7 +469,6 @@ export default function DashboardPage() {
                     }
                   }}
                 />
-                <BrandSettings merchant={merchant} onSaved={load} />
               </div>
             )}
           </>

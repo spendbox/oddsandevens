@@ -57,7 +57,8 @@ export async function GET() {
   const ids = (games ?? []).map((g) => g.id);
   if (ids.length === 0) return NextResponse.json({ games: [] });
 
-  const [{ data: prizes }, { data: plays }] = await Promise.all([
+  const [{ data: prizes }, { data: plays }, { data: purchases }, { data: share }] =
+    await Promise.all([
     db
       .from("game_prizes")
       .select(
@@ -70,7 +71,25 @@ export async function GET() {
       .select("game_id, customer_id, unlocked_reward_id")
       .in("game_id", ids)
       .not("finished_at", "is", null),
+    db
+      .from("life_purchases")
+      .select("game_id, amount_kobo")
+      .eq("status", "paid")
+      .in("game_id", ids),
+    db.rpc("platform_share_percent"),
   ]);
+
+  // What each game brought in, as the business's share of it — the same
+  // number they'd be paid, not the gross a player was charged.
+  const businessShare = (100 - Number(share ?? 30)) / 100;
+  const earnedByGame = new Map<string, number>();
+  for (const p of purchases ?? []) {
+    if (!p.game_id) continue;
+    earnedByGame.set(
+      p.game_id,
+      (earnedByGame.get(p.game_id) ?? 0) + p.amount_kobo
+    );
+  }
 
   // Redemption rate per game needs the status of every code those plays minted.
   const rewardIds = (plays ?? [])
@@ -123,6 +142,7 @@ export async function GET() {
     createdAt: g.created_at,
     players: playersByGame.get(g.id)?.size ?? 0,
     redeemedCount: redeemedByGame.get(g.id) ?? 0,
+    earnedKobo: Math.floor((earnedByGame.get(g.id) ?? 0) * businessShare),
     prizes: prizeRows
       .filter((p) => p.game_id === g.id)
       .map((p) => ({

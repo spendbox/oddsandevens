@@ -180,6 +180,8 @@ export interface GameSummary {
   createdAt: string;
   players: number;
   redeemedCount: number;
+  /** The business's share of extra plays bought on this game, in kobo. */
+  earnedKobo: number;
   prizes: {
     id: string;
     kind: "prize" | "blank";

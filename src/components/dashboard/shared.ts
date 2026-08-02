@@ -20,6 +20,8 @@ export interface Merchant {
   logo_url: string | null;
   tagline: string | null;
   brand_color: string;
+  /** Present once payouts are wired up: their Paystack subaccount. */
+  paystack_subaccount_code?: string | null;
   whatsapp: string | null;
   contact_email: string | null;
 }

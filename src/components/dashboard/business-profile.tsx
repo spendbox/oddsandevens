@@ -8,15 +8,11 @@
 // what answering it would buy, so filling it in never feels like paperwork.
 
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, Gift, Loader2, Plus, Sparkles, Wand2 } from "lucide-react";
+import { Check, Gift, Loader2, Plus, Wand2 } from "lucide-react";
 import {
-  DAYS,
   GOALS,
   INDUSTRIES,
-  TONES,
   completionItems,
-  completionPercent,
-  industryPack,
   type BusinessProfile,
 } from "@/lib/business/profile";
 import {
@@ -25,6 +21,7 @@ import {
   REWARD_EXPIRY_DAYS_MIN,
 } from "@/lib/constants";
 import { rewardIcon } from "@/lib/reward-icons";
+import { ProfileIcon } from "./profile-icons";
 import type { RewardTemplate } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
 import type { Merchant } from "./shared";
@@ -57,80 +54,6 @@ function Chip({
 }
 
 /** Three short inputs with one-tap example fills. */
-function ListField({
-  label,
-  help,
-  values,
-  examples,
-  slots,
-  placeholder,
-  onChange,
-}: {
-  label: string;
-  help: string;
-  values: string[];
-  examples: string[];
-  slots: number;
-  placeholder: string;
-  onChange: (next: string[]) => void;
-}) {
-  const rows = Array.from({ length: slots }, (_, i) => values[i] ?? "");
-  const set = (index: number, value: string) => {
-    const next = [...rows];
-    next[index] = value;
-    onChange(next.filter((v, i) => v.trim().length > 0 || i < rows.length));
-  };
-  const addExample = (example: string) => {
-    const firstEmpty = rows.findIndex((r) => r.trim().length === 0);
-    if (firstEmpty < 0) return;
-    set(firstEmpty, example);
-  };
-  const unused = examples.filter((e) => !rows.includes(e));
-
-  return (
-    <div>
-      <span className="field-label">{label}</span>
-      <p className="-mt-1 mb-2 text-xs text-zinc-500">{help}</p>
-      <div className="flex flex-col gap-2">
-        {rows.map((value, i) => (
-          <input
-            key={i}
-            value={value}
-            onChange={(e) => set(i, e.target.value)}
-            placeholder={i === 0 ? placeholder : "…"}
-            maxLength={80}
-            className="input-field"
-          />
-        ))}
-      </div>
-      {unused.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {unused.slice(0, 4).map((example) => (
-            <button
-              key={example}
-              type="button"
-              onClick={() => addExample(example)}
-              className="rounded-full border border-dashed border-zinc-300 px-2.5 py-1 text-xs text-zinc-500 transition hover:border-zinc-400 hover:text-zinc-700"
-            >
-              + {example}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * "What could you give away?" — chosen from the reward catalogue, never typed.
- *
- * A giveaway typed in here used to become a prize on a published game while
- * existing only as a sentence in a profile: no expiry, no stock, nothing at the
- * counter to redeem against. Picking from the catalogue means every prize a
- * game hands out is a reward the business has actually defined — and if the
- * catalogue is empty, one gets created right here rather than sending them off
- * to another tab.
- */
 function OfferPicker({
   rewards,
   chosen,
@@ -348,19 +271,16 @@ export function BusinessProfileCard({
   onSaved: (created: number) => void | Promise<void>;
 }) {
   const [draft, setDraft] = useState<BusinessProfile>(profile);
-  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pack = industryPack(draft.industry);
 
   // Computed from the draft, so the bar moves the moment a chip is tapped.
   const items = useMemo(
     () => completionItems(draft, merchant, { hasReward, hasGame }),
     [draft, merchant, hasReward, hasGame]
   );
-  const percent = completionPercent(items);
   const nextUp = items.filter((i) => !i.done).slice(0, 3);
 
   const patch = (change: Partial<BusinessProfile>) => {
@@ -407,37 +327,9 @@ export function BusinessProfileCard({
   };
 
   return (
-    <section className="card p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="section-title">
-            <Sparkles className="size-3.5" aria-hidden /> About your business
-          </h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Tell us a little and we&apos;ll write the games for you. Tap, don&apos;t
-            type, wherever you can.
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-2xl font-bold tabular-nums text-zinc-900">
-            {percent}%
-          </p>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-            complete
-          </p>
-        </div>
-      </div>
-
-      {/* Progress */}
-      <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-zinc-100">
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${percent}%`, backgroundColor: "var(--brand)" }}
-        />
-      </div>
-
+    <section>
       {nextUp.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-1">
+        <ul className="mb-5 flex flex-col gap-1 rounded-xl bg-zinc-50 p-3">
           {nextUp.map((item) => (
             <li key={item.key} className="flex items-start gap-2 text-xs text-zinc-500">
               <span className="mt-0.5 size-3.5 shrink-0 rounded-full border border-dashed border-zinc-300" />
@@ -461,7 +353,8 @@ export function BusinessProfileCard({
                 active={draft.industry === industry.key}
                 onClick={() => patch({ industry: industry.key })}
               >
-                {industry.emoji} {industry.label}
+                <ProfileIcon icon={industry.icon} />
+                {industry.label}
               </Chip>
             ))}
           </div>
@@ -479,21 +372,12 @@ export function BusinessProfileCard({
                 active={(draft.goals ?? []).includes(goal.key)}
                 onClick={() => toggleGoal(goal.key)}
               >
-                {goal.emoji} {goal.label}
+                <ProfileIcon icon={goal.icon} />
+                {goal.label}
               </Chip>
             ))}
           </div>
         </div>
-
-        <ListField
-          label="Your top three sellers"
-          help="These become quiz answers, poll contenders, and the items in your arcade games."
-          values={draft.sells ?? []}
-          examples={pack.sellsExamples}
-          slots={3}
-          placeholder={pack.sellsExamples[0]}
-          onChange={(sells) => patch({ sells })}
-        />
 
         <OfferPicker
           rewards={rewards}
@@ -504,94 +388,6 @@ export function BusinessProfileCard({
           onCreated={onRewardsChanged}
         />
 
-        {/* Everything below is genuinely optional. */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setExpanded(!expanded)}
-            className="btn-ghost -ml-3"
-          >
-            <ChevronDown
-              className={"size-4 transition " + (expanded ? "rotate-180" : "")}
-              aria-hidden
-            />
-            {expanded ? "Fewer details" : "Add a few more details (optional)"}
-          </button>
-
-          {expanded && (
-            <div className="mt-3 flex flex-col gap-5">
-              <div>
-                <span className="field-label">How do you like to sound?</span>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {TONES.map((tone) => (
-                    <Chip
-                      key={tone.key}
-                      active={draft.tone === tone.key}
-                      onClick={() => patch({ tone: tone.key })}
-                    >
-                      {tone.emoji} {tone.label}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
-
-              <label className="block">
-                <span className="field-label">Who are your customers?</span>
-                <input
-                  value={draft.audience ?? ""}
-                  onChange={(e) => patch({ audience: e.target.value })}
-                  maxLength={160}
-                  placeholder="Office workers on their lunch break"
-                  className="input-field"
-                />
-              </label>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="field-label">Which city?</span>
-                  <input
-                    value={draft.city ?? ""}
-                    onChange={(e) => patch({ city: e.target.value })}
-                    maxLength={60}
-                    placeholder="Lagos"
-                    className="input-field"
-                  />
-                </label>
-                <label className="block">
-                  <span className="field-label">Busiest day</span>
-                  <select
-                    value={draft.busiestDay ?? ""}
-                    onChange={(e) => patch({ busiestDay: e.target.value })}
-                    className="input-field"
-                  >
-                    <option value="">Not sure</option>
-                    {DAYS.map((day) => (
-                      <option key={day} value={day}>
-                        {day}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <label className="block">
-                <span className="field-label">
-                  One true thing about you that customers wouldn&apos;t guess
-                </span>
-                <input
-                  value={draft.funFact ?? ""}
-                  onChange={(e) => patch({ funFact: e.target.value })}
-                  maxLength={200}
-                  placeholder="We've used the same jollof recipe since 2016"
-                  className="input-field"
-                />
-                <span className="mt-1 block text-xs text-zinc-500">
-                  It becomes a trivia question only your regulars can answer.
-                </span>
-              </label>
-            </div>
-          )}
-        </div>
       </div>
 
       {error && <p className="alert-error mt-4">{error}</p>}

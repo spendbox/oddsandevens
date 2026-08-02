@@ -6,6 +6,7 @@
 import { useState } from "react";
 import {
   Copy,
+  Crown,
   ExternalLink,
   Gamepad2,
   Pause,
@@ -23,6 +24,7 @@ import type { GameSummary } from "@/lib/games/types";
 import type { SubscriptionTier } from "@/lib/constants";
 import { GameIcon } from "@/components/games/icons";
 import { GamePreview } from "./game-preview";
+import { naira } from "./shared";
 import { GameLeaderboard } from "./game-leaderboard";
 import { Modal } from "@/components/ui/modal";
 
@@ -98,6 +100,8 @@ export function GamesManager({
   onNewGame,
   onEditGame,
   onChanged,
+  onUpgrade,
+  onSetUpPayouts,
 }: {
   games: GameSummary[];
   tier: SubscriptionTier;
@@ -106,6 +110,10 @@ export function GamesManager({
   onNewGame: () => void;
   onEditGame: (game: GameSummary) => void;
   onChanged: () => void | Promise<void>;
+  /** Opens the Plans tab. Absent when there's nowhere to upgrade to. */
+  onUpgrade?: () => void;
+  /** Opens Settings → Getting paid, for when publishing is blocked on it. */
+  onSetUpPayouts?: () => void;
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -151,10 +159,13 @@ export function GamesManager({
     setBusyId(null);
     if (!res.ok || !body?.ok) {
       setNotice(
-        body?.error === "too_many_games"
-          ? "That would put you over your plan's live-game limit — pause one first, or upgrade."
-          : "We couldn't publish that game. Try again."
+        body?.error === "no_payout_account"
+          ? "Add your bank account first — that's where your share of anything players buy goes. It's under Settings → Getting paid."
+          : body?.error === "too_many_games"
+            ? "That would put you over your plan's live-game limit — pause one first, or upgrade."
+            : "We couldn't publish that game. Try again."
       );
+      if (body?.error === "no_payout_account") onSetUpPayouts?.();
       return;
     }
     try {
@@ -236,11 +247,19 @@ export function GamesManager({
           <div className="flex flex-col gap-3">
             {drafts.length > 0 && <p className="section-title">Published</p>}
             {atLimit && (
-              <p className="alert-error">
-                {maxGames === 1
-                  ? "Your plan runs one live game at a time — which keeps everyone on one leaderboard. Upgrade for unlimited games, or pause this one to publish another."
-                  : "You're running the maximum number of live games on your plan. Upgrade for unlimited games, or pause one."}
-              </p>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm text-amber-900">
+                  {maxGames === 1
+                    ? "You can run one game at a time on the free plan. Pause this one to swap in another, or upgrade and run as many as you like."
+                    : "You're at your plan's limit for live games. Pause one to swap it out, or upgrade and run as many as you like."}
+                </p>
+                {onUpgrade && (
+                  <button onClick={onUpgrade} className="btn-primary mt-3 bg-amber-500">
+                    <Crown className="size-4" aria-hidden />
+                    See Premium
+                  </button>
+                )}
+              </div>
             )}
 
             {liveOrPaused.map((game) => {
@@ -298,7 +317,7 @@ export function GamesManager({
                       { label: "Plays", value: game.playsCount },
                       { label: "Players", value: game.players },
                       { label: "Prizes won", value: game.winsCount },
-                      { label: "Redeemed", value: game.redeemedCount },
+                      { label: "Earned", value: naira(game.earnedKobo) },
                     ].map((stat) => (
                       <div key={stat.label} className="rounded-xl bg-zinc-50 px-3 py-2">
                         <dt className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">

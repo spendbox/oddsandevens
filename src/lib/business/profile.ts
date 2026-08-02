@@ -29,6 +29,8 @@ export interface BusinessProfile {
 // ---------------------------------------------------------------------------
 
 export interface IndustryPack {
+  /** lucide-react icon name, resolved by the settings chips. */
+  icon: string;
   key: string;
   label: string;
   emoji: string;
@@ -51,6 +53,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "restaurant",
     label: "Restaurant / kitchen",
     emoji: "🍲",
+    icon: "utensils-crossed",
     items: ["🍕", "🍔", "🍗", "🍚", "🌯"],
     hazard: "🌶️",
     mascot: "🍳",
@@ -78,6 +81,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "cafe",
     label: "Café / bakery",
     emoji: "☕",
+    icon: "coffee",
     items: ["☕", "🥐", "🍰", "🍩", "🥤"],
     hazard: "🧊",
     mascot: "☕",
@@ -105,6 +109,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "fashion",
     label: "Fashion / boutique",
     emoji: "👗",
+    icon: "shirt",
     items: ["👗", "👕", "👟", "👜", "🧢"],
     hazard: "🧵",
     mascot: "🕺",
@@ -127,6 +132,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "beauty",
     label: "Beauty / salon",
     emoji: "💅",
+    icon: "scissors",
     items: ["💅", "💄", "🧴", "✂️", "🪮"],
     hazard: "🧪",
     mascot: "💇",
@@ -149,6 +155,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "grocery",
     label: "Grocery / mini-mart",
     emoji: "🛒",
+    icon: "shopping-basket",
     items: ["🍎", "🥛", "🍞", "🥚", "🧻"],
     hazard: "💸",
     mascot: "🛒",
@@ -171,6 +178,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "fitness",
     label: "Gym / fitness",
     emoji: "🏋️",
+    icon: "dumbbell",
     items: ["🏋️", "🥊", "🧘", "🚴", "💪"],
     hazard: "🍩",
     mascot: "🏃",
@@ -193,6 +201,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "pharmacy",
     label: "Pharmacy / health",
     emoji: "💊",
+    icon: "pill",
     items: ["💊", "🩺", "🧴", "🌡️", "🩹"],
     hazard: "🍭",
     mascot: "🧑‍⚕️",
@@ -215,6 +224,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "electronics",
     label: "Electronics / gadgets",
     emoji: "📱",
+    icon: "smartphone",
     items: ["📱", "🎧", "💻", "⌚", "🔌"],
     hazard: "⚡",
     mascot: "🤖",
@@ -237,6 +247,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "services",
     label: "Local services",
     emoji: "🧰",
+    icon: "wrench",
     items: ["🧰", "🧼", "🔧", "🚿", "📦"],
     hazard: "⏰",
     mascot: "🧑‍🔧",
@@ -259,6 +270,7 @@ export const INDUSTRIES: IndustryPack[] = [
     key: "other",
     label: "Something else",
     emoji: "✨",
+    icon: "store",
     items: ["⭐", "🎁", "✨", "🎉", "💎"],
     hazard: "💣",
     mascot: "🏃",
@@ -292,38 +304,43 @@ export const GOALS = [
     key: "repeat",
     label: "Get people coming back",
     emoji: "🔁",
+    icon: "repeat",
     hint: "Daily games with a cooldown",
   },
   {
     key: "footfall",
     label: "Get people into the shop",
     emoji: "🚶",
+    icon: "footprints",
     hint: "Hunts and in-store codes",
   },
   {
     key: "launch",
     label: "Push a new product",
     emoji: "🚀",
+    icon: "rocket",
     hint: "Quizzes and polls about it",
   },
   {
     key: "awareness",
     label: "Get shared and seen",
     emoji: "📣",
+    icon: "megaphone",
     hint: "High-score games with leaderboards",
   },
   {
     key: "data",
     label: "Learn what customers want",
     emoji: "📊",
+    icon: "bar-chart-3",
     hint: "Polls and recommender quizzes",
   },
 ] as const;
 
 export const TONES = [
-  { key: "playful", label: "Playful", emoji: "🎉" },
-  { key: "warm", label: "Warm and friendly", emoji: "🤗" },
-  { key: "premium", label: "Premium and understated", emoji: "🥂" },
+  { key: "playful", label: "Playful", emoji: "🎉", icon: "party-popper" },
+  { key: "warm", label: "Warm and friendly", emoji: "🤗", icon: "heart-handshake" },
+  { key: "premium", label: "Premium and understated", emoji: "🥂", icon: "gem" },
 ] as const;
 
 export const DAYS = [
@@ -366,7 +383,7 @@ const filled = (value: unknown) =>
 export function completionItems(
   profile: BusinessProfile,
   merchant: MerchantBasics,
-  extras: { hasReward: boolean; hasGame: boolean }
+  extras: { hasReward: boolean; hasGame: boolean; payoutReady?: boolean }
 ): CompletionItem[] {
   return [
     {
@@ -375,13 +392,6 @@ export function completionItems(
       weight: 16,
       done: filled(profile.industry),
       unlocks: "Games written for your trade, with the right artwork",
-    },
-    {
-      key: "sells",
-      label: "Your top three things to sell",
-      weight: 16,
-      done: (profile.sells ?? []).filter((s) => s.trim()).length >= 2,
-      unlocks: "Quizzes, polls and arcade games built around your actual menu",
     },
     {
       key: "offers",
@@ -412,34 +422,6 @@ export function completionItems(
       unlocks: "Games painted in your colours",
     },
     {
-      key: "audience",
-      label: "Who your customers are",
-      weight: 6,
-      done: filled(profile.audience),
-      unlocks: "Wording pitched at the people who'll play",
-    },
-    {
-      key: "tone",
-      label: "How you like to sound",
-      weight: 4,
-      done: filled(profile.tone),
-      unlocks: "Titles and prompts in your voice",
-    },
-    {
-      key: "city",
-      label: "Where you are",
-      weight: 4,
-      done: filled(profile.city),
-      unlocks: "Local trivia questions",
-    },
-    {
-      key: "funFact",
-      label: "One true thing about you",
-      weight: 4,
-      done: filled(profile.funFact),
-      unlocks: "A trivia question only your regulars can answer",
-    },
-    {
       key: "contact",
       label: "A way to reach you",
       weight: 3,
@@ -452,6 +434,13 @@ export function completionItems(
       weight: 3,
       done: extras.hasReward,
       unlocks: "One-tap prizes when you build a game",
+    },
+    {
+      key: "payout",
+      label: "A bank account to be paid into",
+      weight: 14,
+      done: extras.payoutReady === true,
+      unlocks: "Your share of anything players buy, straight to your bank",
     },
   ];
 }

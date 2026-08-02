@@ -11,7 +11,7 @@
 // else is pre-filled and editable later. The real game plays beside step 2.
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Sparkles, X } from "lucide-react";
 import {
   COMPETITIVE_GAMES,
   DEFAULT_SEASON_DAYS,
@@ -171,7 +171,9 @@ export function GameWizard({
     if (!res.ok || !body?.ok) {
       setError(
         body?.error === "too_many_games"
-          ? "You've hit your plan's live-game limit. Pause one, or upgrade."
+          ? "You're already running as many games as the free plan allows. Pause one, or upgrade to run more."
+          : body?.error === "no_payout_account"
+            ? "Before a game can go live we need somewhere to send your money. Add your bank account under Settings → Getting paid — it takes a minute."
           : body?.error === "too_many_prizes"
             ? `Your plan allows up to ${maxPrizes} prizes per game.`
             : "We couldn't create that game. Check the details and try again."
@@ -200,7 +202,8 @@ export function GameWizard({
                 : "Everything comes pre-filled — you'll only confirm the prize."}
             </p>
           </div>
-          <button onClick={onCancel} className="btn-ghost">
+          <button onClick={onCancel} className="btn-secondary shrink-0">
+            <X className="size-4" aria-hidden />
             Cancel
           </button>
         </header>
@@ -365,7 +368,7 @@ export function GameWizard({
         <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
           Step 2 of 2
         </span>
-        <button onClick={onCancel} className="btn-ghost">
+        <button onClick={onCancel} className="btn-secondary">
           Cancel
         </button>
       </header>

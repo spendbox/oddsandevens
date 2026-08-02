@@ -63,7 +63,7 @@ export async function POST(
   const db = supabaseAdmin();
   const { data: merchant } = await db
     .from("merchants")
-    .select("id, slug")
+    .select("id, slug, paystack_subaccount_code")
     .eq("slug", slug.toLowerCase())
     .maybeSingle();
   if (!merchant) {
@@ -83,6 +83,18 @@ export async function POST(
   const { data: week } = await db.rpc("week_start");
   const reference = `sbl_${randomBytes(12).toString("hex")}`;
 
+  // Which game they were on when they decided to buy. The hub sends no
+  // `back`, and a hub purchase belongs to no single game.
+  const back = new URL(req.url).searchParams.get("back") ?? "";
+  const { data: fromGame } = back
+    ? await db
+        .from("games")
+        .select("id")
+        .eq("merchant_id", merchant.id)
+        .eq("slug", back.toLowerCase())
+        .maybeSingle()
+    : { data: null };
+
   const { error } = await db.from("life_purchases").insert({
     merchant_id: merchant.id,
     customer_id: customer.id,
@@ -90,6 +102,7 @@ export async function POST(
     reference,
     amount_kobo: terms.amountKobo,
     lives: terms.lives,
+    game_id: fromGame?.id ?? null,
   });
   if (error) {
     console.error("[lives] purchase insert failed:", error);
@@ -99,7 +112,6 @@ export async function POST(
   // Paystack sends the player back to the game they were on; the page verifies
   // the reference on arrival.
   const origin = appBaseUrl(req);
-  const back = new URL(req.url).searchParams.get("back") ?? "";
   const callbackUrl = `${origin}/p/${merchant.slug}${
     back ? `/${encodeURIComponent(back)}` : ""
   }?life_ref=${reference}`;
@@ -109,6 +121,9 @@ export async function POST(
     amountKobo: terms.amountKobo,
     reference,
     callbackUrl,
+    // The split happens at Paystack: the business's share settles to their
+    // bank and never passes through our balance.
+    subaccount: merchant.paystack_subaccount_code,
   });
   if (!checkout) {
     return NextResponse.json({ error: "checkout_failed" }, { status: 502 });

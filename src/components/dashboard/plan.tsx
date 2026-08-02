@@ -17,7 +17,7 @@ function baseFraction(plan: MerchantPlan): number {
 }
 
 // Compact home-page widget: plays left + one-tap routes into the Plans tab.
-// The "Go Premium" button only shows on the free tier — no permanent upsell.
+// The upgrade button only shows on the free tier — no permanent upsell.
 export function PlaysWidget({
   plan,
   onManage,
@@ -59,7 +59,7 @@ export function PlaysWidget({
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98]"
             >
               <Crown className="size-4" aria-hidden />
-              Go Premium
+              Upgrade
             </button>
           )}
           <button onClick={onManage} className="btn-secondary px-3.5 py-2 text-sm">
@@ -272,10 +272,10 @@ export function PlansPanel({
         <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-800">
           <Crown className="size-4" aria-hidden />
           {premium
-            ? "Premium plan"
+            ? "You're on Premium"
             : lapsed
               ? "Your Premium plan has ended"
-              : "Go Premium"}
+              : "Run more than one game"}
         </p>
         <p className="mt-1 text-sm text-zinc-600">
           {premium && premiumExpiresAt ? (
@@ -284,7 +284,7 @@ export function PlansPanel({
               <span className="font-medium text-zinc-800">
                 {formatDate(premiumExpiresAt)}
               </span>
-              . A renewal adds a full year on top and refreshes your yearly plays.
+              . Renewing adds another full year on top and refills your plays.
             </>
           ) : (
             <>
@@ -296,11 +296,13 @@ export function PlansPanel({
                   ·{" "}
                 </>
               )}
-              Get <span className="font-medium text-zinc-800">
+              Free gets you one live game and{" "}
+              {plan.baseAllowance.toLocaleString()} plays a year. Premium lifts
+              the limit on games, raises you to{" "}
+              <span className="font-medium text-zinc-800">
                 {plan.premiumYearlyPlays.toLocaleString()} plays a year
-              </span>{" "}
-              (up from {plan.baseAllowance.toLocaleString()}), plus unlimited
-              games and more prizes in each of them.
+              </span>
+              , and lets you put ten prizes in each game instead of two.
             </>
           )}
         </p>
