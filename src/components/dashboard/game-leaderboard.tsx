@@ -16,9 +16,9 @@ import {
   Mail,
   Trophy,
   Users,
-  X,
 } from "lucide-react";
 import { RANK_MEDALS, rankLabel } from "@/lib/games/catalog";
+import { Modal } from "@/components/ui/modal";
 
 interface Row {
   rank: number;
@@ -107,39 +107,22 @@ export function GameLeaderboard({
   }, [load]);
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-900/60 p-4 backdrop-blur-sm"
+    <Modal
+      title={board?.game.title ?? "Leaderboard"}
+      subtitle={
+        board?.season
+          ? `Week ${board.season.number} · ${day(board.season.startsAt)} to ${day(board.season.endsAt)} · ${closesIn(board.season.endsAt)}`
+          : undefined
+      }
+      icon={<Trophy className="size-5 text-amber-500" aria-hidden />}
+      width="lg"
+      onClose={onClose}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Leaderboard"
-        onClick={(event) => event.stopPropagation()}
-        className="card my-4 w-full max-w-2xl p-5 sm:p-6"
-      >
-        <header className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-zinc-900">
-              <Trophy className="size-5 text-amber-500" aria-hidden />
-              {board?.game.title ?? "Leaderboard"}
-            </h2>
-            {board?.season && (
-              <p className="mt-0.5 text-sm text-zinc-500">
-                Week {board.season.number} · {day(board.season.startsAt)} to{" "}
-                {day(board.season.endsAt)} · {closesIn(board.season.endsAt)}
-              </p>
-            )}
-          </div>
-          <button onClick={onClose} aria-label="Close" className="btn-ghost">
-            <X className="size-4" aria-hidden />
-          </button>
-        </header>
 
-        {error && <p className="alert-error mt-4">{error}</p>}
+        {error && <p className="alert-error">{error}</p>}
 
         {!board && !error && (
-          <p className="mt-6 flex items-center justify-center gap-2 py-8 text-sm text-zinc-400">
+          <p className="flex items-center justify-center gap-2 py-8 text-sm text-zinc-400">
             <Loader2 className="size-4 animate-spin" aria-hidden />
             Loading the board…
           </p>
@@ -147,7 +130,7 @@ export function GameLeaderboard({
 
         {board && (
           <>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <span className="flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600">
                 <Users className="size-3.5" aria-hidden />
                 {board.playerCount} on the board
@@ -267,7 +250,6 @@ export function GameLeaderboard({
             )}
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

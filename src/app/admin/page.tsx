@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Check,
+  Coins,
   Crown,
   ExternalLink,
   Eye,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import { PasswordInput } from "@/components/password-input";
 import { useAutoRefresh } from "@/lib/use-auto-refresh";
+import { naira } from "@/components/dashboard/shared";
 
 interface AdminImage {
   id: string;
@@ -36,7 +38,20 @@ interface AdminMerchant {
   premiumExpiresAt: string | null;
   createdAt: string;
   customers: number;
-  activeGrids: number;
+  liveGames: number;
+  grossKobo: number;
+  platformKobo: number;
+}
+
+/** Platform-wide takings from players buying extra plays. */
+interface AdminRevenue {
+  grossKobo: number;
+  platformKobo: number;
+  businessKobo: number;
+  gross30dKobo: number;
+  orders: number;
+  livesSold: number;
+  platformSharePercent: number;
 }
 
 interface AdminCustomer {
@@ -44,7 +59,6 @@ interface AdminCustomer {
   email: string;
   createdAt: string;
   businesses: number;
-  points: number;
   plays: number;
 }
 
@@ -60,6 +74,11 @@ export default function AdminPage() {
   const [freePlays, setFreePlays] = useState("");
   const [premiumPlays, setPremiumPlays] = useState("");
   const [topupPriceNaira, setTopupPriceNaira] = useState("");
+  const [lifePriceNaira, setLifePriceNaira] = useState("");
+  const [lifeCount, setLifeCount] = useState("");
+  const [sharePercent, setSharePercent] = useState("");
+  const [freeGames, setFreeGames] = useState("");
+  const [revenue, setRevenue] = useState<AdminRevenue | null>(null);
   const [savedPrice, setSavedPrice] = useState(false);
   const [title, setTitle] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -81,9 +100,14 @@ export default function AdminPage() {
         freePlays: string;
         premiumPlays: string;
         topupPriceNaira: string;
+        lifePriceNaira: string;
+        lifeCount: string;
+        sharePercent: string;
+        freeGames: string;
         images: AdminImage[];
         merchants: AdminMerchant[];
         customers: AdminCustomer[];
+        revenue: AdminRevenue | null;
       }
   > => {
     const [settingsRes, imagesRes, merchantsRes, customersRes] =
@@ -106,9 +130,14 @@ export default function AdminPage() {
       freePlays: String(settings?.freeYearlyPlays ?? 0),
       premiumPlays: String(settings?.premiumYearlyPlays ?? 0),
       topupPriceNaira: String((settings?.topupPricePer1000Kobo ?? 0) / 100),
+      lifePriceNaira: String((settings?.lifeTopupPriceKobo ?? 0) / 100),
+      lifeCount: String(settings?.lifeTopupLives ?? 10),
+      sharePercent: String(settings?.platformSharePercent ?? 30),
+      freeGames: String(settings?.freeLiveGames ?? 1),
       images: (imgs?.images as AdminImage[]) ?? [],
       merchants: (merch?.merchants as AdminMerchant[]) ?? [],
       customers: (custs?.customers as AdminCustomer[]) ?? [],
+      revenue: (merch?.revenue as AdminRevenue) ?? null,
     };
   }, []);
 
@@ -122,6 +151,11 @@ export default function AdminPage() {
       setFreePlays(data.freePlays);
       setPremiumPlays(data.premiumPlays);
       setTopupPriceNaira(data.topupPriceNaira);
+      setLifePriceNaira(data.lifePriceNaira);
+      setLifeCount(data.lifeCount);
+      setSharePercent(data.sharePercent);
+      setFreeGames(data.freeGames);
+      setRevenue(data.revenue);
       setImages(data.images);
       setMerchants(data.merchants);
       setCustomers(data.customers);
@@ -163,6 +197,10 @@ export default function AdminPage() {
         freeYearlyPlays: Math.round(Number(freePlays)),
         premiumYearlyPlays: Math.round(Number(premiumPlays)),
         topupPricePer1000Kobo: Math.round(Number(topupPriceNaira) * 100),
+        lifeTopupPriceKobo: Math.round(Number(lifePriceNaira) * 100),
+        lifeTopupLives: Math.round(Number(lifeCount)),
+        platformSharePercent: Math.round(Number(sharePercent)),
+        freeLiveGames: Math.round(Number(freeGames)),
       }),
     });
     if (!res.ok) {
@@ -230,7 +268,7 @@ export default function AdminPage() {
   async function deleteMerchant(m: AdminMerchant) {
     if (
       !window.confirm(
-        `Delete "${m.businessName}" (/g/${m.slug}) and its account permanently? All grids, rewards, and codes go with it.`
+        `Delete "${m.businessName}" (/p/${m.slug}) and its account permanently? All games, rewards, and codes go with it.`
       )
     ) {
       return;
@@ -355,6 +393,56 @@ export default function AdminPage() {
 
         {error && <p className="alert-error mt-4">{error}</p>}
 
+        {/* What the platform has actually taken. Gross is what players paid;
+            ours is the cut; theirs is what the businesses are owed. */}
+        {revenue && (
+          <section className="card mt-6 p-4 sm:p-5">
+            <h2 className="section-title">
+              <Coins className="size-3.5" aria-hidden />
+              Revenue from extra plays
+            </h2>
+            <div className="mt-3 grid gap-3 sm:grid-cols-4">
+              {[
+                {
+                  label: `Ours (${revenue.platformSharePercent}%)`,
+                  value: naira(revenue.platformKobo),
+                  accent: "text-emerald-700 bg-emerald-50",
+                },
+                {
+                  label: `Businesses' (${100 - revenue.platformSharePercent}%)`,
+                  value: naira(revenue.businessKobo),
+                  accent: "text-zinc-700 bg-zinc-50",
+                },
+                {
+                  label: "Gross, all time",
+                  value: naira(revenue.grossKobo),
+                  accent: "text-zinc-700 bg-zinc-50",
+                },
+                {
+                  label: "Gross, 30 days",
+                  value: naira(revenue.gross30dKobo),
+                  accent: "text-sky-700 bg-sky-50",
+                },
+              ].map((tile) => (
+                <div key={tile.label} className={`rounded-xl p-3 ${tile.accent}`}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+                    {tile.label}
+                  </p>
+                  <p className="mt-0.5 text-xl font-bold tabular-nums">
+                    {tile.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-zinc-400">
+              {revenue.orders.toLocaleString()} purchase
+              {revenue.orders === 1 ? "" : "s"} ·{" "}
+              {revenue.livesSold.toLocaleString()} plays sold. Only settled
+              payments count; pending checkouts are excluded.
+            </p>
+          </section>
+        )}
+
         <form onSubmit={savePrice} className="card mt-6 p-4 sm:p-5">
           <h2 className="section-title">
             <Landmark className="size-3.5" aria-hidden />
@@ -413,7 +501,71 @@ export default function AdminPage() {
                 aria-label="Premium tier yearly taps"
               />
             </label>
+            <label className="block">
+              <span className="field-label">Live games on the free tier</span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                onFocus={(e) => e.currentTarget.select()}
+                value={freeGames}
+                onChange={(e) => setFreeGames(e.target.value)}
+                className="input-field w-full"
+                aria-label="Live games allowed on the free tier"
+              />
+            </label>
           </div>
+
+          {/* What a *player* pays, and how it is split. */}
+          <h3 className="mt-6 border-t border-zinc-100 pt-4 text-sm font-semibold text-zinc-800">
+            Extra plays (paid by players)
+          </h3>
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <label className="block">
+              <span className="field-label">Price per block (₦)</span>
+              <input
+                type="number"
+                min={10}
+                step="any"
+                onFocus={(e) => e.currentTarget.select()}
+                value={lifePriceNaira}
+                onChange={(e) => setLifePriceNaira(e.target.value)}
+                className="input-field w-full"
+                aria-label="Price of a block of extra plays in naira"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Plays per block</span>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                onFocus={(e) => e.currentTarget.select()}
+                value={lifeCount}
+                onChange={(e) => setLifeCount(e.target.value)}
+                className="input-field w-full"
+                aria-label="How many plays a block buys"
+              />
+            </label>
+            <label className="block">
+              <span className="field-label">Our cut (%)</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                onFocus={(e) => e.currentTarget.select()}
+                value={sharePercent}
+                onChange={(e) => setSharePercent(e.target.value)}
+                className="input-field w-full"
+                aria-label="Platform share percent"
+              />
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-zinc-400">
+            Changing the split re-splits every past sale in the reported totals
+            — payouts should be reconciled from `life_purchases`, not from these
+            figures.
+          </p>
           <div className="mt-4 flex items-center gap-3">
             <button type="submit" className="btn-primary px-4 py-2">
               {savedPrice ? (
@@ -551,14 +703,21 @@ export default function AdminPage() {
                       )}
                     </p>
                     <p className="mt-0.5 text-xs text-zinc-500">
-                      /g/{m.slug} · {m.customers} customer
-                      {m.customers === 1 ? "" : "s"} · {m.activeGrids} active
-                      grid{m.activeGrids === 1 ? "" : "s"}
+                      /p/{m.slug} · {m.customers} player
+                      {m.customers === 1 ? "" : "s"} · {m.liveGames} live game
+                      {m.liveGames === 1 ? "" : "s"}
+                      {m.grossKobo > 0 && (
+                        <>
+                          {" "}
+                          · {naira(m.grossKobo)} sold ({naira(m.platformKobo)}{" "}
+                          ours)
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Link
-                      href={`/g/${m.slug}`}
+                      href={`/p/${m.slug}`}
                       target="_blank"
                       className="btn-secondary px-3 py-1.5 text-xs"
                     >
@@ -599,8 +758,7 @@ export default function AdminPage() {
                     </p>
                     <p className="mt-0.5 text-xs text-zinc-500">
                       {c.businesses} business{c.businesses === 1 ? "" : "es"} ·{" "}
-                      {c.plays} tap{c.plays === 1 ? "" : "s"} · {c.points}{" "}
-                      point{c.points === 1 ? "" : "s"}
+                      {c.plays} play{c.plays === 1 ? "" : "s"}
                     </p>
                   </div>
                   <button

@@ -16,29 +16,25 @@ export async function GET() {
   }
 
   const db = supabaseAdmin();
-  const [{ data: states }, { data: unlocks }] = await Promise.all([
-    db
-      .from("customer_merchant_state")
-      .select("loyalty_points, points_expire_at, total_plays")
-      .eq("merchant_id", merchant.id),
-    db
-      .from("unlocked_rewards")
-      .select("reward_type, status, redeemed_at, expires_at")
-      .eq("merchant_id", merchant.id),
-  ]);
+  const [{ data: states }, { data: unlocks }, { data: revenue }] =
+    await Promise.all([
+      db
+        .from("customer_merchant_state")
+        .select("total_plays")
+        .eq("merchant_id", merchant.id),
+      db
+        .from("unlocked_rewards")
+        .select("reward_type, status, redeemed_at, expires_at")
+        .eq("merchant_id", merchant.id),
+      db.rpc("life_revenue", { p_merchant_id: merchant.id }),
+    ]);
 
   const now = Date.now();
   const thirtyDaysAgo = now - 30 * 86400_000;
 
   let totalPlays = 0;
-  let pointsOutstanding = 0;
   for (const s of states ?? []) {
     totalPlays += s.total_plays ?? 0;
-    // Balances count while unexpired (null expiry = legacy balance, still live).
-    const expired =
-      s.points_expire_at != null &&
-      new Date(s.points_expire_at).getTime() <= now;
-    if (!expired) pointsOutstanding += s.loyalty_points;
   }
 
   let rewardsUnlocked = 0;
@@ -46,7 +42,8 @@ export async function GET() {
   let redemptionsLast30d = 0;
   let activeCodes = 0;
   for (const u of unlocks ?? []) {
-    if (u.reward_type === "tile") rewardsUnlocked += 1;
+    // Every code issued is a prize won, whichever product minted it.
+    rewardsUnlocked += 1;
     if (u.status === "redeemed") {
       redemptions += 1;
       if (u.redeemed_at && new Date(u.redeemed_at).getTime() >= thirtyDaysAgo) {
@@ -62,6 +59,7 @@ export async function GET() {
   }
 
   const totalIssued = (unlocks ?? []).length;
+  const money = (revenue ?? {}) as Record<string, number>;
   const stats: MerchantStats = {
     totalCustomers: (states ?? []).length,
     totalPlays,
@@ -70,7 +68,17 @@ export async function GET() {
     redemptionsLast30d,
     redemptionRate: totalIssued > 0 ? redemptions / totalIssued : 0,
     activeCodes,
-    pointsOutstanding,
+    // What players have paid this business for extra plays. `life_revenue`
+    // does the split, so the dashboard never has to know the rate.
+    revenue: {
+      grossKobo: Number(money.gross_kobo ?? 0),
+      businessKobo: Number(money.business_kobo ?? 0),
+      platformKobo: Number(money.platform_kobo ?? 0),
+      business30dKobo: Number(money.business_30d_kobo ?? 0),
+      orders: Number(money.orders ?? 0),
+      livesSold: Number(money.lives_sold ?? 0),
+      platformSharePercent: Number(money.platform_share_percent ?? 30),
+    },
   };
   return NextResponse.json(stats);
 }

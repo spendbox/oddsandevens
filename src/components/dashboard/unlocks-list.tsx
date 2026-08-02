@@ -5,7 +5,7 @@ import { formatDate, type UnlockRow } from "./shared";
 
 function description(u: UnlockRow): string {
   if (u.reward_type === "loyalty_discount") {
-    return `${u.discount_percent}% loyalty discount`;
+    return `${u.discount_percent}% discount`;
   }
   if (u.reward_type === "game") {
     return u.game_prizes?.description ?? "Game prize";
@@ -43,7 +43,7 @@ export function UnlocksList({ unlocks }: { unlocks: UnlockRow[] }) {
         Recent unlocks
       </h2>
       <p className="mt-1.5 text-xs text-zinc-500">
-        The latest rewards won and loyalty discounts redeemed.
+        The latest prizes won, and which have been collected.
       </p>
 
       {/* Phones: roomy stacked cards. */}

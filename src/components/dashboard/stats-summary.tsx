@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, Play, Users, X } from "lucide-react";
+import { BarChart3, Play, Users } from "lucide-react";
 import type { MerchantStats } from "@/lib/types";
 import { StatsKpis } from "./stats-kpis";
+import { Modal } from "@/components/ui/modal";
 
 // The home tab shows just the two headline numbers; everything else lives
 // behind the "View all stats" popup.
@@ -46,32 +47,14 @@ export function StatsSummary({ stats }: { stats: MerchantStats | null }) {
       </section>
 
       {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-4 backdrop-blur-sm sm:p-6"
-          onClick={() => setOpen(false)}
+        <Modal
+          title="All stats"
+          icon={<BarChart3 className="size-5 text-emerald-600" aria-hidden />}
+          width="lg"
+          onClose={() => setOpen(false)}
         >
-          <div
-            className="animate-pop-in card max-h-[85vh] w-full max-w-2xl overflow-y-auto p-5 sm:p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900">
-                <BarChart3 className="size-5 text-emerald-600" aria-hidden />
-                All stats
-              </h2>
-              <button
-                onClick={() => setOpen(false)}
-                className="btn-ghost"
-                aria-label="Close"
-              >
-                <X className="size-4" aria-hidden />
-              </button>
-            </div>
-            <div className="mt-4">
-              <StatsKpis stats={stats} />
-            </div>
-          </div>
-        </div>
+          <StatsKpis stats={stats} />
+        </Modal>
       )}
     </>
   );

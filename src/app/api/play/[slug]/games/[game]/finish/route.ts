@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
-  sendLoyaltyUnlockedEmail,
   sendMerchantHitEmail,
   sendRewardUnlockedEmail,
 } from "@/lib/email";
@@ -78,9 +77,6 @@ export async function POST(
     score: Number(raw.score ?? 0),
     bestScore: Number(raw.best_score ?? 0),
     rank: raw.rank == null ? null : Number(raw.rank),
-    loyaltyPoints: Number(raw.loyalty_points ?? 0),
-    pointsExpireAt: (raw.points_expire_at as string | null) ?? null,
-    loyaltyCode: (raw.loyalty_code as string | null) ?? null,
     canWinAgain: raw.can_win_again !== false,
     nextPlayAt: (raw.next_play_at as string | null) ?? null,
     livesLeft: Number(raw.lives_left ?? 0),
@@ -89,9 +85,7 @@ export async function POST(
 
   const { data: merchant } = await db
     .from("merchants")
-    .select(
-      "id, owner_id, business_name, slug, discount_percent, points_per_discount"
-    )
+    .select("id, owner_id, business_name, slug")
     .eq("slug", slug.toLowerCase())
     .maybeSingle();
 
@@ -139,19 +133,6 @@ export async function POST(
           customerEmail: playerEmail,
         });
       }
-    } else if (
-      merchant.points_per_discount > 0 &&
-      outcome.loyaltyPoints > 0 &&
-      outcome.loyaltyPoints % merchant.points_per_discount === 0 &&
-      outcome.loyaltyCode
-    ) {
-      await sendLoyaltyUnlockedEmail({
-        to: playerEmail,
-        businessName: merchant.business_name,
-        slug: merchant.slug,
-        discountPercent: merchant.discount_percent,
-        code: outcome.loyaltyCode,
-      });
     }
   }
 

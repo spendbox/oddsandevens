@@ -11,7 +11,7 @@ import {
   Share2,
   Sparkles,
 } from "lucide-react";
-import { DEFAULT_POINTS_PER_DISCOUNT } from "@/lib/constants";
+import { Modal } from "@/components/ui/modal";
 import type { Merchant } from "./shared";
 
 interface Step {
@@ -123,7 +123,7 @@ export function GettingStarted({
       tutorial: [
         "Upload your logo and pick your brand color — every game you share takes on your colors.",
         "Add a tagline and contact details so customers can reach you.",
-        `Set your loyalty exchange rate: how many points (default ${DEFAULT_POINTS_PER_DISCOUNT}) buy what discount.`,
+        "Your colour carries into every game you share, so the page looks like your shop rather than like ours.",
       ],
     },
     {
@@ -227,31 +227,17 @@ export function GettingStarted({
       </ul>
 
       {tutorial && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
-          onClick={() => setTutorial(null)}
-        >
-          <div
-            className="animate-pop-in card w-full max-w-sm p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                {tutorial.icon}
-              </span>
-              {tutorial.title}
-            </h3>
-            <ol className="mt-4 space-y-3">
-              {tutorial.tutorial.map((line, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm leading-relaxed text-zinc-600">
-                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-700">
-                    {i + 1}
-                  </span>
-                  {line}
-                </li>
-              ))}
-            </ol>
-            <div className="mt-5 flex gap-2">
+        <Modal
+          title={tutorial.title}
+          icon={
+            <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+              {tutorial.icon}
+            </span>
+          }
+          width="sm"
+          onClose={() => setTutorial(null)}
+          footer={
+            <div className="flex gap-2">
               <button
                 onClick={() => setTutorial(null)}
                 className="btn-secondary grow"
@@ -269,8 +255,22 @@ export function GettingStarted({
                 {tutorial.actionLabel}
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <ol className="space-y-3">
+            {tutorial.tutorial.map((line, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-2.5 text-sm leading-relaxed text-zinc-600"
+              >
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-700">
+                  {i + 1}
+                </span>
+                {line}
+              </li>
+            ))}
+          </ol>
+        </Modal>
       )}
     </section>
   );

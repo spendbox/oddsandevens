@@ -34,6 +34,7 @@ import {
 } from "@/components/dashboard/shared";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { StatsSummary } from "@/components/dashboard/stats-summary";
+import { RevenueCard } from "@/components/dashboard/revenue-card";
 import { GettingStarted } from "@/components/dashboard/getting-started";
 import { ShareLink } from "@/components/dashboard/share-link";
 import { PlaysWidget, PlansPanel } from "@/components/dashboard/plan";
@@ -112,7 +113,7 @@ export default function DashboardPage() {
     const { data: m, error: merchantError } = await supabase
       .from("merchants")
       .select(
-        "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email, profile"
+        "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, whatsapp, contact_email, profile"
       )
       .maybeSingle();
     if (merchantError) {
@@ -368,6 +369,7 @@ export default function DashboardPage() {
                 />
                 <ShareLink slug={merchant.slug} tier={tier} />
                 <PlaysWidget plan={plan} onManage={() => setTab("plans")} />
+                <RevenueCard revenue={stats?.revenue ?? null} />
                 <StatsSummary stats={stats} />
                 <RedeemBox onRedeemed={load} />
                 <UnlocksList unlocks={unlocks} />
@@ -424,8 +426,6 @@ export default function DashboardPage() {
               <div className="mt-6 space-y-6">
                 <CustomersList
                   customers={customers}
-                  pointsPerDiscount={merchant.points_per_discount}
-                  discountPercent={merchant.discount_percent}
                 />
               </div>
             )}

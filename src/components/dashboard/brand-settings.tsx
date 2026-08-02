@@ -3,15 +3,14 @@
 import { useRef, useState } from "react";
 import {
   AlertTriangle,
-  BadgePercent,
   Check,
   ImagePlus,
   Link2,
   Mail,
   MessageCircle,
   Palette,
-  X,
 } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
 import type { Merchant } from "./shared";
 
 export function BrandSettings({
@@ -27,12 +26,6 @@ export function BrandSettings({
   const [brandColor, setBrandColor] = useState(merchant.brand_color);
   const [whatsapp, setWhatsapp] = useState(merchant.whatsapp ?? "");
   const [contactEmail, setContactEmail] = useState(merchant.contact_email ?? "");
-  const [pointsPerDiscount, setPointsPerDiscount] = useState(
-    merchant.points_per_discount
-  );
-  const [discountPercent, setDiscountPercent] = useState(
-    merchant.discount_percent
-  );
   const [logoPreview, setLogoPreview] = useState<string | null>(
     merchant.logo_url
   );
@@ -86,8 +79,6 @@ export function BrandSettings({
     form.set("brandColor", brandColor);
     form.set("whatsapp", whatsapp);
     form.set("contactEmail", contactEmail);
-    form.set("pointsPerDiscount", String(pointsPerDiscount));
-    form.set("discountPercent", String(discountPercent));
     const file = logoInputRef.current?.files?.[0];
     if (file) form.set("logo", file);
 
@@ -109,8 +100,6 @@ export function BrandSettings({
           invalid_whatsapp:
             "WhatsApp number should be digits (with optional +), e.g. +2348012345678.",
           invalid_contact_email: "Contact email doesn't look valid.",
-          invalid_loyalty_settings:
-            "Points and discount must be whole numbers between 1 and 100.",
         }[String(body?.error)] ?? "Couldn't save your settings. Try again."
       );
       return;
@@ -124,7 +113,7 @@ export function BrandSettings({
     <form onSubmit={submit} className="card p-4 sm:p-6">
       <h2 className="section-title">
         <Palette className="size-3.5" aria-hidden />
-        Brand & loyalty settings
+        Brand settings
       </h2>
 
       <div className="mt-4 flex flex-wrap items-start gap-5">
@@ -229,44 +218,6 @@ export function BrandSettings({
         </label>
       </div>
 
-      <div className="mt-5 border-t border-zinc-100 pt-4">
-        <span className="field-label flex items-center gap-1.5">
-          <BadgePercent className="size-3.5" aria-hidden />
-          Loyalty exchange rate
-        </span>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
-          <input
-            type="number"
-            min={1}
-            max={100}
-            value={pointsPerDiscount}
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => setPointsPerDiscount(Number(e.target.value))}
-            className="input-field w-20"
-            aria-label="Points required"
-          />
-          <span>points =</span>
-          <input
-            type="number"
-            min={1}
-            max={100}
-            value={discountPercent}
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => setDiscountPercent(Number(e.target.value))}
-            className="input-field w-20"
-            aria-label="Discount percent"
-          />
-          <span>% discount</span>
-        </div>
-        <p className="mt-1.5 text-xs leading-relaxed text-zinc-400">
-          A miss earns 1 point. At {pointsPerDiscount} point
-          {pointsPerDiscount === 1 ? "" : "s"} the customer unlocks{" "}
-          {discountPercent}% off — they show their loyalty code at the counter,
-          you enter it, and their points reset. Points expire 7 days after their
-          last tap.
-        </p>
-      </div>
-
       {error && <p className="alert-error mt-4">{error}</p>}
       <button type="submit" disabled={busy} className="btn-primary mt-4">
         {busy ? (
@@ -313,44 +264,13 @@ export function BrandSettings({
       </div>
 
       {editingSlug && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-6 backdrop-blur-sm"
-          onClick={() => setEditingSlug(false)}
-        >
-          <div
-            className="animate-pop-in card w-full max-w-sm p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900">
-                <Link2 className="size-5 text-rose-500" aria-hidden />
-                Change customer link
-              </h3>
-              <button
-                type="button"
-                onClick={() => setEditingSlug(false)}
-                className="btn-ghost"
-                aria-label="Close"
-              >
-                <X className="size-4" aria-hidden />
-              </button>
-            </div>
-            <div className="mt-4 flex items-center rounded-xl border border-zinc-300 bg-white transition focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-500/20">
-              <span className="pl-3.5 text-zinc-400">/g/</span>
-              <input
-                autoFocus
-                value={slugDraft}
-                onChange={(e) => setSlugDraft(e.target.value.toLowerCase())}
-                className="w-full bg-transparent px-1 py-2.5 font-mono text-zinc-900 outline-none"
-              />
-            </div>
-            <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-600">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-              Your old link stops working the moment you save. Reshare the new
-              one with your customers.
-            </p>
-            {slugError && <p className="alert-error mt-3">{slugError}</p>}
-            <div className="mt-4 flex gap-2">
+        <Modal
+          title="Change customer link"
+          icon={<Link2 className="size-5 text-rose-500" aria-hidden />}
+          width="sm"
+          onClose={() => setEditingSlug(false)}
+          footer={
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setEditingSlug(false)}
@@ -367,8 +287,23 @@ export function BrandSettings({
                 {slugBusy ? "Saving…" : "Change link"}
               </button>
             </div>
+          }
+        >
+          <div className="flex items-center rounded-xl border border-zinc-300 bg-white transition focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-500/20">
+            <span className="pl-3.5 text-zinc-400">/g/</span>
+            <input
+              value={slugDraft}
+              onChange={(e) => setSlugDraft(e.target.value.toLowerCase())}
+              className="w-full bg-transparent px-1 py-2.5 font-mono text-zinc-900 outline-none"
+            />
           </div>
-        </div>
+          <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-600">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            Your old link stops working the moment you save. Reshare the new one
+            with your customers.
+          </p>
+          {slugError && <p className="alert-error mt-3">{slugError}</p>}
+        </Modal>
       )}
     </form>
   );

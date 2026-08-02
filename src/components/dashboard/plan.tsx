@@ -8,11 +8,7 @@ import {
   type SubscriptionTier,
 } from "@/lib/constants";
 import type { MerchantPlan } from "@/lib/types";
-import { formatDate } from "./shared";
-
-function naira(kobo: number): string {
-  return `₦${Math.round(kobo / 100).toLocaleString()}`;
-}
+import { formatDate, naira } from "./shared";
 
 // Fraction of the annual base allowance still available (0..1), for the bar.
 function baseFraction(plan: MerchantPlan): number {

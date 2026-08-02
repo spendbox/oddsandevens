@@ -1,20 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { BadgePercent, Gift, RotateCcw, Ticket } from "lucide-react";
-import type {
-  LoyaltyRedeemResult,
-  RedeemResult,
-  StaffLookupResult,
-} from "@/lib/types";
+import { Gift, RotateCcw, Ticket } from "lucide-react";
+import type { RedeemResult, StaffLookupResult } from "@/lib/types";
 import { formatEta } from "./shared";
 
 // Only successful lookups are kept in state; errors become flash messages.
 type StaffLookupFound = Extract<StaffLookupResult, { result: "found" }>;
 
-// Staff redemption in two steps: look the code up first (the customer's
-// cycling loyalty code or a one-time reward code), show what it is, then
-// confirm. The code is the credential — there's no lookup by customer email.
+// Staff redemption in two steps: look the code up, see what it is, then
+// confirm. The code is the credential — there is no lookup by customer email.
 export function RedeemBox({ onRedeemed }: { onRedeemed: () => Promise<void> }) {
   const [code, setCode] = useState("");
   const [lookup, setLookup] = useState<StaffLookupFound | null>(null);
@@ -48,35 +43,21 @@ export function RedeemBox({ onRedeemed }: { onRedeemed: () => Promise<void> }) {
     setMessage("Code not found for your business.");
   }
 
-  async function confirm(kind: "loyalty" | "code") {
+  async function confirm() {
     setBusy(true);
     setMessage(null);
     const res = await fetch("/api/merchant/redeem", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, code }),
+      body: JSON.stringify({ code }),
     });
-    const body = (await res.json().catch(() => null)) as
-      | LoyaltyRedeemResult
-      | RedeemResult
-      | null;
+    const body = (await res.json().catch(() => null)) as RedeemResult | null;
     setBusy(false);
 
-    if (body?.result === "loyalty_redeemed") {
-      setOk(true);
-      setMessage(
-        `Give ${body.customer_email} ${body.discount_percent}% off. ` +
-          `${body.points_remaining} points left — their loyalty code has cycled to a new one.`
-      );
-      reset();
-      await onRedeemed();
-      return;
-    }
     if (body?.result === "redeemed") {
       setOk(true);
       setMessage(`Redeemed: ${body.description} (customer: ${body.customer_email})`);
       reset();
-      // Redemption can reshuffle server-side state; refresh what we show.
       await onRedeemed();
       return;
     }
@@ -88,8 +69,6 @@ export function RedeemBox({ onRedeemed }: { onRedeemed: () => Promise<void> }) {
             code_not_found: "Code not found for your business.",
             already_redeemed: "That code was already redeemed.",
             expired: "That code has expired.",
-            insufficient_points: "Not enough points yet.",
-            merchant_not_found: "Couldn't redeem that code.",
           }[body.error]
         : null;
     setMessage(reason ?? "Couldn't redeem that code.");
@@ -102,8 +81,8 @@ export function RedeemBox({ onRedeemed }: { onRedeemed: () => Promise<void> }) {
         Redeem a customer code
       </h2>
       <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
-        Type the code the customer shows you — their loyalty code or a reward
-        code they won.
+        Type the code the customer shows you — the one emailed to them when
+        they won.
       </p>
 
       <form onSubmit={doLookup} className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -138,41 +117,6 @@ export function RedeemBox({ onRedeemed }: { onRedeemed: () => Promise<void> }) {
         </div>
       </form>
 
-      {lookup?.kind === "loyalty" && (
-        <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-          <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
-            <BadgePercent className="size-4 shrink-0 text-emerald-600" aria-hidden />
-            <span className="break-all">Loyalty code · {lookup.customer_email}</span>
-          </p>
-          <p className="mt-1 text-sm leading-relaxed text-zinc-600">
-            {lookup.points} point{lookup.points === 1 ? "" : "s"} (needs{" "}
-            {lookup.points_needed} for {lookup.discount_percent}% off)
-            {lookup.points_expire_at && (
-              <span className="text-zinc-400">
-                {" "}
-                · points expire {formatEta(lookup.points_expire_at)}
-              </span>
-            )}
-          </p>
-          {lookup.eligible ? (
-            <button
-              onClick={() => confirm("loyalty")}
-              disabled={busy}
-              className="btn-primary mt-3 w-full px-4 py-2 text-sm sm:w-auto"
-            >
-              {busy
-                ? "Redeeming…"
-                : `Redeem ${lookup.points_needed} points for ${lookup.discount_percent}% off`}
-            </button>
-          ) : (
-            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Not enough points yet —{" "}
-              {lookup.points_needed - lookup.points} more to go.
-            </p>
-          )}
-        </div>
-      )}
-
       {lookup?.kind === "code" && (
         <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
@@ -188,7 +132,7 @@ export function RedeemBox({ onRedeemed }: { onRedeemed: () => Promise<void> }) {
           </p>
           {lookup.status === "unredeemed" ? (
             <button
-              onClick={() => confirm("code")}
+              onClick={confirm}
               disabled={busy}
               className="btn-primary mt-3 w-full px-4 py-2 text-sm sm:w-auto"
             >

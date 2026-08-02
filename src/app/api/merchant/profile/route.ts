@@ -10,8 +10,8 @@ import {
   SLUG_REGEX,
 } from "@/lib/constants";
 
-// Update the merchant's branding and loyalty settings. Multipart so the logo
-// file rides along with the text fields; every field is optional.
+// Update the merchant's branding. Multipart so the logo file rides along with
+// the text fields; every field is optional.
 export async function POST(req: Request) {
   const { userId, merchant } = await getAuthedMerchant();
   if (!userId) {
@@ -82,20 +82,6 @@ export async function POST(req: Request) {
     patch.contact_email = c || null;
   }
 
-  for (const [field, column] of [
-    ["pointsPerDiscount", "points_per_discount"],
-    ["discountPercent", "discount_percent"],
-  ] as const) {
-    const raw = form.get(field);
-    if (typeof raw === "string" && raw) {
-      const n = Number(raw);
-      if (!Number.isInteger(n) || n < 1 || n > 100) {
-        return NextResponse.json({ error: "invalid_loyalty_settings" }, { status: 400 });
-      }
-      patch[column] = n;
-    }
-  }
-
   const db = supabaseAdmin();
 
   const logo = form.get("logo");
@@ -128,7 +114,7 @@ export async function POST(req: Request) {
     .update(patch)
     .eq("id", merchant.id)
     .select(
-      "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, points_per_discount, discount_percent, whatsapp, contact_email"
+      "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, whatsapp, contact_email"
     )
     .single();
   if (error) {

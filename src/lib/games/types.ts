@@ -149,12 +149,9 @@ export interface GameOutcome {
   score: number;
   bestScore: number;
   rank: number | null;
-  loyaltyPoints: number;
-  pointsExpireAt: string | null;
-  loyaltyCode: string | null;
   canWinAgain: boolean;
   nextPlayAt: string | null;
-  /** Leaderboard games: plays left today, and when the week closes. */
+  /** Leaderboard games: plays left this week, and when the week closes. */
   livesLeft: number;
   seasonEndsAt: string | null;
 }

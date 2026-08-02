@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  BadgePercent,
   ExternalLink,
   Puzzle,
   Star,
@@ -12,7 +11,7 @@ import {
 } from "lucide-react";
 import { EMAIL_REGEX } from "@/lib/constants";
 import { useAutoRefresh } from "@/lib/use-auto-refresh";
-import type { LoyaltyAccount } from "@/lib/types";
+import type { PlayerAccount } from "@/lib/types";
 
 const EMAIL_STORAGE_KEY = "tilehunt_email";
 
@@ -29,12 +28,12 @@ function formatEta(iso: string): string {
   return `in ${m}m`;
 }
 
-// Customer portal: every business this email plays with — points, rewards,
+// Customer portal: every business this email plays with — prizes won,
 // and when they expire. Same email-only identity as the play page.
 export default function CustomerPortalPage() {
   const [email, setEmail] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState("");
-  const [accounts, setAccounts] = useState<LoyaltyAccount[] | null>(null);
+  const [accounts, setAccounts] = useState<PlayerAccount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // While we check localStorage for a remembered email, hold back the email
   // form so logged-in customers never see it flash.
@@ -46,7 +45,7 @@ export default function CustomerPortalPage() {
     async (
       addr: string | null
     ): Promise<{
-      accounts: LoyaltyAccount[];
+      accounts: PlayerAccount[];
       email: string | null;
       error: string | null;
     }> => {
@@ -63,7 +62,7 @@ export default function CustomerPortalPage() {
       }
       const body = await res.json();
       return {
-        accounts: (body?.accounts as LoyaltyAccount[]) ?? [],
+        accounts: (body?.accounts as PlayerAccount[]) ?? [],
         email: (body?.email as string | null) ?? null,
         error: null,
       };
@@ -145,7 +144,7 @@ export default function CustomerPortalPage() {
             My rewards
           </div>
           <p className="mt-2 text-sm text-zinc-500">
-            Enter the email you play with to see your loyalty points and
+            Enter the email you play with to see your prizes and
             reward codes across every business.
           </p>
           <label className="mt-5 block">
@@ -201,8 +200,8 @@ export default function CustomerPortalPage() {
           <div className="card mt-8 p-8 text-center">
             <Star className="mx-auto size-8 text-zinc-300" aria-hidden />
             <p className="mt-3 text-zinc-500">
-              Nothing here yet — play a Spendbox board and your points and
-              rewards will show up.
+              Nothing here yet — play a Spendbox game and anything you win
+              shows up here.
             </p>
           </div>
         ) : (
@@ -234,96 +233,25 @@ export default function CustomerPortalPage() {
                       <p className="font-semibold text-zinc-900">
                         {a.businessName}
                       </p>
-                      <p className="text-xs text-zinc-500">
-                        <Star
-                          className="mr-0.5 inline size-3.5 fill-amber-400 text-amber-400"
-                          aria-hidden
-                        />
-                        <span className="font-medium text-zinc-700">
-                          {a.loyaltyPoints}
-                        </span>{" "}
-                        point{a.loyaltyPoints === 1 ? "" : "s"} ·{" "}
-                        {a.discountPercent}% off at {a.pointsPerDiscount}
-                      </p>
-                      {(a.cooldownUntil ||
-                        (a.pointsExpireAt && a.loyaltyPoints > 0)) && (
-                        <p className="mt-0.5 text-[11px] text-zinc-400">
-                          {a.cooldownUntil && (
-                            <>Play again {formatEta(a.cooldownUntil)}</>
-                          )}
-                          {a.cooldownUntil &&
-                            a.pointsExpireAt &&
-                            a.loyaltyPoints > 0 &&
-                            " · "}
-                          {a.pointsExpireAt && a.loyaltyPoints > 0 && (
-                            <>points expire {formatEta(a.pointsExpireAt)}</>
-                          )}
+                      {a.cooldownUntil && (
+                        <p className="text-xs text-zinc-500">
+                          Play again {formatEta(a.cooldownUntil)}
                         </p>
                       )}
+                      <p className="text-xs text-zinc-500">
+                        {a.codes.length > 0
+                          ? `${a.codes.length} prize${a.codes.length === 1 ? "" : "s"} to collect`
+                          : "No prizes waiting"}
+                      </p>
                     </div>
                   </div>
                   <Link
-                    href={`/g/${a.slug}`}
+                    href={`/p/${a.slug}`}
                     className="btn-secondary px-3 py-1.5 text-xs"
                   >
                     Play <ExternalLink className="size-3.5" aria-hidden />
                   </Link>
                 </div>
-
-                {/* Progress toward the next discount */}
-                {(() => {
-                  const eligible = a.loyaltyPoints >= a.pointsPerDiscount;
-                  const inCycle = eligible
-                    ? a.pointsPerDiscount
-                    : a.loyaltyPoints % a.pointsPerDiscount;
-                  const toGo = a.pointsPerDiscount - inCycle;
-                  return (
-                    <>
-                      <div className="mt-3 flex items-center gap-1.5">
-                        {Array.from({ length: a.pointsPerDiscount }, (_, i) => (
-                          <span
-                            key={i}
-                            className="h-2 grow rounded-full"
-                            style={{
-                              backgroundColor:
-                                i < inCycle
-                                  ? "var(--brand)"
-                                  : "color-mix(in oklab, var(--brand), transparent 88%)",
-                            }}
-                            aria-hidden
-                          />
-                        ))}
-                      </div>
-                      <p
-                        className={
-                          "mt-1.5 text-xs " +
-                          (eligible
-                            ? "font-medium text-[var(--brand)]"
-                            : "text-zinc-500")
-                        }
-                      >
-                        {eligible
-                          ? `Reward unlocked — show your loyalty code for ${a.discountPercent}% off.`
-                          : `${toGo} more point${toGo === 1 ? "" : "s"} to ${a.discountPercent}% off.`}
-                      </p>
-                    </>
-                  );
-                })()}
-
-                {a.loyaltyCode && a.loyaltyPoints >= a.pointsPerDiscount && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[color-mix(in_oklab,var(--brand),transparent_70%)] bg-[color-mix(in_oklab,var(--brand),transparent_94%)] px-3 py-2.5">
-                    <p className="flex items-center gap-1.5 text-xs font-medium text-zinc-600">
-                      <BadgePercent
-                        className="size-3.5 text-[var(--brand)]"
-                        aria-hidden
-                      />
-                      Loyalty code · ready to redeem at the counter
-                    </p>
-                    <span className="shrink-0 rounded-lg border border-[color-mix(in_oklab,var(--brand),transparent_60%)] bg-white px-2.5 py-1 font-mono tracking-widest text-[var(--brand)]">
-                      {a.loyaltyCode}
-                    </span>
-                  </div>
-                )}
 
                 {a.codes.length > 0 && (
                   <ul className="mt-3 space-y-2">

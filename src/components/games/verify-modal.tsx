@@ -84,11 +84,11 @@ export function VerifyModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/60 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
     >
       <form
-        className="card w-full max-w-sm p-6 sm:p-7"
+        className="card max-h-[92svh] w-full max-w-sm overflow-y-auto overscroll-contain rounded-t-3xl p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:rounded-2xl sm:p-7"
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();

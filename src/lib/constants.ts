@@ -6,15 +6,6 @@ export const COOLDOWN_HOURS = 10;
 // Every grid is a fixed 7x7 board.
 export const GRID_SIZE = 7;
 
-// Loyalty exchange defaults for new merchants; each merchant can override
-// points_per_discount / discount_percent from their dashboard.
-export const DEFAULT_POINTS_PER_DISCOUNT = 3;
-export const DEFAULT_DISCOUNT_PERCENT = 2;
-
-// Loyalty points live 7 days from the last play (rolling window: playing
-// again extends the whole balance).
-export const POINTS_EXPIRY_DAYS = 7;
-
 // Reward validity is configured in days on the dashboard.
 export const REWARD_EXPIRY_DAYS_MIN = 1;
 export const REWARD_EXPIRY_DAYS_MAX = 60;
@@ -68,6 +59,11 @@ export const DEFAULT_TOPUP_PRICE_PER_1000_KOBO = 100_000; // ₦1,000 / 1,000 pl
  */
 export const DEFAULT_LIFE_TOPUP_PRICE_KOBO = 25_000; // ₦250
 export const DEFAULT_LIFE_TOPUP_LIVES = 10;
+
+// What Spendbox keeps of a life purchase; the business keeps the rest. The
+// split itself is done in `life_revenue` — this is only the fallback for a
+// setting that hasn't been written yet.
+export const DEFAULT_PLATFORM_SHARE_PERCENT = 30;
 
 export const TOPUP_MIN_PLAYS = 100;
 export const TOPUP_MAX_PLAYS = 1_000_000;

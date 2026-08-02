@@ -896,12 +896,10 @@ function ResultPanel({
       <h2 className="text-2xl font-extrabold text-white">
         {won ? "You won!" : "No prize this time"}
       </h2>
-      {won ? (
+      {won && (
         <p className="font-semibold" style={{ color: accent }}>
           {outcome.prize?.description}
         </p>
-      ) : (
-        <p className="text-sm text-white/50">+1 loyalty point</p>
       )}
 
       {won && outcome.code && (

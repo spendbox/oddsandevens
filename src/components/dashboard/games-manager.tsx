@@ -24,6 +24,7 @@ import type { SubscriptionTier } from "@/lib/constants";
 import { GameIcon } from "@/components/games/icons";
 import { GamePreview } from "./game-preview";
 import { GameLeaderboard } from "./game-leaderboard";
+import { Modal } from "@/components/ui/modal";
 
 /**
  * Home-tab strip: how the games are doing, and a nudge to launch the first one.
@@ -551,33 +552,18 @@ function DraftPreview({
     total > 0 ? Math.min(Math.max(Math.round((winning / total) * 100), 1), 100) : 25;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-900/60 p-4 backdrop-blur-sm"
-      onClick={onClose}
+    <Modal
+      title={<span className="truncate">{game.title}</span>}
+      subtitle="Preview — nothing here issues a real code."
+      onClose={onClose}
     >
-      <div
-        className="card my-8 w-full max-w-md p-5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="truncate font-bold text-zinc-900">{game.title}</h3>
-            <p className="text-xs text-zinc-500">
-              Preview — nothing here issues a real code.
-            </p>
-          </div>
-          <button onClick={onClose} className="btn-ghost">
-            Close
-          </button>
-        </div>
-        <GamePreview
-          def={def}
-          config={game.config}
-          prizes={prizes}
-          winPercent={winPercent}
-          accent={brandColor || "#059669"}
-        />
-      </div>
-    </div>
+      <GamePreview
+        def={def}
+        config={game.config}
+        prizes={prizes}
+        winPercent={winPercent}
+        accent={brandColor || "#059669"}
+      />
+    </Modal>
   );
 }

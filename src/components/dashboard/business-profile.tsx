@@ -8,7 +8,7 @@
 // what answering it would buy, so filling it in never feels like paperwork.
 
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, Gift, Loader2, Plus, Sparkles, Wand2, X } from "lucide-react";
+import { Check, ChevronDown, Gift, Loader2, Plus, Sparkles, Wand2 } from "lucide-react";
 import {
   DAYS,
   GOALS,
@@ -26,6 +26,7 @@ import {
 } from "@/lib/constants";
 import { rewardIcon } from "@/lib/reward-icons";
 import type { RewardTemplate } from "@/lib/types";
+import { Modal } from "@/components/ui/modal";
 import type { Merchant } from "./shared";
 
 function Chip({
@@ -252,69 +253,13 @@ function OfferPicker({
 
       {/* The popup: the whole reward, without leaving the page. */}
       {creating && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-4 backdrop-blur-sm"
-          onClick={() => setCreating(false)}
-        >
-          <div
-            className="card w-full max-w-sm p-5 sm:p-6"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-semibold text-zinc-900">New reward</h3>
-                <p className="mt-0.5 text-xs text-zinc-500">
-                  It goes in your catalogue, so you can use it on any game.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCreating(false)}
-                aria-label="Close"
-                className="text-zinc-400 hover:text-zinc-600"
-              >
-                <X className="size-4" aria-hidden />
-              </button>
-            </div>
-
-            <label className="mt-4 block">
-              <span className="field-label">What the customer gets</span>
-              <input
-                autoFocus
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                maxLength={200}
-                placeholder="Free coffee with any pastry"
-                className="input-field"
-              />
-            </label>
-
-            <label className="mt-3 block">
-              <span className="field-label">Any conditions (optional)</span>
-              <input
-                value={details}
-                onChange={(event) => setDetails(event.target.value)}
-                maxLength={300}
-                placeholder="One per customer, dine-in only"
-                className="input-field"
-              />
-            </label>
-
-            <label className="mt-3 block">
-              <span className="field-label">Valid for (days)</span>
-              <input
-                type="number"
-                value={expiry}
-                min={REWARD_EXPIRY_DAYS_MIN}
-                max={REWARD_EXPIRY_DAYS_MAX}
-                onChange={(event) => setExpiry(Number(event.target.value))}
-                className="input-field"
-              />
-            </label>
-
-            {error && <p className="alert-error mt-3">{error}</p>}
-
-            <div className="mt-5 flex gap-2">
+        <Modal
+          title="New reward"
+          subtitle="It goes in your catalogue, so you can use it on any game."
+          width="sm"
+          onClose={() => setCreating(false)}
+          footer={
+            <div className="flex gap-2">
               <button
                 type="button"
                 onClick={create}
@@ -339,8 +284,44 @@ function OfferPicker({
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <label className="block">
+            <span className="field-label">What the customer gets</span>
+            <input
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              maxLength={200}
+              placeholder="Free coffee with any pastry"
+              className="input-field"
+            />
+          </label>
+
+          <label className="mt-3 block">
+            <span className="field-label">Any conditions (optional)</span>
+            <input
+              value={details}
+              onChange={(event) => setDetails(event.target.value)}
+              maxLength={300}
+              placeholder="One per customer, dine-in only"
+              className="input-field"
+            />
+          </label>
+
+          <label className="mt-3 block">
+            <span className="field-label">Valid for (days)</span>
+            <input
+              type="number"
+              value={expiry}
+              min={REWARD_EXPIRY_DAYS_MIN}
+              max={REWARD_EXPIRY_DAYS_MAX}
+              onChange={(event) => setExpiry(Number(event.target.value))}
+              className="input-field"
+            />
+          </label>
+
+          {error && <p className="alert-error mt-3">{error}</p>}
+        </Modal>
       )}
     </div>
   );

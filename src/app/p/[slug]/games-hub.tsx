@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Clock, Heart, Share2, Trophy, Users } from "lucide-react";
+import { Clock, Heart, Loader2, Share2, Trophy, Users, Zap } from "lucide-react";
 import { GameIcon } from "@/components/games/icons";
 import { RANK_MEDALS, gameDef, themeAccent } from "@/lib/games/catalog";
 import { useCountdown } from "@/lib/games/use-countdown";
@@ -22,19 +22,84 @@ export default function GamesHub({ slug }: { slug: string }) {
   const [hub, setHub] = useState<PublicGamesHub | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [topup, setTopup] = useState<{
+    amountKobo: number;
+    lives: number;
+    paymentsEnabled: boolean;
+  } | null>(null);
+  const [buying, setBuying] = useState(false);
+  const [bought, setBought] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/play/${encodeURIComponent(slug)}/games`);
+    return res.ok ? ((await res.json()) as PublicGamesHub) : null;
+  }, [slug]);
 
   useEffect(() => {
     let ignore = false;
-    fetch(`/api/play/${encodeURIComponent(slug)}/games`)
+    load().then((body) => {
+      if (ignore) return;
+      if (!body) setNotFound(true);
+      else setHub(body);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [load]);
+
+  // Paystack sends the player back here when they bought from this page. The
+  // credit is idempotent server-side, so a reload can't double it — but the
+  // reference is cleared from the URL anyway so a reload doesn't look like a
+  // second payment.
+  useEffect(() => {
+    const reference = new URLSearchParams(window.location.search).get("life_ref");
+    if (!reference) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    let ignore = false;
+    fetch(`/api/play/${encodeURIComponent(slug)}/lives/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reference }),
+    })
       .then((res) => (res.ok ? res.json() : null))
-      .then((body) => {
-        if (ignore) return;
-        if (!body) setNotFound(true);
-        else setHub(body as PublicGamesHub);
+      .then(async (body) => {
+        if (ignore || body?.result !== "credited") return;
+        setBought(Number(body.lives ?? 0));
+        const fresh = await load();
+        if (!ignore && fresh) setHub(fresh);
       });
     return () => {
       ignore = true;
     };
+  }, [slug, load]);
+
+  // What a block of extra plays costs here. Loaded alongside the hub so the
+  // offer can sit next to the plays counter rather than hiding inside a game.
+  useEffect(() => {
+    let ignore = false;
+    fetch(`/api/play/${encodeURIComponent(slug)}/lives`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (!ignore && body) setTopup(body);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [slug]);
+
+  /** Straight to Paystack; the game page verifies the reference on the way back. */
+  const buyLives = useCallback(async () => {
+    setBuying(true);
+    const res = await fetch(
+      `/api/play/${encodeURIComponent(slug)}/lives`,
+      { method: "POST" }
+    );
+    const body = await res.json().catch(() => null);
+    if (res.ok && body?.authorizationUrl) {
+      window.location.href = body.authorizationUrl;
+      return;
+    }
+    setBuying(false);
   }, [slug]);
 
   const share = useCallback(async () => {
@@ -114,8 +179,8 @@ export default function GamesHub({ slug }: { slug: string }) {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-white">
                 {lives > 0
-                  ? `${lives} ${lives === 1 ? "play" : "plays"} left today`
-                  : "No plays left today"}
+                  ? `${lives} ${lives === 1 ? "play" : "plays"} left this week`
+                  : "No plays left this week"}
               </p>
               <p className="text-xs text-white/50">
                 Shared across every game here — sharing earns more.
@@ -129,6 +194,44 @@ export default function GamesHub({ slug }: { slug: string }) {
               {copied ? "Copied" : "Share"}
             </button>
           </div>
+        )}
+
+        {bought !== null && (
+          <p className="arcade-panel p-3 text-center text-sm font-bold text-white">
+            +{bought} plays added to this week. Good luck.
+          </p>
+        )}
+
+        {/* Buying plays belongs beside the counter that says you have none,
+            not three taps deep inside whichever game you happened to open. */}
+        {lives !== null && topup?.paymentsEnabled && (
+          <button
+            onClick={buyLives}
+            disabled={buying}
+            className="arcade-panel flex w-full items-center gap-3 p-4 text-left transition active:scale-[0.99] disabled:opacity-60"
+          >
+            <span
+              className="flex size-10 shrink-0 items-center justify-center rounded-2xl"
+              style={{ backgroundColor: `${brand}33` }}
+            >
+              {buying ? (
+                <Loader2 className="size-5 animate-spin text-white" aria-hidden />
+              ) : (
+                <Zap className="size-5" style={{ color: brand }} aria-hidden />
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-white">
+                {lives > 0
+                  ? `Want more? ${topup.lives} extra plays this week`
+                  : `Get ${topup.lives} more plays this week`}
+              </span>
+              <span className="block text-xs text-white/50">
+                ₦{(topup.amountKobo / 100).toLocaleString("en-NG")} — optional.
+                The free plays are enough to reach the top.
+              </span>
+            </span>
+          </button>
         )}
 
         {hub.games.length === 0 ? (

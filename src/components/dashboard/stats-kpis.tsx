@@ -4,10 +4,11 @@ import {
   BadgeCheck,
   Gift,
   Play,
-  Star,
+  Coins,
   Ticket,
   Users,
 } from "lucide-react";
+import { naira } from "./shared";
 import type { MerchantStats } from "@/lib/types";
 
 // The full KPI grid, shown inside the "View all stats" popup.
@@ -50,9 +51,13 @@ export function StatsKpis({ stats }: { stats: MerchantStats | null }) {
       accent: "text-rose-600 bg-rose-50",
     },
     {
-      label: "Points in play",
-      value: stats.pointsOutstanding,
-      icon: Star,
+      label: "Extra plays sold",
+      value: stats.revenue.livesSold,
+      sub:
+        stats.revenue.orders > 0
+          ? `${naira(stats.revenue.businessKobo)} yours`
+          : "Players can buy more plays",
+      icon: Coins,
       accent: "text-yellow-600 bg-yellow-50",
     },
   ];

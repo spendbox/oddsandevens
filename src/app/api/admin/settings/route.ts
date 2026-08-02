@@ -3,13 +3,17 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAdminUser } from "@/lib/admin-auth";
 import {
   DEFAULT_FREE_YEARLY_PLAYS,
+  DEFAULT_LIFE_TOPUP_LIVES,
+  DEFAULT_LIFE_TOPUP_PRICE_KOBO,
+  DEFAULT_PLATFORM_SHARE_PERCENT,
   DEFAULT_PREMIUM_PRICE_KOBO,
   DEFAULT_PREMIUM_YEARLY_PLAYS,
   DEFAULT_TOPUP_PRICE_PER_1000_KOBO,
 } from "@/lib/constants";
 
-// Admin: read and set platform settings — the premium price, the annual play
-// allowances for each tier, and the per-1,000 top-up price.
+// Admin: read and set platform settings — what a business pays (premium, the
+// annual allowances, the per-1,000 top-up) and what a *player* pays for extra
+// plays, plus how that is split with the business.
 
 export async function GET() {
   const admin = await getAdminUser();
@@ -24,6 +28,10 @@ export async function GET() {
       "free_yearly_plays",
       "premium_yearly_plays",
       "topup_price_per_1000_kobo",
+      "life_topup_price_kobo",
+      "life_topup_lives",
+      "platform_revenue_share_percent",
+      "free_live_games",
     ]);
   const s = new Map((data ?? []).map((r) => [r.key, Number(r.value)]));
   return NextResponse.json({
@@ -33,6 +41,12 @@ export async function GET() {
       s.get("premium_yearly_plays") ?? DEFAULT_PREMIUM_YEARLY_PLAYS,
     topupPricePer1000Kobo:
       s.get("topup_price_per_1000_kobo") ?? DEFAULT_TOPUP_PRICE_PER_1000_KOBO,
+    lifeTopupPriceKobo:
+      s.get("life_topup_price_kobo") ?? DEFAULT_LIFE_TOPUP_PRICE_KOBO,
+    lifeTopupLives: s.get("life_topup_lives") ?? DEFAULT_LIFE_TOPUP_LIVES,
+    platformSharePercent:
+      s.get("platform_revenue_share_percent") ?? DEFAULT_PLATFORM_SHARE_PERCENT,
+    freeLiveGames: s.get("free_live_games") ?? 1,
   });
 }
 
@@ -72,6 +86,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid_topup_price" }, { status: 400 });
     }
     updates.push({ key: "topup_price_per_1000_kobo", value: v });
+  }
+
+  if (body?.lifeTopupPriceKobo !== undefined) {
+    const v = Number(body.lifeTopupPriceKobo);
+    // ₦10 to ₦100,000 a block: low enough to be a real promotion, high enough
+    // that a typo can't quietly charge someone a fortune.
+    if (!Number.isInteger(v) || v < 1_000 || v > 10_000_000) {
+      return NextResponse.json({ error: "invalid_life_price" }, { status: 400 });
+    }
+    updates.push({ key: "life_topup_price_kobo", value: v });
+  }
+  if (body?.lifeTopupLives !== undefined) {
+    const v = Number(body.lifeTopupLives);
+    if (!Number.isInteger(v) || v < 1 || v > 500) {
+      return NextResponse.json({ error: "invalid_life_count" }, { status: 400 });
+    }
+    updates.push({ key: "life_topup_lives", value: v });
+  }
+  if (body?.platformSharePercent !== undefined) {
+    const v = Number(body.platformSharePercent);
+    if (!Number.isInteger(v) || v < 0 || v > 100) {
+      return NextResponse.json({ error: "invalid_share" }, { status: 400 });
+    }
+    updates.push({ key: "platform_revenue_share_percent", value: v });
+  }
+  if (body?.freeLiveGames !== undefined) {
+    const v = Number(body.freeLiveGames);
+    if (!Number.isInteger(v) || v < 1 || v > 100) {
+      return NextResponse.json({ error: "invalid_free_games" }, { status: 400 });
+    }
+    updates.push({ key: "free_live_games", value: v });
   }
 
   if (updates.length === 0) {

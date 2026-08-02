@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import {
-  COOLDOWN_HOURS,
-  DEFAULT_DISCOUNT_PERCENT,
-  EMAIL_REGEX,
-} from "@/lib/constants";
+import { COOLDOWN_HOURS, EMAIL_REGEX } from "@/lib/constants";
 import { clientIpHash } from "@/lib/ip";
 import type { CustomerState } from "@/lib/types";
 
-// Per-customer state for a merchant's grid: points balance (with its rolling
-// expiry), cooldown, the customer's persistent counter codes, and their
-// unredeemed one-time codes. Identified by email (v1 has no customer auth).
+// Per-customer state for one business: their cooldown and the codes they have
+// won and not yet collected. Identified by email (v1 has no customer auth).
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ slug: string }> }
@@ -24,13 +19,7 @@ export async function GET(
   }
 
   const db = supabaseAdmin();
-  const empty: CustomerState = {
-    loyaltyPoints: 0,
-    pointsExpireAt: null,
-    cooldownUntil: null,
-    loyaltyCode: null,
-    codes: [],
-  };
+  const empty: CustomerState = { cooldownUntil: null, codes: [] };
 
   const { data: merchant } = await db
     .from("merchants")
@@ -77,7 +66,7 @@ export async function GET(
   const [{ data: state }, { data: codes }] = await Promise.all([
     db
       .from("customer_merchant_state")
-      .select("last_played_at, loyalty_points, points_expire_at, loyalty_code")
+      .select("last_played_at")
       .eq("customer_id", customer.id)
       .eq("merchant_id", merchant.id)
       .single(),
@@ -102,27 +91,18 @@ export async function GET(
         ).toISOString()
       : null;
 
-  // Rolling expiry: a lapsed balance reads as zero (persisted lazily on the
-  // next play).
-  const pointsExpired =
-    state?.points_expire_at != null &&
-    new Date(state.points_expire_at).getTime() <= Date.now();
-
   const result: CustomerState = {
-    loyaltyPoints: pointsExpired ? 0 : (state?.loyalty_points ?? 0),
-    pointsExpireAt: pointsExpired ? null : (state?.points_expire_at ?? null),
     cooldownUntil,
-    loyaltyCode: state?.loyalty_code ?? null,
     codes: (codes ?? []).map((c) => ({
       code: c.redemption_code,
       description:
         c.reward_type === "loyalty_discount"
-          ? `${c.discount_percent ?? DEFAULT_DISCOUNT_PERCENT}% loyalty discount`
+          ? `${c.discount_percent ?? 0}% discount`
           : c.reward_type === "game"
             ? ((c.game_prizes as unknown as { description: string } | null)
                 ?.description ?? "Game prize")
             : ((c.rewards as unknown as { description: string } | null)
-                ?.description ?? "Tile reward"),
+                ?.description ?? "Reward"),
       status: c.status,
       expiresAt: c.expires_at,
     })),

@@ -156,6 +156,10 @@ export default function WhackAMole({
         items={[
           { label: "Score", value: score, icon: "🔨" },
           { label: "Time left", value: `${timeLeft}s`, icon: "⏱️" },
+          // Stays up all round. The decoy is whatever the business chose, so
+          // there is no knowing it except by being shown — and learning it by
+          // losing points is how a player stops playing.
+          { label: "Don't hit", value: decoy, icon: "🚫" },
         ]}
       />
       <Stage
@@ -173,6 +177,12 @@ export default function WhackAMole({
               aria-label={`Hole ${i + 1}`}
               className="hole3d relative flex items-center justify-center overflow-hidden transition active:scale-95"
             >
+              {hole.decoy && hole.visible && !hole.hit && (
+                <span
+                  aria-hidden
+                  className="danger-ring pointer-events-none absolute left-1/2 top-1/2 size-[74%]"
+                />
+              )}
               <span
                 className="emoji-piece transition-transform duration-150 ease-out"
                 style={{
@@ -208,7 +218,11 @@ export default function WhackAMole({
         {phase === "idle" && (
           <StartOverlay
             title="Whack them"
-            hint={`Hit each ${target} the moment it shows — the faster, the more it scores. ${decoy} costs you points.`}
+            hint="Hit them the moment they show — the faster, the more it scores."
+            legend={[
+              { emoji: target, label: "Hit" },
+              { emoji: decoy, label: "Never", avoid: true },
+            ]}
             buttonLabel="Start whacking"
             accent={accent}
             onStart={start}

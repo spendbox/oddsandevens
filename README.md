@@ -126,6 +126,45 @@ Out of lives? Two ways to get more:
   can change without a deploy. `credit_life_purchase` is idempotent on the
   reference, so a reload or a double tap credits once.
 
+### One currency: the board
+
+There used to be two. Alongside the leaderboard, every miss earned a loyalty
+point, points expired on a rolling week, a business set its own exchange rate
+(*n* points = *x*% off), and a separate cycling code redeemed them at the
+counter. A business had to configure both before either made sense, and a
+player had to understand both to know what they were playing for.
+
+That is gone (migration `0020`). What a player chases is the top of the board;
+what a business hands over is the prize for being there. Codes minted under the
+old scheme stay valid and still resolve at the counter — someone holding one is
+owed what it says — but nothing mints new ones, and the columns behind it
+(`loyalty_points`, `points_expire_at`, `loyalty_code`, `points_per_discount`,
+`discount_percent`) are dropped.
+
+The tile-grid product went with it. It was already unreachable — no dashboard
+surface could create a grid — and its whole loop was *losing spins earn points*,
+so with points gone it had nothing left to do. `/g/[slug]`, the grid APIs and
+the board component are deleted; the tables stay, because dropping tables is
+not something a copy change should do.
+
+### Money: what a player pays, split 70/30
+
+The only thing a *player* ever pays for is more plays: ₦250 for ten more this
+week, offered on the games hub and inside a game. The business whose game they
+bought them for keeps 70%, Spendbox keeps 30%.
+
+Both figures come from one function, `life_revenue(merchant_id)`, so the
+business's dashboard and the admin console can't drift apart. It counts only
+`status = 'paid'` rows, and it hands back the split rather than the rate, so
+nothing else in the codebase has to know what 30% means. The rate lives in
+`app_settings.platform_revenue_share_percent` and is editable in `/admin`
+alongside the price and block size.
+
+One consequence worth knowing: changing the rate re-splits every past sale in
+the reported totals, because the split is computed on read rather than frozen
+per row. That is the honest behaviour for a headline figure and the wrong
+behaviour for a payout — reconcile payouts from `life_purchases` itself.
+
 ### Players are asked to verify once
 
 Verifying an email sets a signed, HTTP-only cookie that lasts six months
@@ -159,12 +198,13 @@ either completes the swap or springs it back — a swap that makes no match cost
 nothing but the gesture. Tapping still selects, because a keyboard has no
 pointer.
 
-Slice Ninja names its own hazard. The thing to avoid is whichever emoji the
-business chose, so "don't slice the bomb" may be a lie — instead the start
-overlay shows the real glyphs side by side, green to slice against red to
-avoid, a chip stays in the HUD for the whole round, and anything dangerous
-flies inside a pulsing red ring (`.danger-ring`). Finding out what costs a life
-by losing one is how a player stops playing.
+Whack-a-Mole and Slice Ninja both name their own hazard. The thing to avoid is
+whichever emoji the business chose, so "don't slice the bomb" may be a lie —
+instead the start
+overlay shows the real glyphs side by side, green against red, a chip stays in
+the HUD for the whole round, and anything dangerous wears a pulsing red ring
+(`.danger-ring`). Finding out what costs you by losing is how a player stops
+playing.
 
 Every game explains itself once before the first round
 (`src/components/games/tutorial.tsx`) — three lines, then never again on that
@@ -231,6 +271,20 @@ The chrome lives in `components/games/kit.tsx` — `Stage`, `Hud`, `ActionButton
 `StartOverlay`, `GradingOverlay` — so every game shares one look and a new
 one inherits it for free. The dashboard keeps its white cards; none of this
 leaks into it.
+
+Dialogs go through one primitive, `src/components/ui/modal.tsx`. Every popup
+used to be hand-rolled and every one was wrong on a phone the same way: sized
+in `vh`, which on mobile counts the space behind the browser's own chrome, so
+an "85vh" panel was taller than the screen it sat on; the header scrolled away
+with the body, taking the close button with it; and the page behind kept
+scrolling. The shared one caps itself at the *small* viewport (`svh`), pins its
+header and footer, scrolls only the middle, locks the body, and arrives as a
+sheet from the bottom on a phone.
+
+It also closes a tick late, and so does the emoji picker. Removing a dialog
+mid-click makes Chrome fire a second click at whatever is then under the
+pointer — often the control that opened it, so it shut and reopened in one
+tap.
 
 ### Public boards, private players
 
@@ -317,8 +371,8 @@ allowance is charged when a round is graded, so abandoned games are free.
    A per-IP cooldown (hashed IP, salted via `IP_HASH_SALT`) backs up the
    per-email one.
 3. **Redemption by code only.** Staff type the customer's code into the
-   dashboard — a two-step flow resolves the code (cycling loyalty code or a
-   game prize) and then redeems it. There is deliberately no
+   dashboard — a two-step flow resolves it and then redeems it. There is
+   deliberately no
    lookup-by-email redemption path, and the dashboard masks stored codes. Once
    redeemed or expired, a code is invalid (expiry is enforced lazily at
    redemption time).
@@ -430,7 +484,7 @@ of truth; `supabase db push` tracks applied migrations server-side just like
    and a fresh empty board opens.
 6. Back on the dashboard, type the code into **Redeem a customer code** — it
    redeems once, then rejects with "already redeemed". Visit `/me` with the same
-   email to see codes and points across every business.
+   email to see every code you're holding across every business.
 7. To test premium without paying: `update merchants set subscription_tier =
    'premium', premium_expires_at = now() + interval '1 year';` in the SQL
    editor, reload the dashboard, and you can run unlimited games with up to 10
@@ -468,14 +522,18 @@ select rank, score, unlocked_reward_id is not null as got_code
 ## Project layout
 
 - `supabase/migrations/*.sql` — schema, RLS, and the atomic game functions.
-  `0001`–`0012` build the merchant, customer, loyalty, payments and admin
-  foundations; **`0013` is the branded-games platform** (`games`,
+  `0001`–`0012` build the merchant, customer, payments and admin foundations;
+  **`0013` is the branded-games platform** (`games`,
   `game_prizes`, `game_plays`, `create_game`, `start_game_play`,
   `finish_game_play`, and the game-aware staff lookup/redeem); **`0014` adds the
   business knowledge base** (`merchants.profile`), draft games, and
   `publish_game`; **`0015` turns games into weekly competitions**
   (`game_seasons`, `game_season_winners`, `merchant_lives`, `game_referrals`,
-  `close_due_game_season`, rank-based prizes).
+  `close_due_game_season`, rank-based prizes); **`0018` makes lives weekly and
+  sellable** (`week_start`, `life_purchases`, `credit_life_purchase`);
+  **`0019`** moves the free-tier game cap into settings; **`0020` deletes
+  loyalty points** and adds `life_revenue`, the one place the 70/30 split is
+  computed.
 - `src/lib/games/catalog.ts` — the game catalogue: one declarative entry per
   game type (engine, defaults, setup-form schema). Shared by the API, the
   dashboard builder, and the player.
@@ -487,7 +545,8 @@ select rank, score, unlocked_reward_id is not null as got_code
 - `src/app/api/customer/summary` — cross-merchant customer portal data
 - `src/app/api/merchant/*` — merchant endpoints (session cookie auth)
 - `src/app/api/admin/*` — platform admin endpoints (env-var auth)
-- `src/app/me` — customer loyalty portal (email-only)
+- `src/app/me` — customer portal: the codes you're holding (email-only)
+- `src/components/ui/modal.tsx` — the one dialog every popup uses
 - `src/app/dashboard` — merchant dashboard (RLS reads, API writes); UI split
   into `src/components/dashboard/*`
 - `src/app/admin` — platform admin console

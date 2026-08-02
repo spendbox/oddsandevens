@@ -20,8 +20,6 @@ export interface Merchant {
   logo_url: string | null;
   tagline: string | null;
   brand_color: string;
-  points_per_discount: number;
-  discount_percent: number;
   whatsapp: string | null;
   contact_email: string | null;
 }
@@ -99,4 +97,9 @@ export function formatDate(iso: string): string {
     month: "short",
     year: "numeric",
   });
+}
+
+/** Kobo as naira, rounded to whole naira: "₦2,500". */
+export function naira(kobo: number): string {
+  return `₦${Math.round(kobo / 100).toLocaleString()}`;
 }
