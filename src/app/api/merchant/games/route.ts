@@ -115,8 +115,9 @@ export async function GET() {
     maxWinsPerPlayer: g.max_wins_per_player,
     awardMode: g.award_mode === "leaderboard" ? "leaderboard" : "instant",
     seasonDays: g.season_days,
-    dailyLives: g.daily_lives,
-    maxBonusLives: g.max_bonus_lives,
+    // The allowance is the business's, not the game's — one pool for all of them.
+    dailyLives: merchant.daily_lives,
+    maxBonusLives: merchant.max_bonus_lives,
     playsCount: g.plays_count,
     winsCount: g.wins_count,
     createdAt: g.created_at,

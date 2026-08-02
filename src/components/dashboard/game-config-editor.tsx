@@ -5,15 +5,19 @@
 // nested ones (a quiz's questions, each with its own list of answers).
 
 import { useState } from "react";
-import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, Trash2, X } from "lucide-react";
 import type { ConfigField } from "@/lib/games/catalog";
-import { EMOJI_GROUPS, parseEmojiSet } from "@/lib/games/emoji";
+import { EMOJI_GROUPS, parseEmojiSet, searchEmoji } from "@/lib/games/emoji";
 import type { GameConfig } from "@/lib/games/types";
 
 /**
  * The emoji picker. One shared component for both field types: `emoji` picks
  * exactly one, `emoji-set` picks up to `maxPicks`. Nothing is typed, so the
  * value can only ever be an emoji the players' devices can render.
+ *
+ * The set is a few hundred strong now, which is past the point where scrolling
+ * a grid works — so it opens on search. Type "coffee" and you get ☕ without
+ * knowing it lives under Drinks.
  */
 function EmojiPicker({
   value,
@@ -28,6 +32,7 @@ function EmojiPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [group, setGroup] = useState(EMOJI_GROUPS[0].key);
+  const [query, setQuery] = useState("");
   const picked = multiple
     ? parseEmojiSet(value)
     : value.trim().length > 0
@@ -49,6 +54,8 @@ function EmojiPicker({
   };
 
   const active = EMOJI_GROUPS.find((g) => g.key === group) ?? EMOJI_GROUPS[0];
+  const results = searchEmoji(query);
+  const showing = query.trim().length > 0 ? results : active.emoji;
 
   return (
     <div>
@@ -57,11 +64,13 @@ function EmojiPicker({
         onClick={() => setOpen(!open)}
         className="input-field flex items-center justify-between gap-2 text-left"
       >
-        <span className="flex flex-wrap items-center gap-1 text-xl leading-none">
+        <span className="emoji flex flex-wrap items-center gap-1.5 text-2xl leading-none">
           {picked.length > 0 ? (
             picked.map((e) => <span key={e}>{e}</span>)
           ) : (
-            <span className="text-sm text-zinc-400">Choose{multiple ? " a few" : ""}…</span>
+            <span className="font-sans text-sm text-zinc-400">
+              Choose{multiple ? " a few" : ""}…
+            </span>
           )}
         </span>
         <ChevronDown
@@ -71,40 +80,69 @@ function EmojiPicker({
       </button>
 
       {open && (
-        <div className="mt-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
-          <div className="flex flex-wrap gap-1 border-b border-zinc-100 pb-2">
-            {EMOJI_GROUPS.map((g) => (
+        <div className="mt-2 rounded-2xl border border-zinc-200 bg-white p-2.5 shadow-lg">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+              aria-hidden
+            />
+            <input
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search — coffee, trophy, fire…"
+              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-2 pl-8 pr-8 text-sm outline-none focus:border-zinc-300 focus:bg-white"
+            />
+            {query && (
               <button
-                key={g.key}
                 type="button"
-                onClick={() => setGroup(g.key)}
-                className={
-                  "rounded-lg px-2 py-1 text-xs font-medium transition " +
-                  (group === g.key
-                    ? "bg-zinc-900 text-white"
-                    : "text-zinc-500 hover:bg-zinc-100")
-                }
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
               >
-                {g.label}
+                <X className="size-4" aria-hidden />
               </button>
-            ))}
+            )}
           </div>
 
-          <div className="mt-2 grid max-h-48 grid-cols-8 gap-1 overflow-y-auto sm:grid-cols-10">
-            {active.emoji.map((emoji) => {
-              const isPicked = picked.includes(emoji);
+          {query.trim().length === 0 && (
+            <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
+              {EMOJI_GROUPS.map((g) => (
+                <button
+                  key={g.key}
+                  type="button"
+                  onClick={() => setGroup(g.key)}
+                  title={g.label}
+                  className={
+                    "flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition " +
+                    (group === g.key
+                      ? "bg-zinc-900 text-white"
+                      : "text-zinc-500 hover:bg-zinc-100")
+                  }
+                >
+                  <span className="emoji text-base leading-none">{g.icon}</span>
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-2 grid max-h-56 grid-cols-6 gap-1 overflow-y-auto sm:grid-cols-9">
+            {showing.map((option) => {
+              const isPicked = picked.includes(option.char);
               return (
                 <button
-                  key={emoji}
+                  key={option.char}
                   type="button"
-                  onClick={() => toggle(emoji)}
+                  onClick={() => toggle(option.char)}
                   aria-pressed={isPicked}
+                  title={option.name}
                   className={
-                    "relative flex aspect-square items-center justify-center rounded-lg text-xl transition hover:bg-zinc-100 " +
+                    "emoji relative flex aspect-square items-center justify-center rounded-xl text-2xl transition hover:scale-110 hover:bg-zinc-100 " +
                     (isPicked ? "bg-[var(--brand)]/10 ring-2 ring-[var(--brand)]" : "")
                   }
                 >
-                  {emoji}
+                  {option.char}
                   {isPicked && (
                     <Check
                       className="absolute -right-0.5 -top-0.5 size-3 rounded-full bg-[var(--brand)] p-px text-white"
@@ -115,6 +153,12 @@ function EmojiPicker({
               );
             })}
           </div>
+
+          {showing.length === 0 && (
+            <p className="px-1 py-3 text-center text-xs text-zinc-500">
+              Nothing matches “{query}”. Try a plainer word.
+            </p>
+          )}
 
           {multiple && (
             <p className="mt-2 text-xs text-zinc-500">

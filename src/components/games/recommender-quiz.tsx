@@ -71,7 +71,7 @@ export default function RecommenderQuiz({
   if (match) {
     return (
       <div className="relative flex flex-col items-center gap-4 text-center">
-        <span className="text-4xl">✨</span>
+        <span className="emoji text-4xl">✨</span>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Your match

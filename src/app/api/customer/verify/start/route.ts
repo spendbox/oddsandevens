@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAndSendCode } from "@/lib/verification";
+import { playerEmail } from "@/lib/player-session";
 import { EMAIL_REGEX } from "@/lib/constants";
 
 // Customer email verification step 1: email a code the player enters before
@@ -9,6 +10,11 @@ export async function POST(req: Request) {
   const email = String(body?.email ?? "").trim().toLowerCase();
   if (!EMAIL_REGEX.test(email)) {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
+  }
+
+  // Already proved on this browser: no code, no email, straight through.
+  if ((await playerEmail()) === email) {
+    return NextResponse.json({ ok: true, remembered: true });
   }
 
   const sent = await createAndSendCode(email, "customer_verify");

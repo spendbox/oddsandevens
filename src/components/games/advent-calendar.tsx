@@ -87,7 +87,7 @@ export default function AdventCalendar({
                 </span>
               ) : (
                 <>
-                  <span className="text-base">{locked ? "🔒" : emoji}</span>
+                  <span className="emoji text-base">{locked ? "🔒" : emoji}</span>
                   <span className={locked ? "text-zinc-400" : "text-white/90"}>
                     {i + 1}
                   </span>

@@ -47,7 +47,7 @@ export default function MysteryBox({ config, accent, submit, showResult }: GameP
               disabled={picked !== null}
               aria-label={`Box ${i + 1}`}
               className={
-                "relative flex aspect-square items-center justify-center rounded-2xl border-2 text-4xl shadow-sm transition " +
+                "emoji-piece relative flex aspect-square items-center justify-center rounded-2xl border-2 text-4xl shadow-sm transition " +
                 (picked === null
                   ? "cursor-pointer hover:-translate-y-1 hover:shadow-md active:scale-95 "
                   : "cursor-default ") +

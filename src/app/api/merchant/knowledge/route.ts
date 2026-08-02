@@ -87,6 +87,16 @@ export async function PATCH(req: Request) {
     ...(body as Record<string, unknown>),
   });
 
+  // Giveaways are rewards, not sentences: only things that exist in the
+  // catalogue survive, so a prize a game hands out is always redeemable.
+  const { data: catalogue } = await db
+    .from("reward_templates")
+    .select("description")
+    .eq("merchant_id", merchant.id)
+    .eq("archived", false);
+  const known = new Set((catalogue ?? []).map((r) => r.description));
+  merged.offers = (merged.offers ?? []).filter((offer) => known.has(offer));
+
   const { error } = await db
     .from("merchants")
     .update({ profile: merged, profile_updated_at: new Date().toISOString() })

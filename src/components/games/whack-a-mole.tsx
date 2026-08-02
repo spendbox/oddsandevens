@@ -138,7 +138,7 @@ export default function WhackAMole({
               className="flex items-center justify-center rounded-full border-4 border-amber-800/20 bg-amber-900/15 transition active:scale-95"
             >
               <span
-                className="transition-transform duration-150"
+                className="emoji-piece transition-transform duration-150"
                 style={{
                   fontSize: "clamp(22px, 8vw, 44px)",
                   lineHeight: 1,

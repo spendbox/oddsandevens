@@ -382,7 +382,9 @@ export function GameEditor({
                     </span>
                   </label>
                   <label className="block">
-                    <span className="field-label">Lives per player</span>
+                    <span className="field-label">
+                      Lives per player, per day
+                    </span>
                     <select
                       value={dailyLives}
                       onChange={(e) => {
@@ -398,7 +400,9 @@ export function GameEditor({
                       ))}
                     </select>
                     <span className="mt-1 block text-xs text-zinc-500">
-                      Plus up to {game.maxBonusLives} more a day for sharing.
+                      One pool across every game you run, so this sets it for
+                      all of them. Plus up to {game.maxBonusLives} more a day
+                      for sharing.
                     </span>
                   </label>
                 </div>

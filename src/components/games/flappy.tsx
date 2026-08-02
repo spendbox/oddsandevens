@@ -206,7 +206,7 @@ export default function Flappy({ config, accent, submit, showResult }: GameProps
         ))}
 
         <span
-          className="absolute"
+          className="emoji-piece absolute"
           style={{
             left: `${FLYER_X}%`,
             top: `${frame.y}%`,

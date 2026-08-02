@@ -1,16 +1,27 @@
 "use client";
 
-// One link that shows everything a business has running.
+// One link that shows everything a business has running — and, more to the
+// point, who is winning it.
+//
+// The hub used to be a menu of games. It is now a wall of leaderboards: each
+// game shows the top of this week's board, the clock until the prizes go out,
+// and where the player themselves stands. Busiest boards sit at the top,
+// because a competition with people in it is the reason to tap.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { Clock, Heart, Share2, Trophy, Users } from "lucide-react";
 import { GameIcon } from "@/components/games/icons";
-import { gameDef, themeAccent } from "@/lib/games/catalog";
+import { RANK_MEDALS, gameDef, themeAccent } from "@/lib/games/catalog";
+import { useCountdown } from "@/lib/games/use-countdown";
 import type { PublicGamesHub } from "@/lib/games/types";
+
+type HubGame = PublicGamesHub["games"][number];
 
 export default function GamesHub({ slug }: { slug: string }) {
   const [hub, setHub] = useState<PublicGamesHub | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -25,6 +36,24 @@ export default function GamesHub({ slug }: { slug: string }) {
       ignore = true;
     };
   }, [slug]);
+
+  const share = useCallback(async () => {
+    const url = `${window.location.origin}/p/${slug}`;
+    const text = hub
+      ? `Free games and prizes from ${hub.host.businessName}. Get on the leaderboard.`
+      : "Play and win";
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ title: hub?.host.businessName, text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+      }
+    } catch {
+      // Cancelled or blocked — nothing to do.
+    }
+  }, [hub, slug]);
 
   if (notFound) {
     return (
@@ -43,6 +72,7 @@ export default function GamesHub({ slug }: { slug: string }) {
   }
 
   const brand = hub.host.brandColor || "#059669";
+  const lives = hub.player?.livesLeft ?? null;
 
   return (
     <main
@@ -76,61 +106,43 @@ export default function GamesHub({ slug }: { slug: string }) {
           </div>
         </header>
 
+        {/* Lives are one pool for the whole business, so they belong here
+            rather than on any single game. */}
+        {lives !== null && (
+          <div className="card flex items-center gap-3 p-4">
+            <span className="emoji text-xl">
+              {"❤️".repeat(Math.min(lives, 6)) || "💔"}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-zinc-900">
+                {lives > 0
+                  ? `${lives} ${lives === 1 ? "play" : "plays"} left today`
+                  : "No plays left today"}
+              </p>
+              <p className="text-xs text-zinc-500">
+                Shared across every game here. Sharing earns more.
+              </p>
+            </div>
+            <button
+              onClick={share}
+              className="btn-primary shrink-0 text-sm"
+              style={{ backgroundColor: brand }}
+            >
+              <Share2 className="size-4" aria-hidden />
+              {copied ? "Copied" : "Share"}
+            </button>
+          </div>
+        )}
+
         {hub.games.length === 0 ? (
           <p className="card p-6 text-center text-sm text-zinc-500">
             No games are running right now — check back soon.
           </p>
         ) : (
-          <div className="flex flex-col gap-3">
-            {hub.games.map((game) => {
-              const def = gameDef(game.type);
-              const accent = themeAccent(game.theme, brand);
-              return (
-                <Link
-                  key={game.slug}
-                  href={`/p/${slug}/${game.slug}`}
-                  className="card group flex items-center gap-4 p-4 transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <span
-                    className="flex size-12 shrink-0 items-center justify-center rounded-xl text-white"
-                    style={{
-                      background: def
-                        ? `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`
-                        : accent,
-                    }}
-                  >
-                    <GameIcon icon={def?.icon ?? "gamepad-2"} className="size-6" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold text-zinc-900">
-                      {game.title}
-                    </span>
-                    <span className="block truncate text-sm text-zinc-500">
-                      {game.description || def?.tagline || "Tap to play"}
-                    </span>
-                    {game.prizeTeasers.length > 0 && (
-                      <span className="mt-1 flex flex-wrap gap-1">
-                        {game.prizeTeasers.map((teaser, i) => (
-                          <span
-                            key={i}
-                            className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600"
-                          >
-                            {teaser}
-                          </span>
-                        ))}
-                      </span>
-                    )}
-                  </span>
-                  <span
-                    className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold text-white"
-                    style={{ backgroundColor: accent }}
-                  >
-                    Play
-                  </span>
-                </Link>
-              );
-            })}
-
+          <div className="flex flex-col gap-4">
+            {hub.games.map((game) => (
+              <GameCard key={game.slug} slug={slug} game={game} brand={brand} />
+            ))}
           </div>
         )}
 
@@ -142,5 +154,129 @@ export default function GamesHub({ slug }: { slug: string }) {
         </Link>
       </div>
     </main>
+  );
+}
+
+function GameCard({
+  slug,
+  game,
+  brand,
+}: {
+  slug: string;
+  game: HubGame;
+  brand: string;
+}) {
+  const def = gameDef(game.type);
+  const accent = themeAccent(game.theme, brand);
+  const left = useCountdown(game.season?.endsAt ?? null);
+
+  return (
+    <Link
+      href={`/p/${slug}/${game.slug}`}
+      className="card group block p-4 transition hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <div className="flex items-center gap-4">
+        <span
+          className="flex size-12 shrink-0 items-center justify-center rounded-xl text-white"
+          style={{
+            background: def
+              ? `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`
+              : accent,
+          }}
+        >
+          <GameIcon icon={def?.icon ?? "gamepad-2"} className="size-6" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold text-zinc-900">
+            {game.title}
+          </span>
+          <span className="block truncate text-sm text-zinc-500">
+            {game.description || def?.tagline || "Tap to play"}
+          </span>
+        </span>
+        <span
+          className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold text-white"
+          style={{ backgroundColor: accent }}
+        >
+          {game.yourRank ? "Defend" : "Play"}
+        </span>
+      </div>
+
+      {game.prizeTeasers.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1">
+          {game.prizeTeasers.map((teaser, i) => (
+            <span
+              key={i}
+              className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600"
+            >
+              {teaser}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* This week's board */}
+      {game.season && (
+        <div className="mt-3 rounded-xl border border-zinc-100 bg-zinc-50/70 p-3">
+          <div className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <span className="flex items-center gap-1">
+              <Trophy className="size-3" aria-hidden /> This week
+            </span>
+            <span className="flex items-center gap-2 normal-case tracking-normal">
+              <span className="flex items-center gap-1">
+                <Users className="size-3" aria-hidden />
+                {game.playerCount}
+              </span>
+              {left && (
+                <span className="flex items-center gap-1">
+                  <Clock className="size-3" aria-hidden />
+                  {left}
+                </span>
+              )}
+            </span>
+          </div>
+
+          {game.leaderboard.length === 0 ? (
+            <p className="mt-2 text-xs text-zinc-500">
+              Nobody has played yet — first score takes first place.
+            </p>
+          ) : (
+            <ol className="mt-2 flex flex-col gap-1">
+              {game.leaderboard.map((row) => (
+                <li
+                  key={row.rank}
+                  className={
+                    "flex items-center gap-2 rounded-lg px-2 py-1 text-xs " +
+                    (row.isYou ? "bg-white font-semibold shadow-sm" : "")
+                  }
+                >
+                  <span className="emoji w-5 shrink-0 text-center">
+                    {RANK_MEDALS[row.rank - 1] ?? row.rank}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-zinc-600">
+                    {row.isYou ? "You" : row.maskedEmail}
+                  </span>
+                  {row.prize && (
+                    <span className="hidden max-w-28 truncate text-zinc-500 sm:block">
+                      {row.prize}
+                    </span>
+                  )}
+                  <span className="shrink-0 tabular-nums text-zinc-900">
+                    {row.score}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          {game.yourRank && game.yourRank > game.leaderboard.length && (
+            <p className="mt-2 flex items-center gap-1 text-xs text-zinc-500">
+              <Heart className="size-3" aria-hidden />
+              You&apos;re #{game.yourRank} with {game.yourBest}.
+            </p>
+          )}
+        </div>
+      )}
+    </Link>
   );
 }

@@ -85,7 +85,7 @@ export default function BracketPoll({
   if (champion) {
     return (
       <div className="relative flex flex-col items-center gap-4 text-center">
-        <span className="text-5xl">🏆</span>
+        <span className="emoji text-5xl">🏆</span>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Your champion

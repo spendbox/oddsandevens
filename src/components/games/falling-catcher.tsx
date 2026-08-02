@@ -169,7 +169,7 @@ export default function FallingCatcher({
         {frame.items.map((item) => (
           <span
             key={item.id}
-            className="absolute -translate-x-1/2"
+            className="emoji-piece absolute -translate-x-1/2"
             style={{
               left: `${item.x}%`,
               top: `${item.y}%`,
@@ -182,7 +182,7 @@ export default function FallingCatcher({
         ))}
 
         <span
-          className="absolute -translate-x-1/2"
+          className="emoji-piece absolute -translate-x-1/2"
           style={{
             left: `${frame.basketX}%`,
             top: `${CATCH_Y}%`,

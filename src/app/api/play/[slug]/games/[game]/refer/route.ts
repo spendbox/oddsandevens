@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { EMAIL_REGEX } from "@/lib/constants";
+import { playerEmail } from "@/lib/player-session";
 
 // Someone arrived through a player's share link and has now played a round.
 // That earns the player who shared it one extra life today.
@@ -16,9 +16,11 @@ export async function POST(
   const { slug, game: gameSlug } = await params;
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const code = String(body?.code ?? "").trim().toUpperCase();
-  const email = String(body?.email ?? "").trim().toLowerCase();
+  // The arriving player is whoever this browser has verified — a posted
+  // address would let anyone claim to have played.
+  const email = await playerEmail();
 
-  if (!/^[A-Z0-9]{6,12}$/.test(code) || !EMAIL_REGEX.test(email)) {
+  if (!/^[A-Z0-9]{6,12}$/.test(code) || !email) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 

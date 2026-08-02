@@ -182,7 +182,7 @@ export default function SliceNinja({
         {frame.map((obj) => (
           <span
             key={obj.id}
-            className="absolute -translate-x-1/2 -translate-y-1/2 transition-opacity"
+            className="emoji-piece absolute -translate-x-1/2 -translate-y-1/2 transition-opacity"
             style={{
               left: `${obj.x}%`,
               top: `${obj.y}%`,

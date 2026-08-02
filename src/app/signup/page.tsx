@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Boxes } from "lucide-react";
@@ -20,6 +20,21 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Already signed in — usually someone who pressed back after logging in.
+  // Sending them on is the difference between "I'm still signed in" and "it
+  // logged me out".
+  useEffect(() => {
+    let ignore = false;
+    supabaseBrowser()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (!ignore && data.session) router.replace("/dashboard");
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [router]);
 
   const addr = () => email.trim().toLowerCase();
 
@@ -75,7 +90,7 @@ export default function AuthPage() {
       setError("Wrong password. Try again or reset it.");
       return;
     }
-    router.push("/dashboard");
+    router.replace("/dashboard");
     router.refresh();
   }
 
@@ -119,7 +134,7 @@ export default function AuthPage() {
       router.push("/signup");
       return;
     }
-    router.push("/dashboard");
+    router.replace("/dashboard");
     router.refresh();
   }
 

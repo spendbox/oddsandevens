@@ -8,7 +8,7 @@
 // what answering it would buy, so filling it in never feels like paperwork.
 
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { Check, ChevronDown, Gift, Loader2, Plus, Sparkles, Wand2, X } from "lucide-react";
 import {
   DAYS,
   GOALS,
@@ -19,6 +19,13 @@ import {
   industryPack,
   type BusinessProfile,
 } from "@/lib/business/profile";
+import {
+  REWARD_EXPIRY_DAYS_DEFAULT,
+  REWARD_EXPIRY_DAYS_MAX,
+  REWARD_EXPIRY_DAYS_MIN,
+} from "@/lib/constants";
+import { rewardIcon } from "@/lib/reward-icons";
+import type { RewardTemplate } from "@/lib/types";
 import type { Merchant } from "./shared";
 
 function Chip({
@@ -113,17 +120,249 @@ function ListField({
   );
 }
 
+/**
+ * "What could you give away?" — chosen from the reward catalogue, never typed.
+ *
+ * A giveaway typed in here used to become a prize on a published game while
+ * existing only as a sentence in a profile: no expiry, no stock, nothing at the
+ * counter to redeem against. Picking from the catalogue means every prize a
+ * game hands out is a reward the business has actually defined — and if the
+ * catalogue is empty, one gets created right here rather than sending them off
+ * to another tab.
+ */
+function OfferPicker({
+  rewards,
+  chosen,
+  onChange,
+  onCreated,
+}: {
+  rewards: RewardTemplate[];
+  chosen: string[];
+  onChange: (next: string[]) => void;
+  onCreated: () => void | Promise<void>;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [description, setDescription] = useState("");
+  const [details, setDetails] = useState("");
+  const [expiry, setExpiry] = useState(REWARD_EXPIRY_DAYS_DEFAULT);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = (value: string) => {
+    onChange(
+      chosen.includes(value)
+        ? chosen.filter((v) => v !== value)
+        : [...chosen, value]
+    );
+  };
+
+  const create = async () => {
+    const value = description.trim();
+    if (value.length < 1) {
+      setError("Give the reward a name customers will recognise.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/merchant/reward-templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: value,
+        details: details.trim(),
+        icon: "gift",
+        defaultExpiryDays: expiry,
+      }),
+    });
+    if (!res.ok) {
+      setBusy(false);
+      setError("We couldn't save that reward. Try again.");
+      return;
+    }
+    setBusy(false);
+    setCreating(false);
+    setDescription("");
+    setDetails("");
+    // Chosen straight away — creating it here means they want to give it away.
+    onChange([...chosen.filter((c) => c !== value), value]);
+    await onCreated();
+  };
+
+  return (
+    <div>
+      <span className="field-label">What could you give away?</span>
+      <p className="-mt-1 mb-2 text-xs text-zinc-500">
+        Pick from your reward catalogue — these become the prizes, already
+        filled in when you publish a game.
+      </p>
+
+      {rewards.length === 0 && !creating ? (
+        <div className="rounded-xl border border-dashed border-zinc-300 p-4 text-center">
+          <Gift className="mx-auto size-5 text-zinc-400" aria-hidden />
+          <p className="mt-2 text-sm text-zinc-600">
+            Your catalogue is empty. Add one reward and we can fill in the
+            prizes on every game we write for you.
+          </p>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="btn-secondary mt-3 text-sm"
+          >
+            <Plus className="size-4" aria-hidden />
+            Create a reward
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {rewards.map((reward) => {
+            const active = chosen.includes(reward.description);
+            const Icon = rewardIcon(reward.icon);
+            return (
+              <button
+                key={reward.id}
+                type="button"
+                onClick={() => toggle(reward.description)}
+                aria-pressed={active}
+                className={
+                  "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition " +
+                  (active
+                    ? "border-transparent text-white shadow-sm"
+                    : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50")
+                }
+                style={active ? { backgroundColor: "var(--brand)" } : undefined}
+              >
+                <Icon className="size-4 shrink-0" aria-hidden />
+                <span className="max-w-48 truncate">{reward.description}</span>
+                {active && <Check className="size-3.5 shrink-0" aria-hidden />}
+              </button>
+            );
+          })}
+          {!creating && (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-dashed border-zinc-300 px-3 py-2 text-sm text-zinc-500 transition hover:border-zinc-400 hover:text-zinc-700"
+            >
+              <Plus className="size-4" aria-hidden />
+              New reward
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* The popup: the whole reward, without leaving the page. */}
+      {creating && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/50 p-4 backdrop-blur-sm"
+          onClick={() => setCreating(false)}
+        >
+          <div
+            className="card w-full max-w-sm p-5 sm:p-6"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-zinc-900">New reward</h3>
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  It goes in your catalogue, so you can use it on any game.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreating(false)}
+                aria-label="Close"
+                className="text-zinc-400 hover:text-zinc-600"
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
+
+            <label className="mt-4 block">
+              <span className="field-label">What the customer gets</span>
+              <input
+                autoFocus
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                maxLength={200}
+                placeholder="Free coffee with any pastry"
+                className="input-field"
+              />
+            </label>
+
+            <label className="mt-3 block">
+              <span className="field-label">Any conditions (optional)</span>
+              <input
+                value={details}
+                onChange={(event) => setDetails(event.target.value)}
+                maxLength={300}
+                placeholder="One per customer, dine-in only"
+                className="input-field"
+              />
+            </label>
+
+            <label className="mt-3 block">
+              <span className="field-label">Valid for (days)</span>
+              <input
+                type="number"
+                value={expiry}
+                min={REWARD_EXPIRY_DAYS_MIN}
+                max={REWARD_EXPIRY_DAYS_MAX}
+                onChange={(event) => setExpiry(Number(event.target.value))}
+                className="input-field"
+              />
+            </label>
+
+            {error && <p className="alert-error mt-3">{error}</p>}
+
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={create}
+                disabled={busy}
+                className="btn-primary flex-1"
+                style={{ backgroundColor: "var(--brand)" }}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                    Saving…
+                  </>
+                ) : (
+                  "Add to catalogue"
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreating(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function BusinessProfileCard({
   merchant,
   profile,
+  rewards,
   hasReward,
   hasGame,
+  onRewardsChanged,
   onSaved,
 }: {
   merchant: Merchant;
   profile: BusinessProfile;
+  /** The reward catalogue — the only source of giveaways. */
+  rewards: RewardTemplate[];
   hasReward: boolean;
   hasGame: boolean;
+  /** Reload the catalogue after one is created here. */
+  onRewardsChanged: () => void | Promise<void>;
   /** Called after saving; `created` is how many games we wrote from the answers. */
   onSaved: (created: number) => void | Promise<void>;
 }) {
@@ -275,14 +514,13 @@ export function BusinessProfileCard({
           onChange={(sells) => patch({ sells })}
         />
 
-        <ListField
-          label="What could you give away?"
-          help="These become the prizes, already filled in when you publish a game."
-          values={draft.offers ?? []}
-          examples={pack.offerExamples}
-          slots={2}
-          placeholder={pack.offerExamples[0]}
+        <OfferPicker
+          rewards={rewards}
+          chosen={(draft.offers ?? []).filter((offer) =>
+            rewards.some((r) => r.description === offer)
+          )}
           onChange={(offers) => patch({ offers })}
+          onCreated={onRewardsChanged}
         />
 
         {/* Everything below is genuinely optional. */}

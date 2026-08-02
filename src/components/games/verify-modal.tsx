@@ -1,8 +1,10 @@
 "use client";
 
-// Email gate for the game player. Same two-step flow (and the same remembered
-// address) as the tile board, so a player who verified there walks straight
-// into a game.
+// Email gate for the game player.
+//
+// It is asked once. Verifying sets a signed cookie that lasts six months, so
+// the usual case is that this modal never opens at all — and if the address
+// was already proved on this browser, the server says so and no code is sent.
 
 import { useEffect, useState } from "react";
 import { EMAIL_REGEX } from "@/lib/constants";
@@ -45,14 +47,19 @@ export function VerifyModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: address }),
     });
+    const body = await res.json().catch(() => null);
     setBusy(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => null);
       setError(
         body?.error === "too_many_requests"
           ? "Too many code requests — wait a little and try again."
           : "Couldn't send the code. Try again."
       );
+      return;
+    }
+    // This browser already proved this address — straight in, no code.
+    if (body?.remembered) {
+      onVerified(address);
       return;
     }
     setSentTo(address);
@@ -125,7 +132,8 @@ export function VerifyModal({
           <>
             <p className="mt-3 text-sm leading-relaxed text-zinc-500">
               Enter your email to play. We&apos;ll send a 6-digit code to confirm
-              it&apos;s you — prizes are emailed to that address.
+              it&apos;s you — prizes are emailed to that address. We only ask
+              once; after that this device stays signed in.
             </p>
             <label className="mt-5 block">
               <span className="field-label">Email</span>

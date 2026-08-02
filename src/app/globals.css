@@ -243,6 +243,38 @@ body {
 }
 
 @layer components {
+  /* Emoji are the artwork in most of these games — the falling items, the
+     moles, the memory faces, the medals on a board. Left to the body font
+     stack they inherit its metrics and render as small, flat, slightly grey
+     text glyphs. Pinning the platform colour-emoji fonts, giving them their
+     own line-height, and adding a soft shadow makes them read as icons with
+     weight sitting on the surface, at any size. */
+  .emoji {
+    font-family:
+      "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+      "Twemoji Mozilla", "EmojiOne Color", "Android Emoji", sans-serif;
+    font-variant-emoji: emoji;
+    line-height: 1;
+    font-weight: 400;
+    letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.18));
+  }
+
+  /* The same glyphs when they are the game itself: bigger shadow, so a piece
+     of fruit falling down the screen looks like it is above the background
+     rather than printed on it. */
+  .emoji-piece {
+    font-family:
+      "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+      "Twemoji Mozilla", "EmojiOne Color", "Android Emoji", sans-serif;
+    font-variant-emoji: emoji;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+    filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.28));
+    user-select: none;
+  }
+
   .card {
     @apply rounded-2xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.04)];
   }

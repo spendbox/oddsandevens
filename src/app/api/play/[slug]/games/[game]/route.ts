@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { maskEmail } from "@/lib/mask";
-import { EMAIL_REGEX } from "@/lib/constants";
+import { playerEmail } from "@/lib/player-session";
 import { gameDef } from "@/lib/games/catalog";
+import { buildMythStatements, buildTriviaQuestions } from "@/lib/games/questions";
+import type { BusinessProfile } from "@/lib/business/profile";
 import type {
   GameSeason,
   LeaderboardEntry,
@@ -17,7 +19,7 @@ const LEADERBOARD_LIMIT = 20;
 // labels, and this week's leaderboard with every address masked. Never a draw
 // weight, and never the stock of anything still winnable.
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ slug: string; game: string }> }
 ) {
   const { slug, game: gameSlug } = await params;
@@ -26,7 +28,7 @@ export async function GET(
   const { data: merchant } = await db
     .from("merchants")
     .select(
-      "id, business_name, slug, logo_url, tagline, brand_color, whatsapp, contact_email"
+      "id, business_name, slug, logo_url, tagline, brand_color, whatsapp, contact_email, daily_lives, max_bonus_lives, profile"
     )
     .eq("slug", slug.toLowerCase())
     .single();
@@ -72,11 +74,10 @@ export async function GET(
       .map((p) => [p.award_rank as number, p.description as string])
   );
 
-  // Who's asking — so we can mark their row on the board and count their lives.
-  const email = (new URL(req.url).searchParams.get("email") ?? "")
-    .trim()
-    .toLowerCase();
-  const { data: customer } = EMAIL_REGEX.test(email)
+  // Who's asking — the signed cookie, so nobody can read another player's
+  // standing (or share code) by guessing their address.
+  const email = await playerEmail();
+  const { data: customer } = email
     ? await db.from("customers").select("id").eq("email", email).maybeSingle()
     : { data: null };
 
@@ -86,6 +87,7 @@ export async function GET(
   let lastWinners: PastWinner[] = [];
   let playerCount = 0;
   let player: {
+    email: string;
     livesLeft: number;
     bestScore: number;
     rank: number | null;
@@ -164,11 +166,13 @@ export async function GET(
         isYou: customer?.id === id,
       }));
 
-      if (customer) {
+      if (customer && email) {
         const myIndex = ranked.findIndex(([id]) => id === customer.id);
+        // Lives are one pool per business, so this is the same number on every
+        // game the business runs.
         const [{ data: lives }, { data: shareCode }] = await Promise.all([
-          db.rpc("game_lives_left", {
-            p_game_id: game.id,
+          db.rpc("merchant_lives_left", {
+            p_merchant_id: merchant.id,
             p_customer_id: customer.id,
           }),
           db.rpc("get_or_create_referral", {
@@ -177,6 +181,7 @@ export async function GET(
           }),
         ]);
         player = {
+          email,
           livesLeft: Number(lives ?? 0),
           bestScore: myIndex >= 0 ? ranked[myIndex][1].score : 0,
           rank: myIndex >= 0 ? myIndex + 1 : null,
@@ -222,7 +227,7 @@ export async function GET(
         prize: prizeByRank.get(w.rank) ?? null,
       }));
     }
-  } else if (customer) {
+  } else if (customer && email) {
     // Instant-win games keep their cooldown.
     const { data: mine } = await db
       .from("game_plays")
@@ -240,6 +245,7 @@ export async function GET(
         ? lastAt + game.cooldown_hours * 3600_000
         : 0;
     player = {
+      email,
       livesLeft: 0,
       bestScore: rows.reduce((max, r) => Math.max(max, r.score), 0),
       rank: null,
@@ -258,13 +264,28 @@ export async function GET(
     contactEmail: merchant.contact_email,
   };
 
+  // Question games are dealt a fresh round every time this page is opened, so
+  // playing three times a day is three different quizzes rather than the same
+  // three statements. What the business wrote always makes the cut.
+  const profile = (merchant.profile ?? {}) as BusinessProfile;
+  const config: Record<string, unknown> = { ...(game.config ?? {}) };
+  if (game.type === "myth-fact") {
+    config.statements = buildMythStatements(config.statements, profile);
+  } else if (game.type === "leaderboard-trivia") {
+    config.questions = buildTriviaQuestions(
+      config.questions,
+      profile,
+      merchant.business_name
+    ).map((q) => ({ ...q, answerIndex: q.answerIndex + 1 }));
+  }
+
   const publicGame: PublicGame = {
     slug: game.slug,
     type: game.type,
     engine: game.engine,
     title: game.title,
     description: game.description,
-    config: game.config ?? {},
+    config,
     theme: game.theme ?? {},
     cooldownHours: game.cooldown_hours,
     maxWinsPerPlayer: game.max_wins_per_player,
@@ -286,8 +307,9 @@ export async function GET(
     awardMode: isLeaderboard ? "leaderboard" : "instant",
     season,
     lastWinners,
-    dailyLives: game.daily_lives,
-    maxBonusLives: game.max_bonus_lives,
+    // One pool of lives across everything this business runs.
+    dailyLives: merchant.daily_lives,
+    maxBonusLives: merchant.max_bonus_lives,
     playerCount,
   };
 

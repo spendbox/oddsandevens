@@ -44,20 +44,27 @@ export default function CustomerPortalPage() {
   // async callback — required by the react-hooks/set-state-in-effect rule.
   const fetchAccounts = useCallback(
     async (
-      addr: string
-    ): Promise<{ accounts: LoyaltyAccount[]; error: string | null }> => {
-      const res = await fetch(
-        `/api/customer/summary?email=${encodeURIComponent(addr)}`
-      );
+      addr: string | null
+    ): Promise<{
+      accounts: LoyaltyAccount[];
+      email: string | null;
+      error: string | null;
+    }> => {
+      // With no address at all we still ask: a browser that has verified an
+      // email carries a cookie, and the server answers as that person.
+      const query = addr ? `?email=${encodeURIComponent(addr)}` : "";
+      const res = await fetch(`/api/customer/summary${query}`);
       if (!res.ok) {
         return {
           accounts: [],
-          error: "Couldn't load your rewards. Try again shortly.",
+          email: null,
+          error: addr ? "Couldn't load your rewards. Try again shortly." : null,
         };
       }
       const body = await res.json();
       return {
         accounts: (body?.accounts as LoyaltyAccount[]) ?? [],
+        email: (body?.email as string | null) ?? null,
         error: null,
       };
     },
@@ -92,13 +99,11 @@ export default function CustomerPortalPage() {
     const valid = !!stored && EMAIL_REGEX.test(stored);
     // Always resolve through a promise so state is only set in the callback
     // (never synchronously inside the effect body).
-    const run = valid
-      ? fetchAccounts(stored)
-      : Promise.resolve(null as null | { accounts: LoyaltyAccount[]; error: string | null });
-    run.then((result) => {
+    fetchAccounts(valid ? stored : null).then((result) => {
       if (ignore) return;
-      if (result && stored) {
-        setEmail(stored);
+      const who = result.email ?? (valid ? stored : null);
+      if (who) {
+        setEmail(who);
         setAccounts(result.accounts);
         setError(result.error);
       }

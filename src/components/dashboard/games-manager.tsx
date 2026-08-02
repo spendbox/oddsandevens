@@ -111,7 +111,18 @@ export function GamesManager({
   const [notice, setNotice] = useState<string | null>(null);
 
   const drafts = games.filter((g) => g.status === "draft");
-  const liveOrPaused = games.filter((g) => g.status !== "draft");
+  // Published and shared first, busiest of those at the top: the games with
+  // customers in them are the ones worth looking at. Paused ones sink, drafts
+  // sit below the lot.
+  const liveOrPaused = games
+    .filter((g) => g.status !== "draft")
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(b.status === "active") - Number(a.status === "active") ||
+        b.playsCount - a.playsCount ||
+        b.players - a.players
+    );
   const maxGames = GAME_TIER_LIMITS[tier].maxGames;
   const atLimit = liveOrPaused.length >= maxGames;
 
@@ -196,91 +207,7 @@ export function GamesManager({
 
       {notice && <p className="alert-error">{notice}</p>}
 
-      {/* --- Ready for you: drafts we wrote --------------------------------- */}
-      {drafts.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <div>
-            <p className="section-title">
-              <Sparkles className="size-3.5" aria-hidden /> Ready for you
-            </p>
-            <p className="mt-1 text-sm text-zinc-500">
-              Built from what you told us about your business. Have a play, change
-              anything you like, then publish the ones you want.
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {drafts.map((game) => {
-              const def = gameDef(game.type);
-              const prize = game.prizes.find((p) => p.kind === "prize");
-              return (
-                <article key={game.id} className="card p-4">
-                  <div className="flex items-start gap-3">
-                    <span
-                      className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
-                      style={{
-                        background: def
-                          ? `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`
-                          : "var(--brand)",
-                      }}
-                    >
-                      <GameIcon icon={def?.icon ?? "gamepad-2"} className="size-5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-semibold text-zinc-900">
-                        {game.title}
-                      </h3>
-                      <p className="truncate text-sm text-zinc-500">
-                        {def?.label ?? game.type}
-                      </p>
-                      {prize && (
-                        <p className="mt-1 truncate text-xs text-zinc-400">
-                          Prize: {prize.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setPreviewing(game)}
-                      className="btn-secondary text-sm"
-                    >
-                      <Play className="size-4" aria-hidden />
-                      Try it
-                    </button>
-                    <button
-                      onClick={() => onEditGame(game)}
-                      className="btn-secondary text-sm"
-                    >
-                      <Pencil className="size-4" aria-hidden />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => publish(game)}
-                      disabled={busyId === game.id}
-                      className="btn-primary text-sm"
-                      style={{ backgroundColor: "var(--brand)" }}
-                    >
-                      <Rocket className="size-4" aria-hidden />
-                      {copiedId === game.id ? "Link copied!" : "Publish & share"}
-                    </button>
-                    <button
-                      onClick={() => remove(game.id)}
-                      disabled={busyId === game.id}
-                      className="btn-ghost text-sm text-zinc-400 hover:text-rose-600"
-                    >
-                      Not for me
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* --- Published ------------------------------------------------------ */}
+      {/* --- Published and shared: what customers can play right now ------- */}
       {liveOrPaused.length === 0 && drafts.length === 0 ? (
         <button
           onClick={onNewGame}
@@ -477,6 +404,90 @@ export function GamesManager({
             })}
           </div>
         )
+      )}
+
+      {/* --- Ready for you: drafts we wrote, not yet shared ----------------- */}
+      {drafts.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="section-title">
+              <Sparkles className="size-3.5" aria-hidden /> Ready for you
+            </p>
+            <p className="mt-1 text-sm text-zinc-500">
+              Built from what you told us about your business. Have a play, change
+              anything you like, then publish the ones you want.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {drafts.map((game) => {
+              const def = gameDef(game.type);
+              const prize = game.prizes.find((p) => p.kind === "prize");
+              return (
+                <article key={game.id} className="card p-4">
+                  <div className="flex items-start gap-3">
+                    <span
+                      className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
+                      style={{
+                        background: def
+                          ? `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`
+                          : "var(--brand)",
+                      }}
+                    >
+                      <GameIcon icon={def?.icon ?? "gamepad-2"} className="size-5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate font-semibold text-zinc-900">
+                        {game.title}
+                      </h3>
+                      <p className="truncate text-sm text-zinc-500">
+                        {def?.label ?? game.type}
+                      </p>
+                      {prize && (
+                        <p className="mt-1 truncate text-xs text-zinc-400">
+                          Prize: {prize.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setPreviewing(game)}
+                      className="btn-secondary text-sm"
+                    >
+                      <Play className="size-4" aria-hidden />
+                      Try it
+                    </button>
+                    <button
+                      onClick={() => onEditGame(game)}
+                      className="btn-secondary text-sm"
+                    >
+                      <Pencil className="size-4" aria-hidden />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => publish(game)}
+                      disabled={busyId === game.id}
+                      className="btn-primary text-sm"
+                      style={{ backgroundColor: "var(--brand)" }}
+                    >
+                      <Rocket className="size-4" aria-hidden />
+                      {copiedId === game.id ? "Link copied!" : "Publish & share"}
+                    </button>
+                    <button
+                      onClick={() => remove(game.id)}
+                      disabled={busyId === game.id}
+                      className="btn-ghost text-sm text-zinc-400 hover:text-rose-600"
+                    >
+                      Not for me
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {previewing && (

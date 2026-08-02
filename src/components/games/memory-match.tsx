@@ -137,7 +137,7 @@ export default function MemoryMatch({
                 onClick={() => flip(i)}
                 aria-label={shown ? card.face : "Face-down card"}
                 className={
-                  "flex aspect-square items-center justify-center rounded-xl border-2 transition " +
+                  "emoji-piece flex aspect-square items-center justify-center rounded-xl border-2 transition " +
                   (shown
                     ? "border-transparent bg-white shadow-inner"
                     : "cursor-pointer border-transparent text-white shadow-sm active:scale-95")

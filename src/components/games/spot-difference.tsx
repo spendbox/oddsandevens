@@ -187,7 +187,7 @@ export default function SpotDifference({
                         if (diffIndex >= 0) register(diffIndex);
                         else setMisses((m) => m + 1);
                       }}
-                      className="flex aspect-square items-center justify-center rounded-md transition"
+                      className="emoji-piece flex aspect-square items-center justify-center rounded-md transition"
                       style={{
                         fontSize: "clamp(11px, 3.2vw, 20px)",
                         lineHeight: 1,

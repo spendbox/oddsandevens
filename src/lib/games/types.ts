@@ -110,7 +110,22 @@ export interface PublicGamesHub {
     theme: GameTheme;
     playsCount: number;
     prizeTeasers: string[];
+    /** The top of this week's board, masked — empty when nobody has played. */
+    leaderboard: LeaderboardEntry[];
+    /** Leaderboard games: when this week's prizes go out. */
+    season: GameSeason | null;
+    /** How many people are on this week's board. */
+    playerCount: number;
+    /** Where this player stands, if the cookie knows them. */
+    yourRank: number | null;
+    yourBest: number;
   }[];
+  /** The one pool of lives, shared across every game here. */
+  player: {
+    livesLeft: number;
+    dailyLives: number;
+    maxBonusLives: number;
+  } | null;
 }
 
 // What POST /start hands back before the player may play.

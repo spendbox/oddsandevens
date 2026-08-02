@@ -85,10 +85,16 @@ export default function DashboardPage() {
   const fetchAll = useCallback(async (): Promise<Snapshot | "unauthenticated"> => {
     // Created lazily (not during render) so the page can prerender without env vars.
     const supabase = supabaseBrowser();
+
+    // The session cookie is what decides whether someone is signed in — not a
+    // round-trip to the auth server. Coming back with the back button, or on a
+    // flaky connection, that call can fail while the session is perfectly
+    // valid, and treating that as a sign-out is how a merchant loses their
+    // dashboard mid-task. Only a genuinely absent session logs anyone out.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return "unauthenticated";
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return "unauthenticated";
 
     const snap: Snapshot = {
       merchant: null,
@@ -173,7 +179,7 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     const snap = await fetchAll();
     if (snap === "unauthenticated") {
-      router.push("/signup");
+      router.replace("/signup");
       return;
     }
     applySnapshot(snap);
@@ -204,7 +210,7 @@ export default function DashboardPage() {
       const snap = await fetchAll();
       if (ignore) return;
       if (snap === "unauthenticated") {
-        router.push("/signup");
+        router.replace("/signup");
         return;
       }
       applySnapshot(snap);
@@ -270,7 +276,7 @@ export default function DashboardPage() {
           merchant={merchant}
           onSignOut={async () => {
             await supabaseBrowser().auth.signOut();
-            router.push("/signup");
+            router.replace("/signup");
           }}
         />
 
@@ -439,8 +445,10 @@ export default function DashboardPage() {
                 <BusinessProfileCard
                   merchant={merchant}
                   profile={profile}
+                  rewards={rewardTemplates}
                   hasReward={hasReward}
                   hasGame={games.length > 0}
+                  onRewardsChanged={load}
                   onSaved={async (created) => {
                     await load();
                     if (created > 0) {

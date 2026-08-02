@@ -23,9 +23,12 @@ import {
 import { GameRenderer } from "@/components/games";
 import { EMAIL_STORAGE_KEY, VerifyModal } from "@/components/games/verify-modal";
 import { RANK_MEDALS, gameDef, rankLabel, themeAccent } from "@/lib/games/catalog";
+import { useCountdown } from "@/lib/games/use-countdown";
 import type { GameOutcome, PublicGame, PublicGameHost } from "@/lib/games/types";
 
 interface PlayerState {
+  /** The verified address behind the cookie — the server tells us who we are. */
+  email: string;
   livesLeft: number;
   bestScore: number;
   rank: number | null;
@@ -34,26 +37,6 @@ interface PlayerState {
 }
 
 type Phase = "loading" | "intro" | "playing" | "result";
-
-/** Live "3d 4h" / "2h 11m" / "44s" countdown. */
-function useCountdown(target: string | null): string | null {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!target) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [target]);
-  if (!target) return null;
-  const ms = new Date(target).getTime() - now;
-  if (ms <= 0) return null;
-  const d = Math.floor(ms / 86_400_000);
-  const h = Math.floor((ms % 86_400_000) / 3_600_000);
-  const m = Math.floor((ms % 3_600_000) / 60_000);
-  const s = Math.floor((ms % 60_000) / 1000);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
-}
 
 export default function GamePlayer({
   slug,
@@ -90,6 +73,9 @@ export default function GamePlayer({
     return code ? code.trim().toUpperCase() : null;
   });
 
+  // The server knows who is playing from the verification cookie, so this is
+  // just "what's happening" — no address to send, nothing to re-prove. The
+  // remembered address is only ever a prefill for the verify form.
   const fetchGame = useCallback(async () => {
     let known: string | null = null;
     try {
@@ -97,16 +83,14 @@ export default function GamePlayer({
     } catch {
       // Private mode or blocked storage: the player just types it again.
     }
-    const who = email ?? known;
-    const query = who ? `?email=${encodeURIComponent(who)}` : "";
     const res = await fetch(
       `/api/play/${encodeURIComponent(slug)}/games/${encodeURIComponent(
         gameSlug
-      )}${query}`
+      )}`
     );
     const body = await res.json().catch(() => null);
     return { ok: res.ok, body, known };
-  }, [slug, gameSlug, email]);
+  }, [slug, gameSlug]);
 
   const apply = useCallback(
     (result: {
@@ -126,7 +110,11 @@ export default function GamePlayer({
       }
       setHost(result.body?.host as PublicGameHost);
       setGame(result.body?.game as PublicGame);
-      setPlayer((result.body?.player as PlayerState | null) ?? null);
+      const who = (result.body?.player as PlayerState | null) ?? null;
+      setPlayer(who);
+      // A signed-in player is one the cookie identified; that beats anything
+      // the browser happens to have written down.
+      if (who?.email) setEmail(who.email);
       setPhase((current) => (current === "loading" ? "intro" : current));
     },
     []
@@ -146,18 +134,14 @@ export default function GamePlayer({
     };
   }, [fetchGame, apply]);
 
-  const startPlay = async (playerEmail: string) => {
+  const startPlay = async () => {
     setStarting(true);
     setError(null);
     const res = await fetch(
       `/api/play/${encodeURIComponent(slug)}/games/${encodeURIComponent(
         gameSlug
       )}/start`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: playerEmail }),
-      }
+      { method: "POST" }
     );
     const body = await res.json().catch(() => null);
     setStarting(false);
@@ -175,6 +159,7 @@ export default function GamePlayer({
     }
     if (body?.result === "cooldown") {
       setPlayer((current) => ({
+        email: current?.email ?? "",
         livesLeft: current?.livesLeft ?? 0,
         bestScore: current?.bestScore ?? 0,
         rank: current?.rank ?? null,
@@ -222,7 +207,7 @@ export default function GamePlayer({
       setToken(null);
 
       // Playing a round is what pays the person who invited you.
-      if (referral && email) {
+      if (referral) {
         fetch(
           `/api/play/${encodeURIComponent(slug)}/games/${encodeURIComponent(
             gameSlug
@@ -230,13 +215,13 @@ export default function GamePlayer({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code: referral, email }),
+            body: JSON.stringify({ code: referral }),
           }
         ).catch(() => {});
       }
       return result;
     },
-    [token, slug, gameSlug, referral, email]
+    [token, slug, gameSlug, referral]
   );
 
   const showResult = useCallback(() => {
@@ -344,11 +329,20 @@ export default function GamePlayer({
                 <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
                   <Heart className="size-3" aria-hidden /> Lives today
                 </p>
-                <p className="text-lg font-bold text-zinc-900">
+                <p className="emoji text-lg font-bold text-zinc-900">
                   {"❤️".repeat(Math.min(lives, 6)) || "—"}
                 </p>
               </div>
             </div>
+          )}
+
+          {isBoard && (
+            <p className="mt-2 text-center text-xs text-zinc-500">
+              {lives > 0
+                ? `${lives} ${lives === 1 ? "play" : "plays"} left today`
+                : "Out of plays today"}{" "}
+              — shared across every game {host.businessName} runs.
+            </p>
           )}
 
           {error && <p className="alert-error mt-4">{error}</p>}
@@ -374,7 +368,7 @@ export default function GamePlayer({
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           {isBoard && (
-                            <span className="shrink-0 text-lg">
+                            <span className="emoji shrink-0 text-lg">
                               {RANK_MEDALS[i] ?? "🎖️"}
                             </span>
                           )}
@@ -414,11 +408,11 @@ export default function GamePlayer({
               ) : (
                 <button
                   onClick={() => {
-                    if (!email) {
+                    if (!player) {
                       setShowVerify(true);
                       return;
                     }
-                    void startPlay(email);
+                    void startPlay();
                   }}
                   disabled={starting || (isBoard && lives <= 0)}
                   style={{ backgroundColor: accent }}
@@ -494,8 +488,9 @@ export default function GamePlayer({
               <Share2 className="size-3.5" aria-hidden /> Out of lives?
             </p>
             <p className="mt-1 text-sm text-zinc-600">
-              Send your link to someone. When they play, you get an extra life
-              today — up to {game.maxBonusLives} of them.
+              Sharing is how you get more plays. Send your link to someone —
+              when they play, you get an extra life today, good on any game
+              here. Up to {game.maxBonusLives} of them.
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
@@ -561,7 +556,7 @@ export default function GamePlayer({
                         : undefined
                     }
                   >
-                    <span className="w-7 shrink-0 text-center text-base">
+                    <span className="emoji w-7 shrink-0 text-center text-base">
                       {RANK_MEDALS[entry.rank - 1] ?? (
                         <span className="text-xs font-bold text-zinc-400">
                           {entry.rank}
@@ -608,7 +603,7 @@ export default function GamePlayer({
                   key={winner.rank}
                   className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm odd:bg-zinc-50"
                 >
-                  <span className="w-7 shrink-0 text-center text-base">
+                  <span className="emoji w-7 shrink-0 text-center text-base">
                     {RANK_MEDALS[winner.rank - 1] ?? winner.rank}
                   </span>
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-600">
@@ -648,7 +643,7 @@ export default function GamePlayer({
             }
             setEmail(verified);
             setShowVerify(false);
-            void startPlay(verified);
+            void startPlay();
           }}
           onClose={() => setShowVerify(false)}
         />
@@ -684,7 +679,7 @@ function ResultPanel({
     const onPodium = outcome.rank !== null && outcome.rank <= 3;
     return (
       <div className="mt-5 flex flex-col items-center gap-4 text-center">
-        <span className="text-5xl">
+        <span className="emoji text-5xl">
           {onPodium ? (RANK_MEDALS[(outcome.rank ?? 1) - 1] ?? "🏆") : isBest ? "🔥" : "👏"}
         </span>
         <div>

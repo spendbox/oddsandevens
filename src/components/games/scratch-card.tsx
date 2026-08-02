@@ -127,7 +127,7 @@ export default function ScratchCard({
         >
           {outcome ? (
             <>
-              <span className="text-4xl">{won ? "🎉" : "🙂"}</span>
+              <span className="emoji text-4xl">{won ? "🎉" : "🙂"}</span>
               <p
                 className={
                   "text-lg font-bold " + (won ? "text-white" : "text-zinc-700")

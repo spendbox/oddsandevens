@@ -7,8 +7,8 @@ week closes the top places take the prizes and their one-time redemption codes
 arrive by email, to be shown at the counter. Then the board resets and it starts
 again.
 
-Players get three lives a day per game, and can earn more by sharing their own
-link with someone who plays.
+Players get three lives a day — one pool shared across every game that business
+runs — and can earn more by sharing their own link with someone who plays.
 
 Customers can review everything they've earned across every business at
 **`/me`** — an email-only portal (there are no customer accounts).
@@ -92,15 +92,33 @@ is untouched.
 ### Lives, and sharing for more
 
 Because the prize is the rank rather than the play, playing often is the point.
-Each player gets **3 lives a day per game** (`games.daily_lives`). Every graded
-round spends one.
+Each player gets **3 lives a day per business** (`merchants.daily_lives`), shared
+across every game that business runs — a shop with six games hands out three
+plays a day, not eighteen, so the boards stay about skill. Every graded round
+spends one, from `merchant_lives`.
 
 Out of lives? Share your own link — `/p/<business>/<game>?ref=CODE` — and when
-someone plays through it you get an extra life that day, up to three
-(`games.max_bonus_lives`). The credit is tied to the invited player *finishing a
-round*, not to opening the link: a page view is free to farm, a round costs the
-visitor their time and the business a play from its allowance. One life per
-person invited, ever.
+someone plays through it you get an extra life that day, good on any of that
+business's games, up to three (`merchants.max_bonus_lives`). The credit is tied
+to the invited player *finishing a round*, not to opening the link: a page view
+is free to farm, a round costs the visitor their time and the business a play
+from its allowance. One life per person invited, ever.
+
+### Players are asked to verify once
+
+Verifying an email sets a signed, HTTP-only cookie that lasts six months
+(`src/lib/player-session.ts`). Every play route reads the player's identity from
+that cookie rather than from the request body, which is both the memory (no more
+codes on every visit) and the proof (a round can't be opened, or a prize
+addressed, under someone else's email).
+
+### Question games deal a fresh round every time
+
+A quiz with three authored questions is a quiz you finish once. `myth-fact` and
+`leaderboard-trivia` are dealt per round from three sources — what the business
+wrote, questions generated from their profile (their products, city, busiest
+day), then a bank tagged by trade (`src/lib/games/questions.ts`). Myth-vs-fact
+runs until three wrong answers, so the score is how far you got.
 
 ### Public boards, private players
 
@@ -273,7 +291,8 @@ of truth; `supabase db push` tracks applied migrations server-side just like
    link. Building one by hand from *New game* takes two steps: pick, then
    confirm the prize.
 4. Open `/p/<slug>/<game>` in an incognito window, verify an email, and play. The
-   score lands on this week's board; play twice more and you're out of lives.
+   score lands on this week's board; play twice more and you're out of lives —
+   on every game this business runs, not just this one.
    Copy your share link, open it in another browser, play a round there — your
    first browser gets a life back.
 5. To watch a week close without waiting: `update game_seasons set ends_at =
@@ -304,7 +323,8 @@ select create_game(
     {"kind":"prize","description":"10% off","stock":12,"award_rank":3}]'::jsonb,
   0, 1, 100000, 'active', 'manual', 'leaderboard', 7, 3, 3);
 
--- Play a round. Three a day; the fourth start returns 'no_lives'.
+-- Play a round. Three a day across ALL of this business's games; the fourth
+-- start returns 'no_lives', whichever game it is on.
 select start_game_play('mama-put-kitchen', 'weekly-game', 'tester@example.com');
 select finish_game_play('<token from above>', 250, '{}'::jsonb);   -- 'scored'
 
@@ -324,7 +344,7 @@ select rank, score, unlocked_reward_id is not null as got_code
   `finish_game_play`, and the game-aware staff lookup/redeem); **`0014` adds the
   business knowledge base** (`merchants.profile`), draft games, and
   `publish_game`; **`0015` turns games into weekly competitions**
-  (`game_seasons`, `game_season_winners`, `game_lives`, `game_referrals`,
+  (`game_seasons`, `game_season_winners`, `merchant_lives`, `game_referrals`,
   `close_due_game_season`, rank-based prizes).
 - `src/lib/games/catalog.ts` — the game catalogue: one declarative entry per
   game type (engine, defaults, setup-form schema). Shared by the API, the

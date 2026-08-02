@@ -1,44 +1,31 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { EMAIL_REGEX } from "@/lib/constants";
+import { playerEmail } from "@/lib/player-session";
 import { clientIpHash } from "@/lib/ip";
 import type { StartPlayResult } from "@/lib/games/types";
 
 // Opens a play: checks the per-game replay cooldown and the merchant's play
 // allowance, then hands back a single-use token. Nothing is charged here — an
 // abandoned game costs the business nothing.
+//
+// Who is playing comes from the signed player cookie, never from the request
+// body: the address a prize is emailed to has to be one this browser proved it
+// owns, and it means a returning player never sees a verification code again.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ slug: string; game: string }> }
 ) {
   const { slug, game } = await params;
-  const body = await req.json().catch(() => null);
-  const email = String((body as Record<string, unknown>)?.email ?? "")
-    .trim()
-    .toLowerCase();
+  const email = await playerEmail();
 
-  if (!EMAIL_REGEX.test(email)) {
-    return NextResponse.json(
-      { result: "error", error: "invalid_email" },
-      { status: 400 }
-    );
-  }
-
-  const db = supabaseAdmin();
-
-  // Same rule as the tile grid: a player verifies their email before they can
-  // win anything, so codes only ever reach a mailbox someone controls.
-  const { data: customer } = await db
-    .from("customers")
-    .select("email_verified")
-    .eq("email", email)
-    .maybeSingle();
-  if (!customer || !customer.email_verified) {
+  if (!email) {
     return NextResponse.json(
       { result: "error", error: "email_not_verified" },
       { status: 403 }
     );
   }
+
+  const db = supabaseAdmin();
 
   const { data, error } = await db.rpc("start_game_play", {
     p_slug: slug,

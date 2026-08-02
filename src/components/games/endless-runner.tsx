@@ -188,7 +188,7 @@ export default function EndlessRunner({
         {/* Runner. Emoji people face left by default and the obstacles come
             from the right, so the sprite is mirrored to face the way it runs. */}
         <div
-          className="absolute flex items-end justify-center"
+          className="emoji-piece absolute flex items-end justify-center"
           style={{
             left: `${PLAYER_X}%`,
             top: `${GROUND_Y - frame.y}%`,
@@ -206,7 +206,7 @@ export default function EndlessRunner({
         {frame.obstacles.map((obstacle, i) => (
           <div
             key={i}
-            className="absolute flex items-end justify-center"
+            className="emoji-piece absolute flex items-end justify-center"
             style={{
               left: `${obstacle.x}%`,
               top: `${GROUND_Y + PLAYER_SIZE - obstacle.height}%`,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { playerEmail } from "@/lib/player-session";
 import { COOLDOWN_HOURS, EMAIL_REGEX } from "@/lib/constants";
 import type { LoyaltyAccount } from "@/lib/types";
 
@@ -7,9 +8,12 @@ import type { LoyaltyAccount } from "@/lib/types";
 // and active codes. Same email-only trust model as the per-merchant /me
 // endpoint — the email is the credential (v1 has no customer auth).
 export async function GET(req: Request) {
-  const email = (new URL(req.url).searchParams.get("email") ?? "")
+  // A verified browser doesn't have to say who it is — and what it says is
+  // ignored, so the cookie is also the stronger claim of the two.
+  const asked = (new URL(req.url).searchParams.get("email") ?? "")
     .trim()
     .toLowerCase();
+  const email = (await playerEmail()) ?? asked;
   if (!EMAIL_REGEX.test(email)) {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
@@ -20,7 +24,7 @@ export async function GET(req: Request) {
     .select("id")
     .eq("email", email)
     .maybeSingle();
-  if (!customer) return NextResponse.json({ accounts: [] });
+  if (!customer) return NextResponse.json({ email, accounts: [] });
 
   const [{ data: states }, { data: unlocks }] = await Promise.all([
     db
@@ -98,5 +102,5 @@ export async function GET(req: Request) {
     .filter((a): a is LoyaltyAccount => a !== null)
     .sort((a, b) => b.loyaltyPoints - a.loyaltyPoints);
 
-  return NextResponse.json({ accounts });
+  return NextResponse.json({ email, accounts });
 }

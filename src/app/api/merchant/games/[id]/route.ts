@@ -101,12 +101,16 @@ export async function PATCH(
     // effect when the next one opens.
     patch.season_days = Math.round(days);
   }
+  // Lives are one pool per business, so this setting belongs to the merchant.
+  // The game's own column is kept in step only so old reads stay sane.
+  let dailyLives: number | null = null;
   if (body.dailyLives !== undefined) {
     const lives = Number(body.dailyLives);
     if (!Number.isFinite(lives) || lives < 1 || lives > 20) {
       return NextResponse.json({ error: "invalid_lives" }, { status: 400 });
     }
-    patch.daily_lives = Math.round(lives);
+    dailyLives = Math.round(lives);
+    patch.daily_lives = dailyLives;
   }
 
   const { error: updateError } = await db
@@ -117,6 +121,13 @@ export async function PATCH(
   if (updateError) {
     console.error("[merchant games] update failed:", updateError);
     return NextResponse.json({ error: "internal" }, { status: 500 });
+  }
+
+  if (dailyLives !== null) {
+    await db
+      .from("merchants")
+      .update({ daily_lives: dailyLives })
+      .eq("id", merchant.id);
   }
 
   if (publishing) {

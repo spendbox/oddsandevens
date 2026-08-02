@@ -2,6 +2,11 @@
 
 // Myth vs fact. Two buttons per statement, then the explanation — the part
 // that actually teaches the customer something.
+//
+// The round is dealt fresh by the server every time (see lib/games/questions),
+// so it doesn't end after three statements and it isn't the same three twice.
+// What ends it is getting three wrong: the score is how far you got, which is
+// what makes it worth a leaderboard.
 
 import { useState } from "react";
 import { ActionButton, GradingOverlay, cfgList, type GameProps } from "./kit";
@@ -12,6 +17,9 @@ interface Statement {
   explanation?: string;
 }
 
+/** Wrong answers allowed before the run ends. */
+const MISTAKES_ALLOWED = 3;
+
 export default function MythFact({ config, accent, submit, showResult }: GameProps) {
   const statements = cfgList<Statement>(config, "statements", []).filter(
     (s) => (s.text ?? "").trim().length > 0
@@ -20,6 +28,7 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
   const [step, setStep] = useState(0);
   const [answered, setAnswered] = useState<boolean | null>(null);
   const [correct, setCorrect] = useState(0);
+  const [wrong, setWrong] = useState(0);
   const [grading, setGrading] = useState(false);
 
   if (statements.length === 0) {
@@ -34,20 +43,24 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
   const isFact = current.isFact === true;
   const wasRight = answered !== null && answered === isFact;
 
+  const mistakesLeft = MISTAKES_ALLOWED - wrong;
+  const lastOne = step + 1 >= statements.length || mistakesLeft <= 0;
+
   const answer = (saidFact: boolean) => {
     if (answered !== null) return;
     setAnswered(saidFact);
     if (saidFact === isFact) setCorrect((c) => c + 1);
+    else setWrong((w) => w + 1);
   };
 
   const next = async () => {
-    if (step + 1 < statements.length) {
+    if (!lastOne) {
       setStep(step + 1);
       setAnswered(null);
       return;
     }
     setGrading(true);
-    const outcome = await submit(correct, { of: statements.length });
+    const outcome = await submit(correct, { seen: step + 1, wrong });
     if (outcome) showResult();
     else setGrading(false);
   };
@@ -55,11 +68,12 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
   return (
     <div className="relative flex flex-col gap-4">
       <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        <span>
-          {step + 1} of {statements.length}
-        </span>
-        <span>
-          {correct} correct
+        <span>Statement {step + 1}</span>
+        <span className="flex items-center gap-3">
+          <span>{correct} correct</span>
+          <span className="emoji tracking-normal">
+            {"❤️".repeat(Math.max(mistakesLeft, 0)) || "💔"}
+          </span>
         </span>
       </div>
 
@@ -99,7 +113,11 @@ export default function MythFact({ config, accent, submit, showResult }: GamePro
             {current.explanation && <p className="mt-1">{current.explanation}</p>}
           </div>
           <ActionButton onClick={next} accent={accent} disabled={grading}>
-            {step + 1 < statements.length ? "Next statement" : "See my result"}
+            {lastOne
+              ? mistakesLeft <= 0
+                ? "Out of lives — see my score"
+                : "See my result"
+              : "Next statement"}
           </ActionButton>
         </div>
       )}
