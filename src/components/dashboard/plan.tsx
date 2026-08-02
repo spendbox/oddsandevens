@@ -297,23 +297,20 @@ export function PlansPanel({
                 </>
               )}
               Free gets you one live game and{" "}
-              {plan.baseAllowance.toLocaleString()} plays a year. Premium lifts
-              the limit on games, raises you to{" "}
+              {plan.baseAllowance.toLocaleString()} plays a year. Premium takes
+              the limit off games and raises you to{" "}
               <span className="font-medium text-zinc-800">
                 {plan.premiumYearlyPlays.toLocaleString()} plays a year
               </span>
-              , and lets you put ten prizes in each game instead of two.
+              . Everything else — every game, your branding, the full podium —
+              is on both.
             </>
           )}
         </p>
         <ul className="mt-3 grid gap-1.5 text-sm text-zinc-600 sm:grid-cols-2">
           {[
-            `${plan.premiumYearlyPlays.toLocaleString()} plays / year`,
-            "Unlimited live games (free runs one)",
-            "10 prizes per game",
-            "Every game type",
-            "Custom artwork and colours",
-            "Leaderboards on every score game",
+            `${plan.premiumYearlyPlays.toLocaleString()} plays a year, up from ${plan.baseAllowance.toLocaleString()}`,
+            "As many live games as you want, not one",
           ].map((f) => (
             <li key={f} className="flex items-center gap-1.5">
               <Sparkles className="size-3.5 text-amber-500" aria-hidden />

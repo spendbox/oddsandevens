@@ -17,10 +17,15 @@ import {
 // strict sense: the free three are enough to reach the top of a board, and
 // bought lives buy attempts, never an advantage within a round.
 //
-// The price and block size live in app_settings so they can be changed without
-// a deploy.
+// The block size lives in app_settings so it can be changed without a deploy.
+// The price does too, but a business can set its own over the top of it: a
+// café in a student area and a salon doing ₦40,000 treatments do not have the
+// same idea of what one more go is worth.
 
-async function topupTerms(db: ReturnType<typeof supabaseAdmin>) {
+async function topupTerms(
+  db: ReturnType<typeof supabaseAdmin>,
+  merchantPriceKobo: number | null
+) {
   const { data } = await db
     .from("app_settings")
     .select("key, value")
@@ -30,16 +35,32 @@ async function topupTerms(db: ReturnType<typeof supabaseAdmin>) {
     const value = Number(row?.value ?? fallback);
     return Number.isFinite(value) && value > 0 ? value : fallback;
   };
+  const platformPrice = read(
+    "life_topup_price_kobo",
+    DEFAULT_LIFE_TOPUP_PRICE_KOBO
+  );
   return {
-    amountKobo: read("life_topup_price_kobo", DEFAULT_LIFE_TOPUP_PRICE_KOBO),
+    amountKobo:
+      merchantPriceKobo && merchantPriceKobo > 0
+        ? merchantPriceKobo
+        : platformPrice,
     lives: read("life_topup_lives", DEFAULT_LIFE_TOPUP_LIVES),
   };
 }
 
-/** What a top-up costs and how many plays it buys. */
-export async function GET() {
+/** What a top-up costs here and how many plays it buys. */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  const { slug } = await params;
   const db = supabaseAdmin();
-  const terms = await topupTerms(db);
+  const { data: merchant } = await db
+    .from("merchants")
+    .select("life_topup_price_kobo")
+    .eq("slug", slug.toLowerCase())
+    .maybeSingle();
+  const terms = await topupTerms(db, merchant?.life_topup_price_kobo ?? null);
   return NextResponse.json({ ...terms, paymentsEnabled: paystackConfigured() });
 }
 
@@ -63,7 +84,7 @@ export async function POST(
   const db = supabaseAdmin();
   const { data: merchant } = await db
     .from("merchants")
-    .select("id, slug, paystack_subaccount_code")
+    .select("id, slug, paystack_subaccount_code, life_topup_price_kobo")
     .eq("slug", slug.toLowerCase())
     .maybeSingle();
   if (!merchant) {
@@ -79,7 +100,7 @@ export async function POST(
     return NextResponse.json({ error: "unknown_player" }, { status: 404 });
   }
 
-  const terms = await topupTerms(db);
+  const terms = await topupTerms(db, merchant.life_topup_price_kobo ?? null);
   const { data: week } = await db.rpc("week_start");
   const reference = `sbl_${randomBytes(12).toString("hex")}`;
 

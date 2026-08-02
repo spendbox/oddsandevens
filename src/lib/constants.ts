@@ -59,6 +59,12 @@ export const DEFAULT_TOPUP_PRICE_PER_1000_KOBO = 100_000; // ₦1,000 / 1,000 pl
  */
 export const DEFAULT_LIFE_TOPUP_PRICE_KOBO = 25_000; // ₦250
 export const DEFAULT_LIFE_TOPUP_LIVES = 10;
+/**
+ * A business can set its own price instead. Below ₦500 the Paystack fee eats
+ * most of it and the split stops being worth splitting, so that's the floor.
+ * Overridden by app_settings (life_topup_min_price_kobo).
+ */
+export const DEFAULT_LIFE_TOPUP_MIN_PRICE_KOBO = 50_000; // ₦500
 
 // What Spendbox keeps of a life purchase; the business keeps the rest. The
 // split itself is done in `life_revenue` — this is only the fallback for a

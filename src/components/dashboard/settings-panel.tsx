@@ -16,16 +16,18 @@ import {
   ChevronRight,
   Landmark,
   Palette,
+  Ticket,
 } from "lucide-react";
 import type { BusinessProfile } from "@/lib/business/profile";
 import type { RewardTemplate } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
 import { BrandSettings, DangerZone } from "./brand-settings";
 import { BusinessProfileCard } from "./business-profile";
+import { LifePriceSettings } from "./life-price-settings";
 import { PayoutSettings } from "./payout-settings";
-import type { Merchant } from "./shared";
+import { naira, type Merchant } from "./shared";
 
-type Panel = "about" | "brand" | "payouts" | "danger";
+type Panel = "about" | "brand" | "payouts" | "price" | "danger";
 
 function SettingsCard({
   icon,
@@ -144,6 +146,17 @@ export function SettingsPanel({
         />
 
         <SettingsCard
+          icon={<Ticket className="size-5" aria-hidden />}
+          title="Price of extra plays"
+          status={
+            merchant.life_topup_price_kobo
+              ? `${naira(merchant.life_topup_price_kobo)} a block — your price`
+              : "Using the standard price — tap to set your own"
+          }
+          onClick={() => setOpen("price")}
+        />
+
+        <SettingsCard
           icon={<AlertTriangle className="size-5" aria-hidden />}
           title="Your customer link"
           tone="danger"
@@ -193,6 +206,16 @@ export function SettingsPanel({
           onClose={() => setOpen(null)}
         >
           <PayoutSettings onSaved={() => void onSaved()} />
+        </Modal>
+      )}
+
+      {open === "price" && (
+        <Modal
+          title="Price of extra plays"
+          icon={<Ticket className="size-5 text-zinc-500" aria-hidden />}
+          onClose={() => setOpen(null)}
+        >
+          <LifePriceSettings onSaved={() => void onSaved()} />
         </Modal>
       )}
 

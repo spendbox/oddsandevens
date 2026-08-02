@@ -112,7 +112,7 @@ export default function DashboardPage() {
     const { data: m, error: merchantError } = await supabase
       .from("merchants")
       .select(
-        "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, whatsapp, contact_email, profile"
+        "id, business_name, slug, subscription_tier, premium_expires_at, logo_url, tagline, brand_color, whatsapp, contact_email, profile, paystack_subaccount_code, life_topup_price_kobo"
       )
       .maybeSingle();
     if (merchantError) {
@@ -298,8 +298,14 @@ export default function DashboardPage() {
           <GameEditor
             game={editingGame}
             brandColor={merchant.brand_color}
+            rewards={rewardTemplates}
             onSaved={load}
             onCancel={() => setEditingGame(null)}
+            onCreateReward={() => {
+              setEditingGame(null);
+              setTab("build");
+              setBuildSub("rewards");
+            }}
           />
         ) : showGameWizard ? (
           <GameWizard
@@ -371,7 +377,6 @@ export default function DashboardPage() {
                 <PlaysWidget plan={plan} onManage={() => setTab("plans")} />
                 <RevenueCard revenue={stats?.revenue ?? null} />
                 <StatsSummary stats={stats} />
-                <UnlocksList unlocks={unlocks} />
               </div>
             )}
 
@@ -426,6 +431,7 @@ export default function DashboardPage() {
             {tab === "customers" && (
               <div className="mt-6 space-y-6">
                 <RedeemBox onRedeemed={load} />
+                <UnlocksList unlocks={unlocks} />
                 <CustomersList customers={customers} />
               </div>
             )}

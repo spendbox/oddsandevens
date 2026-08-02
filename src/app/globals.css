@@ -310,6 +310,339 @@ body {
   }
 
   /* -------------------------------------------------------------------
+     Game loops.
+
+     The badge next to a game's name used to be a lucide icon — a sword, a
+     hammer, a gem. Which tells you the theme and nothing about the game. A
+     business choosing between five of these is asking "what does my customer
+     actually do?", and a picture of a sword doesn't answer it.
+
+     So each badge plays its game in miniature, on a loop: fruit gets cut,
+     a mole gets hit, a jewel gets swiped into a row. No video, no GIF —
+     four shapes and a keyframe each, which costs nothing and stays sharp.
+     ------------------------------------------------------------------- */
+
+  .gl-static {
+    display: none;
+  }
+
+  .gl [class^="gl-a-"] {
+    transform-box: view-box;
+    animation-duration: 2.4s;
+    animation-iteration-count: infinite;
+    animation-timing-function: ease-in-out;
+  }
+
+  /* Slice: the fruit rises, the blade crosses it, the halves fall apart. */
+  .gl-a-slice-a {
+    animation-name: gl-slice-a;
+  }
+  .gl-a-slice-b {
+    animation-name: gl-slice-b;
+  }
+  .gl-a-blade {
+    animation-name: gl-blade;
+    animation-timing-function: linear;
+  }
+
+  @keyframes gl-slice-a {
+    0% {
+      transform: translate(0, 20px);
+      opacity: 0;
+    }
+    18%,
+    46% {
+      transform: translate(0, 0);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(-9px, 16px) rotate(-30deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes gl-slice-b {
+    0% {
+      transform: translate(0, 20px);
+      opacity: 0;
+    }
+    18%,
+    46% {
+      transform: translate(0, 0);
+      opacity: 1;
+    }
+    100% {
+      transform: translate(9px, 13px) rotate(30deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes gl-blade {
+    0%,
+    38% {
+      stroke-dashoffset: 36;
+      opacity: 0;
+    }
+    40% {
+      stroke-dashoffset: 36;
+      opacity: 1;
+    }
+    50% {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+    64%,
+    100% {
+      stroke-dashoffset: 0;
+      opacity: 0;
+    }
+  }
+
+  /* Whack: the mole comes up, the hammer comes down, the mole goes back. */
+  .gl-a-mole {
+    animation-name: gl-mole;
+    transform-origin: 20px 32px;
+  }
+  .gl-a-hammer {
+    animation-name: gl-hammer;
+    transform-origin: 31px 33px;
+  }
+
+  @keyframes gl-mole {
+    0% {
+      transform: translateY(15px);
+    }
+    20% {
+      transform: translateY(-1.5px);
+    }
+    26%,
+    50% {
+      transform: translateY(0);
+    }
+    57% {
+      transform: translateY(4px) scaleY(0.7);
+    }
+    74%,
+    100% {
+      transform: translateY(15px);
+    }
+  }
+
+  @keyframes gl-hammer {
+    0%,
+    30% {
+      transform: rotate(35deg);
+      opacity: 0;
+    }
+    38% {
+      transform: rotate(35deg);
+      opacity: 1;
+    }
+    55% {
+      transform: rotate(-58deg);
+      opacity: 1;
+    }
+    64% {
+      transform: rotate(-40deg);
+      opacity: 1;
+    }
+    80% {
+      transform: rotate(35deg);
+      opacity: 1;
+    }
+    88%,
+    100% {
+      transform: rotate(35deg);
+      opacity: 0;
+    }
+  }
+
+  /* Match: one jewel is swiped up into the row, and the three go. */
+  .gl-a-swap-up {
+    animation-name: gl-swap-up;
+  }
+  .gl-a-swap-down {
+    animation-name: gl-swap-down;
+  }
+  .gl-a-pop {
+    animation-name: gl-pop;
+    transform-origin: center;
+    transform-box: fill-box;
+  }
+  .gl-a-swipe {
+    animation-name: gl-swipe;
+  }
+
+  @keyframes gl-swap-up {
+    0%,
+    26% {
+      transform: translateY(0);
+    }
+    46%,
+    100% {
+      transform: translateY(-13px);
+    }
+  }
+
+  @keyframes gl-swap-down {
+    0% {
+      transform: translateY(0);
+      opacity: 0;
+    }
+    8%,
+    26% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    46%,
+    88% {
+      transform: translateY(13px);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(13px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes gl-pop {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    54% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    64% {
+      transform: scale(1.28);
+      opacity: 1;
+    }
+    80%,
+    100% {
+      transform: scale(0.2);
+      opacity: 0;
+    }
+  }
+
+  @keyframes gl-swipe {
+    0%,
+    24% {
+      transform: translateY(4px);
+      opacity: 0;
+    }
+    30% {
+      transform: translateY(4px);
+      opacity: 0.9;
+    }
+    46% {
+      transform: translateY(-9px);
+      opacity: 0.9;
+    }
+    56%,
+    100% {
+      transform: translateY(-9px);
+      opacity: 0;
+    }
+  }
+
+  /* Flappy: the bird holds its line while the pipes come at it. */
+  .gl-a-bird {
+    animation-name: gl-bird;
+  }
+  .gl-a-pipes {
+    animation-name: gl-pipes;
+    animation-timing-function: linear;
+  }
+
+  @keyframes gl-bird {
+    0%,
+    100% {
+      transform: translateY(3px) rotate(12deg);
+    }
+    12% {
+      transform: translateY(-4px) rotate(-14deg);
+    }
+    50% {
+      transform: translateY(3px) rotate(12deg);
+    }
+    62% {
+      transform: translateY(-4px) rotate(-14deg);
+    }
+  }
+
+  @keyframes gl-pipes {
+    0% {
+      transform: translateX(22px);
+    }
+    100% {
+      transform: translateX(-30px);
+    }
+  }
+
+  /* Mahjong: two matching tiles find each other and clear. */
+  .gl-a-tile-l {
+    animation-name: gl-tile-l;
+  }
+  .gl-a-tile-r {
+    animation-name: gl-tile-r;
+  }
+
+  @keyframes gl-tile-l {
+    0%,
+    20% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    52%,
+    64% {
+      transform: translateX(7px);
+      opacity: 1;
+    }
+    82%,
+    92% {
+      transform: translateX(7px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes gl-tile-r {
+    0%,
+    20% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    52%,
+    64% {
+      transform: translateX(-7px);
+      opacity: 1;
+    }
+    82%,
+    92% {
+      transform: translateX(-7px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* Someone who has asked for less movement gets the plain icon back. */
+  @media (prefers-reduced-motion: reduce) {
+    .gl-static {
+      display: block;
+    }
+    .gl-motion {
+      display: none;
+    }
+  }
+
+  /* -------------------------------------------------------------------
      The arcade.
 
      Everything a player sees — the hub, a game page, the playfield — lives

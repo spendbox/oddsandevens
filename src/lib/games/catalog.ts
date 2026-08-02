@@ -207,12 +207,8 @@ export const GAMES: Record<GameType, GameDefinition> = {
     },
     fields: [
       durationField(45),
-      emojiSetField("sliceEmojis", "Things to slice", "Space-separated emoji."),
-      emojiField(
-        "bombEmoji",
-        "What to avoid",
-        "Shown to the player before the round and ringed in red in play. Slicing it costs a life."
-      ),
+      emojiSetField("sliceEmojis", "Things to slice", ""),
+      emojiField("bombEmoji", "What to avoid", ""),
       livesField,
       difficultyField,
     ],
@@ -364,6 +360,7 @@ export const GAMES: Record<GameType, GameDefinition> = {
       moves: 25,
       size: 7,
       pieces: 5,
+      jewels: "",
     },
     fields: [
       {
@@ -394,6 +391,12 @@ export const GAMES: Record<GameType, GameDefinition> = {
           { value: "6", label: "6 — harder" },
         ],
       },
+      emojiSetField(
+        "jewels",
+        "What the jewels are",
+        "Leave empty for plain gems in your colours.",
+        6
+      ),
     ],
   },
 
@@ -433,12 +436,18 @@ export function gamesInCategory(category: GameCategory): GameDefinition[] {
 // Tier caps for games (mirrored in create_game).
 // ---------------------------------------------------------------------------
 
-export const GAME_TIER_LIMITS = {
-  free: { maxGames: 1, maxPrizes: 2 },
-  premium: { maxGames: Number.POSITIVE_INFINITY, maxPrizes: 10 },
-} as const;
+/** How deep a weekly podium can go. */
+export const MAX_PODIUM_PLACES = 10;
 
 // Total slots (prizes + blanks) any single game may carry.
+export const GAME_TIER_LIMITS = {
+  // Prizes are not a paywall. A podium with two places on it is a worse
+  // competition, and a worse competition is a worse product — the thing
+  // Premium buys is *more games*, not a longer podium.
+  free: { maxGames: 1, maxPrizes: MAX_PODIUM_PLACES },
+  premium: { maxGames: Number.POSITIVE_INFINITY, maxPrizes: MAX_PODIUM_PLACES },
+} as const;
+
 export const MAX_PRIZE_SLOTS = 24;
 
 // ---------------------------------------------------------------------------

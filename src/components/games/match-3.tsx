@@ -26,12 +26,19 @@ import {
   Stage,
   StartOverlay,
   cfgNum,
+  cfgStr,
   clamp,
   useOnce,
   type GameProps,
 } from "./kit";
+import { emojiList } from "@/lib/games/catalog";
 
-/** The jewels: colour, shape and a mark, so no two need the same sense. */
+/**
+ * The default jewels: colour, shape and a mark, so no two need the same
+ * sense. A business can replace the faces with its own — see `faces` below —
+ * and the colour and shape stay, so the board is still readable to anyone who
+ * can't separate red from green.
+ */
 const JEWELS = [
   { colour: "#ef4444", shape: "round", mark: "" },
   { colour: "#3b82f6", shape: "cut", mark: "" },
@@ -100,6 +107,8 @@ export default function MatchThree({
 }: GameProps) {
   const size = clamp(Math.round(cfgNum(config, "size", 7)), 5, 8);
   const kinds = clamp(Math.round(cfgNum(config, "pieces", 5)), 4, JEWELS.length);
+  // What the business put on the jewels. Empty means plain gems.
+  const faces = emojiList(cfgStr(config, "jewels", ""), []);
   const moveBudget = clamp(Math.round(cfgNum(config, "moves", 25)), 10, 60);
 
   const [phase, setPhase] = useState<"idle" | "running" | "grading">("idle");
@@ -503,7 +512,7 @@ export default function MatchThree({
                 {cell && jewel && (
                   <span
                     className={
-                      "gem flex size-[86%] items-center justify-center text-[0.7em] font-bold text-white/70 " +
+                      "gem flex size-[86%] items-center justify-center " +
                       (jewel.shape === "cut" ? "gem-cut " : "") +
                       (clearing.has(cell.id)
                         ? "animate-clear "
@@ -513,7 +522,21 @@ export default function MatchThree({
                     }
                     style={{ "--gem": jewel.colour } as React.CSSProperties}
                   >
-                    {jewel.mark}
+                    {faces[cell.jewel] ? (
+                      // The business's own thing, sitting *on* the jewel
+                      // rather than replacing it — the colour and shape are
+                      // what make the board readable, and they stay.
+                      <span
+                        className="emoji-piece text-[0.62em] leading-none"
+                        style={{ filter: "drop-shadow(0 1px 1px rgb(0 0 0 / 0.35))" }}
+                      >
+                        {faces[cell.jewel]}
+                      </span>
+                    ) : (
+                      <span className="text-[0.7em] font-bold text-white/70">
+                        {jewel.mark}
+                      </span>
+                    )}
                   </span>
                 )}
               </button>

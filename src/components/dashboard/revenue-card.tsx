@@ -9,8 +9,8 @@
 // than quoting a gross figure the business never receives.
 //
 // Zero is a normal reading, not an error: most weeks most boards sell nothing,
-// because the free plays are enough. The card says so plainly rather than
-// showing an empty state that looks like a fault.
+// because the free plays are enough. The card just shows ₦0 and says nothing
+// about it — an explanation nobody asked for reads like an excuse.
 
 import { Coins, TrendingUp } from "lucide-react";
 import type { LifeRevenue } from "@/lib/types";
@@ -44,13 +44,7 @@ export function RevenueCard({ revenue }: { revenue: LifeRevenue | null }) {
         )}
       </div>
 
-      {revenue.orders === 0 ? (
-        <p className="mt-3 rounded-xl bg-zinc-50 px-3 py-2.5 text-xs leading-relaxed text-zinc-500">
-          Nothing yet. Everyone gets three plays a week free, and that&apos;s
-          usually enough — this is just what the people who want another go
-          decide to pay for.
-        </p>
-      ) : (
+      {revenue.orders === 0 ? null : (
         <dl className="mt-3 grid grid-cols-3 gap-2">
           {[
             { label: "Purchases", value: revenue.orders.toLocaleString() },

@@ -10,8 +10,6 @@ import { useState } from "react";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
 import {
   GAMES,
-  RANK_MEDALS,
-  rankLabel,
   type GameType,
 } from "@/lib/games/catalog";
 import {
@@ -21,22 +19,16 @@ import {
   type PrizeRow,
 } from "@/lib/games/slots";
 import type { GameConfig, GameSummary } from "@/lib/games/types";
-import { GameIcon } from "@/components/games/icons";
-import { GameConfigEditor } from "./game-config-editor";
+import { GameLoop } from "@/components/games/game-loop";
+import type { RewardTemplate } from "@/lib/types";
 import { GamePreview } from "./game-preview";
+import { GameSections } from "./game-sections";
 
 const SEASON_LENGTHS = [
   { value: 7, label: "Every week" },
   { value: 14, label: "Every two weeks" },
   { value: 30, label: "Every month" },
   { value: 1, label: "Every day" },
-];
-
-const LIVES_PER_WEEK = [
-  { value: 3, label: "3 a week" },
-  { value: 5, label: "5 a week" },
-  { value: 10, label: "10 a week" },
-  { value: 21, label: "21 a week (3 a day)" },
 ];
 
 /** Existing prize slots back into the editable rows the builder uses. */
@@ -68,13 +60,17 @@ function inferWinPercent(game: GameSummary): number {
 export function GameEditor({
   game,
   brandColor,
+  rewards,
   onSaved,
   onCancel,
+  onCreateReward,
 }: {
   game: GameSummary;
   brandColor: string;
+  rewards: RewardTemplate[];
   onSaved: () => void | Promise<void>;
   onCancel: () => void;
+  onCreateReward?: () => void;
 }) {
   const def = GAMES[game.type as GameType];
   const isBoard = game.awardMode === "leaderboard";
@@ -82,19 +78,13 @@ export function GameEditor({
   const [description, setDescription] = useState(game.description ?? "");
   const [config, setConfig] = useState<GameConfig>(game.config ?? {});
   const [prizes, setPrizes] = useState<PrizeRow[]>(() => toPrizeRows(game));
-  const [winPercent, setWinPercent] = useState(() => inferWinPercent(game));
+  const winPercent = inferWinPercent(game);
   const [seasonDays, setSeasonDays] = useState(game.seasonDays);
-  const [weeklyLives, setWeeklyLives] = useState(game.weeklyLives);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!def) return null;
-
-  const updatePrize = (index: number, patch: Partial<PrizeRow>) => {
-    setPrizes(prizes.map((p, i) => (i === index ? { ...p, ...patch } : p)));
-    setSaved(false);
-  };
 
   const save = async () => {
     setBusy(true);
@@ -115,7 +105,6 @@ export function GameEditor({
         config,
         prizes: slots,
         seasonDays,
-        weeklyLives,
       }),
     });
     setBusy(false);
@@ -148,14 +137,7 @@ export function GameEditor({
         <div className="order-2 lg:order-1">
           <div className="card p-5 sm:p-6">
             <div className="flex items-center gap-3">
-              <span
-                className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
-                style={{
-                  background: `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`,
-                }}
-              >
-                <GameIcon icon={def.icon} className="size-5" />
-              </span>
+              <GameLoop type={def.type} icon={def.icon} swatch={def.swatch} />
               <div className="min-w-0">
                 <h2 className="truncate font-bold text-zinc-900">{game.title}</h2>
                 <p className="truncate text-sm text-zinc-500">
@@ -166,246 +148,54 @@ export function GameEditor({
             </div>
 
             <div className="mt-5 flex flex-col gap-4">
-              <label className="block">
-                <span className="field-label">What players will see</span>
-                <input
-                  value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value);
-                    setSaved(false);
-                  }}
-                  maxLength={80}
-                  className="input-field"
-                />
-              </label>
-
-              <label className="block">
-                <span className="field-label">One line about it</span>
-                <textarea
-                  value={description}
-                  onChange={(e) => {
-                    setDescription(e.target.value);
-                    setSaved(false);
-                  }}
-                  maxLength={300}
-                  rows={2}
-                  className="input-field resize-y"
-                />
-              </label>
-
-              <div>
-                <p className="section-title">The game itself</p>
-                <p className="mt-1 mb-3 text-xs text-zinc-500">
-                  Questions, artwork, difficulty — the preview updates as you type.
-                </p>
-                <GameConfigEditor
-                  fields={def.fields}
-                  config={config}
-                  onChange={(next) => {
-                    setConfig(next);
-                    setSaved(false);
-                  }}
-                />
-              </div>
-
-              <div>
-                <p className="section-title">
-                  {isBoard ? "The weekly podium" : "Prizes"}
-                </p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {isBoard
-                    ? "These go to the top places when the week closes, and the codes are emailed to the winners."
-                    : "What a player can win."}
-                  {game.prizes.some((p) => p.claimed > 0) &&
-                    " Some have already been won — you can raise the numbers, but not below what's gone out."}
-                </p>
-              </div>
-
-              {prizes.map((prize, index) => (
-                <div
-                  key={index}
-                  className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3"
-                >
-                  {isBoard && (
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                        <span className="text-base">
-                          {RANK_MEDALS[index] ?? "🎖️"}
-                        </span>
-                        {rankLabel(index + 1)}
-                      </span>
-                      {index > 0 && (
-                        <button
-                          onClick={() => {
-                            setPrizes(prizes.filter((_, i) => i !== index));
-                            setSaved(false);
-                          }}
-                          className="btn-ghost px-2 text-xs text-zinc-400 hover:text-rose-600"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  <input
-                    value={prize.description}
-                    onChange={(e) =>
-                      updatePrize(index, { description: e.target.value })
-                    }
-                    maxLength={200}
-                    className="input-field"
-                  />
-                  <input
-                    value={prize.details}
-                    onChange={(e) => updatePrize(index, { details: e.target.value })}
-                    maxLength={300}
-                    placeholder="Small print (optional)"
-                    className="input-field mt-2"
-                  />
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="field-label">
-                        {isBoard ? "Weeks you can cover" : "How many"}
-                      </span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={prize.stock}
-                        onChange={(e) =>
-                          updatePrize(index, { stock: Number(e.target.value) })
-                        }
-                        className="input-field"
-                      />
-                    </label>
-                    {!isBoard && def.winRule === "target" ? (
-                      <label className="block">
-                        <span className="field-label">
-                          Score needed ({def.scoreLabel})
-                        </span>
-                        <input
-                          type="number"
-                          min={0}
-                          value={prize.minScore}
-                          onChange={(e) =>
-                            updatePrize(index, { minScore: Number(e.target.value) })
-                          }
-                          className="input-field"
-                        />
-                      </label>
-                    ) : (
-                      <label className="block">
-                        <span className="field-label">Code valid for (days)</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={60}
-                          value={prize.expiryDays}
-                          onChange={(e) =>
-                            updatePrize(index, {
-                              expiryDays: Number(e.target.value),
-                            })
-                          }
-                          className="input-field"
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              {(!isBoard || prizes.length < 3) && (
-                <button
-                  onClick={() => {
-                    setPrizes([
-                      ...prizes,
-                      {
-                        description: "",
-                        details: "",
-                        icon: null,
-                        expiryDays: 30,
-                        stock: isBoard ? 12 : 10,
-                        minScore: isBoard ? 0 : def.defaultTarget,
-                        awardRank: prizes.length + 1,
-                      },
-                    ]);
-                    setSaved(false);
-                  }}
-                  className="btn-secondary self-start text-sm"
-                >
-                  {isBoard
-                    ? `Add ${rankLabel(prizes.length + 1).toLowerCase()}`
-                    : "Add another prize"}
-                </button>
-              )}
-
-              {!isBoard && def.engine === "chance" && (
-                <label className="block rounded-xl border border-zinc-200 p-3">
-                  <span className="field-label">
-                    How often should someone win? ({winPercent}%)
-                  </span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={100}
-                    value={winPercent}
-                    onChange={(e) => {
-                      setWinPercent(Number(e.target.value));
-                      setSaved(false);
-                    }}
-                    className="w-full accent-[var(--brand)]"
-                  />
-                </label>
-              )}
+              <GameSections
+                def={def}
+                title={title}
+                description={description}
+                config={config}
+                prizes={prizes}
+                rewards={rewards}
+                onTitle={(next) => {
+                  setTitle(next);
+                  setSaved(false);
+                }}
+                onDescription={(next) => {
+                  setDescription(next);
+                  setSaved(false);
+                }}
+                onConfig={(next) => {
+                  setConfig(next);
+                  setSaved(false);
+                }}
+                onPrizes={(next) => {
+                  setPrizes(next);
+                  setSaved(false);
+                }}
+                onCreateReward={onCreateReward}
+              />
 
               {isBoard && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="field-label">When do prizes go out?</span>
-                    <select
-                      value={seasonDays}
-                      onChange={(e) => {
-                        setSeasonDays(Number(e.target.value));
-                        setSaved(false);
-                      }}
-                      className="input-field"
-                    >
-                      {SEASON_LENGTHS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="mt-1 block text-xs text-zinc-500">
-                      Takes effect from the next round — the week that&apos;s
-                      already running finishes as it started.
-                    </span>
-                  </label>
-                  <label className="block">
-                    <span className="field-label">
-                      Plays per player, per week
-                    </span>
-                    <select
-                      value={weeklyLives}
-                      onChange={(e) => {
-                        setWeeklyLives(Number(e.target.value));
-                        setSaved(false);
-                      }}
-                      className="input-field"
-                    >
-                      {LIVES_PER_WEEK.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="mt-1 block text-xs text-zinc-500">
-                      One pool across every game you run, so this sets it for
-                      all of them. Plus up to {game.maxBonusLives} more a week
-                      for sharing — and players can buy extras.
-                    </span>
-                  </label>
-                </div>
+                <label className="card block p-4">
+                  <span className="field-label">When do prizes go out?</span>
+                  <select
+                    value={seasonDays}
+                    onChange={(e) => {
+                      setSeasonDays(Number(e.target.value));
+                      setSaved(false);
+                    }}
+                    className="input-field"
+                  >
+                    {SEASON_LENGTHS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-xs text-zinc-500">
+                    Takes effect from the next round — the week that&apos;s
+                    already running finishes as it started.
+                  </span>
+                </label>
               )}
 
               {error && <p className="alert-error">{error}</p>}

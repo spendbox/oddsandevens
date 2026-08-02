@@ -228,10 +228,6 @@ export function GamePreview({
           )}
         </div>
       </div>
-
-      <p className="text-center text-xs text-zinc-500">
-        Play it yourself — this is the real game, running on your settings.
-      </p>
     </div>
   );
 }

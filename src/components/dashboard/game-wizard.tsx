@@ -17,9 +17,7 @@ import {
   DEFAULT_SEASON_DAYS,
   GAMES,
   GAME_TIER_LIMITS,
-  RANK_MEDALS,
   competitiveCategories,
-  rankLabel,
   type GameCategory,
   type GameDefinition,
   type GameType,
@@ -30,8 +28,9 @@ import type { BusinessProfile } from "@/lib/business/profile";
 import type { GameConfig } from "@/lib/games/types";
 import type { RewardTemplate } from "@/lib/types";
 import type { SubscriptionTier } from "@/lib/constants";
-import { GameIcon } from "@/components/games/icons";
+import { GameLoop } from "@/components/games/game-loop";
 import { GamePreview } from "./game-preview";
+import { GameSections } from "./game-sections";
 
 type Step = "pick" | "prize" | "done";
 
@@ -51,6 +50,7 @@ export function GameWizard({
   rewardTemplates,
   onDone,
   onCancel,
+  onCreateReward,
 }: {
   tier: SubscriptionTier;
   brandColor: string;
@@ -59,6 +59,7 @@ export function GameWizard({
   rewardTemplates: RewardTemplate[];
   onDone: () => void | Promise<void>;
   onCancel: () => void;
+  onCreateReward?: () => void;
 }) {
   const [step, setStep] = useState<Step>("pick");
   const [category, setCategory] = useState<GameCategory>("arcade");
@@ -134,10 +135,6 @@ export function GameWizard({
       },
     ]);
     setStep("prize");
-  };
-
-  const updatePrize = (index: number, patch: Partial<PrizeRow>) => {
-    setPrizes(prizes.map((p, i) => (i === index ? { ...p, ...patch } : p)));
   };
 
   const create = async () => {
@@ -220,14 +217,11 @@ export function GameWizard({
                     className="card group cursor-pointer p-4 text-left transition hover:-translate-y-1 hover:shadow-md"
                   >
                     <div className="flex items-center gap-2">
-                      <span
-                        className="flex size-11 items-center justify-center rounded-xl text-white"
-                        style={{
-                          background: `linear-gradient(140deg, ${blueprintDef.swatch[0]}, ${blueprintDef.swatch[1]})`,
-                        }}
-                      >
-                        <GameIcon icon={blueprintDef.icon} className="size-5" />
-                      </span>
+                      <GameLoop
+                        type={blueprintDef.type}
+                        icon={blueprintDef.icon}
+                        swatch={blueprintDef.swatch}
+                      />
                       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
                         For you
                       </span>
@@ -277,14 +271,11 @@ export function GameWizard({
                     onClick={() => startFromCatalogue(game)}
                     className="card group cursor-pointer p-4 text-left transition hover:-translate-y-1 hover:shadow-md"
                   >
-                    <span
-                      className="flex size-11 items-center justify-center rounded-xl text-white"
-                      style={{
-                        background: `linear-gradient(140deg, ${game.swatch[0]}, ${game.swatch[1]})`,
-                      }}
-                    >
-                      <GameIcon icon={game.icon} className="size-5" />
-                    </span>
+                    <GameLoop
+                      type={game.type}
+                      icon={game.icon}
+                      swatch={game.swatch}
+                    />
                     <h3 className="mt-3 font-semibold text-zinc-900">
                       {game.label}
                     </h3>
@@ -377,14 +368,7 @@ export function GameWizard({
         <div className="order-2 lg:order-1">
           <div className="card p-5 sm:p-6">
             <div className="flex items-center gap-3">
-              <span
-                className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
-                style={{
-                  background: `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`,
-                }}
-              >
-                <GameIcon icon={def.icon} className="size-5" />
-              </span>
+              <GameLoop type={def.type} icon={def.icon} swatch={def.swatch} />
               <div className="min-w-0">
                 <h2 className="truncate font-bold text-zinc-900">{def.label}</h2>
                 <p className="truncate text-sm text-zinc-500">{def.tagline}</p>
@@ -392,125 +376,21 @@ export function GameWizard({
             </div>
 
             <div className="mt-5 flex flex-col gap-4">
-              <label className="block">
-                <span className="field-label">What players will see</span>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={80}
-                  className="input-field"
-                  placeholder={def.label}
-                />
-              </label>
+              <GameSections
+                def={def}
+                title={title}
+                description={description}
+                config={config}
+                prizes={prizes}
+                rewards={rewardTemplates}
+                onTitle={setTitle}
+                onDescription={setDescription}
+                onConfig={setConfig}
+                onPrizes={setPrizes}
+                onCreateReward={onCreateReward}
+              />
 
-              <div>
-                <p className="section-title">The weekly podium</p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  Players chase a public leaderboard. When the week closes, these
-                  prizes go to the top places and the codes are emailed to them.
-                  Then the board resets and it starts again.
-                </p>
-              </div>
-
-              {prizes.map((prize, index) => (
-                <div
-                  key={index}
-                  className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3"
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                      <span className="text-base">{RANK_MEDALS[index] ?? "🎖️"}</span>
-                      {rankLabel(index + 1)}
-                    </span>
-                    {index > 0 && (
-                      <button
-                        onClick={() =>
-                          setPrizes(prizes.filter((_, i) => i !== index))
-                        }
-                        className="btn-ghost px-2 text-xs text-zinc-400 hover:text-rose-600"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-
-                  <input
-                    value={prize.description}
-                    onChange={(e) =>
-                      updatePrize(index, { description: e.target.value })
-                    }
-                    maxLength={200}
-                    placeholder={
-                      index === 0
-                        ? "Free coffee with any pastry"
-                        : "Something a bit smaller"
-                    }
-                    className="input-field"
-                    list="game-reward-suggestions"
-                  />
-
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="field-label">Weeks you can cover</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={520}
-                        value={prize.stock}
-                        onChange={(e) =>
-                          updatePrize(index, { stock: Number(e.target.value) })
-                        }
-                        className="input-field"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="field-label">Code valid for (days)</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={60}
-                        value={prize.expiryDays}
-                        onChange={(e) =>
-                          updatePrize(index, {
-                            expiryDays: Number(e.target.value),
-                          })
-                        }
-                        className="input-field"
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))}
-
-              <datalist id="game-reward-suggestions">
-                {rewardTemplates.map((template) => (
-                  <option key={template.id} value={template.description} />
-                ))}
-              </datalist>
-
-              {prizes.length < Math.min(maxPrizes, 3) && (
-                <button
-                  onClick={() =>
-                    setPrizes([
-                      ...prizes,
-                      {
-                        description: "",
-                        details: "",
-                        icon: null,
-                        expiryDays: 30,
-                        stock: 12,
-                        minScore: 0,
-                        awardRank: prizes.length + 1,
-                      },
-                    ])
-                  }
-                  className="btn-secondary self-start text-sm"
-                >
-                  Add {rankLabel(prizes.length + 1).toLowerCase()}
-                </button>
-              )}
-
-              <label className="block">
+              <label className="card block p-4">
                 <span className="field-label">When do prizes go out?</span>
                 <select
                   value={seasonDays}
@@ -530,9 +410,9 @@ export function GameWizard({
 
               <div className="rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-600">
                 Players get{" "}
-                <span className="font-semibold text-zinc-900">3 lives a day</span>{" "}
-                on this game, and can earn up to 3 more by sharing their link
-                with someone who plays.
+                <span className="font-semibold text-zinc-900">3 plays a week</span>{" "}
+                across everything you run, and can earn a few more by sharing
+                their link with someone who plays.
               </div>
 
               {error && <p className="alert-error">{error}</p>}
@@ -555,11 +435,6 @@ export function GameWizard({
                   </>
                 )}
               </button>
-
-              <p className="text-center text-xs text-zinc-400">
-                Questions, artwork and wording can all be changed later — this
-                is just enough to go live.
-              </p>
             </div>
           </div>
         </div>

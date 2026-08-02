@@ -170,6 +170,16 @@ A life purchase also records which game the player was on when they bought it,
 so each game can show what it earned. Hub purchases belong to no single game
 and stay at the business level.
 
+**The business sets the price.** One number for the whole platform made sense
+while nobody was earning from it; now that most of every purchase is the
+business's, the business picks it (`0022`, Settings → Price of extra plays).
+A student cafe and a salon doing forty-thousand-naira treatments do not agree
+on what one more go is worth. `merchants.life_topup_price_kobo` is null by
+default, meaning "whatever the platform default is", so a business that never
+opens that screen still moves when an admin changes it. The floor is 500 naira,
+enforced by a check constraint as well as the API: below that Paystack's fee
+eats most of the transaction and the split stops being worth splitting.
+
 ### Money: what a player pays, split 70/30
 
 The only thing a *player* ever pays for is more plays: ₦250 for ten more this
@@ -248,6 +258,17 @@ shadow beneath (`.gem`, `.tile3d`, `.hole3d`, `.pipe3d` in `globals.css`). One
 light source, top-left, throughout. It costs the player no extra bytes, keeps
 every piece recolourable by the business's brand, and stays sharp at any size —
 WebGL would buy real perspective and cost a megabyte and a battery.
+
+The badge beside a game's name is the same idea taken further: it *plays* the
+game. A lucide sword tells a business the theme of Slice Ninja and nothing
+about it, which is the wrong answer to the only question anyone asks when
+choosing one — what does my customer actually do? So each badge runs a
+two-and-a-bit-second loop (`src/components/games/game-loop.tsx`, keyframes in
+`globals.css`): fruit rises and is cut in half, a mole comes up and is hit, a
+jewel is swiped into a row and the row goes. Five SVG shapes and a keyframe
+each — no video file, no GIF, nothing to download, sharp at any size. Anyone
+whose system asks for less movement gets the plain icon back, and that swap is
+pure CSS, so it needs no JavaScript and survives hydration.
 
 Two details worth knowing. Mahjong boards are **dealt by solving them
 backwards**: the generator repeatedly takes two currently-free slots, gives
@@ -567,7 +588,9 @@ select rank, score, unlocked_reward_id is not null as got_code
   sellable** (`week_start`, `life_purchases`, `credit_life_purchase`);
   **`0019`** moves the free-tier game cap into settings; **`0020` deletes
   loyalty points** and adds `life_revenue`, the one place the 70/30 split is
-  computed.
+  computed; **`0021` adds Paystack subaccounts** and makes a payout account a
+  precondition of publishing; **`0022`** lets a business price its own block of
+  extra plays.
 - `src/lib/games/catalog.ts` — the game catalogue: one declarative entry per
   game type (engine, defaults, setup-form schema). Shared by the API, the
   dashboard builder, and the player.

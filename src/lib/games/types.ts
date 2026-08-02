@@ -182,6 +182,8 @@ export interface GameSummary {
   redeemedCount: number;
   /** The business's share of extra plays bought on this game, in kobo. */
   earnedKobo: number;
+  /** How many blocks of extra plays were bought on this game. */
+  blocksSold: number;
   prizes: {
     id: string;
     kind: "prize" | "blank";

@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import {
+  Coins,
   Copy,
   Crown,
   ExternalLink,
@@ -22,7 +23,7 @@ import { GAME_TIER_LIMITS, GAMES, gameDef, type GameType } from "@/lib/games/cat
 import type { PrizeRow } from "@/lib/games/slots";
 import type { GameSummary } from "@/lib/games/types";
 import type { SubscriptionTier } from "@/lib/constants";
-import { GameIcon } from "@/components/games/icons";
+import { GameLoop } from "@/components/games/game-loop";
 import { GamePreview } from "./game-preview";
 import { naira } from "./shared";
 import { GameLeaderboard } from "./game-leaderboard";
@@ -278,16 +279,11 @@ export function GamesManager({
               return (
                 <article key={game.id} className="card p-4">
                   <div className="flex items-start gap-3">
-                    <span
-                      className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
-                      style={{
-                        background: def
-                          ? `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`
-                          : "var(--brand)",
-                      }}
-                    >
-                      <GameIcon icon={def?.icon ?? "gamepad-2"} className="size-5" />
-                    </span>
+                    <GameLoop
+                      type={game.type}
+                      icon={def?.icon ?? "gamepad-2"}
+                      swatch={def?.swatch}
+                    />
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -312,23 +308,57 @@ export function GamesManager({
                     </div>
                   </div>
 
-                  <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {[
-                      { label: "Plays", value: game.playsCount },
-                      { label: "Players", value: game.players },
-                      { label: "Prizes won", value: game.winsCount },
-                      { label: "Earned", value: naira(game.earnedKobo) },
-                    ].map((stat) => (
-                      <div key={stat.label} className="rounded-xl bg-zinc-50 px-3 py-2">
-                        <dt className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                          {stat.label}
-                        </dt>
-                        <dd className="text-lg font-bold tabular-nums text-zinc-900">
-                          {stat.value}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
+                  {/* How the game is doing, and what it has paid — both on
+                      the card, because a business checking one always wants
+                      the other. */}
+                  <div className="mt-3 overflow-hidden rounded-xl border border-zinc-100">
+                    <dl className="grid grid-cols-3 divide-x divide-zinc-100 bg-zinc-50">
+                      {[
+                        { label: "Plays", value: game.playsCount },
+                        { label: "Players", value: game.players },
+                        { label: "Prizes won", value: game.winsCount },
+                      ].map((stat) => (
+                        <div key={stat.label} className="px-3 py-2">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                            {stat.label}
+                          </dt>
+                          <dd className="text-lg font-bold tabular-nums text-zinc-900">
+                            {stat.value.toLocaleString()}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <div className="flex items-center gap-2.5 border-t border-zinc-100 px-3 py-2.5">
+                      <Coins
+                        className={
+                          "size-4 shrink-0 " +
+                          (game.earnedKobo > 0
+                            ? "text-emerald-600"
+                            : "text-zinc-300")
+                        }
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 text-sm text-zinc-500">
+                        Earned from extra plays
+                        {game.blocksSold > 0 && (
+                          <span className="text-zinc-400">
+                            {" "}
+                            · {game.blocksSold.toLocaleString()} bought
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={
+                          "shrink-0 text-base font-bold tabular-nums " +
+                          (game.earnedKobo > 0
+                            ? "text-emerald-700"
+                            : "text-zinc-400")
+                        }
+                      >
+                        {naira(game.earnedKobo)}
+                      </span>
+                    </div>
+                  </div>
 
                   {prizeStock.total > 0 && (
                     <p className="mt-2 text-xs text-zinc-500">
@@ -457,16 +487,11 @@ export function GamesManager({
               return (
                 <article key={game.id} className="card p-4">
                   <div className="flex items-start gap-3">
-                    <span
-                      className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
-                      style={{
-                        background: def
-                          ? `linear-gradient(140deg, ${def.swatch[0]}, ${def.swatch[1]})`
-                          : "var(--brand)",
-                      }}
-                    >
-                      <GameIcon icon={def?.icon ?? "gamepad-2"} className="size-5" />
-                    </span>
+                    <GameLoop
+                      type={game.type}
+                      icon={def?.icon ?? "gamepad-2"}
+                      swatch={def?.swatch}
+                    />
                     <div className="min-w-0 flex-1">
                       <h3 className="truncate font-semibold text-zinc-900">
                         {game.title}

@@ -22,6 +22,8 @@ export interface Merchant {
   brand_color: string;
   /** Present once payouts are wired up: their Paystack subaccount. */
   paystack_subaccount_code?: string | null;
+  /** Their own price for a block of extra plays; null means platform default. */
+  life_topup_price_kobo?: number | null;
   whatsapp: string | null;
   contact_email: string | null;
 }

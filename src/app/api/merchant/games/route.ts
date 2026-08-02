@@ -83,8 +83,10 @@ export async function GET() {
   // number they'd be paid, not the gross a player was charged.
   const businessShare = (100 - Number(share ?? 30)) / 100;
   const earnedByGame = new Map<string, number>();
+  const blocksByGame = new Map<string, number>();
   for (const p of purchases ?? []) {
     if (!p.game_id) continue;
+    blocksByGame.set(p.game_id, (blocksByGame.get(p.game_id) ?? 0) + 1);
     earnedByGame.set(
       p.game_id,
       (earnedByGame.get(p.game_id) ?? 0) + p.amount_kobo
@@ -143,6 +145,7 @@ export async function GET() {
     players: playersByGame.get(g.id)?.size ?? 0,
     redeemedCount: redeemedByGame.get(g.id) ?? 0,
     earnedKobo: Math.floor((earnedByGame.get(g.id) ?? 0) * businessShare),
+    blocksSold: blocksByGame.get(g.id) ?? 0,
     prizes: prizeRows
       .filter((p) => p.game_id === g.id)
       .map((p) => ({
