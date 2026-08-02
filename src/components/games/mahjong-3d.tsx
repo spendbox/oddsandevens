@@ -18,6 +18,11 @@
 // The depth is CSS (`.tile3d`): an ivory face, two lit side faces offset down
 // and right, a shadow cast on the layer beneath, and each layer nudged up-left
 // so the stack leans towards the light. No models, no textures, no download.
+//
+// The faces are vector icons, not emoji. The business still picks its tiles
+// from the emoji picker, but what gets *drawn* is an icon shipped with the app:
+// a device without the right emoji font renders a hollow box, and a board of
+// identical boxes is a matching game you cannot play.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -34,6 +39,7 @@ import {
   type GameProps,
 } from "./kit";
 import { emojiList } from "@/lib/games/catalog";
+import { TileFace } from "@/lib/games/tile-icons";
 
 /**
  * A slot in the pile. `x`/`y` are in half-tiles, which is what lets an upper
@@ -48,6 +54,8 @@ interface Slot {
 
 interface Tile extends Slot {
   face: string;
+  /** Which of the business's faces this is — picks the icon. */
+  faceIndex: number;
 }
 
 /** Points for a pair, the penalty for a wrong guess, and the clearing bonus. */
@@ -117,9 +125,13 @@ function deal(slots: Slot[], faces: string[]): Tile[] {
     const first = pool[Math.floor(Math.random() * pool.length)];
     const rest = pool.filter((s) => s.id !== first.id);
     const second = rest[Math.floor(Math.random() * rest.length)];
-    const face = faces[next % faces.length];
+    const faceIndex = next % faces.length;
+    const face = faces[faceIndex];
     next += 1;
-    out.push({ ...first, face }, { ...second, face });
+    out.push(
+      { ...first, face, faceIndex },
+      { ...second, face, faceIndex }
+    );
     remaining.splice(remaining.findIndex((s) => s.id === first.id), 1);
     remaining.splice(remaining.findIndex((s) => s.id === second.id), 1);
   }
@@ -296,12 +308,11 @@ export default function Mahjong3D({
                   } as React.CSSProperties
                 }
               >
-                <span
-                  className="emoji-piece leading-none"
-                  style={{ fontSize: `${tileW * 0.52}px` }}
-                >
-                  {tile.face}
-                </span>
+                <TileFace
+                  face={tile.face}
+                  index={tile.faceIndex}
+                  size={tileW * 0.56}
+                />
               </button>
             );
           })}

@@ -103,14 +103,14 @@ export function GettingStarted({
     {
       key: "game",
       title: "Launch your first game",
-      description: "A wheel, a scratch card, a quiz — twenty to choose from.",
+      description: "Whack-a-mole, slice, flappy, mahjong or match three.",
       done: hasGame,
       actionLabel: "Create game",
       icon: <Gamepad2 className="size-4" aria-hidden />,
       tutorial: [
         "Open Build → Games and pick a game. Everything is pre-filled, and the preview lets you play it while you set it up.",
-        "Choose what customers can win, how many you'll give away, and how often someone should win.",
-        "Winners are drawn on our servers, so the odds can't be read or rigged from anyone's phone.",
+        "Choose what the top of the leaderboard wins each week, and how many of each you'll give away.",
+        "Every score is settled on our servers, so a board can't be rigged from anyone's phone.",
       ],
     },
     {

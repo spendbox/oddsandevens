@@ -81,8 +81,8 @@ export interface PublicGame {
   season: GameSeason | null;
   /** Leaderboard games: how the last week finished. */
   lastWinners: PastWinner[];
-  /** How many plays a player gets each day, before sharing. */
-  dailyLives: number;
+  /** How many plays a player gets each week, before sharing. */
+  weeklyLives: number;
   /** How many extra plays sharing can earn in a day. */
   maxBonusLives: number;
   /** How many people are on this week's board. */
@@ -120,10 +120,10 @@ export interface PublicGamesHub {
     yourRank: number | null;
     yourBest: number;
   }[];
-  /** The one pool of lives, shared across every game here. */
+  /** The one pool of lives, shared across every game here, for the week. */
   player: {
     livesLeft: number;
-    dailyLives: number;
+    weeklyLives: number;
     maxBonusLives: number;
   } | null;
 }
@@ -176,7 +176,7 @@ export interface GameSummary {
   maxWinsPerPlayer: number;
   awardMode: GameAwardMode;
   seasonDays: number;
-  dailyLives: number;
+  weeklyLives: number;
   maxBonusLives: number;
   playsCount: number;
   winsCount: number;

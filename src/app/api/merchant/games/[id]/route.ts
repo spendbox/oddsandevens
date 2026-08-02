@@ -101,16 +101,16 @@ export async function PATCH(
     // effect when the next one opens.
     patch.season_days = Math.round(days);
   }
-  // Lives are one pool per business, so this setting belongs to the merchant.
-  // The game's own column is kept in step only so old reads stay sane.
-  let dailyLives: number | null = null;
-  if (body.dailyLives !== undefined) {
-    const lives = Number(body.dailyLives);
-    if (!Number.isFinite(lives) || lives < 1 || lives > 20) {
+  // Lives are one pool per business per week, so this setting belongs to the
+  // merchant. The game's own column is kept in step only so old reads stay sane.
+  let weeklyLives: number | null = null;
+  if (body.weeklyLives !== undefined) {
+    const lives = Number(body.weeklyLives);
+    if (!Number.isFinite(lives) || lives < 1 || lives > 100) {
       return NextResponse.json({ error: "invalid_lives" }, { status: 400 });
     }
-    dailyLives = Math.round(lives);
-    patch.daily_lives = dailyLives;
+    weeklyLives = Math.round(lives);
+    patch.daily_lives = weeklyLives;
   }
 
   const { error: updateError } = await db
@@ -123,10 +123,10 @@ export async function PATCH(
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 
-  if (dailyLives !== null) {
+  if (weeklyLives !== null) {
     await db
       .from("merchants")
-      .update({ daily_lives: dailyLives })
+      .update({ weekly_lives: weeklyLives })
       .eq("id", merchant.id);
   }
 

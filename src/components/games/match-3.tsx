@@ -13,6 +13,11 @@
 // own *shape* as well as its own colour — a board that can only be read by
 // hue is unplayable for the one in twelve men who can't separate red from
 // green.
+//
+// Moves are made by dragging: the jewel follows the finger, the neighbour it
+// would displace slides the other way, and letting go either completes the
+// swap or springs it back. A tap still selects, because a drag needs a pointer
+// and a keyboard doesn't have one.
 
 import { useCallback, useRef, useState } from "react";
 import {
@@ -42,11 +47,49 @@ const CASCADE_STEP = 0.5;
 /** A match longer than three is worth more per jewel. */
 const LONG_MATCH_BONUS = 20;
 
+/**
+ * How far a finger has to travel, as a fraction of one cell, before it counts
+ * as a swipe rather than a tap — and before letting go completes the swap.
+ * The gap between the two is deliberate: a drag that stops halfway is an
+ * unfinished move, and springing it back is how the player is told so.
+ */
+const DEADZONE = 0.12;
+const COMMIT = 0.36;
+/** How much of a drag past the neighbour still shows, so the board has give. */
+const RUBBER = 0.15;
+/** Time the jewel takes to slide the last of the way home. */
+const SNAP_MS = 130;
+
 type Cell = { id: number; jewel: number } | null;
 
 interface Pos {
   r: number;
   c: number;
+}
+
+/** Where a drag began, in page pixels, and how big a cell is there. */
+interface DragOrigin {
+  from: Pos;
+  x0: number;
+  y0: number;
+  /** Centre-to-centre distance to a neighbour, gap included. */
+  pitch: number;
+}
+
+/** What the board is currently showing mid-drag. */
+interface Drag {
+  from: Pos;
+  to: Pos | null;
+  dx: number;
+  dy: number;
+  /** True once the finger is off and the jewel is animating to rest. */
+  settling: boolean;
+}
+
+/** Resistance past the neighbour: it keeps moving, but grudgingly. */
+function damped(travel: number, limit: number) {
+  if (travel <= limit) return travel;
+  return limit + Math.min((travel - limit) * RUBBER, limit * 0.25);
 }
 
 export default function MatchThree({
@@ -62,6 +105,7 @@ export default function MatchThree({
   const [phase, setPhase] = useState<"idle" | "running" | "grading">("idle");
   const [grid, setGrid] = useState<Cell[]>([]);
   const [picked, setPicked] = useState<Pos | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
   const [clearing, setClearing] = useState<Set<number>>(new Set());
   const [dropping, setDropping] = useState<Set<number>>(new Set());
   const [score, setScore] = useState(0);
@@ -71,6 +115,7 @@ export default function MatchThree({
 
   const scoreRef = useRef(0);
   const nextId = useRef(0);
+  const originRef = useRef<DragOrigin | null>(null);
   const once = useOnce();
 
   const at = useCallback((g: Cell[], r: number, c: number) => g[r * size + c], [size]);
@@ -249,23 +294,137 @@ export default function MatchThree({
     [grid, size, findMatches, settle, movesLeft, end]
   );
 
-  const tap = (r: number, c: number) => {
+  /** Tap-to-select, still here for keyboards and for people who prefer it. */
+  const tap = useCallback(
+    (r: number, c: number) => {
+      if (phase !== "running" || busy) return;
+      if (!picked) {
+        setPicked({ r, c });
+        return;
+      }
+      if (picked.r === r && picked.c === c) {
+        setPicked(null);
+        return;
+      }
+      const adjacent = Math.abs(picked.r - r) + Math.abs(picked.c - c) === 1;
+      if (!adjacent) {
+        setPicked({ r, c });
+        return;
+      }
+      void swap(picked, { r, c });
+    },
+    [phase, busy, picked, swap]
+  );
+
+  /**
+   * Turns a finger's position into what the board should look like: which
+   * neighbour is being pushed at, and how far the two jewels have moved.
+   *
+   * The dominant axis wins outright — a diagonal drag is read as whichever of
+   * the two directions is further along, because there is no diagonal move to
+   * make and guessing wrong is worse than committing.
+   */
+  const resolveDrag = useCallback(
+    (origin: DragOrigin, x: number, y: number) => {
+      const dx = x - origin.x0;
+      const dy = y - origin.y0;
+      const horizontal = Math.abs(dx) >= Math.abs(dy);
+      const along = horizontal ? dx : dy;
+      const travel = Math.abs(along);
+      const dir = along < 0 ? -1 : 1;
+
+      const to = horizontal
+        ? { r: origin.from.r, c: origin.from.c + dir }
+        : { r: origin.from.r + dir, c: origin.from.c };
+      const onBoard = to.r >= 0 && to.r < size && to.c >= 0 && to.c < size;
+
+      // Dragging off the edge of the board gives a little and no more.
+      const limit = onBoard ? origin.pitch : origin.pitch * 0.12;
+      const shift = travel < origin.pitch * DEADZONE
+        ? 0
+        : dir * damped(travel, limit);
+
+      return {
+        to: onBoard && shift !== 0 ? to : null,
+        dx: horizontal ? shift : 0,
+        dy: horizontal ? 0 : shift,
+        travel: travel / origin.pitch,
+      };
+    },
+    [size]
+  );
+
+  const onPointerDown = (r: number, c: number, e: React.PointerEvent) => {
     if (phase !== "running" || busy) return;
-    if (!picked) {
-      setPicked({ r, c });
+    const button = e.currentTarget as HTMLElement;
+    const cell = button.getBoundingClientRect().width;
+    const row = button.parentElement?.getBoundingClientRect().width ?? cell * size;
+    // The neighbour sits one cell plus one gap away; the gap is a percentage
+    // of the board, so it has to be measured rather than assumed.
+    const pitch =
+      size > 1 ? cell + Math.max(row - cell * size, 0) / (size - 1) : cell;
+
+    originRef.current = { from: { r, c }, x0: e.clientX, y0: e.clientY, pitch };
+    button.setPointerCapture(e.pointerId);
+    setDrag({ from: { r, c }, to: null, dx: 0, dy: 0, settling: false });
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const origin = originRef.current;
+    if (!origin) return;
+    const next = resolveDrag(origin, e.clientX, e.clientY);
+    setDrag({
+      from: origin.from,
+      to: next.to,
+      dx: next.dx,
+      dy: next.dy,
+      settling: false,
+    });
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    const origin = originRef.current;
+    if (!origin) return;
+    originRef.current = null;
+
+    const { from } = origin;
+    const next = resolveDrag(origin, e.clientX, e.clientY);
+
+    if (next.travel < DEADZONE) {
+      // Never moved: that was a tap.
+      setDrag(null);
+      tap(from.r, from.c);
       return;
     }
-    if (picked.r === r && picked.c === c) {
-      setPicked(null);
+
+    if (!next.to || next.travel < COMMIT) {
+      // Not far enough to mean it. Let it fall back.
+      setDrag({ from, to: next.to, dx: 0, dy: 0, settling: true });
+      window.setTimeout(() => setDrag(null), SNAP_MS);
       return;
     }
-    const adjacent =
-      Math.abs(picked.r - r) + Math.abs(picked.c - c) === 1;
-    if (!adjacent) {
-      setPicked({ r, c });
-      return;
-    }
-    void swap(picked, { r, c });
+
+    // Committed: finish the slide, then let the board take over from there.
+    const to = next.to;
+    setBusy(true);
+    setPicked(null);
+    setDrag({
+      from,
+      to,
+      dx: Math.sign(next.dx) * origin.pitch,
+      dy: Math.sign(next.dy) * origin.pitch,
+      settling: true,
+    });
+    window.setTimeout(() => {
+      setDrag(null);
+      void swap(from, to);
+    }, SNAP_MS);
+  };
+
+  const onPointerCancel = () => {
+    const origin = originRef.current;
+    originRef.current = null;
+    if (origin) setDrag(null);
   };
 
   const start = () => {
@@ -273,6 +432,7 @@ export default function MatchThree({
     setScore(0);
     setMovesLeft(moveBudget);
     setPicked(null);
+    setDrag(null);
     setCombo(0);
     setGrid(freshBoard());
     setPhase("running");
@@ -304,15 +464,40 @@ export default function MatchThree({
             const c = i % size;
             const jewel = cell ? JEWELS[cell.jewel] : null;
             const isPicked = picked?.r === r && picked?.c === c;
+
+            // The jewel under the finger goes with it; the one it is pushing
+            // against goes the other way by the same amount, so the pair reads
+            // as a single swap rather than two things moving.
+            const held = drag?.from.r === r && drag?.from.c === c;
+            const pushed = drag?.to?.r === r && drag?.to?.c === c;
+            const shiftX = held ? drag.dx : pushed ? -drag.dx : 0;
+            const shiftY = held ? drag.dy : pushed ? -drag.dy : 0;
+            const moving = held || pushed;
+
             return (
               <button
                 key={i}
-                onPointerDown={() => tap(r, c)}
+                onPointerDown={(e) => onPointerDown(r, c, e)}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerCancel}
                 aria-label={`Row ${r + 1}, column ${c + 1}`}
-                className="relative flex items-center justify-center rounded-lg transition"
+                className="relative flex touch-none items-center justify-center rounded-lg"
                 style={{
                   background: isPicked ? "rgb(255 255 255 / 0.16)" : undefined,
                   boxShadow: isPicked ? `0 0 0 2px ${accent}` : undefined,
+                  // Lifted while it moves, so it passes over its neighbour
+                  // instead of under it.
+                  zIndex: held ? 3 : pushed ? 2 : undefined,
+                  transform: moving
+                    ? `translate3d(${shiftX}px, ${shiftY}px, 0)`
+                    : undefined,
+                  // Following a finger has to be exact; coming to rest is
+                  // where the weight goes.
+                  transition:
+                    moving && !drag.settling
+                      ? "none"
+                      : `transform ${SNAP_MS}ms cubic-bezier(0.34, 1.4, 0.64, 1), background-color 150ms, box-shadow 150ms`,
                 }}
               >
                 {cell && jewel && (
@@ -339,7 +524,7 @@ export default function MatchThree({
         {phase === "idle" && (
           <StartOverlay
             title="Match three"
-            hint={`Swap two neighbours to line up three. ${moveBudget} moves — cascades pay double.`}
+            hint={`Drag a jewel onto its neighbour to line up three. ${moveBudget} moves — cascades pay double.`}
             buttonLabel="Start matching"
             accent={accent}
             onStart={start}

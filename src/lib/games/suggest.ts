@@ -145,22 +145,24 @@ export function suggestGames(input: SuggestionInput): GameBlueprint[] {
     why: "The one people show other people — a good swipe looks good.",
   });
 
-  // 5. Flappy, for the goal that wants sharing above all.
-  if ((profile.goals ?? []).includes("awareness")) {
-    blueprints.push({
-      type: "flappy",
-      title: `${pack.mascot} through ${businessName}`,
-      description: "One tap to flap. How many gates can you clear?",
-      config: {
-        ...GAMES["flappy"].defaultConfig,
-        flyerEmoji: pack.mascot,
-      },
-      prizes,
-      cooldownHours: 0,
-      maxWins: 1,
-      why: "Brutally hard, endlessly retried — the scores people argue about.",
-    });
-  }
+  // 5. Flappy. Listed for everyone rather than only the businesses chasing
+  //    awareness: there are five games in total, so this list *is* the
+  //    catalogue, and leaving one out would put it out of reach entirely.
+  blueprints.push({
+    type: "flappy",
+    title: `${pack.mascot} through ${businessName}`,
+    description: "One tap to flap. How many gates can you clear?",
+    config: {
+      ...GAMES["flappy"].defaultConfig,
+      flyerEmoji: pack.mascot,
+    },
+    prizes,
+    cooldownHours: 0,
+    maxWins: 1,
+    why: (profile.goals ?? []).includes("awareness")
+      ? "Brutally hard, endlessly retried — the scores people argue about."
+      : "The hardest of the five, and the one people retry the most.",
+  });
 
   return blueprints;
 }

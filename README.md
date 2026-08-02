@@ -7,8 +7,9 @@ week closes the top places take the prizes and their one-time redemption codes
 arrive by email, to be shown at the counter. Then the board resets and it starts
 again.
 
-Players get three lives a day — one pool shared across every game that business
-runs — and can earn more by sharing their own link with someone who plays.
+Players get three lives a week — one pool shared across every game that business
+runs — and can earn more by sharing their own link with someone who plays, or by
+buying a block of ten for ₦250.
 
 Customers can review everything they've earned across every business at
 **`/me`** — an email-only portal (there are no customer accounts).
@@ -91,18 +92,29 @@ is untouched.
 
 ### Lives, and sharing for more
 
-Because the prize is the rank rather than the play, playing often is the point.
-Each player gets **3 lives a day per business** (`merchants.daily_lives`), shared
-across every game that business runs — a shop with six games hands out three
-plays a day, not eighteen, so the boards stay about skill. Every graded round
-spends one, from `merchant_lives`.
+Because the prize is the rank rather than the play, playing often is the point —
+but a board that rewards whoever had the most spare minutes isn't a competition.
+So each player gets **3 lives a week per business** (`merchants.weekly_lives`),
+shared across every game that business runs: five games hand out three plays a
+week, not fifteen. The week runs Monday to Monday (`week_start()`), and every
+graded round spends one, from `merchant_lives`.
 
-Out of lives? Share your own link — `/p/<business>/<game>?ref=CODE` — and when
-someone plays through it you get an extra life that day, good on any of that
-business's games, up to three (`merchants.max_bonus_lives`). The credit is tied
-to the invited player *finishing a round*, not to opening the link: a page view
-is free to farm, a round costs the visitor their time and the business a play
-from its allowance. One life per person invited, ever.
+Out of lives? Two ways to get more:
+
+- **Share your own link** — `/p/<business>/<game>?ref=CODE`. When someone plays
+  through it you get an extra life for the week, good on any of that business's
+  games, up to three (`merchants.max_bonus_lives`). The credit is tied to the
+  invited player *finishing a round*, not to opening the link: a page view is
+  free to farm, a round costs the visitor their time and the business a play
+  from its allowance. One life per person invited, ever.
+- **Buy a block** — ₦250 for ten more plays this week, through Paystack
+  (`POST /api/play/[slug]/lives`, confirmed by `/lives/verify`). This is the only
+  thing a *player* ever pays for on Spendbox, and it is optional in the strict
+  sense: bought lives buy attempts, never an advantage inside a round, and the
+  free three are enough to reach the top of a board. The price and block size
+  live in `app_settings` (`life_topup_price_kobo`, `life_topup_lives`) so they
+  can change without a deploy. `credit_life_purchase` is idempotent on the
+  reference, so a reload or a double tap credits once.
 
 ### Players are asked to verify once
 
@@ -124,6 +136,21 @@ product:
 | Flappy | gates cleared |
 | 3D Mahjong | 100 a pair, and the rest of the clock for clearing the stack |
 | Match Three | 30 a jewel, multiplied by the cascade it starts |
+
+Moves are made by dragging, not tapping: in Match Three the jewel follows the
+finger, the neighbour it would displace slides the other way, and letting go
+either completes the swap or springs it back — a swap that makes no match costs
+nothing but the gesture. Tapping still selects, because a keyboard has no
+pointer. Mahjong's tile faces are vector icons rather than emoji
+(`src/lib/games/tile-icons.tsx`): the business still picks its tiles with the
+emoji picker it knows, and each choice maps to the nearest icon, because a
+device without the right emoji font turns a matching game into a board of
+identical boxes.
+
+Every game explains itself once before the first round
+(`src/components/games/tutorial.tsx`) — three lines, then never again on that
+browser. The memory is per game *type*, not per game, so a business running two
+match-threes doesn't explain matching twice.
 
 Every one produces a score with enough spread to rank a week's leaderboard; a
 game where everyone competent finishes on the same number is a game the board
@@ -357,8 +384,8 @@ of truth; `supabase db push` tracks applied migrations server-side just like
    link. Building one by hand from *New game* takes two steps: pick, then
    confirm the prize.
 4. Open `/p/<slug>/<game>` in an incognito window, verify an email, and play. The
-   score lands on this week's board; play twice more and you're out of lives —
-   on every game this business runs, not just this one.
+   score lands on this week's board; play twice more and you're out of lives for
+   the week — on every game this business runs, not just this one.
    Copy your share link, open it in another browser, play a round there — your
    first browser gets a life back.
 5. To watch a week close without waiting: `update game_seasons set ends_at =
@@ -389,8 +416,9 @@ select create_game(
     {"kind":"prize","description":"10% off","stock":12,"award_rank":3}]'::jsonb,
   0, 1, 100000, 'active', 'manual', 'leaderboard', 7, 3, 3);
 
--- Play a round. Three a day across ALL of this business's games; the fourth
--- start returns 'no_lives', whichever game it is on.
+-- Play a round. Three a week across ALL of this business's games; the fourth
+-- start returns 'no_lives' with next_lives_at set to Monday, whichever game it
+-- is on.
 select start_game_play('mama-put-kitchen', 'weekly-game', 'tester@example.com');
 select finish_game_play('<token from above>', 250, '{}'::jsonb);   -- 'scored'
 

@@ -4,23 +4,23 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  Bird,
+  CalendarDays,
   ChevronDown,
-  Coins,
-  Disc,
   Gamepad2,
-  Gift,
+  Gem,
+  Hammer,
+  Layers,
   Link2,
   Mail,
   MessageCircle,
-  Puzzle,
   QrCode,
   Share2,
   ShieldCheck,
   Sparkles,
   Star,
-  Target,
+  Sword,
   Trophy,
-  Utensils,
   Wand2,
 } from "lucide-react";
 
@@ -29,39 +29,39 @@ import {
 // being turned (see FlipCard). Everything is CSS-animated; the only JS is
 // two IntersectionObservers (flip trigger + active-dot tracking).
 
-// Decorative hero: a sample of the game catalogue, cycling on a loop.
+// The hero sample. These are the five games — the whole catalogue, not a
+// selection from it, so the labels have to stay in step with `GAMES`.
 const DEMO_GAMES: { label: string; emoji: string; swatch: [string, string] }[] = [
-  { label: "Spin to Win", emoji: "🎡", swatch: ["#f97316", "#db2777"] },
-  { label: "Scratch Card", emoji: "🪙", swatch: ["#6366f1", "#0ea5e9"] },
-  { label: "Pick-a-Box", emoji: "🎁", swatch: ["#a855f7", "#ec4899"] },
-  { label: "Whack-a-Mole", emoji: "🐹", swatch: ["#a16207", "#16a34a"] },
-  { label: "Memory Match", emoji: "🧠", swatch: ["#2563eb", "#0891b2"] },
-  { label: "Trivia", emoji: "🏆", swatch: ["#f59e0b", "#7c3aed"] },
+  { label: "Whack-a-Mole", emoji: "🔨", swatch: ["#a16207", "#16a34a"] },
+  { label: "Slice Ninja", emoji: "🗡️", swatch: ["#e11d48", "#f59e0b"] },
+  { label: "Flappy Flyer", emoji: "🐦", swatch: ["#0ea5e9", "#84cc16"] },
+  { label: "3D Mahjong", emoji: "🀄", swatch: ["#0f766e", "#f59e0b"] },
+  { label: "Match Three", emoji: "💎", swatch: ["#db2777", "#7c3aed"] },
 ];
 
 const STEPS = [
   {
     Icon: Gamepad2,
     title: "Pick a game",
-    text: "Five to choose from — whack-a-mole, slice, flappy, 3D mahjong, match three. Pick one and it's already working.",
+    text: "Five to choose from — whack-a-mole, slice, flappy, 3D mahjong, match three. Pick one and it's already written for your business.",
   },
   {
     Icon: Wand2,
     title: "Make it yours",
-    text: "Your logo, your colours, your prizes, your odds. The real game plays right beside you as you set it up, so nothing has to be imagined.",
+    text: "Your logo, your colours, and the prizes for the top of the board. The real game plays right beside you as you set it up, so nothing has to be imagined.",
   },
   {
     Icon: Share2,
     title: "Share one link",
-    text: "Drop it in your WhatsApp bio, on receipts, or a counter QR. No app and no sign-up — winners get a redemption code by email.",
+    text: "Drop it in your WhatsApp bio, on receipts, or a counter QR. No app and no sign-up — when the week ends, the winners get a redemption code by email.",
   },
 ];
 
 const FEATURES = [
   {
-    Icon: Target,
-    title: "You set the odds",
-    text: "Decide how often someone wins and how many prizes you'll give away. Nobody can win more than you put on the table.",
+    Icon: Trophy,
+    title: "A weekly leaderboard",
+    text: "Every game is a competition that runs for a week. Top scores win the prizes you set, the board resets, and the chase starts again.",
   },
   {
     Icon: Mail,
@@ -70,14 +70,23 @@ const FEATURES = [
   },
   {
     Icon: ShieldCheck,
-    title: "Impossible to rig",
-    text: "Every draw and every score is settled on our servers. The odds never reach the player's phone, so they can't be read or edited.",
+    title: "Scores you can trust",
+    text: "Every score is checked and recorded on our servers, and each player gets a fixed number of plays a week — so the board rewards skill, not a faster phone.",
   },
+];
+
+// An illustration of a finished week, not anyone's real board. Names are
+// masked on the live leaderboards the same way.
+const WEEK_BOARD = [
+  { medal: "🥇", name: "ad***a@gmail.com", score: "4,820" },
+  { medal: "🥈", name: "ch***u@gmail.com", score: "4,415" },
+  { medal: "🥉", name: "to***e@yahoo.com", score: "3,970" },
+  { medal: "4", name: "you", score: "3,201" },
 ];
 
 const SECTIONS = [
   { id: "hero", label: "Spendbox" },
-  { id: "story", label: "Amara's story" },
+  { id: "story", label: "A week on Spendbox" },
   { id: "step-1", label: "Pick a game" },
   { id: "step-2", label: "Make it yours" },
   { id: "step-3", label: "Share one link" },
@@ -157,14 +166,14 @@ function Deck({
 
 // --- Per-step animated visuals -------------------------------------------
 
-// Step 1: the catalogue — a sample of the games drifting into view.
+// Step 1: the catalogue — the five games drifting into view.
 function PickAGameVisual() {
   const picks = [
-    { Icon: Disc, className: "left-0 top-2", delay: "0ms" },
-    { Icon: Coins, className: "right-1 top-0", delay: "500ms" },
-    { Icon: Gift, className: "left-6 bottom-1", delay: "1000ms" },
-    { Icon: Puzzle, className: "right-6 bottom-3", delay: "1500ms" },
-    { Icon: Trophy, className: "left-1/2 top-10 -translate-x-1/2", delay: "750ms" },
+    { Icon: Hammer, className: "left-0 top-2", delay: "0ms" },
+    { Icon: Sword, className: "right-1 top-0", delay: "500ms" },
+    { Icon: Bird, className: "left-6 bottom-1", delay: "1000ms" },
+    { Icon: Layers, className: "right-6 bottom-3", delay: "1500ms" },
+    { Icon: Gem, className: "left-1/2 top-10 -translate-x-1/2", delay: "750ms" },
   ];
   return (
     <div className="relative mx-auto h-40 w-full max-w-xs" aria-hidden>
@@ -218,13 +227,13 @@ function ShareLinkVisual() {
   );
 }
 
-// Step 2: the game being dressed — a wheel spinning inside a phone, with the
+// Step 2: the game being dressed — it playing inside a phone, with the
 // settings that shaped it floating alongside.
 function MakeItYoursVisual() {
   const chips = [
     { label: "Your logo", className: "-left-3 top-3", delay: "300ms" },
     { label: "Your prizes", className: "-right-4 top-16", delay: "1400ms" },
-    { label: "Your odds", className: "left-1 bottom-1", delay: "2300ms" },
+    { label: "Your colours", className: "left-1 bottom-1", delay: "2300ms" },
   ];
   return (
     <div className="relative mx-auto flex h-40 w-full max-w-xs items-center justify-center" aria-hidden>
@@ -233,9 +242,9 @@ function MakeItYoursVisual() {
         style={{ animation: "ring-pulse 2.4s ease-out infinite" }}
       />
       <div className="relative flex h-32 w-20 items-center justify-center rounded-2xl border-4 border-zinc-900 bg-white shadow-xl">
-        <Disc
+        <Gamepad2
           className="size-12 text-emerald-600"
-          style={{ animation: "float-slow 3s linear infinite" }}
+          style={{ animation: "float-slow 3s ease-in-out infinite" }}
         />
       </div>
       {chips.map(({ label, className, delay }) => (
@@ -457,13 +466,13 @@ export default function LandingPage() {
             className="animate-fade-up mt-3 text-xs font-medium text-zinc-400"
             style={{ animationDelay: "400ms" }}
           >
-            …and fourteen more.
+            Five games. Every one of them included on every plan.
           </p>
         </div>
         <SwipeHint />
       </Deck>
 
-      {/* Card 2 — Case study: a food business selling loyalty rewards */}
+      {/* Card 2 — What a week actually looks like, start to finish */}
       <Deck id="story">
         <FlipCard className="flex justify-center">
           <div className="card relative w-full max-w-lg overflow-hidden p-8 text-center sm:p-10">
@@ -471,86 +480,72 @@ export default function LandingPage() {
               aria-hidden
               className="pointer-events-none absolute -right-4 -top-12 select-none text-[11rem] font-black leading-none text-emerald-500/[0.06]"
             >
-              ×
+              7
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">
-              <Utensils className="size-3" aria-hidden />
-              Real-world play
+              <CalendarDays className="size-3" aria-hidden />
+              A week on Spendbox
             </span>
 
-            <p className="mt-6 text-6xl font-extrabold tracking-tight sm:text-7xl">
+            <h2 className="mt-6 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
+              One link, one board,
+              <br />
               <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-                3.5×
+                prizes on Monday
               </span>
-            </p>
-            <p className="mt-1 text-sm font-semibold uppercase tracking-[0.16em] text-zinc-400">
-              profit in one month
-            </p>
+            </h2>
 
-            {/* Before / after profit bars */}
-            <div
-              className="mx-auto mt-7 flex h-36 items-end justify-center gap-10"
-              aria-hidden
-            >
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex h-28 items-end">
-                  <div
-                    className="w-14 origin-bottom rounded-t-xl bg-zinc-200"
-                    style={{
-                      height: "28%",
-                      animation: "grow-bar 7s ease-in-out infinite",
-                    }}
-                  />
-                </div>
-                <span className="text-[11px] font-medium text-zinc-400">
-                  Before
-                </span>
-              </div>
-              <div className="relative flex flex-col items-center gap-2">
-                <span
-                  className="absolute -right-9 -top-1 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[11px] font-bold text-emerald-600 shadow-md"
-                  style={{ animation: "float-slow 4s ease-in-out infinite" }}
+            {/* The leaderboard the week is played for */}
+            <ol className="mx-auto mt-7 flex max-w-xs flex-col gap-2" aria-hidden>
+              {WEEK_BOARD.map((row, i) => (
+                <li
+                  key={row.name}
+                  className={
+                    "flex items-center gap-3 rounded-xl px-3 py-2 text-left " +
+                    (i === 0
+                      ? "bg-gradient-to-r from-emerald-50 to-teal-50 ring-1 ring-emerald-200"
+                      : "bg-zinc-50")
+                  }
+                  style={{
+                    animation: `float-slow ${5 + i}s ease-in-out ${i * 350}ms infinite`,
+                  }}
                 >
-                  +250%
-                </span>
-                <div className="flex h-28 items-end">
-                  <div
-                    className="w-14 origin-bottom rounded-t-xl bg-gradient-to-t from-emerald-600 to-teal-400"
-                    style={{
-                      height: "100%",
-                      animation: "grow-bar 7s ease-in-out 0.25s infinite",
-                    }}
-                  />
-                </div>
-                <span className="text-[11px] font-semibold text-emerald-700">
-                  With Spendbox
-                </span>
-              </div>
-            </div>
+                  <span className="w-5 shrink-0 text-center text-sm">
+                    {row.medal}
+                  </span>
+                  <span className="flex-1 truncate text-sm font-medium text-zinc-700">
+                    {row.name}
+                  </span>
+                  <span className="font-mono text-sm font-bold text-zinc-900">
+                    {row.score}
+                  </span>
+                </li>
+              ))}
+            </ol>
 
             <p className="mx-auto mt-7 max-w-md text-sm leading-relaxed text-zinc-600 sm:text-base">
-              Amara runs a jollof kitchen in Lagos. She built a spin-to-win
-              wheel with free plates and 10%-off codes on it, set the odds to
-              one win in four, and printed the link as a QR on every takeaway
-              bag. Losing spins still earned loyalty points toward a discount —
-              so her regulars came back all month to keep spinning.
+              Put your link on receipts, on a counter QR, in your WhatsApp bio.
+              Everyone who taps it gets three plays for the week and a place on
+              your board. When the week closes, whoever finished on top gets a
+              redemption code by email — and the board starts again from zero,
+              which is the reason they come back.
             </p>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-zinc-500">
               <span className="flex items-center gap-1.5">
-                <Trophy className="size-3.5 text-emerald-600" aria-hidden />
-                4× repeat visits
+                <Link2 className="size-3.5 text-emerald-600" aria-hidden />1
+                shared link
               </span>
               <span className="flex items-center gap-1.5">
                 <Star
                   className="size-3.5 fill-amber-400 text-amber-400"
                   aria-hidden
                 />
-                31 days
+                No app, no sign-up
               </span>
               <span className="flex items-center gap-1.5">
-                <Link2 className="size-3.5 text-emerald-600" aria-hidden />1
-                shared link
+                <Trophy className="size-3.5 text-emerald-600" aria-hidden />
+                Resets every week
               </span>
             </div>
           </div>
@@ -620,8 +615,8 @@ export default function LandingPage() {
                   </span>
                 </p>
                 <p className="mt-2 text-sm text-zinc-600">
-                  Two live games with two prizes each, branded to you. Every
-                  game type included. Perfect for getting started.
+                  Two live games with two prizes each, branded to you. All five
+                  games included. Perfect for getting started.
                 </p>
               </div>
               <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/40 p-5">

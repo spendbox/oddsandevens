@@ -32,11 +32,11 @@ const SEASON_LENGTHS = [
   { value: 1, label: "Every day" },
 ];
 
-const LIVES_PER_DAY = [
-  { value: 1, label: "1 a day" },
-  { value: 3, label: "3 a day" },
-  { value: 5, label: "5 a day" },
-  { value: 10, label: "10 a day" },
+const LIVES_PER_WEEK = [
+  { value: 3, label: "3 a week" },
+  { value: 5, label: "5 a week" },
+  { value: 10, label: "10 a week" },
+  { value: 21, label: "21 a week (3 a day)" },
 ];
 
 /** Existing prize slots back into the editable rows the builder uses. */
@@ -84,7 +84,7 @@ export function GameEditor({
   const [prizes, setPrizes] = useState<PrizeRow[]>(() => toPrizeRows(game));
   const [winPercent, setWinPercent] = useState(() => inferWinPercent(game));
   const [seasonDays, setSeasonDays] = useState(game.seasonDays);
-  const [dailyLives, setDailyLives] = useState(game.dailyLives);
+  const [weeklyLives, setWeeklyLives] = useState(game.weeklyLives);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +115,7 @@ export function GameEditor({
         config,
         prizes: slots,
         seasonDays,
-        dailyLives,
+        weeklyLives,
       }),
     });
     setBusy(false);
@@ -383,17 +383,17 @@ export function GameEditor({
                   </label>
                   <label className="block">
                     <span className="field-label">
-                      Lives per player, per day
+                      Plays per player, per week
                     </span>
                     <select
-                      value={dailyLives}
+                      value={weeklyLives}
                       onChange={(e) => {
-                        setDailyLives(Number(e.target.value));
+                        setWeeklyLives(Number(e.target.value));
                         setSaved(false);
                       }}
                       className="input-field"
                     >
-                      {LIVES_PER_DAY.map((option) => (
+                      {LIVES_PER_WEEK.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
@@ -401,8 +401,8 @@ export function GameEditor({
                     </select>
                     <span className="mt-1 block text-xs text-zinc-500">
                       One pool across every game you run, so this sets it for
-                      all of them. Plus up to {game.maxBonusLives} more a day
-                      for sharing.
+                      all of them. Plus up to {game.maxBonusLives} more a week
+                      for sharing — and players can buy extras.
                     </span>
                   </label>
                 </div>

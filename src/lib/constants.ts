@@ -60,6 +60,15 @@ export const DEFAULT_FREE_YEARLY_PLAYS = 100;
 export const DEFAULT_PREMIUM_YEARLY_PLAYS = 5000;
 // Top-ups are priced per 1,000 plays; the business buys any custom quantity.
 export const DEFAULT_TOPUP_PRICE_PER_1000_KOBO = 100_000; // ₦1,000 / 1,000 plays
+/**
+ * What a player pays for more plays, and how many they get. ₦250 for ten,
+ * good for the current week — the only thing a *player* ever pays for, and
+ * strictly optional: the free weekly three are enough to top a board.
+ * Overridden by app_settings (life_topup_price_kobo / life_topup_lives).
+ */
+export const DEFAULT_LIFE_TOPUP_PRICE_KOBO = 25_000; // ₦250
+export const DEFAULT_LIFE_TOPUP_LIVES = 10;
+
 export const TOPUP_MIN_PLAYS = 100;
 export const TOPUP_MAX_PLAYS = 1_000_000;
 

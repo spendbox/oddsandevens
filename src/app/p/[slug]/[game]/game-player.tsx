@@ -18,10 +18,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Copy, Share2, X } from "lucide-react";
+import { ChevronLeft, Copy, Loader2, Share2, X, Zap } from "lucide-react";
 import { GameRenderer } from "@/components/games";
 import { GameIcon } from "@/components/games/icons";
 import { EMAIL_STORAGE_KEY, VerifyModal } from "@/components/games/verify-modal";
+import { Tutorial, useTutorial } from "@/components/games/tutorial";
 import { RANK_MEDALS, gameDef, rankLabel, themeAccent } from "@/lib/games/catalog";
 import { useCountdown } from "@/lib/games/use-countdown";
 import type {
@@ -62,8 +63,12 @@ export default function GamePlayer({
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState<"code" | "share" | null>(null);
   const [lifeEarned, setLifeEarned] = useState(false);
+  const [buying, setBuying] = useState(false);
+  const [topup, setTopup] = useState<{ amountKobo: number; lives: number } | null>(null);
+  const [bought, setBought] = useState<number | null>(null);
 
   const def = game ? gameDef(game.type) : null;
+  const tutorial = useTutorial(game?.type ?? "");
   const accent = themeAccent(game?.theme, host?.brandColor ?? "#059669");
   const isBoard = game?.awardMode === "leaderboard";
   const seasonLeft = useCountdown(game?.season?.endsAt ?? null);
@@ -129,6 +134,59 @@ export default function GamePlayer({
     apply(await fetchGame());
   }, [fetchGame, apply]);
 
+  // The price of more plays, and the result of a payment the player has just
+  // come back from. Both are read once, on arrival.
+  useEffect(() => {
+    let ignore = false;
+    fetch(`/api/play/${encodeURIComponent(slug)}/lives`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (ignore || !body?.paymentsEnabled) return;
+        setTopup({ amountKobo: body.amountKobo, lives: body.lives });
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [slug]);
+
+  useEffect(() => {
+    const reference = new URLSearchParams(window.location.search).get("life_ref");
+    if (!reference) return;
+    // Clear it first so a reload can't look like a second payment.
+    window.history.replaceState(null, "", window.location.pathname);
+    fetch(`/api/play/${encodeURIComponent(slug)}/lives/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reference }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (body?.result === "credited") {
+          setBought(Number(body.lives ?? 0));
+          void load();
+        }
+      });
+  }, [slug, load]);
+
+  const buyLives = async () => {
+    setBuying(true);
+    const res = await fetch(
+      `/api/play/${encodeURIComponent(slug)}/lives?back=${encodeURIComponent(gameSlug)}`,
+      { method: "POST" }
+    );
+    const body = await res.json().catch(() => null);
+    setBuying(false);
+    if (body?.authorizationUrl) {
+      window.location.href = body.authorizationUrl as string;
+      return;
+    }
+    setError(
+      body?.error === "email_not_verified"
+        ? "Verify your email first — then you can buy more plays."
+        : "Couldn't open the payment page. Try again."
+    );
+  };
+
   // A round owns the device: no page scrolling behind the playfield, and no
   // rubber-banding on iOS while a finger is dragging a basket around.
   useEffect(() => {
@@ -169,7 +227,9 @@ export default function GamePlayer({
       return;
     }
     if (body?.result === "no_lives") {
-      setError("You're out of lives for today. Share your link for another, or come back tomorrow.");
+      setError(
+        "You're out of plays this week. Share your link for another, buy more, or come back Monday."
+      );
       void load();
       return;
     }
@@ -296,7 +356,7 @@ export default function GamePlayer({
     .filter((p) => p.kind === "prize")
     .sort((a, b) => (a.awardRank ?? 99) - (b.awardRank ?? 99));
   const brandStyle = { "--brand": accent } as React.CSSProperties;
-  const lives = player?.livesLeft ?? game.dailyLives;
+  const lives = player?.livesLeft ?? game.weeklyLives;
   const playing = phase === "playing";
 
   // ---- A round in progress owns the whole screen -------------------------
@@ -321,7 +381,7 @@ export default function GamePlayer({
             {game.title}
           </p>
           {isBoard && (
-            <span className="arcade-chip" title="Plays left today">
+            <span className="arcade-chip" title="Plays left this week">
               <span className="emoji text-base leading-none" aria-hidden>
                 {"❤️".repeat(Math.min(lives, 3)) || "💔"}
               </span>
@@ -334,7 +394,10 @@ export default function GamePlayer({
             cabinet read as a cabinet, and it keeps every game's own artwork
             legible. `stage-fill` is what stretches the playfield to whatever
             height is left, on any device. */}
-        <div className="stage-fill min-h-0 flex-1 rounded-2xl bg-gradient-to-b from-zinc-100 to-zinc-50 p-2 shadow-[inset_0_1px_3px_rgb(0_0_0/0.12)]">
+        <div className="stage-fill relative min-h-0 flex-1 rounded-2xl bg-gradient-to-b from-zinc-100 to-zinc-50 p-2 shadow-[inset_0_1px_3px_rgb(0_0_0/0.12)]">
+          {tutorial.show && (
+            <Tutorial type={game.type} accent={accent} onDone={tutorial.dismiss} />
+          )}
           <GameRenderer
             type={game.type}
             config={game.config}
@@ -379,7 +442,7 @@ export default function GamePlayer({
             <>
               <span
                 className="arcade-chip"
-                title={`${lives} plays left today, across every game here`}
+                title={`${lives} plays left this week, across every game here`}
               >
                 <span className="emoji text-base leading-none" aria-hidden>
                   {"❤️".repeat(Math.min(lives, 3)) || "💔"}
@@ -523,8 +586,8 @@ export default function GamePlayer({
                 {player?.rank
                   ? `Your best: ${player.bestScore} · #${player.rank} this week`
                   : lives > 0
-                    ? `${lives} ${lives === 1 ? "play" : "plays"} left today`
-                    : "Share for another life"}
+                    ? `${lives} ${lives === 1 ? "play" : "plays"} left this week`
+                    : "Out of plays — share or top up"}
               </p>
             )}
           </section>
@@ -559,7 +622,44 @@ export default function GamePlayer({
           </section>
         )}
 
-        {/* ---- Sharing is how you get more plays ---- */}
+        {/* ---- More plays: free by sharing, or bought ---- */}
+        {bought !== null && (
+          <p className="rounded-2xl bg-emerald-500/15 px-4 py-3 text-center text-sm font-semibold text-emerald-300">
+            +{bought} plays added to this week. Good luck.
+          </p>
+        )}
+
+        {isBoard && topup && (
+          <button
+            onClick={buyLives}
+            disabled={buying}
+            className="arcade-panel flex items-center gap-3 p-4 text-left transition hover:brightness-110 disabled:opacity-60"
+          >
+            <span
+              className="flex size-10 shrink-0 items-center justify-center rounded-full text-white"
+              style={{ backgroundColor: accent }}
+            >
+              {buying ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <Zap className="size-4" aria-hidden />
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold text-white">
+                {topup.lives} more plays this week
+              </span>
+              <span className="block text-xs text-white/50">
+                ₦{(topup.amountKobo / 100).toLocaleString("en-NG")} — optional,
+                and only ever more tries.
+              </span>
+            </span>
+            <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-white/60">
+              Buy
+            </span>
+          </button>
+        )}
+
         {isBoard && shareUrl && (
           <button
             onClick={share}
@@ -572,8 +672,8 @@ export default function GamePlayer({
               </span>
               <span className="block text-xs text-white/50">
                 {lifeEarned
-                  ? "Your life lands when they finish a round."
-                  : `Up to ${game.maxBonusLives} extra plays a day.`}
+                  ? "Your play lands when they finish a round."
+                  : `Up to ${game.maxBonusLives} extra plays a week.`}
               </span>
             </span>
             <span

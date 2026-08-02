@@ -11,7 +11,7 @@
 // else is pre-filled and editable later. The real game plays beside step 2.
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Sparkles } from "lucide-react";
 import {
   COMPETITIVE_GAMES,
   DEFAULT_SEASON_DAYS,
@@ -61,7 +61,6 @@ export function GameWizard({
   onCancel: () => void;
 }) {
   const [step, setStep] = useState<Step>("pick");
-  const [browsing, setBrowsing] = useState(false);
   const [category, setCategory] = useState<GameCategory>("arcade");
   const [type, setType] = useState<GameType | null>(null);
   const [title, setTitle] = useState("");
@@ -191,12 +190,12 @@ export function GameWizard({
         <header className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-zinc-900">
-              {tailored.length > 0 && !browsing
+              {tailored.length > 0
                 ? "Pick one and it's yours"
                 : "Pick a game to brand"}
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              {tailored.length > 0 && !browsing
+              {tailored.length > 0
                 ? "Written for your business from what you told us. One more step after this."
                 : "Everything comes pre-filled — you'll only confirm the prize."}
             </p>
@@ -206,7 +205,7 @@ export function GameWizard({
           </button>
         </header>
 
-        {tailored.length > 0 && !browsing ? (
+        {tailored.length > 0 ? (
           <>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {tailored.map((blueprint) => {
@@ -241,12 +240,6 @@ export function GameWizard({
                 );
               })}
             </div>
-            <button
-              onClick={() => setBrowsing(true)}
-              className="btn-secondary mt-4"
-            >
-              Browse all five games instead
-            </button>
           </>
         ) : (
           <>
@@ -296,16 +289,6 @@ export function GameWizard({
                   </button>
                 ))}
             </div>
-
-            {tailored.length > 0 && (
-              <button
-                onClick={() => setBrowsing(false)}
-                className="btn-secondary mt-4"
-              >
-                <Wand2 className="size-4" aria-hidden />
-                Back to the ones written for me
-              </button>
-            )}
           </>
         )}
       </section>

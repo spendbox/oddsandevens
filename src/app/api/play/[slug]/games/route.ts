@@ -25,7 +25,7 @@ export async function GET(
   const { data: merchant } = await db
     .from("merchants")
     .select(
-      "id, business_name, slug, logo_url, tagline, brand_color, whatsapp, contact_email, daily_lives, max_bonus_lives"
+      "id, business_name, slug, logo_url, tagline, brand_color, whatsapp, contact_email, weekly_lives, max_bonus_lives"
     )
     .eq("slug", slug.toLowerCase())
     .single();
@@ -202,7 +202,7 @@ export async function GET(
     });
     player = {
       livesLeft: Number(lives ?? 0),
-      dailyLives: merchant.daily_lives,
+      weeklyLives: merchant.weekly_lives,
       maxBonusLives: merchant.max_bonus_lives,
     };
   }

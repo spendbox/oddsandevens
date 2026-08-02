@@ -26,7 +26,7 @@ export async function GET(
   const { data: merchant } = await db
     .from("merchants")
     .select(
-      "id, business_name, slug, logo_url, tagline, brand_color, whatsapp, contact_email, daily_lives, max_bonus_lives, profile"
+      "id, business_name, slug, logo_url, tagline, brand_color, whatsapp, contact_email, weekly_lives, max_bonus_lives, profile"
     )
     .eq("slug", slug.toLowerCase())
     .single();
@@ -37,7 +37,7 @@ export async function GET(
   const { data: game } = await db
     .from("games")
     .select(
-      "id, slug, type, engine, title, description, status, config, theme, cooldown_hours, max_wins_per_player, plays_count, wins_count, award_mode, season_days, daily_lives, max_bonus_lives"
+      "id, slug, type, engine, title, description, status, config, theme, cooldown_hours, max_wins_per_player, plays_count, wins_count, award_mode, season_days"
     )
     .eq("merchant_id", merchant.id)
     .eq("slug", gameSlug.toLowerCase())
@@ -291,7 +291,7 @@ export async function GET(
     season,
     lastWinners,
     // One pool of lives across everything this business runs.
-    dailyLives: merchant.daily_lives,
+    weeklyLives: merchant.weekly_lives,
     maxBonusLives: merchant.max_bonus_lives,
     playerCount,
   };
