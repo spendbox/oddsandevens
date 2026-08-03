@@ -1,8 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Refreshes the merchant's Supabase session cookie on dashboard and merchant
-// API requests, per the @supabase/ssr pattern.
+// Refreshes the contributor's Supabase session cookie on dashboard and
+// contributor API requests, per the @supabase/ssr pattern. Players never come
+// through here — a player has no Supabase session, only a signed email cookie.
 export default async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -32,5 +33,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/merchant/:path*"],
+  matcher: ["/dashboard/:path*", "/api/contributor/:path*"],
 };

@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "weak_password" }, { status: 400 });
   }
 
-  const ok = await verifyCode(email, "merchant_signup", code);
+  const ok = await verifyCode(email, "contributor_signup", code);
   if (!ok) {
     return NextResponse.json({ error: "invalid_code" }, { status: 400 });
   }

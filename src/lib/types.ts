@@ -1,122 +1,138 @@
-// Shapes returned by the Postgres game functions (jsonb) and the API routes.
+// The shapes route handlers return. Anything a browser can see is in here,
+// which is also the easiest way to check that `boxes.secret` never is.
 
-export type RedeemResult =
-  | {
-      result: "redeemed";
-      description: string;
-      // Codes minted by the retired tile board are still redeemable, so the
-      // old types stay readable even though nothing mints them now.
-      reward_type: "tile" | "game" | "loyalty_discount";
-      discount_percent: number | null;
-      customer_email: string;
-      unlocked_at: string;
-    }
-  | { result: "error"; error: "code_not_found" | "already_redeemed" | "expired" };
+import type { PowerUpKind, Revealed } from "@/lib/game/power-ups";
 
-/** What the staff code box resolves to: a one-time code minted per prize. */
-export type StaffLookupResult =
-  | {
-      result: "found";
-      kind: "code";
-      customer_email: string;
-      description: string;
-      status: "unredeemed" | "redeemed" | "expired";
-      expires_at: string;
-    }
-  | { result: "error"; error: "code_not_found" | "merchant_not_found" };
+export type BoxStatus = "draft" | "funding" | "live" | "unlocked" | "closed";
 
-export interface CustomerState {
-  cooldownUntil: string | null;
-  codes: {
-    code: string;
-    description: string;
-    status: string;
-    expiresAt: string;
-  }[];
-}
-
-// Per-customer summary for the merchant dashboard's customers list.
-export interface CustomerSummary {
-  email: string;
-  totalPlays: number;
-  lastPlayedAt: string | null;
-  /** Cooldown end, if the customer is currently in cooldown. */
-  nextPlayAt: string | null;
-  activeCodes: { description: string; expiresAt: string }[];
-  totalUnlocks: number;
-}
-
-// Aggregate KPIs for the dashboard's stats row.
-export interface MerchantStats {
-  totalCustomers: number;
-  totalPlays: number;
-  rewardsUnlocked: number;
-  redemptions: number;
-  redemptionsLast30d: number;
-  redemptionRate: number; // redemptions / all codes issued, 0..1
-  activeCodes: number;
-  revenue: LifeRevenue;
-}
-
-/**
- * Money from players buying extra plays. The business keeps the larger share
- * and the platform takes the rest; the split is done in `life_revenue` so
- * there is exactly one place that knows the rate.
- */
-export interface LifeRevenue {
-  grossKobo: number;
-  businessKobo: number;
-  platformKobo: number;
-  business30dKobo: number;
-  orders: number;
-  livesSold: number;
-  platformSharePercent: number;
-}
-
-// Plays-based plan state for the dashboard (from /api/merchant/plan).
-export interface MerchantPlan {
-  tier: "free" | "premium";
-  premiumExpiresAt: string | null;
-  baseAllowance: number; // annual plays for the current tier
-  premiumYearlyPlays: number; // annual plays a premium plan grants (for the upsell)
-  playsUsed: number; // plays used this annual period
-  baseRemaining: number; // baseAllowance - playsUsed, floored at 0
-  topupPlays: number; // purchased, non-expiring plays
-  playsRemaining: number; // baseRemaining + topupPlays
-  periodEnd: string; // when the annual window resets
-  premiumPriceKobo: number;
-  topupPricePer1000Kobo: number;
-  paymentsEnabled: boolean;
-}
-
-/** A reusable reward in the merchant's catalogue (Build → Rewards). */
-export interface RewardTemplate {
-  id: string;
-  description: string;
-  details: string | null;
-  icon: string | null;
-  default_expiry_days: number;
-  created_at: string;
-}
-
-// Free image library entry (curated in /admin).
-export interface LibraryImage {
-  id: string;
-  title: string;
-  url: string;
-}
-
-/** One business a customer has played, for the /me portal. */
-export interface PlayerAccount {
-  businessName: string;
+/** A box as anyone may see it: no password, no funding detail. */
+export interface PublicBox {
   slug: string;
-  logoUrl: string | null;
-  brandColor: string;
-  cooldownUntil: string | null;
-  codes: {
-    code: string;
-    description: string;
-    status: string;
-    expiresAt: string;
+  kind: "general" | "contributor";
+  title: string;
+  blurb: string | null;
+  length: number;
+  guessesAllowed: number;
+  prizeKobo: number;
+  status: BoxStatus;
+  attemptsCount: number;
+  playersCount: number;
+  contributor: string | null;
+  publishedAt: string | null;
+  unlockedAt: string | null;
+  /** Masked address of whoever cracked it, once someone has. */
+  unlockedBy: string | null;
+}
+
+/** The player's own life pool, as the header shows it. */
+export interface PlayerState {
+  email: string | null;
+  lives: number;
+  livesMax: number;
+  /** When the next life lands, or null when the pool is full. */
+  nextLifeAt: string | null;
+  lifePriceKobo: number;
+}
+
+export interface GuessRow {
+  value: string;
+  feedback: string;
+}
+
+/** The live state of one player's attempt on one box. */
+export interface RunState {
+  runId: string;
+  status: "active" | "won" | "lost";
+  guessesAllowed: number;
+  guessesUsed: number;
+  guesses: GuessRow[];
+  revealed: Revealed;
+  /** Notes from power-ups already bought on this run, newest last. */
+  notes: string[];
+}
+
+export interface PlayView {
+  box: PublicBox;
+  player: PlayerState;
+  run: RunState | null;
+  powerUps: {
+    kind: PowerUpKind;
+    name: string;
+    blurb: string;
+    priceKobo: number;
+    available: boolean;
   }[];
+  /** Set when this player already won this box. */
+  prize: { amountKobo: number; status: "unclaimed" | "submitted" | "paid" } | null;
+}
+
+// ---------------------------------------------------------------------------
+// Contributor dashboard
+// ---------------------------------------------------------------------------
+
+export interface ContributorProfile {
+  displayName: string;
+  handle: string;
+  payout: {
+    bankName: string | null;
+    accountNumber: string | null;
+    accountName: string | null;
+    connected: boolean;
+  };
+}
+
+/** One of the contributor's own boxes, with the numbers only they see. */
+export interface OwnedBox extends PublicBox {
+  id: string;
+  stakeKobo: number;
+  platformFeeKobo: number;
+  earnedKobo: number;
+  powerUpsSold: number;
+  createdAt: string;
+}
+
+/** A row on the Attempts screen. The address is masked; it always is. */
+export interface AttemptRow {
+  player: string;
+  boxTitle: string;
+  boxSlug: string;
+  status: "active" | "won" | "lost";
+  guessesUsed: number;
+  guessesAllowed: number;
+  powerUpsBought: number;
+  startedAt: string;
+  endedAt: string | null;
+}
+
+export interface ContributorEarnings {
+  /** 70% of every power-up sold against this contributor's boxes. */
+  totalKobo: number;
+  last30dKobo: number;
+  powerUpsSold: number;
+  /** What the platform kept, shown so the split is never a mystery. */
+  platformKobo: number;
+  sharePercent: number;
+}
+
+export interface WinnerRow {
+  player: string;
+  boxTitle: string;
+  boxSlug: string;
+  prizeKobo: number;
+  unlockedAt: string;
+  claimStatus: "unclaimed" | "submitted" | "paid";
+}
+
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
+
+/** Every checkout in the app answers with this. */
+export type CheckoutResponse =
+  | { result: "redirect"; authorizationUrl: string }
+  | { result: "error"; error: string };
+
+export interface Bank {
+  name: string;
+  code: string;
 }

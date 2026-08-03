@@ -1,22 +1,48 @@
 @import "tailwindcss";
 
+/*
+ * Spendbox is a safe in a dark room.
+ *
+ * The palette is deliberately narrow: near-black steel for everything
+ * structural, and brass for the one thing that matters — the prize, the
+ * keypad, the button that opens a run. Three feedback colours sit on top of
+ * that and are the only other saturated things on screen, so a row of results
+ * reads at a glance without competing with the furniture.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #18181b;
-  /* Default brand accent; the play page overrides this per merchant. */
-  --brand: #059669;
+  --background: #0a0a0b;
+  --foreground: #f4f4f5;
+
+  /* Brass: prizes, primary actions, the lock itself. */
+  --brass: #d4a145;
+  --brass-bright: #f0c46a;
+
+  /* The three verdicts. Green and orange are pulled apart in lightness as
+     well as hue so they stay distinguishable to a red-green colourblind
+     player, and every tile is captioned in the legend regardless. */
+  --mark-green: #3f9e5a;
+  --mark-orange: #d98324;
+  --mark-red: #3f3f46;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brass: var(--brass);
+  --color-brass-bright: var(--brass-bright);
+  --color-mark-green: var(--mark-green);
+  --color-mark-orange: var(--mark-orange);
+  --color-mark-red: var(--mark-red);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
   --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-pop-in: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  --animate-tile-reveal: tile-reveal 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  --animate-bounce-soft: bounce-soft 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-flip: flip 0.5s ease both;
+  --animate-shake: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  --animate-unlock: unlock 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 
   @keyframes fade-up {
     from {
@@ -28,6 +54,7 @@
       transform: translateY(0);
     }
   }
+
   @keyframes pop-in {
     from {
       opacity: 0;
@@ -38,23 +65,53 @@
       transform: scale(1);
     }
   }
-  @keyframes tile-reveal {
+
+  /*
+   * A scored tile turns over rather than recolouring. The half-way point is
+   * where the colour changes, so the face you were looking at never becomes
+   * the answer — you watch it arrive.
+   */
+  @keyframes flip {
     0% {
-      transform: scale(0.6);
-      opacity: 0.4;
+      transform: rotateX(0deg);
+    }
+    50% {
+      transform: rotateX(90deg);
     }
     100% {
-      transform: scale(1);
-      opacity: 1;
+      transform: rotateX(0deg);
     }
   }
-  @keyframes bounce-soft {
+
+  /* A rejected guess — wrong length, or a repeat — refuses sideways. */
+  @keyframes shake {
+    10%,
+    90% {
+      transform: translateX(-2px);
+    }
+    20%,
+    80% {
+      transform: translateX(4px);
+    }
+    30%,
+    50%,
+    70% {
+      transform: translateX(-7px);
+    }
+    40%,
+    60% {
+      transform: translateX(7px);
+    }
+  }
+
+  @keyframes unlock {
     0% {
-      transform: scale(0.3) rotate(-12deg);
+      transform: scale(0.4) rotate(-14deg);
       opacity: 0;
     }
     55% {
-      transform: scale(1.15) rotate(4deg);
+      transform: scale(1.18) rotate(5deg);
+      opacity: 1;
     }
     100% {
       transform: scale(1) rotate(0deg);
@@ -63,1161 +120,46 @@
   }
 }
 
-/* Expanding celebration ring behind the reveal-popup icon. */
-@keyframes burst-ring {
-  from {
-    transform: scale(0.4);
-    opacity: 0.6;
-  }
-  to {
-    transform: scale(2.2);
-    opacity: 0;
-  }
-}
-
-/* Big celebratory win: confetti rains down and the trophy bursts in. */
-@keyframes confetti-fall {
-  0% {
-    transform: translateY(-12vh) rotate(0deg);
-    opacity: 0;
-  }
-  8% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(110vh) rotate(720deg);
-    opacity: 1;
-  }
-}
-@keyframes trophy-burst {
-  0% {
-    transform: scale(0.2) rotate(-18deg);
-    opacity: 0;
-  }
-  45% {
-    transform: scale(1.25) rotate(8deg);
-  }
-  70% {
-    transform: scale(0.95) rotate(-3deg);
-  }
-  100% {
-    transform: scale(1) rotate(0deg);
-    opacity: 1;
-  }
-}
-@keyframes win-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--brand), transparent 60%);
-  }
-  50% {
-    box-shadow: 0 0 40px 8px color-mix(in oklab, var(--brand), transparent 55%);
-  }
-}
-
-/* Landing page: drifting aurora blobs, shimmering tiles, popping gifts. */
-@keyframes aurora-drift {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(5%, -4%) scale(1.15);
-  }
-}
-@keyframes tile-shimmer {
-  0%,
-  100% {
-    opacity: 0.9;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3);
-  }
-  50% {
-    opacity: 1;
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.3),
-      0 0 18px color-mix(in oklab, var(--brand), transparent 55%);
-  }
-}
-@keyframes gift-pop {
-  0%,
-  72%,
-  100% {
-    transform: scale(1) rotate(0deg);
-  }
-  80% {
-    transform: scale(1.28) rotate(-8deg);
-  }
-  90% {
-    transform: scale(1.1) rotate(5deg);
-  }
-}
-@keyframes float-slow {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-/* Landing card deck: pulsing halo rings, and the bouncing swipe-up hint. */
-@keyframes ring-pulse {
-  0% {
-    transform: scale(0.55);
-    opacity: 0.65;
-  }
-  100% {
-    transform: scale(1.9);
-    opacity: 0;
-  }
-}
-/* Case-study card: profit bars grow up, hold, then breathe back. */
-@keyframes grow-bar {
-  0% {
-    transform: scaleY(0.06);
-  }
-  16% {
-    transform: scaleY(1);
-  }
-  84% {
-    transform: scaleY(1);
-  }
-  100% {
-    transform: scaleY(0.06);
-  }
-}
-@keyframes swipe-hint {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.55;
-  }
-  50% {
-    transform: translateY(7px);
-    opacity: 1;
-  }
-}
-@keyframes sheen {
-  0% {
-    background-position: -150% 0;
-  }
-  60%,
-  100% {
-    background-position: 250% 0;
-  }
-}
-
-/* Splash screen: logo pops in, whole overlay fades away. */
-@keyframes splash-logo {
-  0% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  60% {
-    transform: scale(1.08);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-@keyframes splash-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-
 body {
-  background-color: var(--background);
-  background-image:
-    radial-gradient(50rem 30rem at 90% -5%, color-mix(in oklab, var(--brand), transparent 94%), transparent 60%),
-    radial-gradient(40rem 28rem at -5% 40%, color-mix(in oklab, var(--brand), transparent 96%), transparent 60%);
-  background-attachment: fixed;
+  background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-@layer components {
-  /* Emoji are the artwork in most of these games — the falling items, the
-     moles, the memory faces, the medals on a board. Left to the body font
-     stack they inherit its metrics and render as small, flat, slightly grey
-     text glyphs. Pinning the platform colour-emoji fonts, giving them their
-     own line-height, and adding a soft shadow makes them read as icons with
-     weight sitting on the surface, at any size. */
-  .emoji {
-    font-family:
-      "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
-      "Twemoji Mozilla", "EmojiOne Color", "Android Emoji", sans-serif;
-    font-variant-emoji: emoji;
-    line-height: 1;
-    font-weight: 400;
-    letter-spacing: 0;
-    -webkit-font-smoothing: antialiased;
-    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.18));
-  }
-
-  /* The same glyphs when they are the game itself: bigger shadow, so a piece
-     of fruit falling down the screen looks like it is above the background
-     rather than printed on it. */
-  .emoji-piece {
-    font-family:
-      "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
-      "Twemoji Mozilla", "EmojiOne Color", "Android Emoji", sans-serif;
-    font-variant-emoji: emoji;
-    line-height: 1;
-    -webkit-font-smoothing: antialiased;
-    filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.28));
-    user-select: none;
-  }
-
-  /* The ring drawn around anything a player must not touch. The hazard is
-     whichever emoji the business picked, so it can't be recognised on sight —
-     the ring is the part that is always the same, and it pulses because a
-     static outline reads as decoration at the speed these things move. */
-  .danger-ring {
-    border-radius: 9999px;
-    border: 2px dashed rgb(248 113 113 / 0.9);
-    background: radial-gradient(
-      circle,
-      rgb(244 63 94 / 0.28) 0%,
-      rgb(244 63 94 / 0) 68%
-    );
-    box-shadow: 0 0 12px rgb(244 63 94 / 0.55);
-    animation: danger-pulse 0.9s ease-in-out infinite;
-  }
-
-  @keyframes danger-pulse {
-    0%,
-    100% {
-      opacity: 0.75;
-      transform: translate(-50%, -50%) scale(0.92);
-    }
-    50% {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1.06);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .danger-ring {
-      animation: none;
-    }
-  }
-
-  /* -------------------------------------------------------------------
-     Game loops.
-
-     The badge next to a game's name used to be a lucide icon — a sword, a
-     hammer, a gem. Which tells you the theme and nothing about the game. A
-     business choosing between five of these is asking "what does my customer
-     actually do?", and a picture of a sword doesn't answer it.
-
-     So each badge plays its game in miniature, on a loop: fruit gets cut,
-     a mole gets hit, a jewel gets swiped into a row. No video, no GIF —
-     four shapes and a keyframe each, which costs nothing and stays sharp.
-     ------------------------------------------------------------------- */
-
-  .gl-static {
-    display: none;
-  }
-
-  .gl [class^="gl-a-"] {
-    transform-box: view-box;
-    animation-duration: 2.4s;
-    animation-iteration-count: infinite;
-    animation-timing-function: ease-in-out;
-  }
-
-  /* Slice: the fruit rises, the blade crosses it, the halves fall apart. */
-  .gl-a-slice-a {
-    animation-name: gl-slice-a;
-  }
-  .gl-a-slice-b {
-    animation-name: gl-slice-b;
-  }
-  .gl-a-blade {
-    animation-name: gl-blade;
-    animation-timing-function: linear;
-  }
-
-  @keyframes gl-slice-a {
-    0% {
-      transform: translate(0, 20px);
-      opacity: 0;
-    }
-    18%,
-    46% {
-      transform: translate(0, 0);
-      opacity: 1;
-    }
-    100% {
-      transform: translate(-9px, 16px) rotate(-30deg);
-      opacity: 0;
-    }
-  }
-
-  @keyframes gl-slice-b {
-    0% {
-      transform: translate(0, 20px);
-      opacity: 0;
-    }
-    18%,
-    46% {
-      transform: translate(0, 0);
-      opacity: 1;
-    }
-    100% {
-      transform: translate(9px, 13px) rotate(30deg);
-      opacity: 0;
-    }
-  }
-
-  @keyframes gl-blade {
-    0%,
-    38% {
-      stroke-dashoffset: 36;
-      opacity: 0;
-    }
-    40% {
-      stroke-dashoffset: 36;
-      opacity: 1;
-    }
-    50% {
-      stroke-dashoffset: 0;
-      opacity: 1;
-    }
-    64%,
-    100% {
-      stroke-dashoffset: 0;
-      opacity: 0;
-    }
-  }
-
-  /* Whack: the mole comes up, the hammer comes down, the mole goes back. */
-  .gl-a-mole {
-    animation-name: gl-mole;
-    transform-origin: 20px 32px;
-  }
-  .gl-a-hammer {
-    animation-name: gl-hammer;
-    transform-origin: 31px 33px;
-  }
-
-  @keyframes gl-mole {
-    0% {
-      transform: translateY(15px);
-    }
-    20% {
-      transform: translateY(-1.5px);
-    }
-    26%,
-    50% {
-      transform: translateY(0);
-    }
-    57% {
-      transform: translateY(4px) scaleY(0.7);
-    }
-    74%,
-    100% {
-      transform: translateY(15px);
-    }
-  }
-
-  @keyframes gl-hammer {
-    0%,
-    30% {
-      transform: rotate(35deg);
-      opacity: 0;
-    }
-    38% {
-      transform: rotate(35deg);
-      opacity: 1;
-    }
-    55% {
-      transform: rotate(-58deg);
-      opacity: 1;
-    }
-    64% {
-      transform: rotate(-40deg);
-      opacity: 1;
-    }
-    80% {
-      transform: rotate(35deg);
-      opacity: 1;
-    }
-    88%,
-    100% {
-      transform: rotate(35deg);
-      opacity: 0;
-    }
-  }
-
-  /* Match: one jewel is swiped up into the row, and the three go. */
-  .gl-a-swap-up {
-    animation-name: gl-swap-up;
-  }
-  .gl-a-swap-down {
-    animation-name: gl-swap-down;
-  }
-  .gl-a-pop {
-    animation-name: gl-pop;
-    transform-origin: center;
-    transform-box: fill-box;
-  }
-  .gl-a-swipe {
-    animation-name: gl-swipe;
-  }
-
-  @keyframes gl-swap-up {
-    0%,
-    26% {
-      transform: translateY(0);
-    }
-    46%,
-    100% {
-      transform: translateY(-13px);
-    }
-  }
-
-  @keyframes gl-swap-down {
-    0% {
-      transform: translateY(0);
-      opacity: 0;
-    }
-    8%,
-    26% {
-      transform: translateY(0);
-      opacity: 1;
-    }
-    46%,
-    88% {
-      transform: translateY(13px);
-      opacity: 1;
-    }
-    100% {
-      transform: translateY(13px);
-      opacity: 0;
-    }
-  }
-
-  @keyframes gl-pop {
-    0% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    54% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    64% {
-      transform: scale(1.28);
-      opacity: 1;
-    }
-    80%,
-    100% {
-      transform: scale(0.2);
-      opacity: 0;
-    }
-  }
-
-  @keyframes gl-swipe {
-    0%,
-    24% {
-      transform: translateY(4px);
-      opacity: 0;
-    }
-    30% {
-      transform: translateY(4px);
-      opacity: 0.9;
-    }
-    46% {
-      transform: translateY(-9px);
-      opacity: 0.9;
-    }
-    56%,
-    100% {
-      transform: translateY(-9px);
-      opacity: 0;
-    }
-  }
-
-  /* Flappy: the bird holds its line while the pipes come at it. */
-  .gl-a-bird {
-    animation-name: gl-bird;
-  }
-  .gl-a-pipes {
-    animation-name: gl-pipes;
-    animation-timing-function: linear;
-  }
-
-  @keyframes gl-bird {
-    0%,
-    100% {
-      transform: translateY(3px) rotate(12deg);
-    }
-    12% {
-      transform: translateY(-4px) rotate(-14deg);
-    }
-    50% {
-      transform: translateY(3px) rotate(12deg);
-    }
-    62% {
-      transform: translateY(-4px) rotate(-14deg);
-    }
-  }
-
-  @keyframes gl-pipes {
-    0% {
-      transform: translateX(22px);
-    }
-    100% {
-      transform: translateX(-30px);
-    }
-  }
-
-  /* Mahjong: two matching tiles find each other and clear. */
-  .gl-a-tile-l {
-    animation-name: gl-tile-l;
-  }
-  .gl-a-tile-r {
-    animation-name: gl-tile-r;
-  }
-
-  @keyframes gl-tile-l {
-    0%,
-    20% {
-      transform: translateX(0);
-      opacity: 1;
-    }
-    52%,
-    64% {
-      transform: translateX(7px);
-      opacity: 1;
-    }
-    82%,
-    92% {
-      transform: translateX(7px);
-      opacity: 0;
-    }
-    100% {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-
-  @keyframes gl-tile-r {
-    0%,
-    20% {
-      transform: translateX(0);
-      opacity: 1;
-    }
-    52%,
-    64% {
-      transform: translateX(-7px);
-      opacity: 1;
-    }
-    82%,
-    92% {
-      transform: translateX(-7px);
-      opacity: 0;
-    }
-    100% {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-
-  /* Someone who has asked for less movement gets the plain icon back. */
-  @media (prefers-reduced-motion: reduce) {
-    .gl-static {
-      display: block;
-    }
-    .gl-motion {
-      display: none;
-    }
-  }
-
-  /* -------------------------------------------------------------------
-     The arcade.
-
-     Everything a player sees — the hub, a game page, the playfield — lives
-     in a dark cabinet lit by the business's colour, because a game that
-     looks like a dashboard doesn't get played. The dashboard keeps the
-     white cards; none of this leaks into it.
-
-     `--brand` is the game's accent, set by the page.
-     ------------------------------------------------------------------- */
-
-  .arcade {
-    color: #f4f4f5;
-    background-color: #0a0a12;
-    background-image:
-      radial-gradient(
-        90rem 50rem at 50% -20%,
-        color-mix(in oklab, var(--brand), transparent 70%),
-        transparent 60%
-      ),
-      radial-gradient(
-        60rem 40rem at 110% 10%,
-        color-mix(in oklab, var(--brand), transparent 82%),
-        transparent 60%
-      ),
-      radial-gradient(50rem 40rem at -10% 60%, rgb(88 28 135 / 0.35), transparent 60%);
-    background-attachment: fixed;
-  }
-
-  /* A panel in the cabinet: glass over the glow, lit along its top edge. */
-  .arcade-panel {
-    border-radius: 1.5rem;
-    border: 1px solid rgb(255 255 255 / 0.1);
-    background:
-      linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.03));
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.16),
-      0 18px 45px rgb(0 0 0 / 0.45);
-    backdrop-filter: blur(12px);
-  }
-
-  /* The in-game HUD reading. Deliberately not .arcade-chip: this one sits on
-     the bright playfield, where a translucent white pill is invisible, so it
-     is dark-on-light while its cabinet cousin is light-on-dark. */
-  .hud-chip {
-    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold tabular-nums text-white;
-    background: rgb(24 24 27 / 0.88);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.14),
-      0 2px 6px rgb(0 0 0 / 0.18);
-  }
-
-  /* One reading of one number: score, time left, lives, players. */
-  .arcade-chip {
-    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold tabular-nums;
-    color: #fafafa;
-    background: rgb(255 255 255 / 0.1);
-    border: 1px solid rgb(255 255 255 / 0.12);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
-  }
-
-  /* The one button that matters. Chunky, with a real edge under it that
-     collapses when pressed — the whole point is that it looks pressable
-     from across the room. */
-  .btn-play {
-    @apply relative inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 py-4 text-lg font-extrabold uppercase tracking-wide text-white transition-all duration-100;
-    background-image: linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--brand), white 18%),
-      var(--brand)
-    );
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.45),
-      0 6px 0 color-mix(in oklab, var(--brand), black 42%),
-      0 12px 26px color-mix(in oklab, var(--brand), transparent 55%);
-    text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
-  }
-  .btn-play:hover:not(:disabled) {
-    filter: brightness(1.06);
-  }
-  .btn-play:active:not(:disabled) {
-    transform: translateY(5px);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.35),
-      0 1px 0 color-mix(in oklab, var(--brand), black 42%),
-      0 4px 12px color-mix(in oklab, var(--brand), transparent 65%);
-  }
-  .btn-play:disabled {
-    cursor: not-allowed;
-    filter: grayscale(0.7);
-    opacity: 0.55;
-  }
-
-  /* Quiz answers. Same chunky edge as the play button, but the colour comes
-     from a utility class at the call site — right/wrong/neutral each want
-     their own, and a quiz where every answer looks identical is a form. */
-  .btn-answer {
-    @apply flex cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl px-4 py-5 text-base font-extrabold uppercase tracking-wide text-white transition-all duration-100;
-    text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
-  }
-  .btn-answer:active:not(:disabled) {
-    transform: translateY(4px);
-    box-shadow: none !important;
-  }
-  .btn-answer:disabled {
-    cursor: default;
-  }
-
-  /* The quieter twin: same shape, no colour. */
-  .btn-play-ghost {
-    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl px-5 py-3 font-bold text-white/90 transition;
-    background: rgb(255 255 255 / 0.1);
-    border: 1px solid rgb(255 255 255 / 0.14);
-  }
-  .btn-play-ghost:hover {
-    background: rgb(255 255 255 / 0.16);
-  }
-
-  /* Game titles: heavy and tight, lit from above. */
-  .arcade-title {
-    @apply font-extrabold tracking-tight;
-    background-image: linear-gradient(180deg, #ffffff, #cbd5e1);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    text-shadow: 0 2px 20px color-mix(in oklab, var(--brand), transparent 60%);
-  }
-
-  /* The playfield frame: a screen set into the cabinet. */
-  .arcade-screen {
-    width: 100%;
-    border-radius: 1.25rem;
-    box-shadow:
-      inset 0 0 0 1px rgb(255 255 255 / 0.14),
-      inset 0 2px 30px rgb(0 0 0 / 0.25),
-      0 10px 30px rgb(0 0 0 / 0.4);
-  }
-
-  /* Darkened corners, so the eye lands in the middle of the play. */
-  .arcade-vignette::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background: radial-gradient(
-      120% 90% at 50% 45%,
-      transparent 55%,
-      rgb(0 0 0 / 0.28) 100%
-    );
-  }
-
-  /* Full-screen play.
-
-     A round should own the whole device rather than sit in a card halfway
-     down a page. What it must NOT do is change shape with the device: these
-     are leaderboard games, and a player whose screen gives them three seconds
-     of warning is not playing the same game as one who gets one. So the
-     playfield keeps the aspect ratio its game was tuned for and grows to the
-     largest size that fits — letterboxed, the way a console game is on a
-     widescreen TV — and the physics see the same world everywhere.
-
-     `> *` is the game component's own root: the games are written as a column
-     of HUD plus stage, so the column fills the height and the stage takes what
-     is left. */
-  .stage-fill {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    container-type: size;
-  }
-  .stage-fill > * {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    justify-content: center;
-    min-height: 0;
-  }
-  /* In full-screen play the HUD floats over the playfield rather than sitting
-     above it. Reserving a fixed strip for it was a guess — one that a wrapped
-     HUD or a small phone turns into a playfield taller than the viewport, with
-     the bottom of the game cut off. Overlaying it means the stage gets the
-     container's exact height and the fit is arithmetic, not estimation. */
-  .stage-fill > *:has(.arcade-screen) {
-    position: relative;
-  }
-  .stage-fill > *:has(.arcade-screen) .hud-row {
-    position: absolute;
-    top: 0.5rem;
-    left: 0;
-    right: 0;
-    z-index: 10;
-    margin: 0;
-    pointer-events: none;
-  }
-
-  .stage-fill .arcade-screen {
-    /* The largest box of this game's shape that fits the space available. */
-    width: min(100cqw, calc(100cqh * var(--stage-ratio, 0.75)));
-    height: min(100cqh, calc(100cqw / var(--stage-ratio, 0.75)));
-    max-width: 100%;
-    max-height: 100%;
-    margin: auto;
-    flex: 0 0 auto;
-  }
-
-  /* Games with no stage — the quizzes, the calendar, the card grids — are laid
-     out in normal flow, so on a wide screen a square grid would grow until it
-     fell off the bottom. Capping the column against the available *height*
-     keeps them whole and centred at any size. */
-  .stage-fill > *:not(:has(.arcade-screen)) {
-    max-width: min(100%, calc(100cqh * 0.78));
-    margin-inline: auto;
-    overflow-y: auto;
-  }
-
-  /* A sliced fruit's juice, and the blast of a bomb. Both are over in half a
-     second — long enough to register the hit, short enough not to hide the
-     next thing coming up. */
-  @keyframes arcade-splash {
-    0% {
-      transform: scale(0.2);
-      opacity: 0.95;
-    }
-    100% {
-      transform: scale(2.1);
-      opacity: 0;
-    }
-  }
-  .animate-splash {
-    animation: arcade-splash 0.55s ease-out forwards;
-  }
-
-  @keyframes arcade-blast {
-    0% {
-      transform: scale(0.3) rotate(-12deg);
-      opacity: 1;
-    }
-    55% {
-      transform: scale(1.35) rotate(6deg);
-      opacity: 1;
-    }
-    100% {
-      transform: scale(1.7) rotate(0deg);
-      opacity: 0;
-    }
-  }
-  .animate-blast {
-    animation: arcade-blast 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-
-  /* The cabinet takes the hit when a bomb goes off. */
-  @keyframes arcade-shake {
-    0%, 100% { transform: translate(0, 0); }
-    15% { transform: translate(-6px, 3px); }
-    30% { transform: translate(5px, -4px); }
-    45% { transform: translate(-4px, -2px); }
-    60% { transform: translate(4px, 3px); }
-    80% { transform: translate(-2px, 1px); }
-  }
-  .animate-shake {
-    animation: arcade-shake 0.42s ease-in-out;
-  }
-
-  /* -------------------------------------------------------------------
-     3D assets, built rather than downloaded.
-
-     Every piece in these games — a jewel, a mahjong tile, a mole hole, a
-     pipe — is a small stack of CSS: a lit top surface, a darker side that
-     gives it thickness, an inner shadow where light doesn't reach, and a
-     cast shadow on whatever is underneath. Layered that way, a flat element
-     reads as a solid object under one light source (top-left, throughout),
-     which is the whole trick.
-
-     Doing it this way rather than with a 3D library or downloaded sprites
-     costs the player no extra bytes, keeps every piece recolourable by the
-     business's brand, and stays sharp at any size on any screen. WebGL
-     would buy real perspective, and cost a megabyte and a battery.
-     ------------------------------------------------------------------- */
-
-  /* A jewel: domed and glossy, with a specular highlight where the light
-     lands and bounce light underneath. `--gem` is the body colour. */
-  .gem {
-    position: relative;
-    border-radius: 9999px;
-    background:
-      radial-gradient(
-        circle at 32% 26%,
-        color-mix(in oklab, var(--gem), white 62%) 0%,
-        var(--gem) 44%,
-        color-mix(in oklab, var(--gem), black 34%) 100%
-      );
-    box-shadow:
-      inset 0 -0.28em 0.45em color-mix(in oklab, var(--gem), black 45%),
-      inset 0 0.22em 0.3em color-mix(in oklab, var(--gem), white 45%),
-      0 0.18em 0.35em rgb(0 0 0 / 0.32);
-  }
-  /* The catchlight — small, soft, off-centre. Nothing says "round" faster. */
-  .gem::after {
-    content: "";
-    position: absolute;
-    left: 22%;
-    top: 14%;
-    width: 32%;
-    height: 24%;
-    border-radius: 9999px;
-    background: linear-gradient(
-      160deg,
-      rgb(255 255 255 / 0.92),
-      rgb(255 255 255 / 0)
-    );
-  }
-  /* The same object cut as a gemstone rather than a bead. */
-  .gem-cut {
-    border-radius: 24%;
-  }
-
-  /* A mahjong tile: ivory face, real thickness down its right and bottom
-     edges, and a shadow cast on the layer below. `--depth` is how thick. */
-  .tile3d {
-    position: relative;
-    border-radius: 0.55em;
-    background: linear-gradient(160deg, #fffdf7 0%, #f4ead6 62%, #e8dbc2 100%);
-    box-shadow:
-      var(--depth, 0.34em) var(--depth, 0.34em) 0 #cbbb9a,
-      calc(var(--depth, 0.34em) * 0.5) calc(var(--depth, 0.34em) * 0.5) 0 #dbcdb0,
-      inset 0 0.12em 0 rgb(255 255 255 / 0.95),
-      inset 0 -0.1em 0.2em rgb(120 100 60 / 0.22),
-      0.5em 0.6em 0.9em rgb(0 0 0 / 0.3);
-  }
-  .tile3d-free {
-    cursor: pointer;
-  }
-  .tile3d-free:hover {
-    filter: brightness(1.06);
-  }
-  /* A tile with something on top of it sits in shadow and can't be taken. */
-  .tile3d-blocked {
-    filter: brightness(0.72) saturate(0.8);
-  }
-  .tile3d-picked {
-    background: linear-gradient(160deg, #fff7d6 0%, #ffe9a3 60%, #ffd873 100%);
-    box-shadow:
-      var(--depth, 0.34em) var(--depth, 0.34em) 0 #d9a441,
-      inset 0 0.12em 0 rgb(255 255 255 / 0.95),
-      0 0 0 0.16em #f59e0b,
-      0.5em 0.6em 1em rgb(245 158 11 / 0.5);
-  }
-
-  /* A hole in the ground: dark, elliptical, ringed by lit earth — so a mole
-     comes *out of* something instead of appearing on top of it. */
-  .hole3d {
-    position: relative;
-    border-radius: 9999px;
-    background: radial-gradient(
-      ellipse at 50% 38%,
-      #2a1a0d 0%,
-      #4a3016 55%,
-      #6b4520 100%
-    );
-    box-shadow:
-      inset 0 0.5em 0.7em rgb(0 0 0 / 0.75),
-      inset 0 -0.2em 0 rgb(255 255 255 / 0.08),
-      0 0.2em 0 #8a5a2b,
-      0 0.35em 0.5em rgb(0 0 0 / 0.28);
-  }
-
-  /* A pipe: rounded body lit down one side, with a rim at the open end. */
-  .pipe3d {
-    background-image: linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--pipe), black 34%) 0%,
-      color-mix(in oklab, var(--pipe), white 32%) 26%,
-      var(--pipe) 58%,
-      color-mix(in oklab, var(--pipe), black 42%) 100%
-    );
-    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
-  }
-  .pipe3d-cap {
-    background-image: linear-gradient(
-      90deg,
-      color-mix(in oklab, var(--pipe), black 28%) 0%,
-      color-mix(in oklab, var(--pipe), white 38%) 24%,
-      var(--pipe) 60%,
-      color-mix(in oklab, var(--pipe), black 46%) 100%
-    );
-    border-radius: 0.35em;
-    box-shadow:
-      inset 0 0.12em 0 rgb(255 255 255 / 0.4),
-      0 0.15em 0.3em rgb(0 0 0 / 0.35);
-  }
-
-  /* A piece dropping into place, one being cleared, a tile lifting off. */
-  @keyframes gem-drop {
-    from {
-      transform: translateY(-140%);
-    }
-    to {
-      transform: translateY(0);
-    }
-  }
-  .animate-drop {
-    animation: gem-drop 0.24s cubic-bezier(0.34, 1.4, 0.64, 1) both;
-  }
-
-  @keyframes gem-clear {
-    0% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    45% {
-      transform: scale(1.28);
-      opacity: 1;
-    }
-    100% {
-      transform: scale(0.1);
-      opacity: 0;
-    }
-  }
-  .animate-clear {
-    animation: gem-clear 0.26s ease-in both;
-  }
-
-  @keyframes tile-lift {
-    0% {
-      transform: translate(0, 0) scale(1);
-      opacity: 1;
-    }
-    100% {
-      transform: translate(0, -1.2em) scale(1.15);
-      opacity: 0;
-    }
-  }
-  .animate-lift {
-    animation: tile-lift 0.3s ease-out both;
-  }
-
-  @keyframes arcade-pop {
-    0% {
-      transform: scale(0.7);
-      opacity: 0;
-    }
-    70% {
-      transform: scale(1.08);
-      opacity: 1;
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
-  .animate-pop {
-    animation: arcade-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  }
-
-  @keyframes arcade-float {
-    0%,
-    100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-8px);
-    }
-  }
-  .animate-float {
-    animation: arcade-float 2.4s ease-in-out infinite;
-  }
-
-  @keyframes arcade-shine {
-    from {
-      background-position: -160% 0;
-    }
-    to {
-      background-position: 260% 0;
-    }
-  }
-  /* A highlight that sweeps across the play button every few seconds. */
-  .animate-shine::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: linear-gradient(
-      100deg,
-      transparent 35%,
-      rgb(255 255 255 / 0.35) 50%,
-      transparent 65%
-    );
-    background-size: 200% 100%;
-    animation: arcade-shine 3.4s ease-in-out infinite;
-  }
-
-  .card {
-    @apply rounded-2xl border border-zinc-200/80 bg-white shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.04)];
-  }
-
-  .btn-primary {
-    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-2.5 font-semibold text-white shadow-sm transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100;
-    background-color: var(--brand);
-  }
-
-  .btn-secondary {
-    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-5 py-2.5 font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
-  }
-
-  .btn-ghost {
-    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900;
-  }
-
-  .input-field {
-    @apply w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--brand),transparent_80%)] disabled:bg-zinc-50 disabled:opacity-70;
-  }
-
-  .field-label {
-    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-zinc-500;
-  }
-
-  .section-title {
-    @apply flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500;
-  }
-
-  .alert-error {
-    @apply rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700;
-  }
-
-  .alert-success {
-    @apply rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700;
-  }
-
-  /* Unclicked, playable tile: a glossy, slightly 3D face built from the
-     merchant's brand color, with a thin white border and a soft drop shadow. */
-  .tile-live {
-    background-image: linear-gradient(
-      150deg,
-      color-mix(in oklab, var(--brand), white 26%),
-      color-mix(in oklab, var(--brand), black 28%)
-    );
-    border: 1px solid rgb(255 255 255 / 0.7);
-    box-shadow:
-      inset 0 1.5px 0 rgb(255 255 255 / 0.55),
-      inset 0 -3px 6px rgb(0 0 0 / 0.18),
-      0 3px 7px rgb(0 0 0 / 0.14);
-  }
-  .tile-live:hover {
-    box-shadow:
-      inset 0 1.5px 0 rgb(255 255 255 / 0.6),
-      0 0 16px color-mix(in oklab, var(--brand), transparent 55%),
-      0 4px 10px rgb(0 0 0 / 0.16);
-  }
-
-  /* Puzzle-image (or plain) tile face: same thin white border + 3D lift, but
-     no brand gradient (the image or a solid fill shows through). */
-  .tile-face {
-    border: 1px solid rgb(255 255 255 / 0.7);
-    box-shadow:
-      inset 0 1.5px 0 rgb(255 255 255 / 0.4),
-      0 3px 7px rgb(0 0 0 / 0.14);
-  }
-
-  /* Interlocking (clipped) tiles: clip-path swallows real borders, and it is
-     applied AFTER filter, so a drop-shadow on the clipped element itself gets
-     clipped away too. The seam therefore lives on the tile's grid-cell
-     wrapper: its drop-shadows take the already-clipped tile as input, tracing
-     the jigsaw silhouette with a hard white line. Out-tiles stack above their
-     notched neighbours, so the line lands exactly on the intersection between
-     tiles, like the seams of a real puzzle. A soft dark shadow keeps the 3D
-     lift. (.tile-live-shaped marks the playable tile inside the wrapper so
-     hovering it swaps the lift for a brand glow.) */
-  .tile-shaped {
-    filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white)
-      drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white)
-      drop-shadow(0 2px 3px rgb(0 0 0 / 0.16));
-  }
-  .tile-shaped:has(.tile-live-shaped:hover) {
-    filter: drop-shadow(1.5px 0 0 white) drop-shadow(-1.5px 0 0 white)
-      drop-shadow(0 1.5px 0 white) drop-shadow(0 -1.5px 0 white)
-      drop-shadow(0 0 10px color-mix(in oklab, var(--brand), transparent 55%));
+/*
+ * The brushed-steel face every panel is cut from. A very slight top highlight
+ * is the whole trick — it reads as a lit edge and stops large dark surfaces
+ * from looking like holes in the page.
+ */
+@utility panel {
+  background: linear-gradient(180deg, #1a1a1d 0%, #131316 100%);
+  border: 1px solid rgb(255 255 255 / 0.07);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 10px 30px -12px rgb(0 0 0 / 0.8);
+}
+
+@utility brass-text {
+  background: linear-gradient(180deg, var(--brass-bright), var(--brass));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Staggers a run of tiles or cards so they arrive in sequence. */
+@utility stagger {
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/*
+ * Everything above is decoration. Someone who has asked their system to stop
+ * moving things should get the same game without any of it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

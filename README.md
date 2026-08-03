@@ -1,456 +1,265 @@
 # Spendbox
 
-Branded-games platform for SMEs (built for Nigerian cloud kitchens first). A
-business builds a game — an arcade high-score chase, a timed quiz — brands it,
-and shares one link. Players compete on a public leaderboard all week; when the
-week closes the top places take the prizes and their one-time redemption codes
-arrive by email, to be shown at the counter. Then the board resets and it starts
-again.
-
-Players get three lives a week — one pool shared across every game that business
-runs — and can earn more by sharing their own link with someone who plays, or by
-buying a block of ten for ₦250.
-
-Customers can review everything they've earned across every business at
-**`/me`** — an email-only portal (there are no customer accounts).
-
-## Tell us about the business, get games back
-
-A business answers a short, mostly-tappable questionnaire — trade, top sellers,
-what they could give away, what they want out of it — and we write them a set of
-finished games. Those land as **drafts**: fully configured, playable in a
-preview, editable, and invisible to customers until published.
-
-- `src/lib/business/profile.ts` — the knowledge base: the questions, an industry
-  pack per trade (artwork, sample products, myth-vs-fact statements), and the
-  completeness scoring behind the progress bar.
-- `src/lib/games/suggest.ts` — turns those answers into finished blueprints:
-  titles built from the business name, quiz outcomes built from their menu,
-  arcade items built from their trade, prizes built from their offers.
-- `POST /api/merchant/games/suggest` — writes the blueprints as drafts.
-  Idempotent by game type, so answering more questions later tops up what's
-  missing rather than duplicating what's there.
-
-Creating a game by hand is **two steps**: pick one (from the games written for
-you, or the full catalogue), then confirm the prize and publish. Everything else
-is pre-filled, and questions, artwork and wording are edited afterwards from the
-game's own editor.
-
-### Draft, live, paused
-
-`games.status` is one of `draft`, `active`, `paused`, `archived`. The per-tier
-cap counts only `active` games, and **every** transition into `active` goes
-through `publish_game` — so drafts and paused games are free to hold, pausing
-genuinely frees a slot, and resuming can't sneak past the cap.
-
-## Branded games
-
-Every game a business can launch is one entry in `src/lib/games/catalog.ts`.
-That entry declares the game's award engine, its defaults, and its setup form,
-so the dashboard builder, the API validation, and the player page are all
-generated from it — adding a game means one catalogue entry plus one component
-in `src/components/games/`.
-
-Only games marked `competitive: true` are offered. Everything else stays in the
-codebase, and anything already published on one of those types keeps running —
-they simply can't be created any more.
-
-| | Games |
-|---|---|
-| **Offered** | Whack-a-Mole · Slice Ninja · Match Three |
-| *Written but hidden* | Flappy Flyer · 3D Mahjong |
-
-Artwork is chosen from a curated emoji picker (`src/lib/games/emoji.ts`) rather
-than typed: emoji are awkward to type, easy to paste wrong, and impossible to
-validate as free text. Anything not in the picker is dropped by the sanitiser.
-
-The picker opens as a **sheet** rather than a dropdown in the form
-(`EmojiPicker` in `src/components/dashboard/game-config-editor.tsx`). As a
-dropdown it was unusable on a phone: it opened inside an already-scrolling
-modal, autofocused its search box so the keyboard covered most of it, and left
-a 224px window onto several hundred emoji. The sheet takes the height of the
-screen and only focuses search where a pointer is fine — a laptop — so a phone
-sees emoji, not a keyboard. It also closes on the *next* tick rather than
-inside the click that asked for it: removing it mid-dispatch made Chrome fire a
-second click at whatever was then under the pointer, which was often the field
-that opens it, so it shut and reopened in one tap.
-
-### Every game is a weekly competition
-
-A game runs a **season** — a week by default. Players compete on a public
-leaderboard; when the week closes, the prizes go to the top places by rank, the
-codes are emailed to the winners, and a fresh empty board opens.
-
-- **Seasons** (`game_seasons`) close lazily: any read of the play page calls
-  `close_due_game_season`, which ranks the board, mints the winners' codes,
-  records them in `game_season_winners`, and opens the next week. A unique
-  partial index guarantees exactly one open season per game, so a burst of
-  simultaneous readers can't double-pay.
-- **Ranking** is best score per player, ties broken by whoever got there first
-  — the same rule the live board and the payout both use.
-- **Prizes carry a rank** (`game_prizes.award_rank`): first row is first place.
-- **Emails** are sent by `src/lib/games/season-mail.ts`, which drains the
-  winners that `close_due_game_season` left unnotified. Marking happens after
-  the send, so a failure retries rather than dropping someone's prize.
-- Scores are clamped to the game's `max_score`, so a forged submission can
-  never beat the honest ceiling.
-
-The older **instant-win** games (wheel, scratch card, mystery box, advent
-calendar) can no longer be created, but everything already published keeps
-running: `games.award_mode` is `'instant'` for those and the weighted-draw path
-is untouched.
-
-### Lives, and sharing for more
-
-Because the prize is the rank rather than the play, playing often is the point —
-but a board that rewards whoever had the most spare minutes isn't a competition.
-So each player gets **3 lives a week per business** (`merchants.weekly_lives`),
-shared across every game that business runs: three games hand out three plays a
-week, not nine. The week runs Monday to Monday (`week_start()`), and every
-graded round spends one, from `merchant_lives`.
-
-Out of lives? Two ways to get more:
-
-- **Share your own link** — `/p/<business>/<game>?ref=CODE`. When someone plays
-  through it you get an extra life for the week, good on any of that business's
-  games, up to three (`merchants.max_bonus_lives`). The credit is tied to the
-  invited player *finishing a round*, not to opening the link: a page view is
-  free to farm, a round costs the visitor their time and the business a play
-  from its allowance. One life per person invited, ever.
-- **Buy a block** — ₦250 for ten more plays this week, through Paystack
-  (`POST /api/play/[slug]/lives`, confirmed by `/lives/verify`). This is the only
-  thing a *player* ever pays for on Spendbox, and it is optional in the strict
-  sense: bought lives buy attempts, never an advantage inside a round, and the
-  free three are enough to reach the top of a board. The price and block size
-  live in `app_settings` (`life_topup_price_kobo`, `life_topup_lives`) so they
-  can change without a deploy. `credit_life_purchase` is idempotent on the
-  reference, so a reload or a double tap credits once.
-
-### One currency: the board
-
-There used to be two. Alongside the leaderboard, every miss earned a loyalty
-point, points expired on a rolling week, a business set its own exchange rate
-(*n* points = *x*% off), and a separate cycling code redeemed them at the
-counter. A business had to configure both before either made sense, and a
-player had to understand both to know what they were playing for.
-
-That is gone (migration `0020`). What a player chases is the top of the board;
-what a business hands over is the prize for being there. Codes minted under the
-old scheme stay valid and still resolve at the counter — someone holding one is
-owed what it says — but nothing mints new ones, and the columns behind it
-(`loyalty_points`, `points_expire_at`, `loyalty_code`, `points_per_discount`,
-`discount_percent`) are dropped.
-
-The tile-grid product went with it. It was already unreachable — no dashboard
-surface could create a grid — and its whole loop was *losing spins earn points*,
-so with points gone it had nothing left to do. `/g/[slug]`, the grid APIs and
-the board component are deleted; the tables stay, because dropping tables is
-not something a copy change should do.
-
-### Getting paid: the split is real money, not a report
-
-Each business connects its own bank account, which we register with Paystack as
-a **subaccount** (`0021`, `src/app/api/merchant/payout/route.ts`). Every life
-purchase is initialised against it, so Paystack splits at settlement: the
-business's share goes to their bank and ours stays with us. Nobody moves money
-by hand. Paystack's `percentage_charge` is what the *subaccount* keeps, so it
-is set to 100 minus the platform share.
-
-The account number is resolved with the bank before it is saved, and the name
-that comes back is shown. A business shouldn't be asked to re-read ten digits
-it typed; it should be shown whose account those digits reached.
-
-**No payout account, no live game.** `publish_game` refuses, because a live
-game can sell extra plays immediately and taking a player's money with nowhere
-to send the business's half is the one failure here that would be somebody
-else's money. It is checked on publishing rather than on drafting, so the ask
-lands when it is obvious why it's being asked.
-
-`create_game` refuses for the same reason (`0023`). It used to not — it inserts
-a game with status `active` directly, so for a while a business could create
-its way past a rule it could not publish its way past. Same story with the
-free tier's one live game: `0019` moved that cap into settings and taught
-`publish_game` to read it, while `create_game` kept its own hardcoded `2`. Both
-now read the one setting, and the podium cap (ten places, both tiers) is a
-setting too.
-
-A life purchase also records which game the player was on when they bought it,
-so each game can show what it earned. Hub purchases belong to no single game
-and stay at the business level.
-
-**The business sets the price.** One number for the whole platform made sense
-while nobody was earning from it; now that most of every purchase is the
-business's, the business picks it (`0022`, Settings → Price of extra plays).
-A student cafe and a salon doing forty-thousand-naira treatments do not agree
-on what one more go is worth. `merchants.life_topup_price_kobo` is null by
-default, meaning "whatever the platform default is", so a business that never
-opens that screen still moves when an admin changes it. The floor is 500 naira,
-enforced by a check constraint as well as the API: below that Paystack's fee
-eats most of the transaction and the split stops being worth splitting.
-
-### Money: what a player pays, split 70/30
-
-The only thing a *player* ever pays for is more plays: ₦250 for ten more this
-week, offered on the games hub and inside a game. The business whose game they
-bought them for keeps 70%, Spendbox keeps 30%.
-
-Both figures come from one function, `life_revenue(merchant_id)`, so the
-business's dashboard and the admin console can't drift apart. It counts only
-`status = 'paid'` rows, and it hands back the split rather than the rate, so
-nothing else in the codebase has to know what 30% means. The rate lives in
-`app_settings.platform_revenue_share_percent` and is editable in `/admin`
-alongside the price and block size.
-
-One consequence worth knowing: changing the rate re-splits every past sale in
-the reported totals, because the split is computed on read rather than frozen
-per row. That is the honest behaviour for a headline figure and the wrong
-behaviour for a payout — reconcile payouts from `life_purchases` itself.
-
-### Players are asked to verify once
-
-Verifying an email sets a signed, HTTP-only cookie that lasts six months
-(`src/lib/player-session.ts`). Every play route reads the player's identity from
-that cookie rather than from the request body, which is both the memory (no more
-codes on every visit) and the proof (a round can't be opened, or a prize
-addressed, under someone else's email).
-
-### Three games
-
-The builder offers three, and nothing else is reachable from anywhere in the
-product:
-
-| Game | What the score is |
-|---|---|
-| Whack-a-Mole | 100 for a mole hit on sight, 20 at the last moment |
-| Slice Ninja | slices, plus a bonus for cutting several in one swipe |
-| Match Three | 30 a jewel, multiplied by the cascade it starts |
-
-Flappy and 3D Mahjong are written and working but **hidden** — `competitive:
-false` in the catalogue, which takes them out of the builder, the suggestion
-engine and every marketing surface while leaving anything already published
-resolving. Mahjong is hidden on looks rather than on mechanics; a board that
-doesn't hold up next to a real mahjong app isn't worth a business's name on it.
-Unhiding either is a one-line change plus a pass over the copy that counts
-games.
-
-Moves are made by dragging, not tapping: in Match Three the jewel follows the
-finger, the neighbour it would displace slides the other way, and letting go
-either completes the swap or springs it back — a swap that makes no match costs
-nothing but the gesture. Tapping still selects, because a keyboard has no
-pointer.
-
-Whack-a-Mole and Slice Ninja both name their own hazard. The thing to avoid is
-whichever emoji the business chose, so "don't slice the bomb" may be a lie —
-instead the start
-overlay shows the real glyphs side by side, green against red, a chip stays in
-the HUD for the whole round, and anything dangerous wears a pulsing red ring
-(`.danger-ring`). Finding out what costs you by losing is how a player stops
-playing.
-
-Every game explains itself once before the first round
-(`src/components/games/tutorial.tsx`) — three lines, then never again on that
-browser. The memory is per game *type*, not per game, so a business running two
-match-threes doesn't explain matching twice.
-
-Every one produces a score with enough spread to rank a week's leaderboard; a
-game where everyone competent finishes on the same number is a game the board
-can't rank, and none of those survived. Retired types stay in the database's
-type constraint so a business's published game keeps resolving, but they can't
-be created and the player is told plainly when one has ended.
-
-### Assets are built, not downloaded
-
-The jewels, mahjong tiles, mole holes and pipes are CSS: a lit top surface, a
-darker side for thickness, an inner shadow where light doesn't reach, a cast
-shadow beneath (`.gem`, `.tile3d`, `.hole3d`, `.pipe3d` in `globals.css`). One
-light source, top-left, throughout. It costs the player no extra bytes, keeps
-every piece recolourable by the business's brand, and stays sharp at any size —
-WebGL would buy real perspective and cost a megabyte and a battery.
-
-The badge beside a game's name is the same idea taken further: it *plays* the
-game. A lucide sword tells a business the theme of Slice Ninja and nothing
-about it, which is the wrong answer to the only question anyone asks when
-choosing one — what does my customer actually do? So each badge runs a
-two-and-a-bit-second loop (`src/components/games/game-loop.tsx`, keyframes in
-`globals.css`): fruit rises and is cut in half, a mole comes up and is hit, a
-jewel is swiped into a row and the row goes. Five SVG shapes and a keyframe
-each — no video file, no GIF, nothing to download, sharp at any size. Anyone
-whose system asks for less movement gets the plain icon back, and that swap is
-pure CSS, so it needs no JavaScript and survives hydration.
-
-The same badge runs everywhere a game is named: the dashboard's card and
-builder, the landing page's sample, the customer's hub, and the intro screen
-before a round. A customer deciding whether to tap gets the same answer the
-business got when it picked the game.
-
-Two details worth knowing. Mahjong boards are **dealt by solving them
-backwards**: the generator repeatedly takes two currently-free slots, gives
-them the same face and removes them, so replaying that sequence forwards is a
-solution and every board can be cleared. And match-three jewels differ by
-*shape* as well as colour, because a board readable only by hue is unplayable
-for the one in twelve men who can't separate red from green.
-
-### Physics, and why a round is letterboxed
-
-The arcade games run on a fixed-timestep integrator (`useFixedStep` in
-`components/games/kit.tsx`): the world advances in constant 1/120s slices with
-the remainder carried to the next frame, so a 144Hz laptop and a throttled
-phone produce the same jump arc from the same tap and nothing tunnels through
-an obstacle during a long frame. Distances are in world units — the stage is
-100 units tall, its width follows its aspect — rather than percentages of two
-different axes, so hitboxes and speeds are tuned once.
-
-A round fills the screen, but the *playfield keeps the shape its game was
-tuned for* and is letterboxed inside that (`.stage-fill`). This is a
-leaderboard product: a player whose screen hands them three seconds of warning
-is not playing the same game as one who gets one, so every device gets the same
-world. Verified in a browser — a phone and a desktop reach the same distance in
-the same wall-clock time.
-
-The individual games got the forgivenesses that make an arcade game feel fair
-rather than cheap: coyote time and a jump buffer on the runner, a variable jump
-height, shrunken hitboxes, obstacle spacing derived from how far a jump
-actually carries, a basket with a real top speed, swept collision on falling
-items, and swipes tested as the segment between two pointer samples so a fast
-flick cuts what it passed over.
-
-### The player surface is a cabinet, not a page
-
-Everything a player sees — the hub, a game page, the playfield — is drawn dark
-and lit by the business's colour (`.arcade*` in `globals.css`), with numbers in
-pills, medals instead of rank labels, and one enormous button. Prose was the
-main casualty: a rule that could be a heart, a clock or a medal is one, and
-while a round is running everything except the playfield gets out of the way.
-The screen itself stays bright inside the dark bezel, which is what makes a
-cabinet read as a cabinet.
-
-The chrome lives in `components/games/kit.tsx` — `Stage`, `Hud`, `ActionButton`,
-`StartOverlay`, `GradingOverlay` — so every game shares one look and a new
-one inherits it for free. The dashboard keeps its white cards; none of this
-leaks into it.
-
-Dialogs go through one primitive, `src/components/ui/modal.tsx`. Every popup
-used to be hand-rolled and every one was wrong on a phone the same way: sized
-in `vh`, which on mobile counts the space behind the browser's own chrome, so
-an "85vh" panel was taller than the screen it sat on; the header scrolled away
-with the body, taking the close button with it; and the page behind kept
-scrolling. The shared one caps itself at the *small* viewport (`svh`), pins its
-header and footer, scrolls only the middle, locks the body, and arrives as a
-sheet from the bottom on a phone.
-
-Every dialog is also **portalled to `<body>`** (`src/components/ui/portal.tsx`).
-That is not tidiness. An ancestor with a transform, filter, backdrop-filter,
-`contain` or `will-change` becomes the *containing block* for fixed
-descendants, so `fixed inset-0` stops meaning "the viewport" and starts meaning
-"that element". The dashboard is wrapped in `animate-fade-up`, whose fill-mode
-is `both` — its `translateY(0)` never goes away — so every dialog was being
-positioned against a page-height box and rendering at the top of the document.
-Open one while scrolled down and you had to scroll back up to find it. The
-portal fixes the class of bug, not the instance, and survives whoever adds an
-animation to a wrapper next.
-
-Dialogs also close a tick late, and so does the emoji picker. Removing one
-mid-click makes Chrome fire a second click at whatever is then under the
-pointer — often the control that opened it, so it shut and reopened in one
-tap.
-
-### Public boards, private players
-
-The leaderboard is public, so addresses are masked before they leave the server
-(`src/lib/mask.ts`): around 70% starred out, with fixed-width runs so the mask
-leaks neither the characters nor the length. `ja********@********.com`. The
-board marks the reader's own row, so nobody needs to decode anything.
-
-The business sees the same board **unmasked**, in the dashboard, behind the
-*Leaderboard* button on each published game
-(`GET /api/merchant/games/[id]/leaderboard`). It is the same ranking — both
-surfaces call `rankSeason` in `src/lib/games/board.ts`, which is also the rule
-`close_due_game_season` pays out on, so what the dashboard shows on Sunday
-night is who gets the code on Monday morning. Addresses are in the clear there
-because the owner is the one matching a code to a face at the counter, and they
-already see those addresses under Customers. It also shows weeks already
-settled: who won, the code that went out, and whether it has been redeemed.
-
-### The play lifecycle
-
-```
-POST /api/play/[slug]/games/[game]/start    → checks lives + allowance,
-                                              returns a single-use token
-   … the player plays; the game component only reports a score …
-POST /api/play/[slug]/games/[game]/finish   → grades it, spends a life, charges
-                                              one play, puts the score on the board
-POST /api/play/[slug]/games/[game]/refer    → credits whoever invited this player
-```
-
-A round can only be graded through a token issued by `start`, each token grades
-exactly once, and a token left open for six hours is refused. The allowance is
-charged at `finish`, so an abandoned game costs the business nothing.
-
-### Sharing
-
-- `/p/<business>` — the hub: every game the business has live
-- `/p/<business>/<game>` — one game, brandable per game (accent colour, hero)
-
-### Game tier limits
-
-| Tier | Live games | Prizes / game |
-|------|------------|---------------|
-| free | 1 | 2 |
-| premium | unlimited | 10 |
-
-Drafts don't count — a business can hold as many ready-made games as we write
-for them and publish the ones they want.
-
-The free tier runs **one** live game, and that isn't only a paywall: two free
-games split a business's own audience across two leaderboards, and half a board
-is a thinner prize draw than a whole one. The cap lives in `app_settings`
-(`free_live_games`), so a promotion can lift it without a migration, and it is
-checked on *publishing* — a business already running two keeps both, it just
-can't add a third.
-
-A **play** is one round a customer finishes. Every merchant gets an annual
-allowance by tier (free 100/year, premium 5,000/year — both admin-tunable),
-plus top-up plays that never expire and can be bought on either plan. The
-allowance is charged when a round is graded, so abandoned games are free.
-
-## Stack
-
-- **Next.js 16** (App Router, TypeScript, Tailwind v4) — deploy on Vercel.
-  Note: this repo pins a customized Next.js build — read
-  `node_modules/next/dist/docs/` before changing framework-level code.
-- **Supabase** — Postgres, merchant auth, Row Level Security
-- **Resend** — customer code emails + merchant notifications (logs to the
-  server console when `RESEND_API_KEY` is unset)
-- **Paystack** — yearly premium checkout (initialize + verify). Enabled when
-  `PAYSTACK_SECRET_KEY` is set; otherwise the upsell is hidden and tiers can
-  still be toggled manually in the DB.
-- **Admin console** (`/admin`) — platform operator tools (merchants, the shared
-  image library, premium price), gated by environment-variable credentials.
+**Guess the password. Open the safe.**
+
+A spendbox is a password with money behind it. Players get a colour-coded
+verdict on every guess — green for the right character in the right place,
+orange for the right character somewhere else, red for a character that isn't
+in there at all — and if they work it out, the money is theirs.
+
+Playing is free. Nobody has to pay to guess, ever.
+
+---
+
+## The two kinds of box
+
+There is one game. It comes in two versions, and the only difference is whose
+money is behind the prize.
+
+**The public box** is authored by the platform in `/admin` and funded by the
+platform. Free, no stake, no split. Exactly one is playable at a time — a
+unique partial index enforces it — because the public game is *the* public
+game, not a catalogue of them.
+
+**A contributor box** is anyone else's. A contributor writes a password, stakes
+money on it, and shares the link. There is no business here: no trading name,
+no logo, no category, no verification. A contributor is a person who put money
+behind a password and wants people to attack it.
+
+---
+
+## Guessing
+
+A password is 3 to 26 characters, drawn from the 26 letters plus ten specials
+(`! @ # $ % & * ? + =`) — 36 in all. Uppercase only: a password is a pattern,
+not a word, and asking players to guess the case too would double the search
+space for no extra fun.
+
+Feedback follows Wordle's two-pass rule, and the second pass matters. Oranges
+are budgeted against the copies of a character left over after the greens are
+taken, so `AAB` against `ABC` scores `g r o`, not `g o o` — there is only one
+`A` in the password and the first position already claimed it. Without that
+budget a player could count duplicates for free, which turns a long password
+into a much shorter one.
+
+A run gets `length + 6` guesses, floored at 9 and capped at 20. The cap is what
+stops a 26-character box being a formality; past that point the difference is
+made up with power-ups, which is the point.
+
+The password is read in one route handler, compared there, and dropped there.
+What leaves the server is a string of `g`/`o`/`r` and nothing else.
+
+---
+
+## Lives
+
+A player holds **15 lives**, and **one comes back every hour**. They are held
+by the *player*, not by a box: one pool spent across the public box and every
+contributor box alike. Fail on the free public box and you have one fewer life
+for everyone else's.
+
+Mechanically the life comes off when a run opens and is handed back on a win.
+That is the same thing as "failing costs a life", but it cannot be farmed by
+opening runs and walking away from them. Two other cases hand the life back
+too: being pipped by a fraction of a second, and being mid-attempt when
+somebody else cracks the box. Neither is a failure.
+
+The refill clock advances by *whole hours* rather than resetting to now, so a
+player who checks back after 90 minutes banks one life and keeps the spare 30
+minutes towards the next. Otherwise frequent polling would quietly reset the
+timer forever.
+
+Lives can also be bought at **₦150 each**, up to 100 at a time. Nobody has to
+— the pool refills whether or not anyone pays, and the buy dialog says so
+before it says anything else.
+
+---
+
+## Power-ups
+
+The only thing a player ever pays for, and the only way a contributor makes
+money back.
+
+| Power-up | Price | What it does |
+| --- | --- | --- |
+| Sweep | ₦500 | Strikes 2 characters off the keyboard that the password definitely doesn't use (5% of the alphabet, rounded up) |
+| Second Wind | ₦1,000 | Three more guesses on this attempt, up to three times |
+| First Light | ₦1,500 | Locks in the opening character |
+| Last Light | ₦2,000 | Locks in the closing character |
+| Spotlight | ₦3,500 | Lights up one position not yet pinned down |
+| X-Ray | ₦10,000 | Every character the password is built from, without saying where any of them go |
+
+Nothing is revealed at checkout. The order is created `pending` and the effect
+only fires once Paystack confirms the money, so a cancelled payment reveals
+nothing. The note a purchase produces is stored on the order, which means
+re-verifying a reference replays the same answer rather than re-rolling a
+random Sweep.
+
+### Availability never leaks the password
+
+A greyed-out power-up must not become a free hint, so every availability rule
+is decided from public facts — the password's length and what the player has
+already bought — and never from the password.
+
+Sweep is the interesting one. A password of length *L* uses at most *L*
+distinct characters, so at least `36 − L` of the alphabet is guaranteed absent.
+While fewer than that have been struck off, there is *certainly* something left
+to strike, and the button is offered on that bound alone.
+
+---
+
+## Money
+
+Everything is stored in kobo. The split is 70/30 in the contributor's favour on
+everything that has a contributor attached.
+
+### Stakes
+
+A contributor's stake **is** the prize. 70% of it is what a player is chasing;
+Spendbox keeps 30% for running the box. It is collected in full up front, so a
+winner is never waiting on a contributor to be good for it.
+
+The floor rises with the password's length, because a longer password is a
+harder box and a harder box has to be worth attacking:
+
+| Characters | Minimum stake | Prize at the floor |
+| --- | --- | --- |
+| 3 | ₦10,000 | ₦7,000 |
+| 4 | ₦60,000 | ₦42,000 |
+| 5 | ₦160,000 | ₦112,000 |
+| 6 | ₦410,000 | ₦287,000 |
+| 7 | ₦910,000 | ₦637,000 |
+| 8 | ₦1,410,000 | ₦987,000 |
+| … | +₦500,000 each | |
+| 25 | ₦9,910,000 | ₦6,937,000 |
+| 26 | ₦10,000,000 | ₦7,000,000 |
+
+The steps are ₦50,000, then ₦100,000, ₦250,000, ₦500,000, settling at
+₦500,000 a character. The schedule is built so the 26-character ceiling lands
+exactly on **₦10,000,000** — the largest single transfer Paystack will make.
+A contributor may always stake *more* than the floor for a bigger prize, never
+more than the cap.
+
+Rounding on the split goes to the platform, so the advertised prize is never a
+kobo short of what a winner is actually paid.
+
+### Who gets what
+
+| Stream | Contributor | Spendbox |
+| --- | --- | --- |
+| Power-up bought against a contributor's box | 70% | 30% |
+| Power-up bought against the public box | — | 100% |
+| Stake on a contributor's box | becomes the prize (70%) | 30% |
+| Lives | — | 100% |
+
+Lives aren't attached to any box, so there is nobody to share them with.
+
+A contributor's share is real money rather than a line in a report: their bank
+account is registered with Paystack as a **subaccount**, and every power-up
+sale is charged against it. Paystack splits at settlement, so their share never
+sits in a Spendbox balance waiting for someone to move it, and nobody here
+moves it by hand.
+
+The one exception is a **prize**, which can't ride a subaccount — the winner is
+a stranger with no account here until the moment they win. So a cracked box
+opens a claim, the winner supplies a bank account (checked against the bank
+before it's stored, so a mistyped digit is caught while it's still a form), and
+an admin sends the transfer from `/admin`.
+
+### A box is finished when it opens
+
+An unlocked box can never be played again. If two players submit the winning
+guess in the same instant, a conditional update decides it: exactly one is the
+winner, and the other is told they were pipped rather than being promised a
+prize twice.
+
+---
+
+## Surfaces
+
+| Route | Who | What |
+| --- | --- | --- |
+| `/` | anyone | The lobby: the public box, every staked box, and the safes already opened |
+| `/b/[slug]` | anyone | A box, played. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
+| `/me` | a verified player | Lives, attempts, and where a prize has got to. Not an account — there's no password here |
+| `/signup` | a contributor | Email-first: known address asks for a password, new address emails a code |
+| `/dashboard` | a contributor | Boxes, Build, Attempts, Money |
+| `/admin` | the platform | The public box, prizes to send, and where the revenue came from |
+
+A player never signs up. They verify an address once — because a prize has to
+be sent somewhere — and a signed cookie remembers them for six months.
+
+### The contributor dashboard
+
+Four tabs and no more. **Boxes** is what's up and what each has earned, with a
+share button that uses the native share sheet where there is one (on a phone
+that means WhatsApp, not a clipboard). **Build** is two decisions — the
+password and the stake — with the prize, the guess budget and our cut all
+updating as you type, so nothing is a surprise at checkout. **Attempts** is who
+has been having a go, addresses starred out before they leave the server.
+**Money** is power-up income, the split written out in full, the winners, and
+the bank account it all settles to.
+
+---
 
 ## Security model
 
-1. **Odds and prize logic never reach the browser.** The public game endpoint
-   returns the authored config, the prize *labels*, and the leaderboard — never
-   a draw weight, and never the stock of anything still winnable. Wins are
-   decided in `finish_game_play` behind a single-use token.
-2. **Atomic mutations.** Every game mutation is a `SECURITY DEFINER` Postgres
-   function using `SELECT ... FOR UPDATE` row locks in a single transaction, so
-   a prize can never be over-claimed no matter how many people finish at once.
-   A per-IP cooldown (hashed IP, salted via `IP_HASH_SALT`) backs up the
-   per-email one.
-3. **Redemption by code only.** Staff type the customer's code into the
-   dashboard — a two-step flow resolves it and then redeems it. There is
-   deliberately no
-   lookup-by-email redemption path, and the dashboard masks stored codes. Once
-   redeemed or expired, a code is invalid (expiry is enforced lazily at
-   redemption time).
-4. **RLS**: merchants can only *read* their own data; every write goes through
-   API routes using the service-role key. Anonymous customers have no direct
-   table access at all.
-5. **Admin auth by env var.** `/admin` accepts either dedicated credentials
-   (`ADMIN_EMAIL` + `ADMIN_PASSWORD`, whose hash is the session cookie so
-   rotating either invalidates every session) or any Supabase user whose email
-   is on `ADMIN_EMAILS`.
+- **`boxes.secret` is service-role only.** No RLS policy anywhere grants a
+  select on `boxes` — not to anon, not to a signed-in user, not to the
+  contributor who wrote the password. The play surface only ever talks to route
+  handlers.
+- **Players have no table access at all.** Identity is a signed HMAC cookie
+  carrying the address and an expiry, minted after a 6-digit code. Nothing
+  about the player is stored client-side that the server would have to trust.
+- **Contributors read only their own rows** — their profile and their own
+  power-up income. Every write goes through a route handler using the service
+  role.
+- **The privileged functions are unreachable from a browser.** `start_run`,
+  `claim_box`, `credit_lives`, `ensure_player`, `sync_lives` and
+  `auth_user_id_by_email` all run `security definer`, so `EXECUTE` is revoked
+  from `public` as well as `anon` and `authenticated` — Postgres grants
+  `EXECUTE` to `PUBLIC` by default and the API roles inherit it, so naming only
+  those two would leave `/rpc/credit_lives` wide open.
+- **Concurrency is decided in the database.** One active run per player per box
+  (partial unique index), one guess per ordinal (unique constraint — two racing
+  submissions claim the same ordinal and exactly one wins), one winner per box
+  (conditional update), one live public box (partial unique index).
+- **Payment settlement is idempotent.** The webhook and the browser's return
+  trip both settle; whichever arrives first does the work, and each order flips
+  status with a conditional update that everything downstream hangs off.
+- **Emails are masked before they leave the server**, never in the browser.
+  Around 70% is starred out and the runs of stars are a fixed width, so the
+  mask leaks neither the characters nor how many there were.
+
+---
+
+## Stack
+
+Next.js 16 (App Router, Turbopack), React 19, Tailwind v4, Supabase (Postgres +
+Auth), Paystack, Resend.
+
+Session refresh runs in `src/proxy.ts` — Next 16 renamed `middleware` to
+`proxy`, and it is matched only on `/dashboard` and `/api/contributor`, since a
+player has no Supabase session to refresh.
+
+### Project layout
+
+```
+src/lib/constants.ts        the alphabet, lengths, life economy
+src/lib/game/feedback.ts    scoring a guess (pure, server-only)
+src/lib/game/stakes.ts      the stake ladder and the 70/30 split
+src/lib/game/power-ups.ts   the catalogue, availability, and effects
+src/lib/game/boxes.ts       reading boxes without reading passwords
+src/lib/game/view.ts        assembling what the play screen sees
+src/lib/game/settle.ts      turning a confirmed payment into the thing it bought
+src/app/api/boxes/…         play: the box, the run, the guess, the power-up
+src/app/api/player/…        lives, verification, history, prizes
+src/app/api/contributor/…   profile, boxes, funding, attempts, earnings, payout
+src/app/api/admin/…         the public box, prize claims, revenue
+supabase/migrations/        append-only; 0024 is the rebuild
+```
+
+---
 
 ## Setup
 
@@ -461,16 +270,22 @@ allowance is charged when a round is graded, so abandoned games are free.
    npx supabase db push          # applies supabase/migrations/*
    ```
 
-   (Local stack instead: `npx supabase start && npx supabase db reset` — this
-   also runs `supabase/seed.sql`, which creates a test merchant
-   `seed-merchant@example.com` / `password123`.)
+   Local stack instead: `npx supabase start && npx supabase db reset`. That also
+   runs `supabase/seed.sql`, which creates a contributor
+   (`seed@example.com` / `password123`), the public box `/b/the-opening-night`
+   (password `OPEN`) and a staked box `/b/adas-safe` (password `NAIRA!`).
 
-2. **Configure env** — copy `.env.example` to `.env.local` and fill in the
-   Supabase URL, anon key, and service-role key. Optional keys:
-   - `RESEND_API_KEY` + `EMAIL_FROM` — real emails (else logged to console).
-   - `PAYSTACK_SECRET_KEY` — enable the premium checkout.
+2. **Configure env** — copy `.env.example` to `.env.local`:
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+     `SUPABASE_SERVICE_ROLE_KEY` — required.
+   - `RESEND_API_KEY` + `EMAIL_FROM` — real emails (otherwise logged to the
+     console, which is enough to play locally).
+   - `PAYSTACK_SECRET_KEY` — enables stakes, power-ups and buying lives. Without
+     it the game still works; only the paid parts are switched off.
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (and/or `ADMIN_EMAILS`) — access `/admin`.
-   - `IP_HASH_SALT` — salt for the per-IP play cooldown.
+   - `PLAYER_SESSION_SECRET` — signs the player cookie. Falls back to the
+     service-role key.
+   - `APP_URL` — canonical URL for Paystack callbacks behind a proxy.
 
 3. **Run**:
 
@@ -479,163 +294,43 @@ allowance is charged when a round is graded, so abandoned games are free.
    npm run dev
    ```
 
-## Deploying to Vercel
+Point Paystack's webhook at `https://your-domain/api/paystack/webhook`.
 
-1. Import the repo into Vercel (framework auto-detects Next.js).
-2. Add environment variables under **Project → Settings → Environment
-   Variables** (or `vercel env add`):
+---
 
-   | Variable | Environments | Notes |
-   |----------|--------------|-------|
-   | `NEXT_PUBLIC_SUPABASE_URL` | Production + Preview + Development | build-time inlined |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Production + Preview + Development | build-time inlined |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Production + Preview | mark **Sensitive** — server-only |
-   | `RESEND_API_KEY` | Production (+ Preview if you want real emails) | optional; logs to console when unset |
-   | `EMAIL_FROM` | Production + Preview | verified Resend sender |
-   | `APP_URL` | optional on Vercel | canonical URL for links in emails; defaults to `VERCEL_PROJECT_PRODUCTION_URL`, required on other hosts |
-   | `PAYSTACK_SECRET_KEY` | Production (+ Preview for test mode) | mark **Sensitive**; enables premium checkout |
-   | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Production | mark **Sensitive**; dedicated `/admin` login |
-   | `ADMIN_EMAILS` | Production | optional; comma-separated Supabase-user allowlist for `/admin` |
-   | `IP_HASH_SALT` | Production + Preview | optional salt for the per-IP play cooldown |
+## Testing the rules
 
-   `NEXT_PUBLIC_*` values are inlined at build time, so set them **before**
-   the first deploy and redeploy after changing them. If you want previews
-   isolated from production data, create a second (staging) Supabase project
-   and scope its values to the Preview environment only.
-3. Local dev can reuse the same values with `vercel env pull .env.local`.
-4. **Supabase-side URL config** (dashboard → Authentication → URL
-   Configuration): set *Site URL* to your production URL and add
-   `https://*.vercel.app` preview URLs to *Redirect URLs* if you use email
-   confirmation — otherwise merchant signup confirmation links redirect to
-   `localhost`.
+The game rules are small and pure on purpose, and both halves are checkable
+without a browser.
 
-## Database migrations (CI)
+**The TypeScript half** — scoring, the stake ladder, the split, power-up
+effects and availability — is exercised by transpiling
+`src/lib/game/*` and asserting against hand-worked cases: that `AAB` against
+`ABC` scores `gro`, that the ladder is monotonic and lands on ₦10,000,000 at 26
+characters, that a split always reconciles to the stake, that Sweep only ever
+strikes characters the password doesn't use.
 
-Migrations are **plain SQL** applied with the Supabase CLI — there is no ORM
-migration layer (see "Why no Prisma" below).
-`.github/workflows/migrate.yml` runs `supabase db push` automatically whenever
-a file in `supabase/migrations/` lands on `develop` (or manually via
-*workflow_dispatch*). Configure these GitHub Actions secrets once:
+**The SQL half** runs against a scratch Postgres with a small stand-in for the
+Supabase-managed `auth` and `storage` schemas. Applying all migrations in order
+proves the chain still builds from nothing; then the checks cover the life
+economy (whole-hour accrual, polling not resetting the clock, bought lives
+exceeding the cap), the run lifecycle (a life spent, a resume not charging
+twice, a win refunding, a bystander refunded when the box falls), the races
+(first solver wins, second is pipped and keeps their life, one claim only), and
+the constraints. A separate pass sets `role` to `anon` and `authenticated` and
+asserts that neither can read a password or call a privileged function.
 
-- `SUPABASE_ACCESS_TOKEN` — from supabase.com → Account → Access Tokens
-- `SUPABASE_PROJECT_REF` — the ref in your project's URL
-- `SUPABASE_DB_PASSWORD` — the project's database password
+---
 
-**Why no Prisma:** the core game logic lives in `SECURITY DEFINER` plpgsql
-functions with `FOR UPDATE` row locks, plus RLS policies and column-level
-grants — all things Prisma's schema DSL can't express, so they'd end up as
-raw-SQL escape hatches anyway. One SQL migration chain keeps a single source
-of truth; `supabase db push` tracks applied migrations server-side just like
-`prisma migrate deploy` would.
+## Not in this version (deliberately)
 
-## Manual end-to-end test
-
-1. Sign up at `/signup` (confirm email if your project requires it), then log
-   in at `/login`.
-2. On `/dashboard`: create your business profile (name + link slug), then open
-   **Settings → About your business**. Tap a trade, a goal or two, and save —
-   the progress bar moves as you tap, and saving writes a handful of games from
-   your answers.
-3. **Build → Games** now has a *Ready for you* shelf. *Try it* plays a draft in
-   a preview (the real game, draw simulated locally, no code issued), *Edit*
-   opens the full editor, and *Publish & share* takes it live and copies the
-   link. Building one by hand from *New game* takes two steps: pick, then
-   confirm the prize.
-4. Open `/p/<slug>/<game>` in an incognito window, verify an email, and play. The
-   score lands on this week's board; play twice more and you're out of lives for
-   the week — on every game this business runs, not just this one.
-   Copy your share link, open it in another browser, play a round there — your
-   first browser gets a life back.
-5. To watch a week close without waiting: `update game_seasons set ends_at =
-   now() - interval '1 minute' where status = 'open';` then reload the play
-   page. The prizes go to the top places, the winners get their codes by email,
-   and a fresh empty board opens.
-6. Back on the dashboard, type the code into **Redeem a customer code** — it
-   redeems once, then rejects with "already redeemed". Visit `/me` with the same
-   email to see every code you're holding across every business.
-7. To test premium without paying: `update merchants set subscription_tier =
-   'premium', premium_expires_at = now() + interval '1 year';` in the SQL
-   editor, reload the dashboard, and you can run unlimited games with up to 10
-   prizes each. With `PAYSTACK_SECRET_KEY` set, the Plans tab instead offers a
-   real (test-mode) checkout.
-
-### SQL-level branded-game tests
-
-The game engine is testable without the app. Against a seeded stack:
-
-```sql
--- A weekly competition with a three-place podium
-select create_game(
-  (select id from merchants where slug = 'mama-put-kitchen'),
-  'whack-a-mole', 'score', 'Whack it', 'weekly-game', null,
-  '{}'::jsonb, '{}'::jsonb,
-  '[{"kind":"prize","description":"Free meal","stock":12,"award_rank":1},
-    {"kind":"prize","description":"Free drink","stock":12,"award_rank":2},
-    {"kind":"prize","description":"10% off","stock":12,"award_rank":3}]'::jsonb,
-  0, 1, 100000, 'active', 'manual', 'leaderboard', 7, 3, 3);
-
--- Play a round. Three a week across ALL of this business's games; the fourth
--- start returns 'no_lives' with next_lives_at set to Monday, whichever game it
--- is on.
-select start_game_play('mama-put-kitchen', 'weekly-game', 'tester@example.com');
-select finish_game_play('<token from above>', 250, '{}'::jsonb);   -- 'scored'
-
--- Close the week early and see the prizes go out
-update game_seasons set ends_at = now() - interval '1 minute' where status = 'open';
-select close_due_game_season((select id from games where slug = 'weekly-game'));
-select rank, score, unlocked_reward_id is not null as got_code
-  from game_season_winners order by rank;
-```
-
-## Project layout
-
-- `supabase/migrations/*.sql` — schema, RLS, and the atomic game functions.
-  `0001`–`0012` build the merchant, customer, payments and admin foundations;
-  **`0013` is the branded-games platform** (`games`,
-  `game_prizes`, `game_plays`, `create_game`, `start_game_play`,
-  `finish_game_play`, and the game-aware staff lookup/redeem); **`0014` adds the
-  business knowledge base** (`merchants.profile`), draft games, and
-  `publish_game`; **`0015` turns games into weekly competitions**
-  (`game_seasons`, `game_season_winners`, `merchant_lives`, `game_referrals`,
-  `close_due_game_season`, rank-based prizes); **`0018` makes lives weekly and
-  sellable** (`week_start`, `life_purchases`, `credit_life_purchase`);
-  **`0019`** moves the free-tier game cap into settings; **`0020` deletes
-  loyalty points** and adds `life_revenue`, the one place the 70/30 split is
-  computed; **`0021` adds Paystack subaccounts** and makes a payout account a
-  precondition of publishing; **`0022`** lets a business price its own block of
-  extra plays; **`0023`** makes `create_game` obey the same live-game cap,
-  payout requirement and podium length as `publish_game`.
-- `src/lib/games/catalog.ts` — the game catalogue: one declarative entry per
-  game type (engine, defaults, setup-form schema). Shared by the API, the
-  dashboard builder, and the player.
-- `src/components/games/*` — one component per game type against the shared
-  contract in `kit.tsx`, plus the lazy registry in `index.tsx`
-- `src/app/p/[slug]` — the public game hub; `src/app/p/[slug]/[game]` — the
-  branded player shell (email gate, start/finish, result, leaderboard)
-- `src/app/api/play/[slug]/*` — public play endpoints (service role, no auth)
-- `src/app/api/customer/summary` — cross-merchant customer portal data
-- `src/app/api/merchant/*` — merchant endpoints (session cookie auth)
-- `src/app/api/admin/*` — platform admin endpoints (env-var auth)
-- `src/app/me` — customer portal: the codes you're holding (email-only)
-- `src/components/ui/modal.tsx` — the one dialog every popup uses
-- `src/app/dashboard` — merchant dashboard (RLS reads, API writes); UI split
-  into `src/components/dashboard/*`
-- `src/app/admin` — platform admin console
-- `src/lib/constants.ts` — game constants (mirrored in the SQL functions)
-
-## Not in v1 (deliberately)
-
-- Per-game analytics beyond plays / players / wins / redemptions
-- Regenerating a single suggestion (the endpoint tops up missing game types;
-  it won't rewrite one you already have)
-- Customer accounts/auth (email-only identity)
-- Automatic expiry sweeps (expiry is enforced lazily at redemption)
-
-## The retired tile board
-
-Spendbox began as a single game: a shared 7×7 board of hidden rewards at
-`/g/<business>`. It is no longer part of the product — nothing links to it, and
-the dashboard has no way to build one — but the route, the API and the
-`play_tile` SQL remain in place so that boards already shared on receipts keep
-working and codes they issued keep redeeming. New businesses only ever see
-games.
+- **No leaderboards.** A box has one winner and then it's over.
+- **No streaks, no daily bonus, no referral loops.** Lives refill on a clock
+  and that's the whole retention model.
+- **No automated prize transfers.** A winner's bank details are checked with
+  the bank, but the transfer itself is a human pressing a button in `/admin`.
+- **No editing a live box.** The password is fixed the moment money goes behind
+  it. A contributor who wants a different one builds a different box.
+- **No password recovery for a box.** Nobody at Spendbox can read a box's
+  password back to its author, which is the same property that makes the game
+  worth playing.

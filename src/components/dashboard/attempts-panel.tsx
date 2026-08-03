@@ -1,0 +1,71 @@
+"use client";
+
+// Who has been having a go.
+//
+// Addresses arrive from the server already starred out, and there is nothing
+// on this screen that would let a contributor work one out — no full domain,
+// no consistent length. A contributor is a stranger to these players; what
+// they need to know is that people are actually turning up.
+
+import { Empty, Panel } from "./shared";
+import type { AttemptRow } from "@/lib/types";
+
+export function AttemptsPanel({ attempts }: { attempts: AttemptRow[] }) {
+  if (attempts.length === 0) {
+    return (
+      <Panel>
+        <Empty>
+          No attempts yet. Share a box&apos;s link and they&apos;ll show up here.
+        </Empty>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title={`${attempts.length} most recent attempts`}>
+      <div className="-mx-1 overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-sm">
+          <thead>
+            <tr className="text-left text-xs uppercase tracking-wide text-zinc-500">
+              <th className="pb-2 font-medium">Player</th>
+              <th className="pb-2 font-medium">Box</th>
+              <th className="pb-2 font-medium">Guesses</th>
+              <th className="pb-2 font-medium">Power-ups</th>
+              <th className="pb-2 font-medium">When</th>
+            </tr>
+          </thead>
+          <tbody>
+            {attempts.map((attempt, i) => (
+              <tr key={i} className="border-t border-white/5">
+                <td className="py-2 pr-3 font-mono text-xs text-zinc-400">
+                  {attempt.player}
+                </td>
+                <td className="max-w-[10rem] truncate py-2 pr-3 text-zinc-300">
+                  {attempt.boxTitle}
+                </td>
+                <td className="py-2 pr-3 tabular-nums text-zinc-400">
+                  {attempt.guessesUsed}/{attempt.guessesAllowed}
+                  {attempt.status === "won" && (
+                    <span className="ml-1.5 text-mark-green">cracked it</span>
+                  )}
+                  {attempt.status === "active" && (
+                    <span className="ml-1.5 text-brass">still going</span>
+                  )}
+                </td>
+                <td className="py-2 pr-3 tabular-nums text-zinc-400">
+                  {attempt.powerUpsBought || "—"}
+                </td>
+                <td className="py-2 text-xs text-zinc-500">
+                  {new Date(attempt.startedAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
+}

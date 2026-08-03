@@ -1,16 +1,23 @@
 "use client";
 
+// One email-first door for contributors.
+//
+// Enter an address: if it already has an account we ask for the password
+// (login); if it's new we email a 6-digit code and ask for a code plus a
+// password (signup). Players never come through here — playing needs no
+// account at all — so this page is only for people who want to put a box up.
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Boxes } from "lucide-react";
+import { Lock } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { PasswordInput } from "@/components/password-input";
 
-// One email-first entry for both signup and login. Enter an email: if it
-// already has an account we ask for the password (login); if it's new we email
-// a 6-digit code and ask for a code + password (signup).
 type Step = "email" | "login" | "signup";
+
+const INPUT =
+  "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-brass";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -42,12 +49,13 @@ export default function AuthPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
+
     const res = await fetch("/api/auth/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: addr() }),
     });
-    const body = await res.json().catch(() => null);
+    const body = (await res.json().catch(() => null)) as { exists?: boolean } | null;
     if (!res.ok) {
       setBusy(false);
       setError("Enter a valid email address.");
@@ -58,7 +66,7 @@ export default function AuthPage() {
       setStep("login");
       return;
     }
-    // New account: email a signup code.
+
     const start = await fetch("/api/auth/register/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -66,7 +74,7 @@ export default function AuthPage() {
     });
     setBusy(false);
     if (!start.ok) {
-      const b = await start.json().catch(() => null);
+      const b = (await start.json().catch(() => null)) as { error?: string } | null;
       setError(
         b?.error === "too_many_requests"
           ? "Too many code requests — wait a little and try again."
@@ -87,180 +95,163 @@ export default function AuthPage() {
     });
     setBusy(false);
     if (signInError) {
-      setError("Wrong password. Try again or reset it.");
+      setError("That password doesn't match.");
       return;
     }
     router.replace("/dashboard");
-    router.refresh();
   }
 
-  async function completeSignup(e: React.FormEvent) {
+  async function register(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^\d{6}$/.test(code.trim())) {
-      setError("Enter the 6-digit code we emailed you.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
     setBusy(true);
     setError(null);
+
     const res = await fetch("/api/auth/register/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: addr(), code: code.trim(), password }),
     });
     if (!res.ok) {
-      const body = await res.json().catch(() => null);
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setBusy(false);
       setError(
-        body?.error === "invalid_code"
-          ? "That code isn't right or has expired. Check your email or resend."
+        body?.error === "weak_password"
+          ? "Use at least 8 characters."
           : body?.error === "email_taken"
-            ? "That email already has an account — go back and sign in."
-            : body?.error === "weak_password"
-              ? "Password must be at least 8 characters."
-              : "Couldn't create your account. Try again."
+            ? "That address already has an account — sign in instead."
+            : "That code didn't match. Check it and try again."
       );
       return;
     }
+
     const { error: signInError } = await supabaseBrowser().auth.signInWithPassword({
       email: addr(),
       password,
     });
     setBusy(false);
     if (signInError) {
-      router.push("/signup");
+      setStep("login");
       return;
     }
     router.replace("/dashboard");
-    router.refresh();
-  }
-
-  function restart() {
-    setError(null);
-    setPassword("");
-    setCode("");
-    setStep("email");
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-6">
-      <div className="animate-fade-up w-full max-w-sm">
-        <Link
-          href="/"
-          className="mb-6 flex items-center justify-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
-        >
-          <Boxes className="size-5 text-emerald-600" aria-hidden />
-          Spend<span className="text-emerald-600">box</span>
+    <main className="flex flex-1 items-center justify-center px-4 py-12">
+      <div className="w-full max-w-sm">
+        <Link href="/" className="flex items-center justify-center gap-2 font-semibold">
+          <Lock className="size-5 text-brass" aria-hidden />
+          Spendbox
         </Link>
 
-        <div className="card p-6 sm:p-8">
+        <div className="panel mt-6 rounded-2xl p-6">
+          <h1 className="text-xl font-bold tracking-tight">
+            {step === "login" ? "Welcome back" : "Put a box up"}
+          </h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            {step === "email"
+              ? "Stake a prize behind a password of your own, and earn from every power-up bought trying to crack it."
+              : step === "login"
+                ? addr()
+                : `We emailed a 6-digit code to ${addr()}.`}
+          </p>
+
           {step === "email" && (
-            <form onSubmit={continueEmail}>
-              <h1 className="text-xl font-bold tracking-tight text-zinc-900">
-                Get started
-              </h1>
-              <p className="mt-1 text-sm text-zinc-500">
-                Enter your email — we&apos;ll sign you in or set you up.
-              </p>
-              <label className="mt-6 block">
-                <span className="field-label">Email</span>
-                <input
-                  type="email"
-                  required
-                  autoFocus
-                  placeholder="you@business.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input-field"
-                />
-              </label>
-              {error && <p className="alert-error mt-4">{error}</p>}
-              <button type="submit" disabled={busy} className="btn-primary mt-6 w-full">
-                {busy ? "Checking…" : "Continue"}
-              </button>
+            <form onSubmit={continueEmail} className="mt-5 space-y-3">
+              <input
+                type="email"
+                autoFocus
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className={INPUT}
+              />
+              <Submit busy={busy} label="Continue" />
             </form>
           )}
 
           {step === "login" && (
-            <form onSubmit={login}>
-              <h1 className="text-xl font-bold tracking-tight text-zinc-900">
-                Welcome back
-              </h1>
-              <p className="mt-1 text-sm text-zinc-500">
-                Enter the password for{" "}
-                <span className="font-medium text-zinc-700">{addr()}</span>.
-              </p>
-              <label className="mt-6 block">
-                <span className="field-label">Password</span>
-                <PasswordInput
-                  required
-                  autoFocus
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-              {error && <p className="alert-error mt-4">{error}</p>}
-              <button type="submit" disabled={busy} className="btn-primary mt-6 w-full">
-                {busy ? "Signing in…" : "Sign in"}
-              </button>
-              <div className="mt-3 flex items-center justify-between text-sm">
-                <button type="button" onClick={restart} className="text-zinc-500 underline hover:text-zinc-700">
-                  Use a different email
+            <form onSubmit={login} className="mt-5 space-y-3">
+              <PasswordInput
+                autoFocus
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your password"
+              />
+              <Submit busy={busy} label="Sign in" />
+              <div className="flex justify-between text-sm">
+                <button
+                  type="button"
+                  onClick={() => setStep("email")}
+                  className="text-zinc-500 hover:text-zinc-300"
+                >
+                  Use another email
                 </button>
-                <Link href="/reset-password" className="text-zinc-500 underline hover:text-zinc-700">
-                  Forgot password?
+                <Link href="/reset-password" className="text-zinc-500 hover:text-zinc-300">
+                  Forgot it?
                 </Link>
               </div>
             </form>
           )}
 
           {step === "signup" && (
-            <form onSubmit={completeSignup}>
-              <h1 className="text-xl font-bold tracking-tight text-zinc-900">
-                Create your account
-              </h1>
-              <p className="mt-1 text-sm leading-relaxed text-zinc-500">
-                We emailed a 6-digit code to{" "}
-                <span className="font-medium text-zinc-700">{addr()}</span>.
-                Enter it and pick a password.
-              </p>
-              <label className="mt-5 block">
-                <span className="field-label">Verification code</span>
-                <input
-                  inputMode="numeric"
-                  autoFocus
-                  maxLength={6}
-                  placeholder="123456"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  className="input-field text-center font-mono text-2xl tracking-[0.4em]"
-                />
-              </label>
-              <label className="mt-4 block">
-                <span className="field-label">Password</span>
-                <PasswordInput
-                  required
-                  minLength={8}
-                  placeholder="Min 8 characters"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-              {error && <p className="alert-error mt-4">{error}</p>}
-              <button type="submit" disabled={busy} className="btn-primary mt-6 w-full">
-                {busy ? "Creating…" : "Create account"}
-              </button>
-              <button type="button" onClick={restart} className="btn-ghost mx-auto mt-3 block">
-                Use a different email
+            <form onSubmit={register} className="mt-5 space-y-3">
+              <input
+                autoFocus
+                required
+                inputMode="numeric"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                className={`${INPUT} text-center font-mono text-2xl tracking-[0.4em]`}
+              />
+              <PasswordInput
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Choose a password (8+ characters)"
+              />
+              <Submit busy={busy} label="Create account" />
+              <button
+                type="button"
+                onClick={() => setStep("email")}
+                className="text-sm text-zinc-500 hover:text-zinc-300"
+              >
+                Use another email
               </button>
             </form>
           )}
+
+          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
         </div>
+
+        <p className="mt-4 text-center text-sm text-zinc-600">
+          Just want to play?{" "}
+          <Link href="/" className="text-brass hover:underline">
+            No account needed
+          </Link>
+          .
+        </p>
       </div>
     </main>
+  );
+}
+
+function Submit({ busy, label }: { busy: boolean; label: string }) {
+  return (
+    <button
+      type="submit"
+      disabled={busy}
+      className="w-full rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright disabled:opacity-50"
+    >
+      {busy ? "Working…" : label}
+    </button>
   );
 }

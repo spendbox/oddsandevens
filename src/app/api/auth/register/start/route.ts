@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "email_taken" }, { status: 409 });
   }
 
-  const sent = await createAndSendCode(email, "merchant_signup");
+  const sent = await createAndSendCode(email, "contributor_signup");
   if (!sent) {
     return NextResponse.json({ error: "too_many_requests" }, { status: 429 });
   }

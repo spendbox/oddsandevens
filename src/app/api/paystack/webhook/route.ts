@@ -1,11 +1,18 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { settlePayment } from "@/lib/payments";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import {
+  markFailed,
+  orderTableFor,
+  settleLives,
+  settlePowerUp,
+  settleStake,
+} from "@/lib/game/settle";
 
-// Paystack server-to-server webhook. This is the reliable crediting path: even
-// if the customer closes the tab before the browser redirect fires, Paystack
-// POSTs `charge.success` here and we settle the payment. Configure the endpoint
-// URL (https://spendbox.site/api/paystack/webhook) in the Paystack dashboard.
+// Paystack server-to-server webhook: the reliable crediting path. Even if the
+// player closes the tab before the browser redirect fires, Paystack POSTs
+// `charge.success` here and the order settles. Configure the endpoint URL
+// (https://spendbox.site/api/paystack/webhook) in the Paystack dashboard.
 //
 // The raw body is required to verify the signature, so we read text() (not
 // json()) and hash it with the secret key.
@@ -34,14 +41,24 @@ export async function POST(req: Request) {
   }
 
   const e = event as { event?: string; data?: { reference?: string } };
-  if (e?.event === "charge.success") {
-    const reference = String(e.data?.reference ?? "");
-    if (/^th_[0-9a-f]{24}$/.test(reference)) {
-      const settled = await settlePayment(reference);
-      if (!settled.ok && settled.status >= 500) {
-        // Let Paystack retry on a transient server error.
-        return NextResponse.json({ error: settled.error }, { status: 500 });
+  const reference = String(e?.data?.reference ?? "");
+  const table = orderTableFor(reference);
+
+  if (table && (e.event === "charge.success" || e.event === "charge.failed")) {
+    try {
+      if (e.event === "charge.failed") {
+        await markFailed(supabaseAdmin(), table, reference);
+      } else if (table === "power_up_orders") {
+        await settlePowerUp(supabaseAdmin(), reference);
+      } else if (table === "life_orders") {
+        await settleLives(supabaseAdmin(), reference);
+      } else {
+        await settleStake(supabaseAdmin(), reference);
       }
+    } catch (err) {
+      // Let Paystack retry rather than silently dropping a paid order.
+      console.error("[webhook] settle failed:", err);
+      return NextResponse.json({ error: "settle_failed" }, { status: 500 });
     }
   }
 
