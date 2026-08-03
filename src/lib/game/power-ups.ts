@@ -54,13 +54,16 @@ export interface PowerUpSpec {
   /**
    * How often it can be bought on one box.
    *
-   * `once` means the answer it gives is permanent — a length doesn't change,
-   * and neither does what the password is made of, so buying it twice would
-   * pay for the same sentence. `hourly`/`daily` rent a window instead, and are
-   * buyable again the moment it lapses. Worth saying out loud on the dialog:
-   * "can I buy this again?" is the first thing anyone wonders.
+   * `once` means the answer it gives is permanent and complete — a length
+   * doesn't change, and neither does what the password is made of, so buying
+   * it twice would pay for the same sentence. `hourly`/`daily` rent a window
+   * instead and are buyable again the moment it lapses. `partial` hands over
+   * a slice of something bigger and can be bought until there's none left.
+   *
+   * Worth saying out loud on the dialog: "can I buy this again?" is the first
+   * thing anyone wonders.
    */
-  repeat: "once" | "hourly" | "daily";
+  repeat: "once" | "partial" | "hourly" | "daily";
 }
 
 export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
@@ -114,10 +117,10 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     detail:
       "Names half of the different characters the password is built from — the actual characters, with their case. It does not say where any of them go, how many times each appears, or what the other half are. On a long password this is the single biggest cut to the search: every character it names is one you can stop hunting for.",
     caveat:
-      "Half, rounded up, chosen at random. Unordered, and it says nothing about position.",
+      "Half of what you don't already know, rounded up, chosen at random. Unordered, and it says nothing about position.",
     share: 0.05,
     floorKobo: 1_000 * KOBO,
-    repeat: "once",
+    repeat: "partial",
   },
 };
 
@@ -165,8 +168,17 @@ export interface Revealed {
   /** The password's length, once Length Lock has been bought. */
   length: number | null;
   caseMap: CaseMap | null;
-  /** X-Ray's answer: half the distinct characters, unordered. */
+  /** X-Ray's answer so far: distinct characters it has named, unordered. */
   charset: string[] | null;
+  /**
+   * How many distinct characters the password has in total, known once X-Ray
+   * has been bought at least once.
+   *
+   * Stored because availability depends on it — the shelf has to know whether
+   * there's anything left to name. It discloses nothing new: the note the
+   * first purchase produces already says "4 of the 7 characters it uses".
+   */
+  charsetTotal: number | null;
   /** When Colour Read lapses, or null if it isn't running. */
   breakdownUntil: string | null;
   /** When Second Wind lapses. While it runs, guesses cost no lives. */
@@ -179,6 +191,7 @@ export const EMPTY_REVEALED: Revealed = {
   length: null,
   caseMap: null,
   charset: null,
+  charsetTotal: null,
   breakdownUntil: null,
   secondWindUntil: null,
   used: {},
@@ -191,6 +204,8 @@ export function parseRevealed(raw: unknown): Revealed {
     length: typeof value.length === "number" ? value.length : null,
     caseMap: value.caseMap ?? null,
     charset: Array.isArray(value.charset) ? value.charset : null,
+    charsetTotal:
+      typeof value.charsetTotal === "number" ? value.charsetTotal : null,
     breakdownUntil:
       typeof value.breakdownUntil === "string" ? value.breakdownUntil : null,
     secondWindUntil:
@@ -233,8 +248,18 @@ export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
     case "breakdown":
       return !breakdownActive(revealed);
     case "x_ray":
-      // Once only: buying it twice would name the same half again.
-      return revealed.charset === null;
+      // Buyable until there is nothing left to name. Each purchase draws from
+      // the characters it *hasn't* shown you, so a second one is never a
+      // second copy of the first — and once the whole set is out, the shelf
+      // stops selling it rather than taking money for nothing.
+      //
+      // Both facts this reads are ones the player has already paid for and
+      // been told, so a greyed-out button still leaks nothing.
+      return (
+        revealed.charset === null ||
+        revealed.charsetTotal === null ||
+        revealed.charset.length < revealed.charsetTotal
+      );
   }
 }
 
@@ -337,19 +362,31 @@ export function apply(
       };
 
     case "x_ray": {
-      // Half the *distinct* characters, chosen at random and sorted before
-      // they're shown so the order gives nothing away about the password.
+      // Half of what this hunt *doesn't already know*, chosen at random and
+      // sorted before it's shown so the order gives nothing away.
+      //
+      // Drawing from the remainder rather than from the whole set is what
+      // makes a second purchase worth making: a fresh draw over everything
+      // would mostly re-name characters already paid for, which would be a
+      // sale of nothing. This way each purchase always adds something, and
+      // enough of them eventually name the lot.
       const distinct = [...new Set(secret.split(""))];
-      const take = Math.max(1, Math.ceil(distinct.length * XRAY_SHARE));
+      const known = new Set(before.charset ?? []);
+      const pool = distinct.filter((ch) => !known.has(ch));
+
+      const take = Math.max(1, Math.ceil(pool.length * XRAY_SHARE));
       const picked: string[] = [];
-      const pool = [...distinct];
       for (let i = 0; i < take && pool.length > 0; i++) {
         picked.push(pool.splice(randomInt(pool.length), 1)[0]);
       }
-      picked.sort();
+
+      const charset = [...known, ...picked].sort();
+      const left = distinct.length - charset.length;
       return {
-        revealed: { ...counted, charset: picked },
-        note: `${picked.length} of the ${distinct.length} characters it uses: ${picked.join(" ")}.`,
+        revealed: { ...counted, charset, charsetTotal: distinct.length },
+        note:
+          `${picked.length} more of the ${distinct.length} characters it uses: ${picked.join(" ")}.` +
+          (left > 0 ? ` ${left} still hidden.` : " That's all of them."),
       };
     }
   }

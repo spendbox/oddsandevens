@@ -70,12 +70,11 @@ export function InvitePanel() {
 
       <p className="text-sm text-zinc-400">
         When someone who joins on your link buys{" "}
-        {plural(referral.minLives, "life", "lives")} or more, you get{" "}
-        <strong className="text-brass">
-          {plural(referral.inviterBonus, "free life", "free lives")}
-        </strong>{" "}
-        on your next top-up — and they get {referral.inviteeBonus}. It stacks:
-        ten friends is {referral.inviterBonus * 10} lives.
+        {plural(referral.minLives, "life", "lives")} or more, you both get free
+        lives on your next top-up —{" "}
+        <strong className="text-brass">{referral.inviterBonus} for you</strong>,{" "}
+        {referral.inviteeBonus} for them. It stacks: ten friends is{" "}
+        {referral.inviterBonus * 10} lives.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">

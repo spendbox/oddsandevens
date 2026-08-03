@@ -67,7 +67,9 @@ export function KnownPanel({
               </span>
             ))}
             <span className="self-center text-xs text-zinc-500">
-              — half of them, in no order
+              {revealed.charsetTotal && revealed.charset.length < revealed.charsetTotal
+                ? `— ${revealed.charset.length} of ${revealed.charsetTotal}, in no order`
+                : "— all of them, in no order"}
             </span>
           </span>
         </Row>

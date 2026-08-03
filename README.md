@@ -86,9 +86,9 @@ need be. It's the only honest fix when something breaks on our side.
 ### Invites
 
 Every player has an invite code. When somebody who arrived on their link pays
-for **10 lives or more**, five free lives are banked for the inviter and three
-for them. The inviter's stacks without limit — ten paying invitees is fifty
-lives.
+for **10 lives or more**, five free lives are banked for each of them. The
+inviter's stacks without limit — ten paying invitees is fifty lives — and for
+the invitee it means buying ten and leaving with fifteen.
 
 Both land on the recipient's **next** paid top-up rather than immediately.
 That's the whole reason `bonus_lives_pending` is a column and not a credit: a
@@ -184,7 +184,7 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Case Map | 0.5% | Counts the uppercase, lowercase, digits and symbols — without positions |
 | Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
-| X-Ray | 5% | Names half the password's distinct characters, unordered |
+| X-Ray | 5% | Names half the distinct characters it hasn't named yet, unordered |
 
 **Prices are a share of the box's reward**, floored so that a challenge box
 with nothing behind it still has a shelf to sell. A hint that saves you a
@@ -220,6 +220,21 @@ decrements the counter.
 
 The window is read defensively — a malformed timestamp in `revealed` fails
 closed, charging a life as usual, rather than aborting the guess.
+
+### Buying one twice
+
+Length Lock and Case Map sell once: the answer is permanent and complete, so a
+second sale would be a second copy of the same sentence. Second Wind and Colour
+Read rent a window and are buyable again the moment it lapses.
+
+X-Ray is neither. Each purchase draws from the characters it *hasn't* named,
+which is what makes a second one worth making — a fresh draw over the whole set
+would mostly re-name characters already paid for, which is a sale of nothing.
+So every purchase adds something, enough of them name the lot, and the shelf
+withdraws it once there is nothing left rather than taking money for it.
+`charsetTotal` is stored on the hunt so availability can be decided at all; it
+discloses nothing, since the note on the first purchase already says "4 of the
+7 characters it uses".
 
 ### Availability never leaks the password
 

@@ -168,15 +168,16 @@ export const FAQ: FaqItem[] = [
       "Case Map counts the uppercase letters, lowercase letters, digits and symbols, without saying where any of them sit.",
       `Second Wind gives you unlimited guesses on that box for ${SECOND_WIND_HOURS} hour, spending no lives.`,
       `Colour Read splits every score into its parts for ${BREAKDOWN_HOURS} hours — including every attempt you've already made.`,
-      "X-Ray names half the different characters the password is built from, in no order.",
+      "X-Ray names half the different characters the password is built from, in no order — and can be bought again for half of what's left.",
     ],
   },
   {
     topic: "Power-ups",
     question: "Can I buy the same power-up twice?",
     answer: [
-      "Some, not all. Length Lock, Case Map and X-Ray are one purchase per box: what they tell you never changes, so buying again would pay for the same sentence.",
+      "Length Lock and Case Map are one purchase per box: what they tell you never changes, so buying again would pay for the same sentence.",
       `Second Wind and Colour Read rent a window rather than sell a fact — ${SECOND_WIND_HOURS} hour and ${BREAKDOWN_HOURS} hours respectively — and can be bought again the moment they lapse.`,
+      "X-Ray can be bought as often as you like. Each purchase draws from the characters it hasn't named yet, so it never tells you the same thing twice, and it stops being offered once you have all of them.",
     ],
   },
   {
@@ -200,7 +201,8 @@ export const FAQ: FaqItem[] = [
     topic: "Invites",
     question: "How do invites work?",
     answer: [
-      `Every player has an invite link. If somebody joins on your link and later buys ${REFERRAL_MIN_LIVES} or more lives, you get ${INVITER_BONUS_LIVES} free lives and they get ${INVITEE_BONUS_LIVES}.`,
+      `Every player has an invite link. If somebody joins on your link and later buys ${REFERRAL_MIN_LIVES} or more lives, you both get free lives — ${INVITER_BONUS_LIVES} for you and ${INVITEE_BONUS_LIVES} for them.`,
+      `For them that means buying ${REFERRAL_MIN_LIVES} and leaving with ${REFERRAL_MIN_LIVES + INVITEE_BONUS_LIVES}.`,
       "You'll find your link on your own page.",
     ],
   },

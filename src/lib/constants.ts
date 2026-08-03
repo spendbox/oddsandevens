@@ -117,4 +117,4 @@ export const ACCOUNT_NUMBER_REGEX = /^\d{10}$/;
  */
 export const REFERRAL_MIN_LIVES = 10;
 export const INVITER_BONUS_LIVES = 5;
-export const INVITEE_BONUS_LIVES = 3;
+export const INVITEE_BONUS_LIVES = 5;
