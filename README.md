@@ -322,11 +322,23 @@ the same component. A set of GIFs would have been six fixed-size, fixed-palette
 files of a few hundred kilobytes each, and none of them could react to
 anything.
 
-Because it's live it does: the dial rocks gently at rest, spins while a guess is
-in flight, and the door swings on its hinge when a box is cracked. All of the
-motion is CSS on SVG elements, and all of it is switched off by the global
-`prefers-reduced-motion` rule — with every animation stripped it is still a
-picture of a safe.
+It is drawn in layers — cabinet, cavity, contents, door — so opening one is a
+matter of moving a single group. The door swings to 108°, past edge-on: at
+anything less it is still a wide slab lying across the opening, which reads as
+a rendering fault rather than a door, and once it's past 90° you are looking at
+its back, so its back is what gets drawn. What you're left with is a lit
+interior with the reward still in it, which is what a lobby card shows forever
+after somebody wins.
+
+The interior is lit brightly on purpose. At the 64px a lobby card gives it, the
+bars and the door's edge are a pixel or two wide and neither survives the
+downscale; the only thing that reliably says *opened* at that size is that the
+middle of it glows.
+
+Because it's live it reacts: the dial rocks gently at rest and spins while a
+guess is in flight. All of the motion is CSS on SVG elements, and all of it is
+switched off by the global `prefers-reduced-motion` rule — with every animation
+stripped it is still a picture of a safe.
 
 ---
 

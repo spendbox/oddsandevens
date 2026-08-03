@@ -15,7 +15,7 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
       href={`/b/${box.slug}`}
       style={{ ["--i" as string]: index }}
       className={
-        "panel animate-fade-up stagger group flex flex-col gap-3 rounded-2xl p-4 transition hover:border-brass/40 " +
+        "panel panel-lift animate-fade-up stagger group flex flex-col gap-3 rounded-2xl p-4 " +
         (open ? "opacity-70" : "")
       }
     >
@@ -26,13 +26,17 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
             {box.kind === "general" ? "The public box" : `by ${box.contributor}`}
           </p>
         </div>
-        {/* The contributor's own safe, at thumbnail size. An opened box shows
-            it swung — the card should read as spent before you get to the
-            greyed-out figure underneath. */}
+        {/* The contributor's own safe. An opened box shows it swung — the card
+            should read as spent before you get to the greyed-out figure
+            underneath.
+
+            `size-16` rather than something neater: below about 60px the dial
+            and its knurling collapse into a smudge and every design reads as
+            the same coloured blob, which is worse than no picture at all. */}
         <SafeArt
           design={box.design}
           mood={open ? "open" : "idle"}
-          className="size-11 shrink-0 transition group-hover:scale-105"
+          className="size-16 shrink-0 transition group-hover:scale-105"
         />
       </div>
 

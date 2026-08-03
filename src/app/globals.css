@@ -11,8 +11,19 @@
  */
 
 :root {
-  --background: #0a0a0b;
+  /*
+   * The base is a *warm* near-black rather than a neutral one. At this
+   * lightness the difference is barely nameable and completely legible: a
+   * neutral #0a0a0b under a brass accent reads as switched-off, and every
+   * panel cut from it reads as a hole. A few points of red and green in the
+   * base make the same page look lit from somewhere.
+   */
+  --background: #0b0a0c;
   --foreground: #f4f4f5;
+
+  /* The two surfaces every panel is cut from. */
+  --surface: #17161a;
+  --surface-high: #1f1e24;
 
   /* Brass: prizes, primary actions, the lock itself. */
   --brass: #d4a145;
@@ -29,6 +40,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-high: var(--surface-high);
   --color-brass: var(--brass);
   --color-brass-bright: var(--brass-bright);
   --color-mark-green: var(--mark-green);
@@ -186,22 +199,35 @@
   }
 }
 
-/* Cracked. The door swings on its hinge and stays open. */
+/*
+ * Cracked. The door swings past edge-on and out of the way.
+ *
+ * It goes to 108°, not 72°: at 72° the door is still a wide slab sitting over
+ * the opening, which reads as a rendering fault rather than a door. Past 90°
+ * you are looking at its back, it is narrow, and the interior is clear.
+ */
 .safe-door-open {
-  animation: safe-swing 1.1s cubic-bezier(0.34, 1.3, 0.5, 1) 0.15s both;
+  animation: safe-swing 1s cubic-bezier(0.34, 1.2, 0.5, 1) 0.15s both;
 }
 
+/*
+ * The perspective is deliberately weak. At 340px the far edge of the door
+ * swings towards the viewer hard enough to grow taller than the cabinet it
+ * belongs to, and a door that overflows its own safe looks broken rather than
+ * three-dimensional. 900px keeps the depth cue and loses the ballooning.
+ */
 @keyframes safe-swing {
   from {
-    transform: perspective(400px) rotateY(0deg);
+    transform: perspective(900px) rotateY(0deg);
   }
   to {
-    transform: perspective(400px) rotateY(-72deg);
+    transform: perspective(900px) rotateY(-108deg);
   }
 }
 
+/* What's inside arrives after the door has cleared it, not with it. */
 .safe-inside {
-  animation: fade-up 0.6s ease 0.5s both;
+  animation: fade-up 0.7s ease 0.55s both;
 }
 
 /* The light that travels across a door face. */
@@ -220,22 +246,75 @@
   }
 }
 
+/*
+ * The room the safe is in.
+ *
+ * A single flat near-black was the problem: every panel on it was a slightly
+ * different flat near-black, and the whole page read as switched off. This is
+ * three fixed layers that never scroll, so content moves through the light
+ * rather than dragging it along:
+ *
+ *   1. a warm brass wash at the top, where the header and the hero sit;
+ *   2. a cold blue counterweight at the bottom-left, so the warmth reads as
+ *      warm rather than as the only colour there is;
+ *   3. a 32px grid at 2.5% opacity — invisible as a grid, and the thing that
+ *      stops a large dark expanse from looking like an empty div.
+ *
+ * `fixed` matters: repeating any of this per-scroll would band visibly.
+ */
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(80rem 40rem at 50% -10rem, rgb(212 161 69 / 0.11), transparent 70%),
+    radial-gradient(56rem 40rem at 0% 100%, rgb(88 110 190 / 0.09), transparent 70%),
+    linear-gradient(rgb(255 255 255 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+  background-size:
+    100% 100%,
+    100% 100%,
+    32px 32px,
+    32px 32px;
+  background-attachment: fixed;
+  background-repeat: no-repeat, no-repeat, repeat, repeat;
   color: var(--foreground);
 }
 
 /*
- * The brushed-steel face every panel is cut from. A very slight top highlight
- * is the whole trick — it reads as a lit edge and stops large dark surfaces
- * from looking like holes in the page.
+ * The brushed-steel face every panel is cut from.
+ *
+ * Three things do the work, and dropping any one of them flattens it: a
+ * gradient so the surface has a direction, a *warm* top highlight rather than
+ * a white one so it looks lit by the same brass light as everything else, and
+ * a shadow deep enough to lift the panel off a background that is nearly the
+ * same colour.
  */
 @utility panel {
-  background: linear-gradient(180deg, #1a1a1d 0%, #131316 100%);
-  border: 1px solid rgb(255 255 255 / 0.07);
+  background: linear-gradient(160deg, var(--surface-high) 0%, var(--surface) 55%, #131217 100%);
+  border: 1px solid rgb(255 255 255 / 0.08);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.05),
-    0 10px 30px -12px rgb(0 0 0 / 0.8);
+    inset 0 1px 0 rgb(240 196 106 / 0.09),
+    inset 0 -1px 0 rgb(0 0 0 / 0.4),
+    0 18px 40px -20px rgb(0 0 0 / 0.9);
+}
+
+/*
+ * A panel that is also a target. The lift is small on purpose — a card that
+ * jumps is a card you stop trusting.
+ */
+@utility panel-lift {
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s,
+    box-shadow 0.2s;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgb(212 161 69 / 0.4);
+    box-shadow:
+      inset 0 1px 0 rgb(240 196 106 / 0.14),
+      0 24px 50px -22px rgb(0 0 0 / 0.95),
+      0 0 0 1px rgb(212 161 69 / 0.08);
+  }
 }
 
 @utility brass-text {
