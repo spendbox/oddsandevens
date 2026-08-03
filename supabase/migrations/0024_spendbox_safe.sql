@@ -610,7 +610,17 @@ from public, anon, authenticated;
 -- ---------------------------------------------------------------------------
 -- Storage
 -- ---------------------------------------------------------------------------
-
--- The tile-board era uploaded logos and grid art; neither exists any more.
-delete from storage.objects where bucket_id in ('logos', 'grid-images');
-delete from storage.buckets where id in ('logos', 'grid-images');
+--
+-- The tile-board era uploaded logos and grid art into the `logos` and
+-- `grid-images` buckets. Nothing in this schema references them any more, but
+-- they are NOT dropped here: Supabase guards `storage.objects` and
+-- `storage.buckets` with a `protect_delete()` trigger that rejects any direct
+-- DELETE, and being rejected would roll back this entire migration over some
+-- disused image files.
+--
+-- Empty the buckets through the Storage API instead — the dashboard's Storage
+-- page, or:
+--
+--   supabase storage rm -r ss:///logos ss:///grid-images
+--
+-- Leaving them in place is harmless; they are simply unreferenced.
