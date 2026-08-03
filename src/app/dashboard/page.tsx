@@ -4,8 +4,8 @@
 //
 // Four tabs, and that's the whole product: what you've got up, build another,
 // who's attacking them, and what you've made. There is no plan to upgrade, no
-// catalogue to curate, and no customers to manage — a contributor stakes a
-// prize and shares a link.
+// catalogue to curate, and no customers to manage — a contributor puts a
+// reward behind a password and shares a link.
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,7 +13,7 @@ import Link from "next/link";
 import { Hammer, Lock, LogOut, Swords, Vault, Wallet } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type {
-  AttemptRow,
+  HuntRow,
   ContributorEarnings,
   ContributorProfile,
   OwnedBox,
@@ -51,7 +51,7 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>("boxes");
 
   const [boxes, setBoxes] = useState<OwnedBox[]>([]);
-  const [attempts, setAttempts] = useState<AttemptRow[]>([]);
+  const [attempts, setAttempts] = useState<HuntRow[]>([]);
   const [earnings, setEarnings] = useState<ContributorEarnings>(NO_EARNINGS);
   const [winners, setWinners] = useState<WinnerRow[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export default function DashboardPage() {
     ]);
     if (boxRes.ok) setBoxes(((await boxRes.json()) as { boxes: OwnedBox[] }).boxes);
     if (attemptRes.ok)
-      setAttempts(((await attemptRes.json()) as { attempts: AttemptRow[] }).attempts);
+      setAttempts(((await attemptRes.json()) as { attempts: HuntRow[] }).attempts);
     if (moneyRes.ok) {
       const money = (await moneyRes.json()) as {
         earnings: ContributorEarnings;

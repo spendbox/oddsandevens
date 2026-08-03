@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Heart } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { LIFE_PURCHASE_MAX } from "@/lib/constants";
-import { formatNaira } from "@/lib/game/stakes";
+import { formatNaira } from "@/lib/game/rewards";
 import { usePlayer } from "./player-context";
 import { countdown, useNow } from "./lives-badge";
 

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ArrowRight, Heart, Lock } from "lucide-react";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { LIVES_MAX, MAX_LENGTH, MIN_LENGTH } from "@/lib/constants";
+import { LIVES_MAX, MIN_LENGTH } from "@/lib/constants";
 import { PUBLIC_BOX_COLUMNS, toPublicBox, type BoxRow } from "@/lib/game/boxes";
-import { formatNaira, minStakeKobo } from "@/lib/game/stakes";
+import { formatNaira, minFundingKobo, rewardLabel, splitFunding } from "@/lib/game/rewards";
+import { DifficultyBadge } from "@/components/difficulty-badge";
 import { PlayerProvider } from "@/components/player/player-context";
 import { SiteHeader } from "@/components/site-header";
 import { BoxCard } from "@/components/box-card";
@@ -21,7 +22,7 @@ const RECENT_UNLOCKS = 6;
  */
 export const dynamic = "force-dynamic";
 
-/** The lobby: the free public box, then everything anyone has staked. */
+/** The lobby: the free public box, then every box anyone has funded. */
 export default async function Home() {
   const db = supabaseAdmin();
 
@@ -30,7 +31,7 @@ export default async function Home() {
       .from("boxes")
       .select(PUBLIC_BOX_COLUMNS)
       .eq("status", "live")
-      .order("prize_kobo", { ascending: false }),
+      .order("reward_kobo", { ascending: false }),
     db
       .from("boxes")
       .select(PUBLIC_BOX_COLUMNS)
@@ -66,13 +67,14 @@ export default async function Home() {
               <span className="brass-text">Open the safe.</span>
             </h1>
             <p className="mx-auto mt-4 max-w-lg text-zinc-400">
-              Every spendbox is a password between {MIN_LENGTH} and {MAX_LENGTH}{" "}
-              characters, with real money behind it. Each guess comes back
-              colour-coded. Get it right and the money is yours.
+              Every spendbox is a password with real money behind it. You
+              don&apos;t get told how long it is. Every guess costs a life and
+              answers three things — too short, too long or right; how many
+              characters landed exactly; how many were right but the wrong case.
             </p>
             <p className="mt-3 text-sm text-zinc-500">
-              Playing is free. You get {LIVES_MAX} lives, and one comes back every
-              hour.
+              Playing is free. You hold {LIVES_MAX} lives and one comes back every
+              hour, so a hard box is a long siege rather than a quick go.
             </p>
           </div>
 
@@ -85,12 +87,22 @@ export default async function Home() {
               {featured.blurb && (
                 <p className="mt-1 text-sm text-zinc-400">{featured.blurb}</p>
               )}
-              <p className="brass-text mt-4 text-5xl font-black tabular-nums sm:text-6xl">
-                {formatNaira(featured.prizeKobo)}
+              <p
+                className={
+                  "mt-4 font-black tabular-nums " +
+                  (featured.isChallenge
+                    ? "text-3xl text-zinc-300"
+                    : "brass-text text-5xl sm:text-6xl")
+                }
+              >
+                {rewardLabel(featured.rewardKobo)}
               </p>
+              <div className="mt-3 flex justify-center">
+                <DifficultyBadge box={featured} />
+              </div>
               <p className="mt-2 text-sm text-zinc-500">
-                {featured.length} characters · {featured.playersCount} players have
-                tried
+                {featured.playersCount} hunters · {featured.attemptsCount} attempts so
+                far
               </p>
               <Link
                 href={`/b/${featured.slug}`}
@@ -106,7 +118,7 @@ export default async function Home() {
         {staked.length > 0 && (
           <section className="mx-auto w-full max-w-5xl px-4 pb-12">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">
-              Staked by contributors
+              Put up by contributors
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {staked.map((box, i) => (
@@ -138,7 +150,7 @@ export default async function Home() {
         </Link>
         <span className="mx-2">·</span>
         <Link href="/me" className="hover:text-zinc-400">
-          Your lives and prizes
+          Your lives and rewards
         </Link>
       </footer>
     </PlayerProvider>
@@ -149,20 +161,22 @@ function HowItWorks() {
   const steps = [
     {
       icon: Lock,
-      title: "Type a guess",
-      body: "Pick characters from the 26 letters and ten specials. Green means right character, right place. Orange means it's in there, somewhere else. Red means it isn't in there at all.",
+      title: "Guess blind",
+      body: "Letters, digits and symbols, and case matters. Nothing tells you how long the password is — every guess answers only whether it's too short, too long or right, plus how many characters landed exactly and how many were right but the wrong case.",
     },
     {
       icon: Heart,
-      title: "Lives, not money",
-      body: `An attempt costs one life, and only if you fail — crack it and you keep the life. You hold ${LIVES_MAX}, shared across every box, and one refills every hour. Buying more is optional.`,
+      title: "One life, one guess",
+      body: `Every attempt costs a life, win or lose. You hold ${LIVES_MAX}, shared across every box, and one refills every hour — twenty-four a day, free, forever. Buying more only buys you speed.`,
     },
     {
       icon: ArrowRight,
-      title: "Or stake your own",
-      body: `Anyone can put a box up. Three characters starts at ${formatNaira(
-        minStakeKobo(MIN_LENGTH)
-      )}; longer passwords need bigger stakes. 70% becomes the prize, and you earn 70% of every power-up bought attacking it.`,
+      title: "Or put one up",
+      body: `Anyone can. A three-character password starts at ${formatNaira(
+        minFundingKobo(MIN_LENGTH)
+      )} to fund; longer ones cost more, because they take longer to crack. 70% becomes the reward — ${formatNaira(
+        splitFunding(minFundingKobo(MIN_LENGTH)).rewardKobo
+      )} at the floor — and you earn 70% of every power-up bought attacking it.`,
     },
   ];
 

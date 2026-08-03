@@ -1,87 +1,61 @@
-// Scoring a guess.
+// What an attempt tells you.
 //
-// This is the whole game, so it lives in one small pure function that never
-// runs in a browser. The secret is read with the service-role key inside a
-// route handler, scored here, and thrown away; what goes back to the player is
-// three colours per position and nothing else.
+// The scoring itself lives in Postgres (`score_attempt`), where the password
+// is and where it stays. This module is the shape of the answer and the words
+// wrapped around it — everything the browser is allowed to know.
 
-import { ALPHABET_SET } from "@/lib/constants";
+/** Whether the guess was shorter than, longer than, or the right length. */
+export type LengthHint = "shorter" | "longer" | "exact";
 
-/**
- * Per-character verdict, stored one letter per position so a whole guess is a
- * short string in the database:
- *
- *   `g` green  — right character, right place
- *   `o` orange — the character is in the password, but not here
- *   `r` red    — the character is not in the password at all
- */
-export type Mark = "g" | "o" | "r";
-
-/**
- * Wordle's two-pass rule, and it matters: oranges are budgeted by how many
- * copies of the character are actually left over after the greens are taken.
- *
- * Guess `AAB` against `ABC` scores `g r o`, not `g o o` — there is only one
- * `A` in the password and the first position already claimed it. Without the
- * budget a player could count duplicates for free, which turns a long password
- * into a much shorter one.
- */
-export function scoreGuess(secret: string, guess: string): string {
-  const n = secret.length;
-  const marks: Mark[] = new Array(n).fill("r");
-
-  // Pass one: exact hits, and take those characters out of circulation.
-  const spare = new Map<string, number>();
-  for (let i = 0; i < n; i++) {
-    if (guess[i] === secret[i]) {
-      marks[i] = "g";
-    } else {
-      spare.set(secret[i], (spare.get(secret[i]) ?? 0) + 1);
-    }
-  }
-
-  // Pass two: misplaced hits, only while an unclaimed copy remains.
-  for (let i = 0; i < n; i++) {
-    if (marks[i] === "g") continue;
-    const left = spare.get(guess[i]) ?? 0;
-    if (left > 0) {
-      marks[i] = "o";
-      spare.set(guess[i], left - 1);
-    }
-  }
-
-  return marks.join("");
+export interface Verdict {
+  lengthHint: LengthHint;
+  /**
+   * Positions that were exactly right — right character, right place, right
+   * case. Never *which* positions: that is the whole difficulty of the game.
+   */
+  exact: number;
+  /**
+   * Positions holding the right letter in the right place but in the wrong
+   * case. The one mercy in the scheme — it says "stop searching this position,
+   * just flip the case".
+   */
+  miscase: number;
 }
 
-export function isSolved(feedback: string): boolean {
-  return feedback.length > 0 && !feedback.includes("o") && !feedback.includes("r");
-}
-
-/** A guess is only worth scoring if it is the right length and in-alphabet. */
-export function isWellFormed(guess: string, length: number): boolean {
-  if (guess.length !== length) return false;
+/**
+ * A guess is only worth spending a life on if it is in-alphabet and not empty.
+ * Length is deliberately *not* checked: not knowing how long the password is
+ * is the point, and probing lengths is a legitimate move.
+ */
+export function isWellFormed(guess: string, alphabet: Set<string>, maxLength: number): boolean {
+  if (guess.length === 0 || guess.length > maxLength) return false;
   for (const ch of guess) {
-    if (!ALPHABET_SET.has(ch)) return false;
+    if (!alphabet.has(ch)) return false;
   }
   return true;
 }
 
+export const LENGTH_HINT_COPY: Record<LengthHint, string> = {
+  shorter: "Too short",
+  longer: "Too long",
+  exact: "Right length",
+};
+
+/** A one-line reading of a verdict, for the attempt log. */
+export function summarise(verdict: Verdict): string {
+  const parts: string[] = [LENGTH_HINT_COPY[verdict.lengthHint]];
+  if (verdict.exact > 0) parts.push(`${verdict.exact} exact`);
+  if (verdict.miscase > 0) parts.push(`${verdict.miscase} wrong case`);
+  if (verdict.exact === 0 && verdict.miscase === 0) parts.push("nothing landed");
+  return parts.join(" · ");
+}
+
 /**
- * The best verdict each character has ever earned across a run, which is what
- * the on-screen keyboard colours itself with. Green outranks orange outranks
- * red, so a character never downgrades once it has been placed.
+ * Whether a verdict is worth drawing attention to.
+ *
+ * A player grinding hundreds of attempts needs the good ones to stand out in
+ * the log, and "good" here means something actually landed.
  */
-export function keyboardState(
-  guesses: { value: string; feedback: string }[]
-): Record<string, Mark> {
-  const rank: Record<Mark, number> = { r: 0, o: 1, g: 2 };
-  const best: Record<string, Mark> = {};
-  for (const { value, feedback } of guesses) {
-    for (let i = 0; i < value.length; i++) {
-      const ch = value[i];
-      const mark = feedback[i] as Mark;
-      if (!best[ch] || rank[mark] > rank[best[ch]]) best[ch] = mark;
-    }
-  }
-  return best;
+export function isNotable(verdict: Verdict): boolean {
+  return verdict.exact > 0 || verdict.miscase > 0;
 }

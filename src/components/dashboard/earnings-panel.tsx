@@ -6,7 +6,7 @@
 // power-ups because a box is hard, and a hard box eventually gets cracked.
 
 import { Trophy } from "lucide-react";
-import { formatNaira } from "@/lib/game/stakes";
+import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 import type { ContributorEarnings, WinnerRow } from "@/lib/types";
 import { Empty, Panel, Stat } from "./shared";
 
@@ -57,9 +57,9 @@ export function EarningsPanel({
           </Row>
         </dl>
         <p className="mt-3 text-xs text-zinc-500">
-          Your stake isn&apos;t income and isn&apos;t counted here — it&apos;s the
-          prize, paid to whoever cracks the box. Power-ups are how a box pays
-          you back.
+          What you put up isn&apos;t income and isn&apos;t counted here —
+          it&apos;s the reward, paid to whoever cracks the box. Power-ups are how
+          a box pays you back.
         </p>
       </Panel>
 
@@ -91,7 +91,7 @@ export function EarningsPanel({
                   </p>
                 </div>
                 <span className="shrink-0 font-mono text-sm text-brass">
-                  {formatNaira(winner.prizeKobo)}
+                  {rewardLabel(winner.rewardKobo)}
                 </span>
               </li>
             ))}

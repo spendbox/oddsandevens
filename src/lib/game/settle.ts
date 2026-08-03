@@ -14,7 +14,7 @@ type Db = ReturnType<typeof supabaseAdmin>;
 /** Flip an order to paid, and report whether *this* call is the one that did. */
 async function markPaid(
   db: Db,
-  table: "power_up_orders" | "life_orders" | "stake_orders",
+  table: "power_up_orders" | "life_orders" | "funding_orders",
   reference: string
 ): Promise<{ claimed: boolean; row: Record<string, unknown> | null }> {
   const { data } = await db
@@ -39,7 +39,7 @@ async function markPaid(
 
 export async function markFailed(
   db: Db,
-  table: "power_up_orders" | "life_orders" | "stake_orders",
+  table: "power_up_orders" | "life_orders" | "funding_orders",
   reference: string
 ): Promise<void> {
   await db
@@ -72,24 +72,24 @@ export async function settlePowerUp(
   const kind = String(row.kind);
   if (!isPowerUpKind(kind)) return { settled: true, note: null };
 
-  const { data: run } = await db
-    .from("runs")
-    .select("id, revealed, status")
-    .eq("id", row.run_id as string)
+  const { data: hunt } = await db
+    .from("hunts")
+    .select("id, revealed, won_at")
+    .eq("id", row.hunt_id as string)
     .maybeSingle();
   const { data: box } = await db
     .from("boxes")
     .select("secret")
     .eq("id", row.box_id as string)
     .maybeSingle();
-  if (!run || !box) return { settled: true, note: null };
+  if (!hunt || !box) return { settled: true, note: null };
 
-  const { revealed, note } = apply(kind, box.secret as string, parseRevealed(run.revealed));
+  const { revealed, note } = apply(kind, box.secret as string, parseRevealed(hunt.revealed));
 
-  // A run that ended while the player was at the checkout keeps the purchase
+  // A hunt already won while the player was at the checkout keeps the purchase
   // on record but has nothing left to reveal into.
-  if (run.status === "active") {
-    await db.from("runs").update({ revealed }).eq("id", run.id);
+  if (!hunt.won_at) {
+    await db.from("hunts").update({ revealed }).eq("id", hunt.id);
   }
   await db.from("power_up_orders").update({ note }).eq("reference", reference);
 
@@ -113,23 +113,34 @@ export async function settleLives(
 }
 
 /**
- * A funded box goes live. This is the only path from 'funding' to 'live' —
- * a contributor cannot publish a box they haven't paid for.
+ * Money reaching a box. One of two things, told apart by `raises_to_kobo`:
+ *
+ *  - **Initial funding.** The box goes live. This is the only path from
+ *    'funding' to 'live' — a contributor cannot publish a box they haven't
+ *    paid for.
+ *  - **A raise.** The reward on an already-live box goes up. `raise_reward`
+ *    refuses anything that isn't strictly an increase, so a stale or replayed
+ *    order can only ever be a no-op.
  */
-export async function settleStake(
+export async function settleFunding(
   db: Db,
   reference: string
 ): Promise<{ settled: boolean; boxId: string | null }> {
-  const { claimed, row } = await markPaid(db, "stake_orders", reference);
+  const { claimed, row } = await markPaid(db, "funding_orders", reference);
   if (!row) return { settled: false, boxId: null };
   const boxId = (row.box_id as string) ?? null;
   if (!claimed) return { settled: row.status === "paid", boxId };
 
-  await db
-    .from("boxes")
-    .update({ status: "live", published_at: new Date().toISOString() })
-    .eq("id", boxId)
-    .eq("status", "funding");
+  const raisesTo = row.raises_to_kobo as number | null;
+  if (raisesTo) {
+    await db.rpc("raise_reward", { p_box_id: boxId, p_funding_kobo: raisesTo });
+  } else {
+    await db
+      .from("boxes")
+      .update({ status: "live", published_at: new Date().toISOString() })
+      .eq("id", boxId)
+      .eq("status", "funding");
+  }
 
   return { settled: true, boxId };
 }
@@ -137,9 +148,9 @@ export async function settleStake(
 /** Which table a reference belongs to, read off the prefix we minted it with. */
 export function orderTableFor(
   reference: string
-): "power_up_orders" | "life_orders" | "stake_orders" | null {
+): "power_up_orders" | "life_orders" | "funding_orders" | null {
   if (reference.startsWith("pu_")) return "power_up_orders";
   if (reference.startsWith("life_")) return "life_orders";
-  if (reference.startsWith("stake_")) return "stake_orders";
+  if (reference.startsWith("fund_")) return "funding_orders";
   return null;
 }

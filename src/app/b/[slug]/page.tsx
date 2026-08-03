@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { playerEmail } from "@/lib/player-session";
 import { buildPlayView, findBox } from "@/lib/game/view";
-import { formatNaira } from "@/lib/game/stakes";
+import { rewardLabel } from "@/lib/game/rewards";
+import { difficultyOf, estimateAttempts, roughly } from "@/lib/game/difficulty";
 import { PlayerProvider } from "@/components/player/player-context";
 import { SiteHeader } from "@/components/site-header";
 import { PlaySurface } from "@/components/safe/play-surface";
@@ -16,11 +17,14 @@ export async function generateMetadata({
   const { slug } = await params;
   const box = await findBox(supabaseAdmin(), slug);
   if (!box) return { title: "Spendbox" };
+  // Note what the description doesn't say: how long the password is. A share
+  // card is the most-read text on the site and would give away the first thing
+  // a player has to work out.
   return {
-    title: `${box.title} — ${formatNaira(box.prize_kobo)} behind a password`,
+    title: `${box.title} — ${rewardLabel(box.reward_kobo)} behind a password`,
     description:
       box.blurb ??
-      `Guess the ${box.length}-character password and the ${formatNaira(box.prize_kobo)} is yours.`,
+      `${difficultyOf(box.length)}. Around ${roughly(estimateAttempts(box.length))} attempts to crack. Guess the password and it's yours.`,
   };
 }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAdminUser } from "@/lib/admin-auth";
-import { sendPrizePaidEmail } from "@/lib/email";
+import { sendRewardPaidEmail } from "@/lib/email";
 
 interface ClaimJoin {
   id: string;
@@ -33,7 +33,7 @@ export async function GET() {
   }
 
   const { data } = await supabaseAdmin()
-    .from("prize_claims")
+    .from("reward_claims")
     .select(COLUMNS)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
 
   const db = supabaseAdmin();
   const { data } = await db
-    .from("prize_claims")
+    .from("reward_claims")
     .update({ status: "paid", paid_at: new Date().toISOString() })
     .eq("id", body.claimId)
     .eq("status", "submitted")
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
   const claim = data as unknown as ClaimJoin;
   if (claim.players?.email) {
-    await sendPrizePaidEmail({
+    await sendRewardPaidEmail({
       to: claim.players.email,
       title: claim.boxes?.title ?? "your spendbox",
       amountKobo: Number(claim.amount_kobo),

@@ -11,10 +11,10 @@ import {
   parseRevealed,
   splitPowerUp,
 } from "@/lib/game/power-ups";
-import { findBox, RUN_COLUMNS, type RunRow } from "@/lib/game/view";
+import { findBox, findHunt } from "@/lib/game/view";
 
 /**
- * Buy a power-up for the run in progress.
+ * Buy a power-up for the hunt in progress.
  *
  * This is where the money actually is. A power-up bought against a
  * contributor's box pays them 70% and us 30%, and Paystack does that split at
@@ -51,20 +51,21 @@ export async function POST(
     .select("id")
     .eq("email", email)
     .maybeSingle();
-  if (!player) return NextResponse.json({ error: "no_run" }, { status: 409 });
+  if (!player) return NextResponse.json({ error: "not_verified" }, { status: 401 });
 
-  const { data: runData } = await db
-    .from("runs")
-    .select(RUN_COLUMNS)
-    .eq("box_id", box.id)
-    .eq("player_id", player.id)
-    .eq("status", "active")
-    .maybeSingle();
-  const run = (runData as RunRow | null) ?? null;
-  if (!run) return NextResponse.json({ error: "no_run" }, { status: 409 });
+  // A power-up needs a hunt to reveal into. Buying one before a first guess
+  // is legitimate — it's how a careful player opens — so the hunt is created
+  // here if it doesn't exist yet. It costs nothing; only guesses cost lives.
+  let hunt = await findHunt(db, box.id, player.id);
+  if (!hunt) {
+    await db.from("hunts").insert({ box_id: box.id, player_id: player.id });
+    hunt = await findHunt(db, box.id, player.id);
+  }
+  if (!hunt) return NextResponse.json({ error: "hunt_failed" }, { status: 500 });
+  if (hunt.won_at) return NextResponse.json({ error: "already_won" }, { status: 409 });
 
-  const revealed = parseRevealed(run.revealed);
-  if (!isAvailable(kind, revealed, box.length)) {
+  const revealed = parseRevealed(hunt.revealed);
+  if (!isAvailable(kind, revealed)) {
     return NextResponse.json({ error: "power_up_spent" }, { status: 409 });
   }
 
@@ -86,7 +87,7 @@ export async function POST(
   const reference = newReference("pu");
   const { error } = await db.from("power_up_orders").insert({
     reference,
-    run_id: run.id,
+    hunt_id: hunt.id,
     box_id: box.id,
     player_id: player.id,
     contributor_id: box.contributor_id,

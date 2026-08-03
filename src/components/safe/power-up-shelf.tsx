@@ -2,20 +2,23 @@
 
 // The shop, sat under the board.
 //
-// Everything here is optional and everything here is paid, so it says what it
+// They matter far more than they used to: a box hides its length, gives no
+// "somewhere in there" signal, and cares about case. Everything here is
+// optional and everything here is paid, so it says what it
 // costs before it says what it does, and where the money goes is written on
 // the shelf rather than buried in terms — on a contributor's box, most of what
 // you spend goes to the person who put the prize up.
 
 import { useState } from "react";
-import { Eraser, Eye, Flashlight, Plus, Scan, Sparkles } from "lucide-react";
-import { formatNaira } from "@/lib/game/stakes";
+import { Eraser, Eye, Flashlight, Layers, Ruler, Scan, Sparkles } from "lucide-react";
+import { formatNaira } from "@/lib/game/rewards";
 import type { PowerUpKind } from "@/lib/game/power-ups";
 import type { PlayView } from "@/lib/types";
 
 const ICONS: Record<PowerUpKind, typeof Eraser> = {
+  length_lock: Ruler,
   sweep: Eraser,
-  second_wind: Plus,
+  case_map: Layers,
   first_light: Sparkles,
   last_light: Flashlight,
   spotlight: Scan,
@@ -54,8 +57,8 @@ export function PowerUpShelf({
     setError(
       body.error === "payments_unavailable"
         ? "Payments aren't switched on yet."
-        : body.error === "no_run"
-          ? "Start an attempt first."
+        : body.error === "already_won"
+          ? "You've already opened this one."
           : "Couldn't open checkout. Try again in a moment."
     );
   }
@@ -100,7 +103,7 @@ export function PowerUpShelf({
                     ? "Opening checkout…"
                     : powerUp.available
                       ? powerUp.blurb
-                      : "Already used on this attempt."}
+                      : "Already bought, or nothing left for it to tell you."}
                 </span>
               </span>
             </button>
@@ -110,13 +113,13 @@ export function PowerUpShelf({
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      {view.run && view.run.notes.length > 0 && (
+      {view.hunt && view.hunt.notes.length > 0 && (
         <div className="panel rounded-xl p-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
             What you&apos;ve bought
           </h3>
           <ul className="mt-2 space-y-1 text-sm text-brass">
-            {view.run.notes.map((note, i) => (
+            {view.hunt.notes.map((note: string, i: number) => (
               <li key={i} className="font-mono">
                 {note}
               </li>

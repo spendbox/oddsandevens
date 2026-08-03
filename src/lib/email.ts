@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { formatNaira } from "@/lib/game/stakes";
+import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 
 // All emails are fire-and-forget: by the time one is sent the box has already
 // been unlocked or the code already stored, so a delivery failure must never
@@ -80,16 +80,16 @@ export async function sendVerificationCodeEmail(params: {
 export async function sendBoxUnlockedEmail(params: {
   to: string;
   title: string;
-  prizeKobo: number;
+  rewardKobo: number;
 }) {
-  const { to, title, prizeKobo } = params;
+  const { to, title, rewardKobo } = params;
   await send(
     to,
-    `🔓 You cracked "${title}" — ${formatNaira(prizeKobo)}`,
+    `🔓 You cracked "${title}" — ${rewardLabel(rewardKobo)}`,
     `<div ${WRAP}>
       <h2>The safe is open.</h2>
       <p>You guessed the password on <strong>${title}</strong> and won
-      <strong>${formatNaira(prizeKobo)}</strong>.</p>
+      <strong>${rewardLabel(rewardKobo)}</strong>.</p>
       <p>Tell us where to send it — add your bank account and we'll transfer
       the prize.</p>
       ${link("/me", "Claim your prize")}
@@ -102,16 +102,16 @@ export async function sendBoxCrackedEmail(params: {
   to: string;
   title: string;
   player: string;
-  prizeKobo: number;
+  rewardKobo: number;
 }) {
-  const { to, title, player, prizeKobo } = params;
+  const { to, title, player, rewardKobo } = params;
   await send(
     to,
     `Your spendbox "${title}" has been cracked`,
     `<div ${WRAP}>
       <h2>Somebody got it</h2>
       <p>${player} guessed the password on <strong>${title}</strong> and has
-      won the ${formatNaira(prizeKobo)} prize. The box is now closed and can't
+      won the ${rewardLabel(rewardKobo)} reward. The box is now closed and can't
       be played again.</p>
       <p>Everything players spent on power-ups while attacking it is still
       yours — build another one whenever you like.</p>
@@ -125,16 +125,16 @@ export async function sendBoxLiveEmail(params: {
   to: string;
   title: string;
   slug: string;
-  prizeKobo: number;
+  rewardKobo: number;
 }) {
-  const { to, title, slug, prizeKobo } = params;
+  const { to, title, slug, rewardKobo } = params;
   const base = appUrl();
   await send(
     to,
     `"${title}" is live`,
     `<div ${WRAP}>
       <h2>Your spendbox is live</h2>
-      <p><strong>${title}</strong> is open, with ${formatNaira(prizeKobo)}
+      <p><strong>${title}</strong> is open, with ${rewardLabel(rewardKobo)}
       behind the password.</p>
       ${base ? `<p>Share this link: <a href="${base}/b/${slug}">${base}/b/${slug}</a></p>` : ""}
       ${link("/dashboard", "Open your dashboard")}
@@ -143,7 +143,7 @@ export async function sendBoxLiveEmail(params: {
 }
 
 /** To the winner, when an admin sends the transfer. */
-export async function sendPrizePaidEmail(params: {
+export async function sendRewardPaidEmail(params: {
   to: string;
   title: string;
   amountKobo: number;

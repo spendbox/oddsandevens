@@ -6,7 +6,7 @@ import {
   orderTableFor,
   settleLives,
   settlePowerUp,
-  settleStake,
+  settleFunding,
 } from "@/lib/game/settle";
 
 // Paystack server-to-server webhook: the reliable crediting path. Even if the
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       } else if (table === "life_orders") {
         await settleLives(supabaseAdmin(), reference);
       } else {
-        await settleStake(supabaseAdmin(), reference);
+        await settleFunding(supabaseAdmin(), reference);
       }
     } catch (err) {
       // Let Paystack retry rather than silently dropping a paid order.

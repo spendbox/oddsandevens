@@ -8,18 +8,18 @@ import type { ContributorEarnings, WinnerRow } from "@/lib/types";
 interface WinnerJoin {
   title: string;
   slug: string;
-  prize_kobo: number;
+  reward_kobo: number;
   unlocked_at: string;
   players: { email: string } | null;
-  prize_claims: { status: string }[] | null;
+  reward_claims: { status: string }[] | null;
 }
 
 /**
  * What the contributor has made, and who has beaten them.
  *
  * The income is entirely power-ups: a contributor's 70% of every one bought
- * while somebody was attacking one of their boxes. The stake isn't income —
- * it's the prize, already paid out or waiting to be.
+ * while somebody was attacking one of their boxes. Funding isn't income —
+ * it's the reward, already paid out or waiting to be.
  */
 export async function GET() {
   const { userId, contributor } = await getAuthedContributor();
@@ -43,7 +43,7 @@ export async function GET() {
       .eq("status", "paid"),
     db
       .from("boxes")
-      .select("title, slug, prize_kobo, unlocked_at, players(email), prize_claims(status)")
+      .select("title, slug, reward_kobo, unlocked_at, players(email), reward_claims(status)")
       .eq("contributor_id", contributor.id)
       .eq("status", "unlocked")
       .order("unlocked_at", { ascending: false }),
@@ -69,9 +69,9 @@ export async function GET() {
     player: box.players?.email ? maskEmail(box.players.email) : "a player",
     boxTitle: box.title,
     boxSlug: box.slug,
-    prizeKobo: Number(box.prize_kobo),
+    rewardKobo: Number(box.reward_kobo),
     unlockedAt: box.unlocked_at,
-    claimStatus: (box.prize_claims?.[0]?.status ?? "unclaimed") as WinnerRow["claimStatus"],
+    claimStatus: (box.reward_claims?.[0]?.status ?? "unclaimed") as WinnerRow["claimStatus"],
   }));
 
   return NextResponse.json({ earnings, winners });

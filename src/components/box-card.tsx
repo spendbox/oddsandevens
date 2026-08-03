@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Lock, LockOpen, Users } from "lucide-react";
-import { formatNaira } from "@/lib/game/stakes";
+import { rewardLabel } from "@/lib/game/rewards";
+import { DifficultyBadge } from "@/components/difficulty-badge";
 import type { PublicBox } from "@/lib/types";
 
 /** One safe in the lobby. The prize is the headline because it is the point. */
@@ -39,18 +40,25 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
 
       <p
         className={
-          "text-2xl font-black tabular-nums " + (open ? "text-zinc-400" : "brass-text")
+          "font-black tabular-nums " +
+          (open
+            ? "text-xl text-zinc-400"
+            : box.isChallenge
+              ? "text-xl text-zinc-300"
+              : "brass-text text-2xl")
         }
       >
-        {formatNaira(box.prizeKobo)}
+        {rewardLabel(box.rewardKobo)}
       </p>
 
+      <DifficultyBadge box={box} showTime={false} />
+
       <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-        <span>{box.length} characters</span>
         <span className="flex items-center gap-1">
           <Users className="size-3" aria-hidden />
           {box.playersCount}
         </span>
+        <span>{box.attemptsCount} attempts</span>
         {open && box.unlockedBy && (
           <span className="text-brass/70">opened by {box.unlockedBy}</span>
         )}

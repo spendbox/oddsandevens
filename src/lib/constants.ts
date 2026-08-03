@@ -1,21 +1,36 @@
 // Platform-wide constants. The Postgres functions in supabase/migrations
-// mirror the life economy (LIVES_MAX, LIFE_REGEN_MINUTES) — change both
-// places together.
+// mirror the life economy (LIVES_MAX, LIFE_REGEN_MINUTES) and the 70/30
+// split — change both places together.
 
 // ---------------------------------------------------------------------------
 // The alphabet
 // ---------------------------------------------------------------------------
 
 /**
- * Every character a password can be built from: the 26 letters plus ten
- * specials. Uppercase only — a password is a *pattern*, not a word, and
- * asking a player to also guess the case would double the search space for
- * no extra fun.
+ * Everything a password can be built from.
+ *
+ * Case matters. `k` and `K` are different characters, which roughly squares
+ * the search space against an uppercase-only alphabet, and is the single
+ * biggest reason a box now takes hundreds of attempts rather than a dozen.
  */
-export const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-export const SPECIALS = ["!", "@", "#", "$", "%", "&", "*", "?", "+", "="];
-export const ALPHABET = [...LETTERS, ...SPECIALS];
+export const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+export const LOWER = "abcdefghijklmnopqrstuvwxyz".split("");
+export const DIGITS = "0123456789".split("");
+export const SPECIALS = ["!", "@", "#", "$", "%", "&", "*", "?", "+", "=", "-", "_"];
+
+export const ALPHABET = [...UPPER, ...LOWER, ...DIGITS, ...SPECIALS];
 export const ALPHABET_SET = new Set(ALPHABET);
+
+/**
+ * How many characters a player has to *distinguish between* at one position,
+ * rather than how many exist.
+ *
+ * Case comes free once a position is found — a wrong-case hit is reported, so
+ * `k` landing on `K` tells the player to stop searching and flip the case. So
+ * the real per-position search is over case-folded classes: 26 letters, 10
+ * digits, 12 specials. This is what the difficulty estimate is built on.
+ */
+export const CHARACTER_CLASSES = UPPER.length + DIGITS.length + SPECIALS.length;
 
 // ---------------------------------------------------------------------------
 // Password shape
@@ -24,14 +39,8 @@ export const ALPHABET_SET = new Set(ALPHABET);
 export const MIN_LENGTH = 3;
 export const MAX_LENGTH = 26;
 
-/**
- * How many guesses a run gets. Longer passwords get more, but the ceiling
- * stops a 26-character box from being a formality — past that point the
- * difference is made up with power-ups, which is the point.
- */
-export function guessesFor(length: number): number {
-  return Math.min(Math.max(length + 6, 9), 20);
-}
+/** How long a guess may be. Nothing stops a player probing past the maximum. */
+export const MAX_GUESS_LENGTH = 40;
 
 // ---------------------------------------------------------------------------
 // Money
@@ -40,10 +49,10 @@ export function guessesFor(length: number): number {
 /** Everything money is stored in kobo (₦1 = 100 kobo). */
 export const KOBO = 100;
 
-/** Paystack caps a single transfer at ₦10,000,000, so a stake can't exceed it. */
-export const MAX_STAKE_KOBO = 10_000_000 * KOBO;
+/** Paystack caps a single transfer at ₦10,000,000, so funding can't exceed it. */
+export const MAX_FUNDING_KOBO = 10_000_000 * KOBO;
 
-/** What Spendbox keeps of a stake, and of every power-up sale. */
+/** What Spendbox keeps of a box's funding, and of every power-up sale. */
 export const PLATFORM_SHARE_PERCENT = 30;
 
 /** One life, bought rather than waited for. 100% of this is platform revenue. */
@@ -56,10 +65,13 @@ export const LIFE_PURCHASE_MAX = 100;
 
 /**
  * Lives are held by the *player*, not by a box: one pool spent across the
- * public box and every contributor box alike. Losing a run costs one; the
- * pool refills on its own, so nobody ever has to pay to keep playing.
+ * public box and every contributor box alike.
+ *
+ * One life buys one guess. There is no limit on how many guesses a box will
+ * take — only on how fast a player can afford them — so the pool is small and
+ * the refill is the pace of the whole game.
  */
-export const LIVES_MAX = 15;
+export const LIVES_MAX = 7;
 export const LIFE_REGEN_MINUTES = 60;
 
 // ---------------------------------------------------------------------------

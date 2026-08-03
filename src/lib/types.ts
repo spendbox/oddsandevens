@@ -1,19 +1,32 @@
 // The shapes route handlers return. Anything a browser can see is in here,
-// which is also the easiest way to check that `boxes.secret` never is.
+// which is also the easiest way to check that `boxes.secret` never is — and
+// that neither is its length, unless the player has paid to learn it.
 
+import type { LengthHint } from "@/lib/game/feedback";
 import type { PowerUpKind, Revealed } from "@/lib/game/power-ups";
+import type { Difficulty } from "@/lib/game/difficulty";
 
 export type BoxStatus = "draft" | "funding" | "live" | "unlocked" | "closed";
 
-/** A box as anyone may see it: no password, no funding detail. */
+/**
+ * A box as anyone may see it.
+ *
+ * Note what is missing: the password's length. It is the first thing a player
+ * has to work out, so it can't be sitting in a JSON payload. Difficulty and
+ * the attempt estimate are derived from it server-side and shipped instead —
+ * they narrow the length a little, which is the intended trade for making the
+ * box's cost legible before you commit weeks to it.
+ */
 export interface PublicBox {
   slug: string;
   kind: "general" | "contributor";
   title: string;
   blurb: string | null;
-  length: number;
-  guessesAllowed: number;
-  prizeKobo: number;
+  rewardKobo: number;
+  /** True when there's no money behind it — a challenge, not a ₦0 reward. */
+  isChallenge: boolean;
+  difficulty: Difficulty;
+  estimatedAttempts: number;
   status: BoxStatus;
   attemptsCount: number;
   playersCount: number;
@@ -34,27 +47,31 @@ export interface PlayerState {
   lifePriceKobo: number;
 }
 
-export interface GuessRow {
+/** One guess and the verdict it earned. */
+export interface AttemptRecord {
+  ordinal: number;
   value: string;
-  feedback: string;
+  lengthHint: LengthHint;
+  exact: number;
+  miscase: number;
+  at: string;
 }
 
-/** The live state of one player's attempt on one box. */
-export interface RunState {
-  runId: string;
-  status: "active" | "won" | "lost";
-  guessesAllowed: number;
-  guessesUsed: number;
-  guesses: GuessRow[];
+/** The live state of one player's hunt on one box. */
+export interface HuntState {
+  attemptsCount: number;
+  /** Newest first — a long hunt is read from the top. */
+  attempts: AttemptRecord[];
   revealed: Revealed;
-  /** Notes from power-ups already bought on this run, newest last. */
+  /** Notes from power-ups already bought on this hunt, newest last. */
   notes: string[];
+  won: boolean;
 }
 
 export interface PlayView {
   box: PublicBox;
   player: PlayerState;
-  run: RunState | null;
+  hunt: HuntState | null;
   powerUps: {
     kind: PowerUpKind;
     name: string;
@@ -63,7 +80,13 @@ export interface PlayView {
     available: boolean;
   }[];
   /** Set when this player already won this box. */
-  prize: { amountKobo: number; status: "unclaimed" | "submitted" | "paid" } | null;
+  claim: { amountKobo: number; status: "unclaimed" | "submitted" | "paid" } | null;
+}
+
+/** What comes back from spending a life on a guess. */
+export interface AttemptResult extends PlayView {
+  outcome: "open" | "won" | "pipped";
+  verdict: { lengthHint: LengthHint; exact: number; miscase: number } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,24 +107,28 @@ export interface ContributorProfile {
 /** One of the contributor's own boxes, with the numbers only they see. */
 export interface OwnedBox extends PublicBox {
   id: string;
-  stakeKobo: number;
+  /** What they paid in. The reward is 70% of this. */
+  fundingKobo: number;
   platformFeeKobo: number;
   earnedKobo: number;
   powerUpsSold: number;
+  /** Only a draft can be edited or deleted; a funded box is permanent. */
+  editable: boolean;
   createdAt: string;
+  /** The author's own copy of the length — they wrote it, so they know it. */
+  length: number;
 }
 
 /** A row on the Attempts screen. The address is masked; it always is. */
-export interface AttemptRow {
+export interface HuntRow {
   player: string;
   boxTitle: string;
   boxSlug: string;
-  status: "active" | "won" | "lost";
-  guessesUsed: number;
-  guessesAllowed: number;
+  attempts: number;
+  won: boolean;
   powerUpsBought: number;
   startedAt: string;
-  endedAt: string | null;
+  lastAttemptAt: string | null;
 }
 
 export interface ContributorEarnings {
@@ -118,7 +145,7 @@ export interface WinnerRow {
   player: string;
   boxTitle: string;
   boxSlug: string;
-  prizeKobo: number;
+  rewardKobo: number;
   unlockedAt: string;
   claimStatus: "unclaimed" | "submitted" | "paid";
 }

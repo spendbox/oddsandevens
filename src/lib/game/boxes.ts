@@ -1,18 +1,24 @@
 // Reading boxes out of the database without ever reading the password out
-// with them.
+// with them — nor, on player-facing surfaces, its length.
 
 import { randomBytes, randomInt } from "node:crypto";
 import { ALPHABET, LIVES_MAX, LIFE_PRICE_KOBO, LIFE_REGEN_MINUTES } from "@/lib/constants";
 import { maskEmail } from "@/lib/mask";
+import { difficultyOf, estimateAttempts } from "@/lib/game/difficulty";
+import { isChallenge } from "@/lib/game/rewards";
 import type { PlayerState, PublicBox } from "@/lib/types";
 
 /**
- * The columns a box may be selected with. `secret` is absent on purpose and
- * should stay that way: the only two places allowed to name it are the guess
- * route and the power-up settlement, both of which fetch it on its own.
+ * The columns a box may be selected with.
+ *
+ * `secret` is absent on purpose and should stay that way — the only thing
+ * allowed to read it is `score_attempt` inside Postgres and the power-up
+ * settlement, which fetches it on its own. `length` is here because the server
+ * needs it to derive difficulty; `toPublicBox` is what makes sure it doesn't
+ * travel any further.
  */
 export const PUBLIC_BOX_COLUMNS =
-  "id, kind, slug, title, blurb, length, guesses_allowed, prize_kobo, status, attempts_count, players_count, published_at, unlocked_at, unlocked_by, contributor_id";
+  "id, kind, slug, title, blurb, length, reward_kobo, status, attempts_count, players_count, published_at, unlocked_at, unlocked_by, contributor_id";
 
 export interface BoxRow {
   id: string;
@@ -21,8 +27,7 @@ export interface BoxRow {
   title: string;
   blurb: string | null;
   length: number;
-  guesses_allowed: number;
-  prize_kobo: number;
+  reward_kobo: number;
   status: PublicBox["status"];
   attempts_count: number;
   players_count: number;
@@ -32,6 +37,14 @@ export interface BoxRow {
   contributor_id: string | null;
 }
 
+/**
+ * A box as a browser may see it.
+ *
+ * The length goes in and does not come out. What comes out is the difficulty
+ * tier and the attempt estimate derived from it — enough to decide whether a
+ * box is worth your month, not enough to skip the first thing you have to
+ * work out.
+ */
 export function toPublicBox(
   row: BoxRow,
   extras: { contributor?: string | null; winnerEmail?: string | null } = {}
@@ -41,9 +54,10 @@ export function toPublicBox(
     kind: row.kind,
     title: row.title,
     blurb: row.blurb,
-    length: row.length,
-    guessesAllowed: row.guesses_allowed,
-    prizeKobo: row.prize_kobo,
+    rewardKobo: row.reward_kobo,
+    isChallenge: isChallenge(row.reward_kobo),
+    difficulty: difficultyOf(row.length),
+    estimatedAttempts: estimateAttempts(row.length),
     status: row.status,
     attemptsCount: row.attempts_count,
     playersCount: row.players_count,

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Heart, Trophy } from "lucide-react";
 import { LIVES_MAX } from "@/lib/constants";
-import { formatNaira } from "@/lib/game/stakes";
+import { formatNaira } from "@/lib/game/rewards";
 import type { Bank } from "@/lib/types";
 import { usePlayer } from "./player-context";
 import { countdown, useNow } from "./lives-badge";
@@ -20,7 +20,7 @@ interface HistoryRun {
   startedAt: string;
   title: string;
   slug: string | null;
-  prizeKobo: number;
+  rewardKobo: number;
 }
 
 export function PlayerPortal({ pendingReference }: { pendingReference: string | null }) {

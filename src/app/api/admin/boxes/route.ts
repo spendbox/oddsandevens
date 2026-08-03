@@ -3,11 +3,10 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   ALPHABET_SET,
   BLURB_MAX,
+  MAX_FUNDING_KOBO,
   MAX_LENGTH,
-  MAX_STAKE_KOBO,
   MIN_LENGTH,
   TITLE_MAX,
-  guessesFor,
 } from "@/lib/constants";
 import { getAdminUser } from "@/lib/admin-auth";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
@@ -21,16 +20,16 @@ export async function GET() {
   const db = supabaseAdmin();
   const { data } = await db
     .from("boxes")
-    .select(`${PUBLIC_BOX_COLUMNS}, stake_kobo, platform_fee_kobo, created_at`)
+    .select(`${PUBLIC_BOX_COLUMNS}, funding_kobo, platform_fee_kobo, created_at`)
     .order("created_at", { ascending: false })
     .limit(200);
 
-  const rows = (data ?? []) as (BoxRow & { stake_kobo: number; created_at: string })[];
+  const rows = (data ?? []) as (BoxRow & { funding_kobo: number; created_at: string })[];
   return NextResponse.json({
     boxes: rows.map((row) => ({
       ...toPublicBox(row),
       id: row.id,
-      stakeKobo: Number(row.stake_kobo),
+      fundingKobo: Number(row.funding_kobo),
       createdAt: row.created_at,
     })),
   });
@@ -39,9 +38,10 @@ export async function GET() {
 /**
  * Author the public box.
  *
- * The general box is free to play and funded by us, so there is no stake to
- * collect and no split to make: the prize is set outright and the box goes
- * live immediately. Only one general box is playable at a time — the unique
+ * The general box is free to play and funded by us, so there is nothing to
+ * collect and no split to make: the reward is set outright — possibly to
+ * nothing at all, which makes it a pure challenge — and the box goes live
+ * immediately. Only one general box is playable at a time — the unique
  * index enforces it — so publishing a new one means retiring the old one
  * first, which this does.
  */
@@ -54,13 +54,14 @@ export async function POST(req: Request) {
     title?: string;
     blurb?: string;
     secret?: string;
-    prizeKobo?: number;
+    rewardKobo?: number;
   };
 
   const title = (body.title ?? "").trim();
   const blurb = (body.blurb ?? "").trim();
-  const secret = (body.secret ?? "").trim().toUpperCase();
-  const prizeKobo = Math.trunc(Number(body.prizeKobo ?? 0));
+  // Taken exactly as typed: case is part of the password now.
+  const secret = body.secret ?? "";
+  const rewardKobo = Math.trunc(Number(body.rewardKobo ?? 0));
 
   if (!title || title.length > TITLE_MAX) {
     return NextResponse.json({ error: "invalid_title" }, { status: 400 });
@@ -76,8 +77,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid_characters" }, { status: 400 });
     }
   }
-  if (prizeKobo < 0 || prizeKobo > MAX_STAKE_KOBO) {
-    return NextResponse.json({ error: "invalid_prize" }, { status: 400 });
+  if (rewardKobo < 0 || rewardKobo > MAX_FUNDING_KOBO) {
+    return NextResponse.json({ error: "invalid_reward" }, { status: 400 });
   }
 
   const db = supabaseAdmin();
@@ -96,9 +97,8 @@ export async function POST(req: Request) {
       blurb: blurb || null,
       secret,
       length: secret.length,
-      guesses_allowed: guessesFor(secret.length),
-      stake_kobo: 0,
-      prize_kobo: prizeKobo,
+      funding_kobo: 0,
+      reward_kobo: rewardKobo,
       platform_fee_kobo: 0,
       status: "live",
       published_at: new Date().toISOString(),

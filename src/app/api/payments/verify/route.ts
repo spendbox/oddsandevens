@@ -6,7 +6,7 @@ import {
   orderTableFor,
   settleLives,
   settlePowerUp,
-  settleStake,
+  settleFunding,
 } from "@/lib/game/settle";
 
 /**
@@ -50,6 +50,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ result: settled ? "paid" : "unknown", quantity });
   }
 
-  const { settled } = await settleStake(db, reference);
+  const { settled } = await settleFunding(db, reference);
   return NextResponse.json({ result: settled ? "paid" : "unknown" });
 }

@@ -2,27 +2,28 @@
 
 **Guess the password. Open the safe.**
 
-A spendbox is a password with money behind it. Players get a colour-coded
-verdict on every guess — green for the right character in the right place,
-orange for the right character somewhere else, red for a character that isn't
-in there at all — and if they work it out, the money is theirs.
+A spendbox is a password with money behind it. You aren't told how long it is.
+Every guess costs one life and answers exactly three things — whether it's too
+short, too long or right; how many characters landed exactly; how many were
+right but in the wrong case — and never *which* ones. Work it out and the money
+is yours.
 
-Playing is free. Nobody has to pay to guess, ever.
+Playing is free: seven lives, one back every hour, forever.
 
 ---
 
 ## The two kinds of box
 
 There is one game. It comes in two versions, and the only difference is whose
-money is behind the prize.
+money is behind the reward.
 
 **The public box** is authored by the platform in `/admin` and funded by the
-platform. Free, no stake, no split. Exactly one is playable at a time — a
+platform. Free, nothing to collect, no split. Exactly one is playable at a time — a
 unique partial index enforces it — because the public game is *the* public
 game, not a catalogue of them.
 
-**A contributor box** is anyone else's. A contributor writes a password, stakes
-money on it, and shares the link. There is no business here: no trading name,
+**A contributor box** is anyone else's. A contributor writes a password, puts
+money behind it, and shares the link. There is no business here: no trading name,
 no logo, no category, no verification. A contributor is a person who put money
 behind a password and wants people to attack it.
 
@@ -30,44 +31,43 @@ behind a password and wants people to attack it.
 
 ## Guessing
 
-A password is 3 to 26 characters, drawn from the 26 letters plus ten specials
-(`! @ # $ % & * ? + =`) — 36 in all. Uppercase only: a password is a pattern,
-not a word, and asking players to guess the case too would double the search
-space for no extra fun.
+A password is 3 to 26 characters from the 26 letters (both cases), ten digits
+and twelve symbols — 74 in all. **Case is part of the password.** `k` and `K`
+are different characters, which roughly squares the search space and is the
+single biggest reason a box takes hundreds of attempts rather than a dozen.
 
-Feedback follows Wordle's two-pass rule, and the second pass matters. Oranges
-are budgeted against the copies of a character left over after the greens are
-taken, so `AAB` against `ABC` scores `g r o`, not `g o o` — there is only one
-`A` in the password and the first position already claimed it. Without that
-budget a player could count duplicates for free, which turns a long password
-into a much shorter one.
+An attempt answers three questions:
 
-A run gets `length + 6` guesses, floored at 9 and capped at 20. The cap is what
-stops a 26-character box being a formality; past that point the difference is
-made up with power-ups, which is the point.
+| | |
+| --- | --- |
+| **Length** | Too short, too long, or exactly right. Nothing ever says how long the password is — that's the first thing you have to hunt. |
+| **Exactly right** | How many positions held the right character in the right case. |
+| **Wrong case** | How many positions held the right letter in the right place, but the wrong case. |
 
-The password is read in one route handler, compared there, and dropped there.
-What leaves the server is a string of `g`/`o`/`r` and nothing else.
+Two things are deliberately absent. You are never told *which* positions those
+counts refer to. And a character that's in the password but in the **wrong
+place earns nothing at all** — there is no Wordle-style "somewhere in there"
+signal. Position is everything, and working out which of your own guesses moved
+the counter is the entire game.
+
+A guess shorter than the password is compared over its own length; a longer one
+over the password's. So a six-character probe against a ten-character password
+can still score, which is what makes length-hunting playable.
+
+The password is read, compared and dropped **inside Postgres** — `score_attempt`
+and `spend_attempt` are plpgsql, so it never enters application memory at all.
 
 ---
 
 ## Lives
 
-A player holds **15 lives**, and **one comes back every hour**. They are held
-by the *player*, not by a box: one pool spent across the public box and every
-contributor box alike. Fail on the free public box and you have one fewer life
-for everyone else's.
+A player holds **7 lives**, and **one comes back every hour** — 24 a day, free,
+forever. They're held by the *player*, not by a box: one pool spent across the
+public box and every contributor box alike.
 
-Mechanically the life comes off when a run opens and is handed back on a win.
-That is the same thing as "failing costs a life", but it cannot be farmed by
-opening runs and walking away from them. Two other cases hand the life back
-too: being pipped by a fraction of a second, and being mid-attempt when
-somebody else cracks the box. Neither is a failure.
-
-The refill clock advances by *whole hours* rather than resetting to now, so a
-player who checks back after 90 minutes banks one life and keeps the spare 30
-minutes towards the next. Otherwise frequent polling would quietly reset the
-timer forever.
+**One life buys one guess**, win or lose. There is no bounded "run" and no cap
+on how many attempts a box will take — only on how fast you can afford them. A
+hard box is a siege, not a sitting.
 
 Lives can also be bought at **₦150 each**, up to 100 at a time. Nobody has to
 — the pool refills whether or not anyone pays, and the buy dialog says so
@@ -75,19 +75,47 @@ before it says anything else.
 
 ---
 
+## Difficulty
+
+Every box shows a tier and an attempt estimate, to the player and the
+contributor alike, derived the same way. "26 characters" would mean nothing to
+somebody deciding whether to spend their month — and can't be shown anyway.
+"Merciless · ~600 attempts · about 3 weeks on free lives" means a great deal.
+
+The model is the strategy the feedback actually permits: binary-search the
+length (~5 attempts), then walk the positions one at a time, because a *count*
+with no positions attached can only be read by changing one position and
+watching it move. A wrong-case hit resolves the case for free, so the search
+runs over 48 case-folded classes.
+
+| Length | Tier | Estimated | Measured |
+| --- | --- | --- | --- |
+| 3 | Warm | ~55 | 65 |
+| 6 | Tricky | ~125 | 125 |
+| 10 | Hard | ~220 | 225 |
+| 18 | Brutal | ~410 | 371 |
+| 26 | Merciless | ~600 | 547 |
+
+"Measured" is a solver implementing exactly that strategy against the real
+scoring rule, median of 15 random passwords per length. It cracks 40/40.
+
+---
+
 ## Power-ups
 
 The only thing a player ever pays for, and the only way a contributor makes
-money back.
+money back. They carry much more weight than they would in a gentler game:
+each one deletes a specific chunk of a hundreds-of-attempts grind.
 
 | Power-up | Price | What it does |
 | --- | --- | --- |
-| Sweep | ₦500 | Strikes 2 characters off the keyboard that the password definitely doesn't use (5% of the alphabet, rounded up) |
-| Second Wind | ₦1,000 | Three more guesses on this attempt, up to three times |
-| First Light | ₦1,500 | Locks in the opening character |
-| Last Light | ₦2,000 | Locks in the closing character |
+| Length Lock | ₦500 | Tells you exactly how many characters the password has |
+| Sweep | ₦1,000 | Strikes 4 characters off that the password doesn't use anywhere |
+| First Light | ₦1,500 | Locks in the opening character, case and all |
+| Last Light | ₦2,000 | Locks in the closing character, case and all |
+| Case Map | ₦2,500 | Counts the uppercase, lowercase, digits and symbols — without positions |
 | Spotlight | ₦3,500 | Lights up one position not yet pinned down |
-| X-Ray | ₦10,000 | Every character the password is built from, without saying where any of them go |
+| X-Ray | ₦10,000 | Every character the password is built from, without saying where any go |
 
 Nothing is revealed at checkout. The order is created `pending` and the effect
 only fires once Paystack confirms the money, so a cancelled payment reveals
@@ -102,9 +130,9 @@ is decided from public facts — the password's length and what the player has
 already bought — and never from the password.
 
 Sweep is the interesting one. A password of length *L* uses at most *L*
-distinct characters, so at least `36 − L` of the alphabet is guaranteed absent.
-While fewer than that have been struck off, there is *certainly* something left
-to strike, and the button is offered on that bound alone.
+distinct characters, so at least `74 − L` of the alphabet is guaranteed absent.
+Until Length Lock has been bought there is no known *L*, so the most permissive
+bound is used and the button's state still says nothing.
 
 ---
 
@@ -113,16 +141,16 @@ to strike, and the button is offered on that bound alone.
 Everything is stored in kobo. The split is 70/30 in the contributor's favour on
 everything that has a contributor attached.
 
-### Stakes
+### Funding
 
-A contributor's stake **is** the prize. 70% of it is what a player is chasing;
+What a contributor pays in **is** the reward. 70% of it is what a player is chasing;
 Spendbox keeps 30% for running the box. It is collected in full up front, so a
 winner is never waiting on a contributor to be good for it.
 
 The floor rises with the password's length, because a longer password is a
 harder box and a harder box has to be worth attacking:
 
-| Characters | Minimum stake | Prize at the floor |
+| Characters | Minimum funding | Reward at the floor |
 | --- | --- | --- |
 | 3 | ₦10,000 | ₦7,000 |
 | 4 | ₦60,000 | ₦42,000 |
@@ -137,10 +165,9 @@ harder box and a harder box has to be worth attacking:
 The steps are ₦50,000, then ₦100,000, ₦250,000, ₦500,000, settling at
 ₦500,000 a character. The schedule is built so the 26-character ceiling lands
 exactly on **₦10,000,000** — the largest single transfer Paystack will make.
-A contributor may always stake *more* than the floor for a bigger prize, never
-more than the cap.
 
-Rounding on the split goes to the platform, so the advertised prize is never a
+
+Rounding on the split goes to the platform, so the advertised reward is never a
 kobo short of what a winner is actually paid.
 
 ### Who gets what
@@ -149,7 +176,7 @@ kobo short of what a winner is actually paid.
 | --- | --- | --- |
 | Power-up bought against a contributor's box | 70% | 30% |
 | Power-up bought against the public box | — | 100% |
-| Stake on a contributor's box | becomes the prize (70%) | 30% |
+| Funding a contributor's box | becomes the reward (70%) | 30% |
 | Lives | — | 100% |
 
 Lives aren't attached to any box, so there is nobody to share them with.
@@ -160,7 +187,7 @@ sale is charged against it. Paystack splits at settlement, so their share never
 sits in a Spendbox balance waiting for someone to move it, and nobody here
 moves it by hand.
 
-The one exception is a **prize**, which can't ride a subaccount — the winner is
+The one exception is a **reward**, which can't ride a subaccount — the winner is
 a stranger with no account here until the moment they win. So a cracked box
 opens a claim, the winner supplies a bank account (checked against the bank
 before it's stored, so a mistyped digit is caught while it's still a form), and
@@ -171,7 +198,7 @@ an admin sends the transfer from `/admin`.
 An unlocked box can never be played again. If two players submit the winning
 guess in the same instant, a conditional update decides it: exactly one is the
 winner, and the other is told they were pipped rather than being promised a
-prize twice.
+money twice.
 
 ---
 
@@ -179,14 +206,14 @@ prize twice.
 
 | Route | Who | What |
 | --- | --- | --- |
-| `/` | anyone | The lobby: the public box, every staked box, and the safes already opened |
+| `/` | anyone | The lobby: the public box, every funded box, and the safes already opened |
 | `/b/[slug]` | anyone | A box, played. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
-| `/me` | a verified player | Lives, attempts, and where a prize has got to. Not an account — there's no password here |
+| `/me` | a verified player | Lives, attempts, and where a reward has got to. Not an account — there's no password here |
 | `/signup` | a contributor | Email-first: known address asks for a password, new address emails a code |
 | `/dashboard` | a contributor | Boxes, Build, Attempts, Money |
-| `/admin` | the platform | The public box, prizes to send, and where the revenue came from |
+| `/admin` | the platform | The public box, rewards to send, and where the revenue came from |
 
-A player never signs up. They verify an address once — because a prize has to
+A player never signs up. They verify an address once — because a reward has to
 be sent somewhere — and a signed cookie remembers them for six months.
 
 ### The contributor dashboard
@@ -194,8 +221,8 @@ be sent somewhere — and a signed cookie remembers them for six months.
 Four tabs and no more. **Boxes** is what's up and what each has earned, with a
 share button that uses the native share sheet where there is one (on a phone
 that means WhatsApp, not a clipboard). **Build** is two decisions — the
-password and the stake — with the prize, the guess budget and our cut all
-updating as you type, so nothing is a surprise at checkout. **Attempts** is who
+password and the reward — with the difficulty, the attempt estimate and our
+cut all updating as you type, so nothing is a surprise at checkout. **Attempts** is who
 has been having a go, addresses starred out before they leave the server.
 **Money** is power-up income, the split written out in full, the winners, and
 the bank account it all settles to.
@@ -247,16 +274,17 @@ player has no Supabase session to refresh.
 ```
 src/lib/constants.ts        the alphabet, lengths, life economy
 src/lib/game/feedback.ts    scoring a guess (pure, server-only)
-src/lib/game/stakes.ts      the stake ladder and the 70/30 split
+src/lib/game/rewards.ts     the funding ladder and the 70/30 split
+src/lib/game/difficulty.ts  attempts-to-crack, tiers, brute-force cost
 src/lib/game/power-ups.ts   the catalogue, availability, and effects
 src/lib/game/boxes.ts       reading boxes without reading passwords
 src/lib/game/view.ts        assembling what the play screen sees
 src/lib/game/settle.ts      turning a confirmed payment into the thing it bought
 src/app/api/boxes/…         play: the box, the run, the guess, the power-up
-src/app/api/player/…        lives, verification, history, prizes
+src/app/api/player/…        lives, verification, history, reward claims
 src/app/api/contributor/…   profile, boxes, funding, attempts, earnings, payout
-src/app/api/admin/…         the public box, prize claims, revenue
-supabase/migrations/        append-only; 0024 is the rebuild
+src/app/api/admin/…         the public box, reward claims, revenue
+supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard
 ```
 
 ---
@@ -273,14 +301,15 @@ supabase/migrations/        append-only; 0024 is the rebuild
    Local stack instead: `npx supabase start && npx supabase db reset`. That also
    runs `supabase/seed.sql`, which creates a contributor
    (`seed@example.com` / `password123`), the public box `/b/the-opening-night`
-   (password `OPEN`) and a staked box `/b/adas-safe` (password `NAIRA!`).
+   (password `oPen`) and a funded box `/b/adas-safe` (password `Na1ra!`).
+   Case matters, so those are exact.
 
 2. **Configure env** — copy `.env.example` to `.env.local`:
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
      `SUPABASE_SERVICE_ROLE_KEY` — required.
    - `RESEND_API_KEY` + `EMAIL_FROM` — real emails (otherwise logged to the
      console, which is enough to play locally).
-   - `PAYSTACK_SECRET_KEY` — enables stakes, power-ups and buying lives. Without
+   - `PAYSTACK_SECRET_KEY` — enables funding, power-ups and buying lives. Without
      it the game still works; only the paid parts are switched off.
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (and/or `ADMIN_EMAILS`) — access `/admin`.
    - `PLAYER_SESSION_SECRET` — signs the player cookie. Falls back to the
@@ -300,24 +329,29 @@ Point Paystack's webhook at `https://your-domain/api/paystack/webhook`.
 
 ## Testing the rules
 
-The game rules are small and pure on purpose, and both halves are checkable
-without a browser.
+**The TypeScript half** — the funding ladder, the split, the difficulty model,
+power-up effects and availability — is checked by transpiling `src/lib/game/*`
+and asserting against hand-worked cases: that the ladder is monotonic and lands
+on ₦10,000,000 at 26 characters, that a split always reconciles to the funding,
+that Sweep only ever strikes characters the password doesn't use, that a
+greyed-out power-up is never decided by the password.
 
-**The TypeScript half** — scoring, the stake ladder, the split, power-up
-effects and availability — is exercised by transpiling
-`src/lib/game/*` and asserting against hand-worked cases: that `AAB` against
-`ABC` scores `gro`, that the ladder is monotonic and lands on ₦10,000,000 at 26
-characters, that a split always reconciles to the stake, that Sweep only ever
-strikes characters the password doesn't use.
+**A solver** plays the game. It implements the only strategy the feedback
+permits — binary-search the length, then walk the positions — against the real
+scoring rule, and reports the median attempts per length over 15 random
+passwords. It cracks 40/40, lands within ~10% of the estimate the UI shows, and
+puts every length inside the intended 50–5000 band.
 
-**The SQL half** runs against a scratch Postgres with a small stand-in for the
-Supabase-managed `auth` and `storage` schemas. Applying all migrations in order
-proves the chain still builds from nothing; then the checks cover the life
-economy (whole-hour accrual, polling not resetting the clock, bought lives
-exceeding the cap), the run lifecycle (a life spent, a resume not charging
-twice, a win refunding, a bystander refunded when the box falls), the races
-(first solver wins, second is pipped and keeps their life, one claim only), and
-the constraints. A separate pass sets `role` to `anon` and `authenticated` and
+**The SQL half** runs against a scratch Postgres with stand-ins for the
+Supabase-managed `auth` and `storage` schemas, including the `protect_delete`
+trigger. Applying every migration in order proves the chain still builds from
+nothing; then the checks cover scoring (positional only, case-sensitive,
+mismatched lengths, empty guesses, repeated characters), the life economy
+(whole-hour accrual, polling not resetting the clock, bought lives exceeding
+the cap), the attempt lifecycle (a life per guess, refused guesses costing
+nothing, a win closing the box and opening the claim, wrong case *not* winning),
+raising a reward (never down, never level, the split still reconciling), and the
+constraints. A separate pass sets `role` to `anon` and `authenticated` and
 asserts that neither can read a password or call a privileged function.
 
 ---
@@ -327,10 +361,11 @@ asserts that neither can read a password or call a privileged function.
 - **No leaderboards.** A box has one winner and then it's over.
 - **No streaks, no daily bonus, no referral loops.** Lives refill on a clock
   and that's the whole retention model.
-- **No automated prize transfers.** A winner's bank details are checked with
+- **No automated reward transfers.** A winner's bank details are checked with
   the bank, but the transfer itself is a human pressing a button in `/admin`.
-- **No editing a live box.** The password is fixed the moment money goes behind
-  it. A contributor who wants a different one builds a different box.
+- **No editing a funded box.** A draft is yours to change or throw away. The
+  moment money goes behind it the password is fixed for good, the box can never
+  be deleted, and the reward can only be raised — never lowered.
 - **No password recovery for a box.** Nobody at Spendbox can read a box's
   password back to its author, which is the same property that makes the game
   worth playing.

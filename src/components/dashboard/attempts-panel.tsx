@@ -8,30 +8,30 @@
 // they need to know is that people are actually turning up.
 
 import { Empty, Panel } from "./shared";
-import type { AttemptRow } from "@/lib/types";
+import type { HuntRow } from "@/lib/types";
 
-export function AttemptsPanel({ attempts }: { attempts: AttemptRow[] }) {
+export function AttemptsPanel({ attempts }: { attempts: HuntRow[] }) {
   if (attempts.length === 0) {
     return (
       <Panel>
         <Empty>
-          No attempts yet. Share a box&apos;s link and they&apos;ll show up here.
+          Nobody hunting yet. Share a box&apos;s link and they&apos;ll show up here.
         </Empty>
       </Panel>
     );
   }
 
   return (
-    <Panel title={`${attempts.length} most recent attempts`}>
+    <Panel title={`${attempts.length} ${attempts.length === 1 ? "hunter" : "hunters"}`}>
       <div className="-mx-1 overflow-x-auto">
         <table className="w-full min-w-[34rem] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-zinc-500">
               <th className="pb-2 font-medium">Player</th>
               <th className="pb-2 font-medium">Box</th>
-              <th className="pb-2 font-medium">Guesses</th>
+              <th className="pb-2 font-medium">Attempts</th>
               <th className="pb-2 font-medium">Power-ups</th>
-              <th className="pb-2 font-medium">When</th>
+              <th className="pb-2 font-medium">Last seen</th>
             </tr>
           </thead>
           <tbody>
@@ -44,22 +44,19 @@ export function AttemptsPanel({ attempts }: { attempts: AttemptRow[] }) {
                   {attempt.boxTitle}
                 </td>
                 <td className="py-2 pr-3 tabular-nums text-zinc-400">
-                  {attempt.guessesUsed}/{attempt.guessesAllowed}
-                  {attempt.status === "won" && (
+                  {attempt.attempts}
+                  {attempt.won && (
                     <span className="ml-1.5 text-mark-green">cracked it</span>
-                  )}
-                  {attempt.status === "active" && (
-                    <span className="ml-1.5 text-brass">still going</span>
                   )}
                 </td>
                 <td className="py-2 pr-3 tabular-nums text-zinc-400">
                   {attempt.powerUpsBought || "—"}
                 </td>
                 <td className="py-2 text-xs text-zinc-500">
-                  {new Date(attempt.startedAt).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {new Date(attempt.lastAttemptAt ?? attempt.startedAt).toLocaleDateString(
+                    undefined,
+                    { month: "short", day: "numeric" }
+                  )}
                 </td>
               </tr>
             ))}

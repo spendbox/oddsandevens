@@ -16,9 +16,9 @@ import {
   MAX_LENGTH,
   MIN_LENGTH,
   TITLE_MAX,
-  guessesFor,
 } from "@/lib/constants";
-import { formatNaira } from "@/lib/game/stakes";
+import { formatNaira, rewardLabel } from "@/lib/game/rewards";
+import { difficultyOf, estimateAttempts, roughly } from "@/lib/game/difficulty";
 import type { PublicBox } from "@/lib/types";
 
 const INPUT =
@@ -28,7 +28,7 @@ const PRIMARY =
 
 interface AdminBox extends PublicBox {
   id: string;
-  stakeKobo: number;
+  fundingKobo: number;
   createdAt: string;
 }
 
@@ -46,7 +46,7 @@ interface Claim {
 
 interface Overview {
   revenue: {
-    stakeCutKobo: number;
+    fundingCutKobo: number;
     powerUpPlatformKobo: number;
     lifeKobo: number;
     totalKobo: number;
@@ -54,7 +54,7 @@ interface Overview {
     livesSold: number;
     powerUpsSold: number;
   };
-  boxes: { live: number; funding: number; unlocked: number; prizesOwedKobo: number };
+  boxes: { live: number; funding: number; unlocked: number; rewardsOwedKobo: number };
 }
 
 export default function AdminPage() {
@@ -115,8 +115,8 @@ export default function AdminPage() {
             hint={`${overview.revenue.powerUpsSold} sold`}
           />
           <Figure
-            label="From stakes"
-            value={formatNaira(overview.revenue.stakeCutKobo)}
+            label="From funding"
+            value={formatNaira(overview.revenue.fundingCutKobo)}
             hint={`${overview.boxes.live} live`}
           />
         </section>
@@ -124,10 +124,10 @@ export default function AdminPage() {
 
       <section className="panel rounded-2xl p-5">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-400">
-          Prizes to send {owed.length > 0 && `(${owed.length})`}
+          Rewards to send {owed.length > 0 && `(${owed.length})`}
         </h2>
         {claims.length === 0 ? (
-          <p className="py-4 text-center text-sm text-zinc-500">No prizes yet.</p>
+          <p className="py-4 text-center text-sm text-zinc-500">No rewards owed yet.</p>
         ) : (
           <ul className="space-y-2">
             {claims.map((claim) => (
@@ -156,7 +156,7 @@ export default function AdminPage() {
                 </span>
               </span>
               <span className="shrink-0 font-mono text-xs text-brass">
-                {formatNaira(box.prizeKobo)}
+                {rewardLabel(box.rewardKobo)}
               </span>
               <span className="shrink-0 text-xs text-zinc-500">{box.status}</span>
               {["draft", "funding", "live"].includes(box.status) && (
@@ -232,7 +232,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
   const [title, setTitle] = useState("");
   const [blurb, setBlurb] = useState("");
   const [secret, setSecret] = useState("");
-  const [prizeNaira, setPrizeNaira] = useState("");
+  const [rewardNaira, setRewardNaira] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -253,7 +253,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         title: title.trim(),
         blurb: blurb.trim(),
         secret: clean,
-        prizeKobo: Math.round(Number(prizeNaira || 0) * 100),
+        rewardKobo: Math.round(Number(rewardNaira || 0) * 100),
       }),
     });
     setBusy(false);
@@ -261,7 +261,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
       setTitle("");
       setBlurb("");
       setSecret("");
-      setPrizeNaira("");
+      setRewardNaira("");
       onCreated();
       return;
     }
@@ -274,9 +274,9 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         The public box
       </h2>
       <p className="mt-1 text-xs text-zinc-500">
-        Free to play and funded by us, so there&apos;s no stake and no split —
-        just a prize. Publishing a new one closes the current one; only one is
-        ever live.
+        Free to play and funded by us, so there&apos;s nothing to collect and no
+        split — just a reward, or none at all, which makes it a pure challenge.
+        Publishing a new one closes the current one; only one is ever live.
       </p>
 
       <div className="mt-3 space-y-2">
@@ -319,16 +319,17 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
           <span className="absolute inset-y-0 left-4 flex items-center text-zinc-500">₦</span>
           <input
             inputMode="numeric"
-            value={prizeNaira}
-            onChange={(e) => setPrizeNaira(e.target.value.replace(/[^\d]/g, ""))}
-            placeholder="Prize"
+            value={rewardNaira}
+            onChange={(e) => setRewardNaira(e.target.value.replace(/[^\d]/g, ""))}
+            placeholder="Reward — leave blank for a pure challenge"
             className={`${INPUT} pl-8 font-mono`}
           />
         </div>
 
         <p className="text-xs text-zinc-500">
           {clean.length} characters
-          {valid && ` — ${guessesFor(clean.length)} guesses an attempt`}
+          {valid &&
+            ` — ${difficultyOf(clean.length)}, about ${roughly(estimateAttempts(clean.length))} attempts to crack`}
         </p>
 
         {error && <p className="text-sm text-red-400">{error}</p>}

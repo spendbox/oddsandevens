@@ -1,16 +1,23 @@
 // Power-ups: the only thing a player ever has to pay for, and the only way a
 // contributor makes money back.
 //
-// Everything here except the catalogue is server-only — `apply` reads the
-// password. What reaches the browser is the accumulated `Revealed` state,
-// which is deliberately the *result* of a purchase and never the password.
+// They matter far more than they used to. A box now hides its length, gives no
+// "that letter is in there somewhere" signal, and cares about case — so a
+// methodical solve runs to hundreds of attempts. Every power-up here removes a
+// specific chunk of that work, and each one is priced roughly against the
+// lives it saves.
+//
+// Everything except the catalogue is server-only: `apply` reads the password.
+// What reaches the browser is the accumulated `Revealed` state, which is the
+// *result* of a purchase and never the password.
 
 import { randomInt } from "node:crypto";
 import { ALPHABET, KOBO, PLATFORM_SHARE_PERCENT } from "@/lib/constants";
 
 export const POWER_UP_KINDS = [
+  "length_lock",
   "sweep",
-  "second_wind",
+  "case_map",
   "first_light",
   "last_light",
   "spotlight",
@@ -28,33 +35,36 @@ export interface PowerUp {
 /** How many characters one Sweep clears: 5% of the alphabet, rounded up. */
 export const SWEEP_SIZE = Math.max(1, Math.ceil(ALPHABET.length * 0.05));
 
-/** Second Wind is repeatable, but not indefinitely — a run has to end. */
-export const SECOND_WIND_GUESSES = 3;
-export const SECOND_WIND_MAX = 3;
-
 export const POWER_UPS: Record<PowerUpKind, PowerUp> = {
+  length_lock: {
+    kind: "length_lock",
+    name: "Length Lock",
+    blurb: "Tells you exactly how many characters the password has.",
+    priceKobo: 500 * KOBO,
+  },
   sweep: {
     kind: "sweep",
     name: "Sweep",
-    blurb: `Strikes ${SWEEP_SIZE} characters off the keyboard that the password definitely doesn't use.`,
-    priceKobo: 500 * KOBO,
-  },
-  second_wind: {
-    kind: "second_wind",
-    name: "Second Wind",
-    blurb: `${SECOND_WIND_GUESSES} more guesses on this attempt. Up to ${SECOND_WIND_MAX} per attempt.`,
+    blurb: `Strikes ${SWEEP_SIZE} characters off the board that the password doesn't use anywhere.`,
     priceKobo: 1_000 * KOBO,
+  },
+  case_map: {
+    kind: "case_map",
+    name: "Case Map",
+    blurb:
+      "Counts the password's uppercase, lowercase, digits and symbols — without saying where any of them sit.",
+    priceKobo: 2_500 * KOBO,
   },
   first_light: {
     kind: "first_light",
     name: "First Light",
-    blurb: "Locks in the opening character of the password.",
+    blurb: "Locks in the opening character, case and all.",
     priceKobo: 1_500 * KOBO,
   },
   last_light: {
     kind: "last_light",
     name: "Last Light",
-    blurb: "Locks in the closing character of the password.",
+    blurb: "Locks in the closing character, case and all.",
     priceKobo: 2_000 * KOBO,
   },
   spotlight: {
@@ -90,42 +100,53 @@ export function splitPowerUp(priceKobo: number): {
 }
 
 // ---------------------------------------------------------------------------
-// What a run knows so far
+// What a hunt knows so far
 // ---------------------------------------------------------------------------
 
+/** Case Map's answer: how the password is composed, without any positions. */
+export interface CaseMap {
+  upper: number;
+  lower: number;
+  digits: number;
+  specials: number;
+}
+
 /**
- * Everything power-ups have handed this run. Stored on `runs.revealed` and
+ * Everything power-ups have handed this hunt. Stored on `hunts.revealed` and
  * sent to the browser as-is: the player has paid for all of it.
  */
 export interface Revealed {
+  /** The password's length, once Length Lock has been bought. */
+  length: number | null;
   /** Position index (as a string key, because it round-trips through jsonb) → character. */
   positions: Record<string, string>;
-  /** Characters proven absent from the password. */
+  /** Characters proven absent from the password entirely. */
   dead: string[];
-  /** X-Ray's answer: every distinct character the password uses. */
+  /** X-Ray's answer: every distinct character the password uses, with case. */
   charset: string[] | null;
-  /** Guesses added by Second Wind. */
-  bonusGuesses: number;
-  /** How many of each power-up this run has bought. */
+  caseMap: CaseMap | null;
+  /** How many of each power-up this hunt has bought. */
   used: Partial<Record<PowerUpKind, number>>;
 }
 
 export const EMPTY_REVEALED: Revealed = {
+  length: null,
   positions: {},
   dead: [],
   charset: null,
-  bonusGuesses: 0,
+  caseMap: null,
   used: {},
 };
 
-/** Reads a `runs.revealed` jsonb blob back into a shape with no holes in it. */
+/** Reads a `hunts.revealed` jsonb blob back into a shape with no holes in it. */
 export function parseRevealed(raw: unknown): Revealed {
   const value = (raw ?? {}) as Partial<Revealed>;
   return {
+    length: typeof value.length === "number" ? value.length : null,
     positions: value.positions ?? {},
     dead: Array.isArray(value.dead) ? value.dead : [],
     charset: Array.isArray(value.charset) ? value.charset : null,
-    bonusGuesses: Number(value.bonusGuesses ?? 0),
+    caseMap: value.caseMap ?? null,
     used: value.used ?? {},
   };
 }
@@ -133,43 +154,46 @@ export function parseRevealed(raw: unknown): Revealed {
 /**
  * Whether a power-up is worth selling right now.
  *
- * Every rule here is decided from public facts — the password's length and
- * what the player has already bought — precisely so that a greyed-out button
- * never becomes a free hint. Sweep's rule leans on the fact that a password of
- * length L uses at most L distinct characters, so at least `ALPHABET - L` of
- * them are guaranteed dead; while fewer than that have been struck off, there
- * is certainly something left to strike.
+ * Every rule here is decided from public facts — what the player has already
+ * bought, and a length they have already paid to learn — precisely so that a
+ * greyed-out button never becomes a free hint. Anything that would need the
+ * password to decide stays on sale.
+ *
+ * Sweep leans on a bound rather than the password: a password of length L uses
+ * at most L distinct characters, so at least `ALPHABET − L` are guaranteed
+ * absent. Until the length is known the most permissive bound is used, so the
+ * button's state still says nothing.
  */
-export function isAvailable(
-  kind: PowerUpKind,
-  revealed: Revealed,
-  length: number
-): boolean {
+export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
   const bought = revealed.used[kind] ?? 0;
+  const known = revealed.length;
+
   switch (kind) {
-    case "sweep":
-      return revealed.dead.length < ALPHABET.length - length;
-    case "second_wind":
-      return bought < SECOND_WIND_MAX;
+    case "length_lock":
+      return known === null;
+    case "sweep": {
+      const assumed = known ?? 26;
+      return revealed.dead.length < ALPHABET.length - assumed;
+    }
+    case "case_map":
+      return revealed.caseMap === null;
     case "first_light":
       return revealed.positions["0"] === undefined;
     case "last_light":
-      return revealed.positions[String(length - 1)] === undefined;
+      // Without the length there is no "last" to point at yet.
+      return known !== null && revealed.positions[String(known - 1)] === undefined;
     case "spotlight":
-      return Object.keys(revealed.positions).length < length;
+      return known === null || Object.keys(revealed.positions).length < known;
     case "x_ray":
-      return revealed.charset === null;
+      return revealed.charset === null && bought === 0;
   }
 }
 
 /** The catalogue as the play screen shows it, with prices and availability. */
-export function offerings(
-  revealed: Revealed,
-  length: number
-): (PowerUp & { available: boolean })[] {
+export function offerings(revealed: Revealed): (PowerUp & { available: boolean })[] {
   return POWER_UP_KINDS.map((kind) => ({
     ...POWER_UPS[kind],
-    available: isAvailable(kind, revealed, length),
+    available: isAvailable(kind, revealed),
   }));
 }
 
@@ -186,7 +210,7 @@ function reveal(revealed: Revealed, index: number, secret: string): Revealed {
 
 /**
  * Runs a paid-for power-up against the password and returns the new state of
- * the run, plus a line of copy telling the player what they just bought.
+ * the hunt, plus a line of copy telling the player what they just bought.
  *
  * Called once, from the webhook or the verify route, after Paystack confirms
  * the money — never speculatively.
@@ -200,6 +224,12 @@ export function apply(
   const counted = { ...before, used };
 
   switch (kind) {
+    case "length_lock":
+      return {
+        revealed: { ...counted, length: secret.length },
+        note: `The password is ${secret.length} characters long.`,
+      };
+
     case "sweep": {
       const inSecret = new Set(secret.split(""));
       const known = new Set(counted.dead);
@@ -211,16 +241,24 @@ export function apply(
       return {
         revealed: { ...counted, dead: [...counted.dead, ...picked].sort() },
         note: picked.length
-          ? `Struck off ${picked.join(", ")}.`
+          ? `Struck off ${picked.join(" ")}.`
           : "Nothing left to strike off — every remaining character is in play.",
       };
     }
 
-    case "second_wind":
+    case "case_map": {
+      const caseMap: CaseMap = { upper: 0, lower: 0, digits: 0, specials: 0 };
+      for (const ch of secret) {
+        if (/[A-Z]/.test(ch)) caseMap.upper += 1;
+        else if (/[a-z]/.test(ch)) caseMap.lower += 1;
+        else if (/[0-9]/.test(ch)) caseMap.digits += 1;
+        else caseMap.specials += 1;
+      }
       return {
-        revealed: { ...counted, bonusGuesses: counted.bonusGuesses + SECOND_WIND_GUESSES },
-        note: `${SECOND_WIND_GUESSES} more guesses.`,
+        revealed: { ...counted, caseMap },
+        note: `${caseMap.upper} uppercase, ${caseMap.lower} lowercase, ${caseMap.digits} digits, ${caseMap.specials} symbols.`,
       };
+    }
 
     case "first_light":
       return {
@@ -237,7 +275,7 @@ export function apply(
     }
 
     case "spotlight": {
-      const hidden = [];
+      const hidden: number[] = [];
       for (let i = 0; i < secret.length; i++) {
         if (counted.positions[String(i)] === undefined) hidden.push(i);
       }
@@ -255,7 +293,7 @@ export function apply(
       const charset = [...new Set(secret.split(""))].sort();
       return {
         revealed: { ...counted, charset },
-        note: `Built from ${charset.join(", ")}.`,
+        note: `Built from ${charset.join(" ")}.`,
       };
     }
   }

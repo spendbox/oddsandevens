@@ -16,39 +16,39 @@ export async function GET() {
   }
 
   const db = supabaseAdmin();
-  const [{ data: stakes }, { data: powerUps }, { data: lives }, { data: boxes }] =
+  const [{ data: funding }, { data: powerUps }, { data: lives }, { data: boxes }] =
     await Promise.all([
-      db.from("stake_orders").select("amount_kobo").eq("status", "paid"),
+      db.from("funding_orders").select("amount_kobo").eq("status", "paid"),
       db.from("power_up_orders").select("platform_kobo, price_kobo").eq("status", "paid"),
       db.from("life_orders").select("price_kobo, quantity").eq("status", "paid"),
-      db.from("boxes").select("status, prize_kobo, platform_fee_kobo"),
+      db.from("boxes").select("status, reward_kobo, platform_fee_kobo"),
     ]);
 
-  const stakeKobo = sum(stakes, "amount_kobo");
+  const fundingKobo = sum(funding, "amount_kobo");
   const powerUpPlatformKobo = sum(powerUps, "platform_kobo");
   const powerUpGrossKobo = sum(powerUps, "price_kobo");
   const lifeKobo = sum(lives, "price_kobo");
 
   const boxRows = (boxes ?? []) as {
     status: string;
-    prize_kobo: number;
+    reward_kobo: number;
     platform_fee_kobo: number;
   }[];
 
-  // The platform's cut of a stake is only banked once the box is actually
-  // funded; drafts and unfunded boxes are worth nothing.
-  const stakeCutKobo = boxRows
+  // The platform's cut of a box's funding is only banked once the box is
+  // actually funded; drafts and unfunded boxes are worth nothing.
+  const fundingCutKobo = boxRows
     .filter((b) => ["live", "unlocked", "closed"].includes(b.status))
     .reduce((total, b) => total + Number(b.platform_fee_kobo), 0);
 
   return NextResponse.json({
     revenue: {
-      stakeCutKobo,
+      fundingCutKobo,
       powerUpPlatformKobo,
       lifeKobo,
-      totalKobo: stakeCutKobo + powerUpPlatformKobo + lifeKobo,
+      totalKobo: fundingCutKobo + powerUpPlatformKobo + lifeKobo,
       contributorKobo: powerUpGrossKobo - powerUpPlatformKobo,
-      stakesCollectedKobo: stakeKobo,
+      fundingCollectedKobo: fundingKobo,
       livesSold: sum(lives, "quantity"),
       powerUpsSold: (powerUps ?? []).length,
     },
@@ -56,9 +56,9 @@ export async function GET() {
       live: boxRows.filter((b) => b.status === "live").length,
       funding: boxRows.filter((b) => b.status === "funding").length,
       unlocked: boxRows.filter((b) => b.status === "unlocked").length,
-      prizesOwedKobo: boxRows
+      rewardsOwedKobo: boxRows
         .filter((b) => b.status === "unlocked")
-        .reduce((total, b) => total + Number(b.prize_kobo), 0),
+        .reduce((total, b) => total + Number(b.reward_kobo), 0),
     },
   });
 }

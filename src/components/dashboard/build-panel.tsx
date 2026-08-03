@@ -3,12 +3,15 @@
 // Building a spendbox.
 //
 // Two decisions and no more: what the password is, and how much is behind it.
-// Everything else — the guess budget, the prize, our cut, the share link —
-// falls out of those two, and the form shows each one changing as it's typed
-// so nobody discovers the stake at the checkout.
+// Everything else — the reward, our cut, the difficulty, how long players will
+// be at it — falls out of those two, and the form shows each one changing as
+// it's typed. Nobody should discover what they've built at the checkout.
+//
+// A box lands as a **draft**: nothing is charged and nothing is published until
+// it's funded, so a password is worth rewriting a few times first.
 
 import { useMemo, useState } from "react";
-import { Dice5, Eye, EyeOff } from "lucide-react";
+import { Dice5, Eye, EyeOff, TriangleAlert } from "lucide-react";
 import {
   ALPHABET,
   ALPHABET_SET,
@@ -16,9 +19,21 @@ import {
   MAX_LENGTH,
   MIN_LENGTH,
   TITLE_MAX,
-  guessesFor,
 } from "@/lib/constants";
-import { formatNaira, minStakeKobo, splitStake, stakeSchedule } from "@/lib/game/stakes";
+import {
+  formatNaira,
+  fundingSchedule,
+  minFundingKobo,
+  splitFunding,
+} from "@/lib/game/rewards";
+import {
+  bruteForceCostKobo,
+  daysOfFreeLives,
+  difficultyOf,
+  estimateAttempts,
+  freeTime,
+  roughly,
+} from "@/lib/game/difficulty";
 import { INPUT, Panel, PRIMARY } from "./shared";
 
 /** A suggested password. Generated in the browser: it's only a suggestion, and
@@ -33,33 +48,39 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
   const [title, setTitle] = useState("");
   const [blurb, setBlurb] = useState("");
   const [secret, setSecret] = useState("");
-  const [stakeNaira, setStakeNaira] = useState("");
+  const [fundingNaira, setFundingNaira] = useState("");
   const [reveal, setReveal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Characters outside the alphabet are shown as rejected rather than silently
+  // dropped — quietly altering somebody's password would be the worst thing
+  // this form could do.
+  const rejected = useMemo(
+    () => [...new Set(secret.split("").filter((ch) => !ALPHABET_SET.has(ch)))],
+    [secret]
+  );
   const clean = useMemo(
-    () =>
-      secret
-        .toUpperCase()
-        .split("")
-        .filter((ch) => ALPHABET_SET.has(ch))
-        .join(""),
+    () => secret.split("").filter((ch) => ALPHABET_SET.has(ch)).join(""),
     [secret]
   );
 
   const length = clean.length;
-  const valid = length >= MIN_LENGTH && length <= MAX_LENGTH;
-  const floor = valid ? minStakeKobo(length) : 0;
-  const stakeKobo = Math.round(Number(stakeNaira || 0) * 100);
-  const split = splitStake(Math.max(stakeKobo, floor));
+  const valid = length >= MIN_LENGTH && length <= MAX_LENGTH && rejected.length === 0;
+  const floor = length >= MIN_LENGTH ? minFundingKobo(Math.min(length, MAX_LENGTH)) : 0;
+  const fundingKobo = Math.round(Number(fundingNaira || 0) * 100);
+  const split = splitFunding(Math.max(fundingKobo, floor));
+
+  const attempts = valid ? estimateAttempts(length) : 0;
+  const bruteCost = valid ? bruteForceCostKobo(length) : 0;
+  const underpriced = valid && split.rewardKobo > bruteCost;
 
   async function build() {
     if (!valid) {
-      setError(`The password needs ${MIN_LENGTH}–${MAX_LENGTH} characters.`);
+      setError(`The password needs ${MIN_LENGTH}–${MAX_LENGTH} usable characters.`);
       return;
     }
-    if (stakeKobo < floor) {
+    if (fundingKobo < floor) {
       setError(`A ${length}-character password needs at least ${formatNaira(floor)}.`);
       return;
     }
@@ -69,19 +90,24 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
     const res = await fetch("/api/contributor/boxes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), blurb: blurb.trim(), secret: clean, stakeKobo }),
+      body: JSON.stringify({
+        title: title.trim(),
+        blurb: blurb.trim(),
+        secret: clean,
+        fundingKobo,
+      }),
     });
     const body = (await res.json().catch(() => ({}))) as {
       boxId?: string;
       error?: string;
-      minStakeKobo?: number;
+      minFundingKobo?: number;
     };
+    setBusy(false);
 
     if (!res.ok || !body.boxId) {
-      setBusy(false);
       setError(
-        body.error === "stake_too_low"
-          ? `That's below the floor for ${length} characters (${formatNaira(body.minStakeKobo ?? floor)}).`
+        body.error === "funding_too_low"
+          ? `That's below the floor for ${length} characters (${formatNaira(body.minFundingKobo ?? floor)}).`
           : body.error === "no_profile"
             ? "Pick a display name first."
             : "Couldn't create that box. Check the details and try again."
@@ -89,24 +115,11 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
       return;
     }
 
-    // Straight to checkout: an unfunded box isn't a box, it's an intention.
-    const fund = await fetch(`/api/contributor/boxes/${body.boxId}/fund`, { method: "POST" });
-    const fundBody = (await fund.json().catch(() => ({}))) as {
-      authorizationUrl?: string;
-      error?: string;
-    };
-    if (fund.ok && fundBody.authorizationUrl) {
-      window.location.assign(fundBody.authorizationUrl);
-      return;
-    }
-
-    setBusy(false);
+    setTitle("");
+    setBlurb("");
+    setSecret("");
+    setFundingNaira("");
     onBuilt();
-    setError(
-      fundBody.error === "payments_unavailable"
-        ? "The box is saved, but payments aren't switched on — it stays unfunded for now."
-        : "The box is saved. Fund it from the Boxes tab to put it live."
-    );
   }
 
   return (
@@ -141,7 +154,9 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
               placeholder="Type it, or roll one"
               spellCheck={false}
               autoComplete="off"
-              className={`${INPUT} pr-20 font-mono tracking-[0.2em]`}
+              autoCapitalize="off"
+              autoCorrect="off"
+              className={`${INPUT} pr-20 font-mono tracking-[0.15em]`}
             />
             <div className="absolute inset-y-0 right-0 flex items-center gap-1 pr-2">
               <button
@@ -159,7 +174,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
               <button
                 type="button"
                 onClick={() => {
-                  setSecret(suggest(length >= MIN_LENGTH ? length : 5));
+                  setSecret(suggest(length >= MIN_LENGTH ? length : 8));
                   setReveal(true);
                 }}
                 aria-label="Suggest a password"
@@ -171,68 +186,123 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
           </div>
 
           <p className="text-xs text-zinc-500">
-            {MIN_LENGTH}–{MAX_LENGTH} characters from A–Z and{" "}
-            <span className="font-mono">! @ # $ % &amp; * ? + =</span>. Anything else
-            is dropped.
+            {MIN_LENGTH}–{MAX_LENGTH} characters. Letters, digits and{" "}
+            <span className="font-mono">! @ # $ % &amp; * ? + = - _</span>.{" "}
+            <strong className="text-zinc-300">Case matters</strong> — players have to
+            get it exactly right.
             {length > 0 && (
               <>
                 {" "}
                 <span className="text-zinc-300">
                   {length} character{length === 1 ? "" : "s"}
                 </span>
-                {valid && ` — players get ${guessesFor(length)} guesses an attempt.`}
               </>
             )}
           </p>
 
+          {rejected.length > 0 && (
+            <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              These aren&apos;t allowed and would change your password:{" "}
+              <span className="font-mono">{rejected.join(" ")}</span>. Remove them.
+            </p>
+          )}
+
           <p className="rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-500">
-            Nobody at Spendbox reads this back to you — not even on this page
+            Nobody at Spendbox can read this back to you — not even on this page
             once you leave it. Keep your own copy.
           </p>
         </div>
       </Panel>
 
-      <Panel title="The stake">
+      {valid && (
+        <Panel title="What you're building">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Figure label="Difficulty" value={difficultyOf(length)} />
+            <Figure label="Attempts to crack" value={`${roughly(attempts)}`} />
+            <Figure
+              label="On free lives"
+              value={freeTime(daysOfFreeLives(attempts))}
+            />
+          </div>
+          <p className="mt-3 text-xs text-zinc-500">
+            A methodical player finds the length first, then works one position at
+            a time. That&apos;s the estimate — a determined one may be faster,
+            most will be far slower.
+          </p>
+        </Panel>
+      )}
+
+      <Panel title="The reward">
         <div className="space-y-3">
           <div className="relative">
             <span className="absolute inset-y-0 left-4 flex items-center text-zinc-500">₦</span>
             <input
               inputMode="numeric"
-              value={stakeNaira}
-              onChange={(e) => setStakeNaira(e.target.value.replace(/[^\d]/g, ""))}
-              placeholder={valid ? String(Math.round(floor / 100)) : "Pick a password first"}
+              value={fundingNaira}
+              onChange={(e) => setFundingNaira(e.target.value.replace(/[^\d]/g, ""))}
+              placeholder={
+                valid ? String(Math.round(floor / 100)) : "Write a password first"
+              }
               className={`${INPUT} pl-8 font-mono`}
             />
           </div>
 
           {valid && (
             <dl className="grid grid-cols-3 gap-2 text-center">
-              <Split label="You stake" value={formatNaira(split.stakeKobo)} />
-              <Split label="Prize" value={formatNaira(split.prizeKobo)} accent />
+              <Split label="You pay" value={formatNaira(split.fundingKobo)} />
+              <Split label="Reward" value={formatNaira(split.rewardKobo)} accent />
               <Split label="Spendbox keeps" value={formatNaira(split.platformKobo)} />
             </dl>
           )}
 
           <p className="text-xs text-zinc-500">
             {valid
-              ? `A ${length}-character password needs at least ${formatNaira(floor)}. Stake more for a bigger prize.`
+              ? `A ${length}-character password needs at least ${formatNaira(floor)}. Put up more for a bigger reward — and you can raise it later, but never lower it.`
               : "The floor rises with the password's length."}
           </p>
+
+          {underpriced && (
+            <p className="flex items-start gap-2 rounded-lg bg-mark-orange/10 px-3 py-2.5 text-xs text-mark-orange">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span>
+                Worth checking: buying every attempt outright would cost about{" "}
+                <strong>{formatNaira(bruteCost)}</strong> in lives, and the reward is{" "}
+                <strong>{formatNaira(split.rewardKobo)}</strong>. A patient,
+                systematic player can profit from this box. A longer password or a
+                smaller reward closes that gap.
+              </span>
+            </p>
+          )}
         </div>
       </Panel>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <button type="button" disabled={busy} onClick={() => void build()} className={`w-full ${PRIMARY}`}>
-        {busy ? "Working…" : valid ? `Stake ${formatNaira(Math.max(stakeKobo, floor))}` : "Build it"}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void build()}
+        className={`w-full ${PRIMARY}`}
+      >
+        {busy ? "Saving…" : "Save as draft"}
       </button>
 
       <p className="text-center text-xs text-zinc-500">
-        You earn 70% of every power-up a player buys attacking this box — that&apos;s
-        the part that comes back to you.
+        Drafts are free, invisible and editable. You fund it from the Boxes tab
+        when you&apos;re happy — and after that the password is fixed and the box
+        can never be deleted.
       </p>
 
-      <StakeLadder />
+      <FundingLadder />
+    </div>
+  );
+}
+
+function Figure({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-white/5 px-3 py-2.5 text-center">
+      <p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-0.5 text-sm font-bold text-zinc-200">{value}</p>
     </div>
   );
 }
@@ -253,16 +323,9 @@ function Split({ label, value, accent }: { label: string; value: string; accent?
 }
 
 /** The whole ladder, so the next step up is never a surprise at checkout. */
-function StakeLadder() {
-  const [open, setOpen] = useState(false);
-  const rows = stakeSchedule();
-
+function FundingLadder() {
   return (
-    <details
-      open={open}
-      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
-      className="panel rounded-2xl p-5"
-    >
+    <details className="panel rounded-2xl p-5">
       <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-zinc-400">
         What each length costs
       </summary>
@@ -271,17 +334,21 @@ function StakeLadder() {
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-zinc-500">
               <th className="pb-2 font-medium">Characters</th>
-              <th className="pb-2 font-medium">Minimum stake</th>
-              <th className="pb-2 font-medium">Prize at the floor</th>
+              <th className="pb-2 font-medium">Minimum</th>
+              <th className="pb-2 font-medium">Reward</th>
+              <th className="pb-2 font-medium">Attempts</th>
             </tr>
           </thead>
           <tbody className="font-mono text-zinc-300">
-            {rows.map((row) => (
+            {fundingSchedule().map((row) => (
               <tr key={row.length} className="border-t border-white/5">
                 <td className="py-1.5">{row.length}</td>
-                <td className="py-1.5">{formatNaira(row.minStakeKobo)}</td>
+                <td className="py-1.5">{formatNaira(row.minFundingKobo)}</td>
                 <td className="py-1.5 text-brass">
-                  {formatNaira(splitStake(row.minStakeKobo).prizeKobo)}
+                  {formatNaira(splitFunding(row.minFundingKobo).rewardKobo)}
+                </td>
+                <td className="py-1.5 text-zinc-500">
+                  {roughly(estimateAttempts(row.length))}
                 </td>
               </tr>
             ))}

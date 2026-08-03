@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { ACCOUNT_NUMBER_REGEX } from "@/lib/constants";
-import { formatNaira } from "@/lib/game/stakes";
+import { formatNaira } from "@/lib/game/rewards";
 import type { Bank } from "@/lib/types";
 
 export interface Prize {

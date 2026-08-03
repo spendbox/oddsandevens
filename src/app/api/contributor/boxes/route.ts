@@ -6,11 +6,10 @@ import {
   MAX_LENGTH,
   MIN_LENGTH,
   TITLE_MAX,
-  guessesFor,
 } from "@/lib/constants";
 import { getAuthedContributor } from "@/lib/contributor-auth";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
-import { minStakeKobo, splitStake, stakeIsValid } from "@/lib/game/stakes";
+import { fundingIsValid, minFundingKobo, splitFunding } from "@/lib/game/rewards";
 import type { OwnedBox } from "@/lib/types";
 
 /** The contributor's own boxes, with the earnings each one has thrown off. */
@@ -22,12 +21,12 @@ export async function GET() {
   const db = supabaseAdmin();
   const { data } = await db
     .from("boxes")
-    .select(`${PUBLIC_BOX_COLUMNS}, stake_kobo, platform_fee_kobo, created_at`)
+    .select(`${PUBLIC_BOX_COLUMNS}, funding_kobo, platform_fee_kobo, created_at`)
     .eq("contributor_id", contributor.id)
     .order("created_at", { ascending: false });
 
   const rows = (data ?? []) as (BoxRow & {
-    stake_kobo: number;
+    funding_kobo: number;
     platform_fee_kobo: number;
     created_at: string;
   })[];
@@ -52,63 +51,41 @@ export async function GET() {
   const boxes: OwnedBox[] = rows.map((row) => ({
     ...toPublicBox(row, { contributor: contributor.display_name }),
     id: row.id,
-    stakeKobo: Number(row.stake_kobo),
+    fundingKobo: Number(row.funding_kobo),
     platformFeeKobo: Number(row.platform_fee_kobo),
     earnedKobo: earned.get(row.id)?.kobo ?? 0,
     powerUpsSold: earned.get(row.id)?.count ?? 0,
+    // Only a draft can still be changed. Once money is behind a box, players
+    // are spending real lives against that exact password.
+    editable: row.status === "draft",
     createdAt: row.created_at,
+    // The author wrote the password, so telling them its length reveals
+    // nothing they don't already know.
+    length: row.length,
   }));
 
   return NextResponse.json({ boxes });
 }
 
 /**
- * Build a spendbox.
+ * Start a box.
  *
- * The box is created in `funding` and is invisible until the stake is paid —
- * a prize nobody has put money behind isn't a prize. The stake floor rises
- * with the password's length, because a longer password is a harder box and a
- * harder box has to be worth the guesses it will take.
+ * It lands as a **draft**: invisible, editable, deletable. Nothing is charged
+ * and nothing is published until the contributor funds it, which is the point
+ * — a password is worth rewriting a few times before you commit money and
+ * other people's weeks to it.
  */
 export async function POST(req: Request) {
   const { userId, contributor } = await getAuthedContributor();
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!contributor) return NextResponse.json({ error: "no_profile" }, { status: 409 });
 
-  const body = (await req.json().catch(() => ({}))) as {
-    title?: string;
-    blurb?: string;
-    secret?: string;
-    stakeKobo?: number;
-  };
-
-  const title = (body.title ?? "").trim();
-  const blurb = (body.blurb ?? "").trim();
-  const secret = (body.secret ?? "").trim().toUpperCase();
-  const stakeKobo = Math.trunc(Number(body.stakeKobo ?? 0));
-
-  if (!title || title.length > TITLE_MAX) {
-    return NextResponse.json({ error: "invalid_title" }, { status: 400 });
-  }
-  if (blurb.length > BLURB_MAX) {
-    return NextResponse.json({ error: "invalid_blurb" }, { status: 400 });
-  }
-  if (secret.length < MIN_LENGTH || secret.length > MAX_LENGTH) {
-    return NextResponse.json({ error: "invalid_length" }, { status: 400 });
-  }
-  for (const ch of secret) {
-    if (!ALPHABET_SET.has(ch)) {
-      return NextResponse.json({ error: "invalid_characters" }, { status: 400 });
-    }
-  }
-  if (!stakeIsValid(secret.length, stakeKobo)) {
-    return NextResponse.json(
-      { error: "stake_too_low", minStakeKobo: minStakeKobo(secret.length) },
-      { status: 400 }
-    );
+  const parsed = await readBoxBody(req);
+  if ("error" in parsed) {
+    return NextResponse.json(parsed, { status: 400 });
   }
 
-  const split = splitStake(stakeKobo);
+  const split = splitFunding(parsed.fundingKobo);
   const db = supabaseAdmin();
 
   // The slug carries random bytes, so a clash is a fluke rather than a
@@ -119,16 +96,15 @@ export async function POST(req: Request) {
       .insert({
         kind: "contributor",
         contributor_id: contributor.id,
-        slug: slugify(title),
-        title,
-        blurb: blurb || null,
-        secret,
-        length: secret.length,
-        guesses_allowed: guessesFor(secret.length),
-        stake_kobo: split.stakeKobo,
-        prize_kobo: split.prizeKobo,
+        slug: slugify(parsed.title),
+        title: parsed.title,
+        blurb: parsed.blurb || null,
+        secret: parsed.secret,
+        length: parsed.secret.length,
+        funding_kobo: split.fundingKobo,
+        reward_kobo: split.rewardKobo,
         platform_fee_kobo: split.platformKobo,
-        status: "funding",
+        status: "draft",
       })
       .select(PUBLIC_BOX_COLUMNS)
       .single();
@@ -146,4 +122,50 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ error: "create_failed" }, { status: 500 });
+}
+
+export interface ParsedBox {
+  title: string;
+  blurb: string;
+  secret: string;
+  fundingKobo: number;
+}
+
+/**
+ * Validate a box's contents. Shared by create and edit, so a draft can never
+ * be edited into a state it couldn't have been created in.
+ *
+ * The password is taken exactly as typed: case is part of it now, so nothing
+ * here upper-cases anything. Characters outside the alphabet are rejected
+ * rather than silently dropped — quietly changing somebody's password would be
+ * the worst possible thing to do here.
+ */
+export async function readBoxBody(
+  req: Request
+): Promise<ParsedBox | { error: string; minFundingKobo?: number }> {
+  const body = (await req.json().catch(() => ({}))) as {
+    title?: string;
+    blurb?: string;
+    secret?: string;
+    fundingKobo?: number;
+  };
+
+  const title = (body.title ?? "").trim();
+  const blurb = (body.blurb ?? "").trim();
+  const secret = body.secret ?? "";
+  const fundingKobo = Math.trunc(Number(body.fundingKobo ?? 0));
+
+  if (!title || title.length > TITLE_MAX) return { error: "invalid_title" };
+  if (blurb.length > BLURB_MAX) return { error: "invalid_blurb" };
+  if (secret.length < MIN_LENGTH || secret.length > MAX_LENGTH) {
+    return { error: "invalid_length" };
+  }
+  for (const ch of secret) {
+    if (!ALPHABET_SET.has(ch)) return { error: "invalid_characters" };
+  }
+  if (!fundingIsValid(secret.length, fundingKobo)) {
+    return { error: "funding_too_low", minFundingKobo: minFundingKobo(secret.length) };
+  }
+
+  return { title, blurb, secret, fundingKobo };
 }

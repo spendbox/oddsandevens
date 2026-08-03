@@ -2,19 +2,18 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAuthedContributor } from "@/lib/contributor-auth";
 import { maskEmail } from "@/lib/mask";
-import type { AttemptRow } from "@/lib/types";
+import type { HuntRow } from "@/lib/types";
 
 const LIMIT = 100;
 
-interface RunJoin {
+interface HuntJoin {
   id: string;
-  status: "active" | "won" | "lost";
-  guesses_used: number;
-  guesses_allowed: number;
+  attempts_count: number;
+  won_at: string | null;
   started_at: string;
-  ended_at: string | null;
+  last_attempt_at: string | null;
   players: { email: string } | null;
-  boxes: { title: string; slug: string; contributor_id: string | null } | null;
+  boxes: { title: string; slug: string } | null;
 }
 
 /**
@@ -37,38 +36,37 @@ export async function GET() {
   const boxIds = ((boxes ?? []) as { id: string }[]).map((b) => b.id);
   if (boxIds.length === 0) return NextResponse.json({ attempts: [] });
 
-  const [{ data: runs }, { data: orders }] = await Promise.all([
+  const [{ data: hunts }, { data: orders }] = await Promise.all([
     db
-      .from("runs")
+      .from("hunts")
       .select(
-        "id, status, guesses_used, guesses_allowed, started_at, ended_at, players(email), boxes(title, slug, contributor_id)"
+        "id, attempts_count, won_at, started_at, last_attempt_at, players(email), boxes(title, slug)"
       )
       .in("box_id", boxIds)
-      .order("started_at", { ascending: false })
+      .order("last_attempt_at", { ascending: false, nullsFirst: false })
       .limit(LIMIT),
     db
       .from("power_up_orders")
-      .select("run_id")
+      .select("hunt_id")
       .eq("contributor_id", contributor.id)
       .eq("status", "paid"),
   ]);
 
   const bought = new Map<string, number>();
-  for (const order of (orders ?? []) as { run_id: string }[]) {
-    bought.set(order.run_id, (bought.get(order.run_id) ?? 0) + 1);
+  for (const order of (orders ?? []) as { hunt_id: string }[]) {
+    bought.set(order.hunt_id, (bought.get(order.hunt_id) ?? 0) + 1);
   }
 
-  const attempts: AttemptRow[] = ((runs ?? []) as unknown as RunJoin[]).map((run) => ({
-    player: run.players?.email ? maskEmail(run.players.email) : "a player",
-    boxTitle: run.boxes?.title ?? "",
-    boxSlug: run.boxes?.slug ?? "",
-    status: run.status,
-    guessesUsed: run.guesses_used,
-    guessesAllowed: run.guesses_allowed,
-    powerUpsBought: bought.get(run.id) ?? 0,
-    startedAt: run.started_at,
-    endedAt: run.ended_at,
+  const hunted: HuntRow[] = ((hunts ?? []) as unknown as HuntJoin[]).map((hunt) => ({
+    player: hunt.players?.email ? maskEmail(hunt.players.email) : "a player",
+    boxTitle: hunt.boxes?.title ?? "",
+    boxSlug: hunt.boxes?.slug ?? "",
+    attempts: hunt.attempts_count,
+    won: hunt.won_at !== null,
+    powerUpsBought: bought.get(hunt.id) ?? 0,
+    startedAt: hunt.started_at,
+    lastAttemptAt: hunt.last_attempt_at,
   }));
 
-  return NextResponse.json({ attempts });
+  return NextResponse.json({ attempts: hunted });
 }
