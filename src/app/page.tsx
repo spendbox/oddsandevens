@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles, Trophy } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { LIVES_MAX, MIN_LENGTH } from "@/lib/constants";
 import { PUBLIC_BOX_COLUMNS, toPublicBox, type BoxRow } from "@/lib/game/boxes";
@@ -12,6 +12,7 @@ import { BoxCard } from "@/components/box-card";
 import { HowItWorksButton } from "@/components/how-it-works";
 import { SiteFooter } from "@/components/site-footer";
 import { SafeArt } from "@/components/safe/safe-art";
+import { Boxy } from "@/components/art/boxy";
 import type { PublicBox } from "@/lib/types";
 
 const RECENT_UNLOCKS = 6;
@@ -76,8 +77,14 @@ export default async function Home() {
           />
 
           <div className="animate-fade-up mx-auto max-w-2xl text-center">
-            <SafeArt design="brass" className="mx-auto size-24 sm:size-32" />
-            <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-6xl">
+            {/* Boxy and a safe together, so the first thing anybody sees is a
+                character and the thing he's guarding rather than a logo. */}
+            <div className="flex items-end justify-center gap-1">
+              <SafeArt design="midnight" className="size-20 opacity-90 sm:size-24" />
+              <Boxy mood="sly" className="size-32 drop-shadow-2xl sm:size-40" />
+              <SafeArt design="emerald" className="size-20 opacity-90 sm:size-24" />
+            </div>
+            <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-6xl">
               Guess the password.
               <br />
               <span className="brass-text">Open the safe.</span>
@@ -94,7 +101,8 @@ export default async function Home() {
               {featured && (
                 <Link
                   href={`/b/${featured.slug}`}
-                  className="inline-flex items-center gap-2 rounded-xl bg-brass px-6 py-3 font-bold text-zinc-950 transition hover:bg-brass-bright"
+                  style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+                  className="btn-chunky inline-flex items-center gap-2 rounded-2xl bg-brass px-7 py-3.5 text-lg text-ink"
                 >
                   Take a crack at it
                   <ArrowRight className="size-4" aria-hidden />
@@ -107,7 +115,7 @@ export default async function Home() {
           {featured && (
             <Link
               href={`/b/${featured.slug}`}
-              className="animate-fade-up panel group mx-auto mt-10 flex max-w-2xl flex-col items-center gap-4 rounded-3xl p-6 text-center transition hover:border-brass/40 sm:flex-row sm:p-8 sm:text-left"
+              className="animate-fade-up panel panel-lift group mx-auto mt-10 flex max-w-2xl flex-col items-center gap-4 rounded-3xl p-6 text-center sm:flex-row sm:p-8 sm:text-left"
             >
               <SafeArt
                 design={featured.design}
@@ -146,8 +154,9 @@ export default async function Home() {
 
         {staked.length > 0 && (
           <section className="mx-auto w-full max-w-5xl px-4 pb-12">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">
-              Put up by contributors
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-black tracking-tight">
+              <Boxy mood="happy" still className="size-8" />
+              Put up by players
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {staked.map((box, i) => (
@@ -159,9 +168,9 @@ export default async function Home() {
 
         {opened.length > 0 && (
           <section className="mx-auto w-full max-w-5xl px-4 pb-12">
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
-              <Trophy className="size-4 text-brass" aria-hidden />
-              Already opened
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-black tracking-tight">
+              <Boxy mood="cheer" still className="size-8" />
+              Already cracked
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {opened.map((box, i) => (
@@ -194,10 +203,10 @@ function PutOneUp() {
   return (
     <section className="mx-auto w-full max-w-5xl px-4 pb-16">
       <div className="panel animate-fade-up flex flex-col items-center gap-6 rounded-3xl p-6 sm:flex-row sm:p-8">
-        <div className="flex shrink-0 gap-2">
-          <SafeArt design="emerald" className="size-16 sm:size-20" />
-          <SafeArt design="midnight" className="size-16 sm:size-20" />
-          <SafeArt design="crimson" className="hidden size-16 sm:block sm:size-20" />
+        <div className="flex shrink-0 items-end gap-1">
+          <SafeArt design="crimson" className="size-16 sm:size-20" />
+          <Boxy mood="cheer" className="size-24 sm:size-28" />
+          <SafeArt design="vault" className="hidden size-16 sm:block sm:size-20" />
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left">
           <h2 className="text-xl font-bold sm:text-2xl">Build your own Spendbox</h2>
@@ -214,7 +223,8 @@ function PutOneUp() {
           <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-2 rounded-xl bg-brass px-5 py-2.5 text-sm font-bold text-zinc-950 transition hover:bg-brass-bright"
+              style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+              className="btn-chunky inline-flex items-center gap-2 rounded-2xl bg-brass px-5 py-3 text-ink"
             >
               Build a spendbox
               <ArrowRight className="size-4" aria-hidden />

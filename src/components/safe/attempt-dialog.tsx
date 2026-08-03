@@ -60,7 +60,8 @@ export function AttemptDialog({
         <button
           type="button"
           onClick={onClose}
-          className="w-full rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright"
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
         >
           Back to the hunt
         </button>

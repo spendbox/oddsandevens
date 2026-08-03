@@ -18,14 +18,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Info,
-  LockOpen,
   MoveDown,
   MoveUp,
   Palette,
   Sparkles,
   Swords,
   Target,
-  Trophy,
   Users,
 } from "lucide-react";
 import { ScorePill } from "./score-pill";
@@ -45,6 +43,7 @@ import { KnownPanel } from "./known-panel";
 import { PasswordField } from "./password-field";
 import { PowerUpShelf } from "./power-up-shelf";
 import { SafeArt } from "./safe-art";
+import { Boxy } from "@/components/art/boxy";
 
 type Outcome = "open" | "won" | "pipped";
 type Tab = "attempts" | "power-ups";
@@ -182,13 +181,13 @@ export function PlaySurface({
             {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
 
             {message && (
-              <p className="animate-fade-up rounded-xl border border-brass/30 bg-brass/10 px-3 py-2.5 text-center text-sm text-brass">
+              <p className="animate-fade-up rounded-2xl border-2 border-brass/50 bg-brass/15 px-3 py-2.5 text-center text-sm font-bold text-brass">
                 {message}
               </p>
             )}
 
             {freeRun && view.hunt?.secondWindUntil && (
-              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-xl border border-mark-green/40 bg-mark-green/10 px-3 py-2 text-center text-xs text-mark-green">
+              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-2xl border-2 border-mint/50 bg-mint/15 px-3 py-2.5 text-center text-xs font-bold text-mint">
                 <Sparkles className="size-3.5" aria-hidden />
                 Second Wind — guesses cost no lives for another{" "}
                 <span className="font-mono">
@@ -198,7 +197,7 @@ export function PlaySurface({
             )}
 
             {view.hunt?.hasBreakdown && view.hunt.breakdownUntil && (
-              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-xl border border-brass/30 bg-brass/10 px-3 py-2 text-center text-xs text-brass">
+              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-2xl border-2 border-brass/50 bg-brass/15 px-3 py-2.5 text-center text-xs font-bold text-brass">
                 <Palette className="size-3.5" aria-hidden />
                 Colour Read is on — every score is split into its parts for another{" "}
                 <span className="font-mono">
@@ -251,7 +250,7 @@ export function PlaySurface({
               <div
                 role="tablist"
                 aria-label="Attempts and power-ups"
-                className="panel flex gap-1 rounded-2xl p-1"
+                className="panel flex gap-1 rounded-2xl p-1.5"
               >
                 <TabButton
                   id="attempts"
@@ -343,8 +342,10 @@ function TabButton({
       aria-selected={on}
       onClick={() => onPick(id)}
       className={
-        "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition " +
-        (on ? "bg-brass/15 text-brass" : "text-zinc-400 hover:text-zinc-200")
+        "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold transition " +
+        (on
+          ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.45),0_3px_0_var(--brass-deep)]"
+          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100")
       }
     >
       {icon}
@@ -352,8 +353,8 @@ function TabButton({
       {badge && (
         <span
           className={
-            "rounded-full px-1.5 py-0.5 font-mono text-[10px] " +
-            (on ? "bg-brass/20" : "bg-white/5 text-zinc-500")
+            "rounded-md px-1.5 py-0.5 font-mono text-[10px] font-black " +
+            (on ? "bg-ink/20 text-ink" : "bg-white/8 text-zinc-400")
           }
         >
           {badge}
@@ -375,7 +376,16 @@ function BoxHeader({
   const { box } = view;
   return (
     <header className="space-y-2 text-center">
-      <SafeArt design={box.design} mood={mood} className="mx-auto size-28 sm:size-36" />
+      {/* Boxy is doing the reacting so the safe doesn't have to. A dial that
+          spins is a nice touch; a face that looks worried while you wait is
+          the thing people actually notice. */}
+      <div className="flex items-end justify-center gap-1">
+        <SafeArt design={box.design} mood={mood} className="size-28 sm:size-36" />
+        <Boxy
+          mood={mood === "open" ? "cheer" : mood === "working" ? "thinking" : "sly"}
+          className="size-24 sm:size-28"
+        />
+      </div>
 
       <p className="text-xs uppercase tracking-widest text-zinc-500">
         {box.kind === "general" ? "The public box" : `Put up by ${box.contributor}`}
@@ -441,7 +451,8 @@ function RulesDialog({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           onClick={onClose}
-          className="w-full rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright"
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
         >
           Got it
         </button>
@@ -532,10 +543,10 @@ function Rule({
 function Verdict({ outcome, view }: { outcome: Outcome; view: PlayView }) {
   if (outcome === "won") {
     return (
-      <div className="panel animate-unlock rounded-2xl border-brass/40 p-5 text-center">
-        <Trophy className="mx-auto size-10 text-brass" aria-hidden />
-        <p className="mt-2 text-lg font-bold">The safe is open.</p>
-        <p className="mt-1 text-sm text-zinc-400">
+      <div className="panel animate-unlock rounded-3xl border-brass/50 p-5 text-center">
+        <Boxy mood="cheer" className="mx-auto size-24" />
+        <p className="mt-1 text-2xl font-black tracking-tight">The safe is open!</p>
+        <p className="mt-1 text-sm text-zinc-300">
           {view.box.isChallenge ? (
             <>You cracked it. No money behind this one — just the fact that you did it.</>
           ) : (
@@ -553,18 +564,21 @@ function Verdict({ outcome, view }: { outcome: Outcome; view: PlayView }) {
   }
 
   return (
-    <div className="panel rounded-2xl p-4 text-center text-sm text-zinc-300">
-      You got the password — but somebody else submitted it first, seconds ago.
-      The box is closed.
+    <div className="panel rounded-3xl p-5 text-center">
+      <Boxy mood="sad" className="mx-auto size-20" />
+      <p className="mt-1 text-sm text-zinc-300">
+        You got the password — but somebody else submitted it first, seconds
+        ago. The box is closed.
+      </p>
     </div>
   );
 }
 
 function Cracked({ view }: { view: PlayView }) {
   return (
-    <div className="panel rounded-2xl p-6 text-center">
-      <LockOpen className="mx-auto size-10 text-brass" aria-hidden />
-      <p className="mt-3 text-lg font-bold">
+    <div className="panel rounded-3xl p-6 text-center">
+      <Boxy mood={view.box.status === "unlocked" ? "cheer" : "sad"} className="mx-auto size-24" />
+      <p className="mt-1 text-xl font-black tracking-tight">
         {view.box.status === "unlocked" ? "This one's been opened." : "This one's closed."}
       </p>
       <p className="mt-1 text-sm text-zinc-400">
@@ -583,7 +597,8 @@ function Cracked({ view }: { view: PlayView }) {
       </p>
       <Link
         href="/"
-        className="mt-4 inline-block rounded-xl bg-brass px-5 py-2.5 font-semibold text-zinc-950 transition hover:bg-brass-bright"
+        style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+        className="btn-chunky mt-5 inline-block rounded-2xl bg-brass px-6 py-3 text-ink"
       >
         Find another safe
       </Link>

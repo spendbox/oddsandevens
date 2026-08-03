@@ -14,16 +14,21 @@
 // — the person reading it wrote the password.
 
 import { ScorePill } from "@/components/safe/score-pill";
-import { Empty, Panel } from "./shared";
+import { Boxy } from "@/components/art/boxy";
+import { Panel } from "./shared";
 import type { HuntRow } from "@/lib/types";
 
 export function AttemptsPanel({ attempts }: { attempts: HuntRow[] }) {
   if (attempts.length === 0) {
     return (
       <Panel>
-        <Empty>
-          Nobody hunting yet. Share a box&apos;s link and they&apos;ll show up here.
-        </Empty>
+        <div className="py-4 text-center">
+          <Boxy mood="sad" className="mx-auto size-24" />
+          <p className="mt-1 font-black tracking-tight">Nobody hunting yet.</p>
+          <p className="mt-1 text-sm text-zinc-400">
+            Share a box&apos;s link and they&apos;ll show up here.
+          </p>
+        </div>
       </Panel>
     );
   }

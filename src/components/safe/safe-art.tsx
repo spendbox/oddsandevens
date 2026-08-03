@@ -1,31 +1,32 @@
 // The safe itself, drawn rather than downloaded.
 //
-// A GIF would have been the obvious way to do this and the wrong one: it would
-// be a fixed size, a fixed palette, a fixed frame rate and a few hundred
-// kilobytes, and there would have to be six of them because a contributor picks
-// their design. This is one SVG that takes a palette, scales to anything from a
-// 40px card thumbnail to a hero, weighs nothing, and can react — the dial turns
-// while a guess is in flight and the door swings when a box is cracked.
+// A GIF would have been the obvious way to do this and the wrong one: fixed
+// size, fixed palette, fixed frame rate, a few hundred kilobytes, and six of
+// them because a contributor picks their design. This is one SVG that takes a
+// palette, scales from a 40px card thumbnail to a hero, weighs nothing, and
+// reacts — the dial turns while a guess is in flight and the door swings when
+// somebody cracks it.
 //
-// It is built in layers, back to front: cabinet, cavity, contents, door. The
-// cavity and its contents are always drawn and the closed door simply covers
-// them, which is what makes opening one a matter of moving a single group.
+// It is drawn to the same rules as everything else in `components/art`: one
+// ink outline, light from the top-left, a gloss across the upper third, and no
+// pure black. That is what makes a box on the lobby and Boxy in the header look
+// like they came from the same place rather than merely sharing a page.
+//
+// Built in layers, back to front: cabinet, cavity, contents, door. The cavity
+// and its contents are always drawn and the closed door simply covers them,
+// which is what makes opening one a matter of moving a single group.
 //
 // The open state is the one that has to be right, because it is what a lobby
 // card shows forever after somebody wins. The door swings past edge-on and out
-// of the way, and what you are then looking at is a lit interior with the
-// reward still glinting in it — not a door mid-collapse over a flat disc.
-// Nothing of the door's *face* is drawn once it's open: you'd be looking at its
-// back, so it's drawn as a back.
-//
-// All of the motion is CSS on SVG elements, and all of it is off under
-// `prefers-reduced-motion` via the global rule. Nothing here is load-bearing:
-// with every animation stripped it is still a picture of a safe.
+// of the way, and what you're then looking at is a lit interior with gold still
+// in it. Nothing of the door's face is drawn once it's open — you'd be looking
+// at its back, so it's drawn as a back.
 
+import { Gloss, GroundShadow, INK, Sparkle, STROKE } from "@/components/art/ink";
 import { DESIGN_SPECS, type Design } from "@/lib/game/designs";
 
 export type SafeMood =
-  /** Sitting there. The dial breathes and the sheen drifts. */
+  /** Sitting there. The dial rocks and the sheen drifts. */
   | "idle"
   /** A guess is in flight: the dial spins. */
   | "working"
@@ -48,249 +49,170 @@ export function SafeArt({
   const open = mood === "open";
 
   // Gradient ids have to be unique per design or the first one on the page
-  // wins for every safe after it — two boxes with different designs in the
-  // same list is the normal case, not the edge case.
+  // wins for every safe after it — two designs in one list is the normal case.
   const uid = `safe-${design}`;
 
   return (
     <svg
-      viewBox="0 0 120 120"
+      viewBox="0 0 128 128"
       className={className}
       role={label ? "img" : "presentation"}
       aria-label={label}
       aria-hidden={label ? undefined : true}
     >
       <defs>
-        <linearGradient id={`${uid}-cabinet`} x1="0" y1="0" x2="0.4" y2="1">
-          <stop offset="0%" stopColor={spec.frame} stopOpacity="1" />
-          <stop offset="100%" stopColor="#000" stopOpacity="0.55" />
+        <linearGradient id={`${uid}-cabinet`} x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0%" stopColor={spec.frame} />
+          <stop offset="100%" stopColor={INK} />
         </linearGradient>
-        <linearGradient id={`${uid}-door`} x1="0.1" y1="0" x2="0.9" y2="1">
+        <linearGradient id={`${uid}-door`} x1="0.1" y1="0" x2="0.85" y2="1">
           <stop offset="0%" stopColor={spec.body[0]} />
-          <stop offset="55%" stopColor={spec.body[0]} />
           <stop offset="100%" stopColor={spec.body[1]} />
         </linearGradient>
-        {/* The back of the door, seen once it has swung past you. */}
         <linearGradient id={`${uid}-back`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={spec.metal} stopOpacity="0.55" />
-          <stop offset="100%" stopColor="#000" stopOpacity="0.7" />
+          <stop offset="0%" stopColor={spec.frame} />
+          <stop offset="100%" stopColor={INK} />
         </linearGradient>
-        <linearGradient id={`${uid}-dial`} x1="0.25" y1="0" x2="0.75" y2="1">
-          <stop offset="0%" stopColor={spec.accent} />
-          <stop offset="55%" stopColor={spec.metal} />
-          <stop offset="100%" stopColor={spec.frame} />
+        <linearGradient id={`${uid}-dial`} x1="0.2" y1="0" x2="0.8" y2="1">
+          <stop offset="0%" stopColor={spec.metal} />
+          <stop offset="100%" stopColor={spec.body[1]} />
         </linearGradient>
-        {/* The cavity: darkest at the top, where a real one is deepest. */}
-        <linearGradient id={`${uid}-cavity`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#000" stopOpacity="0.92" />
-          <stop offset="100%" stopColor="#000" stopOpacity="0.45" />
-        </linearGradient>
-        {/*
-          Light coming out of an opened safe, pooled at the bottom.
-
-          Bright, and deliberately so. On a 64px lobby thumbnail the bars and
-          the door edge are both a pixel or two wide and neither survives; the
-          only thing that reliably says "this one's been opened" at that size
-          is that the middle of it is *lit*.
-        */}
-        <radialGradient id={`${uid}-spill`} cx="0.5" cy="0.82" r="0.8">
-          <stop offset="0%" stopColor={spec.accent} stopOpacity="0.78" />
-          <stop offset="55%" stopColor={spec.accent} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={spec.accent} stopOpacity="0" />
+        <radialGradient id={`${uid}-spill`} cx="0.5" cy="0.8" r="0.8">
+          <stop offset="0%" stopColor="#ffe08a" stopOpacity="0.95" />
+          <stop offset="55%" stopColor="#ffc247" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#ffc247" stopOpacity="0" />
         </radialGradient>
         <radialGradient id={`${uid}-halo`} cx="0.5" cy="0.5" r="0.5">
-          <stop offset="35%" stopColor={spec.accent} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={spec.accent} stopOpacity="0" />
+          <stop offset="30%" stopColor={spec.body[0]} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={spec.body[0]} stopOpacity="0" />
         </radialGradient>
-        <clipPath id={`${uid}-doorclip`}>
-          <rect x="20" y="20" width="80" height="80" rx="9" />
-        </clipPath>
         <clipPath id={`${uid}-cavityclip`}>
-          <rect x="20" y="20" width="80" height="80" rx="9" />
+          <rect x="26" y="26" width="76" height="72" rx="12" />
+        </clipPath>
+        <clipPath id={`${uid}-doorclip`}>
+          <rect x="24" y="24" width="80" height="76" rx="14" />
         </clipPath>
       </defs>
 
-      {open && <circle cx="60" cy="62" r="58" fill={`url(#${uid}-halo)`} />}
+      {open && <circle cx="64" cy="64" r="62" fill={`url(#${uid}-halo)`} />}
+
+      <GroundShadow cx={64} cy={116} rx={40} ry={6} />
 
       {/* ---- Cabinet ---------------------------------------------------- */}
-      <rect x="6" y="6" width="108" height="108" rx="17" fill={`url(#${uid}-cabinet)`} />
       <rect
-        x="6.75"
-        y="6.75"
-        width="106.5"
-        height="106.5"
-        rx="16.25"
-        fill="none"
-        stroke={spec.metal}
-        strokeOpacity="0.4"
-        strokeWidth="1.5"
+        x="10"
+        y="10"
+        width="108"
+        height="100"
+        rx="22"
+        fill={`url(#${uid}-cabinet)`}
+        stroke={INK}
+        strokeWidth={STROKE + 1}
       />
-      {/* A lit top edge. Without it a dark cabinet on a dark page is a hole. */}
-      <path
-        d={"M 23 7.5 H 97"}
-        stroke={spec.accent}
-        strokeOpacity="0.3"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        fill="none"
-      />
+      {/* Feet, so it stands rather than floats. */}
+      <rect x="24" y="106" width="18" height="10" rx="5" fill={spec.frame} stroke={INK} strokeWidth={STROKE - 1} />
+      <rect x="86" y="106" width="18" height="10" rx="5" fill={spec.frame} stroke={INK} strokeWidth={STROKE - 1} />
 
       {/* ---- Cavity, and what's in it ----------------------------------- */}
       <g clipPath={`url(#${uid}-cavityclip)`}>
-        <rect x="20" y="20" width="80" height="80" fill={spec.frame} />
-        <rect x="20" y="20" width="80" height="80" fill={`url(#${uid}-cavity)`} />
+        <rect x="26" y="26" width="76" height="72" fill="#0d0819" />
         {open && (
           <g className="safe-inside">
-            <rect x="20" y="20" width="80" height="80" fill={`url(#${uid}-spill)`} />
-            {/* Three bars on the floor of it, stacked the way they'd fall. */}
-            <Bar x={30} y={80} w={34} accent={spec.accent} metal={spec.metal} />
-            <Bar x={56} y={80} w={30} accent={spec.accent} metal={spec.metal} />
-            <Bar x={41} y={66} w={32} accent={spec.accent} metal={spec.metal} />
+            <rect x="26" y="26" width="76" height="72" fill={`url(#${uid}-spill)`} />
+            {/* Gold on the floor of it, stacked the way it would fall. */}
+            <Bar x={32} y={80} w={34} />
+            <Bar x={60} y={80} w={30} />
+            <Bar x={44} y={66} w={32} />
           </g>
         )}
       </g>
-      {/*
-        The lip of the opening. Two strokes rather than one: a dark line hard
-        against the cavity and a lit one just outside it. That pair is the
-        whole of what makes a hole look like a hole rather than a dark sticker.
-      */}
+      {/* The lip of the opening, so the cavity reads as a hole rather than a
+          dark sticker. */}
       <rect
-        x="20"
-        y="20"
-        width="80"
-        height="80"
-        rx="9"
+        x="26"
+        y="26"
+        width="76"
+        height="72"
+        rx="12"
         fill="none"
-        stroke="#000"
-        strokeOpacity="0.55"
-        strokeWidth="1.5"
-      />
-      <rect
-        x="18.75"
-        y="18.75"
-        width="82.5"
-        height="82.5"
-        rx="10"
-        fill="none"
-        stroke={spec.metal}
-        strokeOpacity="0.45"
+        stroke={INK}
+        strokeWidth={STROKE}
       />
 
       {/* ---- The door --------------------------------------------------- */}
       {open ? (
         // Swung past edge-on: you're looking at its back, so draw a back.
-        // No dial, no handle — they're facing the wall now.
         <g
           className="safe-door-open"
           style={{ transformBox: "fill-box", transformOrigin: "0% 50%" }}
         >
           <rect
-            x="20"
-            y="20"
+            x="24"
+            y="24"
             width="80"
-            height="80"
-            rx="9"
+            height="76"
+            rx="14"
             fill={`url(#${uid}-back)`}
-            stroke={spec.metal}
-            strokeOpacity="0.5"
+            stroke={INK}
+            strokeWidth={STROKE}
           />
-          {/* Bolt shafts, drawn on the back because that's where they live. */}
-          {[34, 60, 86].map((cy) => (
-            <rect
-              key={cy}
-              x="88"
-              y={cy - 2}
-              width="14"
-              height="4"
-              rx="2"
-              fill={spec.metal}
-              opacity="0.75"
-            />
+          {[38, 62, 86].map((cy) => (
+            <rect key={cy} x="92" y={cy - 2} width="16" height="5" rx="2.5" fill={spec.metal} opacity="0.8" />
           ))}
         </g>
       ) : (
         <g>
           <rect
-            x="20"
-            y="20"
+            x="24"
+            y="24"
             width="80"
-            height="80"
-            rx="9"
+            height="76"
+            rx="14"
             fill={`url(#${uid}-door)`}
-            stroke={spec.metal}
-            strokeOpacity="0.5"
+            stroke={INK}
+            strokeWidth={STROKE}
           />
+          <Gloss cx={64} cy={36} rx={30} ry={8} opacity={0.35} />
 
           <g clipPath={`url(#${uid}-doorclip)`}>
             <rect
               className="safe-sheen"
-              x="-44"
-              y="12"
-              width="24"
-              height="116"
-              fill={spec.accent}
-              opacity="0.16"
+              x="-46"
+              y="16"
+              width="22"
+              height="112"
+              fill="#fff"
+              opacity="0.22"
               transform="skewX(-18)"
             />
           </g>
 
-          {/*
-            The bevel. Lit along the top and left, shadowed along the bottom
-            and right — one light source, stated twice. Without it the door and
-            the cabinet are two dark rounded squares and the door disappears.
-          */}
-          <path
-            d="M 24 96 V 29 A 5 5 0 0 1 29 24 H 96"
-            fill="none"
-            stroke={spec.accent}
-            strokeOpacity="0.22"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-          <path
-            d="M 96 24 V 91 A 5 5 0 0 1 91 96 H 24"
-            fill="none"
-            stroke="#000"
-            strokeOpacity="0.35"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-
-          {/* Bolts, one at each corner. */}
+          {/* Bolts. */}
           {[
-            [30, 30],
-            [90, 30],
-            [30, 90],
-            [90, 90],
+            [36, 36],
+            [92, 36],
+            [36, 88],
+            [92, 88],
           ].map(([cx, cy]) => (
             <g key={`${cx}-${cy}`}>
-              <circle cx={cx} cy={cy} r="3.4" fill={spec.metal} opacity="0.85" />
-              <circle cx={cx} cy={cy - 0.7} r="1.5" fill={spec.accent} opacity="0.5" />
+              <circle cx={cx} cy={cy} r="4.5" fill={spec.frame} stroke={INK} strokeWidth={STROKE - 1.4} />
+              <circle cx={cx - 1} cy={cy - 1.2} r="1.5" fill="#fff" opacity="0.6" />
             </g>
           ))}
 
           {/* ---- The dial ------------------------------------------------ */}
-          {/* Fixed reference marks, so the spinner has something to turn against. */}
-          <circle
-            cx="60"
-            cy="60"
-            r="24"
-            fill="none"
-            stroke={spec.metal}
-            strokeOpacity="0.35"
-            strokeWidth="1.25"
-          />
+          <circle cx="64" cy="62" r="24" fill={spec.frame} stroke={INK} strokeWidth={STROKE - 0.5} />
           {[0, 90, 180, 270].map((deg) => (
             <rect
               key={deg}
-              x="59.5"
-              y="33"
-              width="1"
-              height="4"
-              rx="0.5"
-              fill={spec.accent}
-              opacity="0.7"
-              transform={`rotate(${deg} 60 60)`}
+              x="63"
+              y="40"
+              width="2"
+              height="5"
+              rx="1"
+              fill={spec.metal}
+              opacity="0.9"
+              transform={`rotate(${deg} 64 62)`}
             />
           ))}
 
@@ -298,79 +220,65 @@ export function SafeArt({
             className={mood === "working" ? "safe-dial-spin" : "safe-dial-idle"}
             style={{ transformBox: "fill-box", transformOrigin: "50% 50%" }}
           >
-            <circle cx="60" cy="60" r="19" fill={`url(#${uid}-dial)`} />
-            {/* Knurling. Twenty-four notches reads as milled rather than toothed. */}
-            {Array.from({ length: 24 }, (_, i) => (
+            <circle
+              cx="64"
+              cy="62"
+              r="18"
+              fill={`url(#${uid}-dial)`}
+              stroke={INK}
+              strokeWidth={STROKE}
+            />
+            {/* Knurling: eight chunky notches, not twenty-four fine ones —
+                at thumbnail size fine ones turn to mud. */}
+            {Array.from({ length: 8 }, (_, i) => (
               <rect
                 key={i}
-                x="59.6"
-                y="42"
-                width="0.8"
-                height="3.4"
-                fill={spec.frame}
-                opacity="0.5"
-                transform={`rotate(${i * 15} 60 60)`}
+                x="62.6"
+                y="45"
+                width="2.8"
+                height="5"
+                rx="1.4"
+                fill={INK}
+                opacity="0.45"
+                transform={`rotate(${i * 45} 64 62)`}
               />
             ))}
-            <circle
-              cx="60"
-              cy="60"
-              r="19"
-              fill="none"
-              stroke={spec.frame}
-              strokeOpacity="0.55"
-            />
-            {/* The pointer, and a hub for it to turn on. */}
-            <rect x="59" y="45" width="2" height="10" rx="1" fill={spec.frame} />
-            <circle cx="60" cy="60" r="5.5" fill={spec.frame} opacity="0.85" />
-            <circle cx="60" cy="60" r="2" fill={spec.accent} opacity="0.8" />
-            {/* One specular arc. It is most of what makes metal look like metal. */}
-            <path
-              d="M 47 52 A 16 16 0 0 1 60 45"
-              fill="none"
-              stroke={spec.accent}
-              strokeOpacity="0.55"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
+            <rect x="62.4" y="48" width="3.2" height="11" rx="1.6" fill={INK} opacity="0.75" />
+            <circle cx="64" cy="62" r="5.5" fill={INK} opacity="0.8" />
+            <circle cx="64" cy="62" r="2.4" fill={spec.accent} />
+            <Gloss cx={57} cy={54} rx={6} ry={3.4} opacity={0.55} />
           </g>
 
           {/* The handle, on the swinging edge. */}
           <rect
-            x="93.5"
-            y="49"
-            width="4.5"
+            x="96"
+            y="52"
+            width="7"
             height="22"
-            rx="2.25"
+            rx="3.5"
             fill={spec.metal}
-            opacity="0.9"
+            stroke={INK}
+            strokeWidth={STROKE - 1.4}
           />
-          <rect x="94.6" y="52" width="1.2" height="16" rx="0.6" fill={spec.accent} opacity="0.5" />
+        </g>
+      )}
+
+      {open && (
+        <g>
+          <Sparkle x={20} y={30} size={7} color="#ffe08a" index={0} />
+          <Sparkle x={112} y={44} size={6} color="#fff" index={1} />
         </g>
       )}
     </svg>
   );
 }
 
-/** One bar on the floor of an opened safe: a lit top face and a body. */
-function Bar({
-  x,
-  y,
-  w,
-  accent,
-  metal,
-}: {
-  x: number;
-  y: number;
-  w: number;
-  accent: string;
-  metal: string;
-}) {
+/** One gold bar on the floor of an opened safe. */
+function Bar({ x, y, w }: { x: number; y: number; w: number }) {
   return (
     <g>
-      <rect x={x} y={y} width={w} height={12} rx="2" fill={metal} />
-      <rect x={x + 2} y={y + 1.2} width={w - 4} height="3.2" rx="1.6" fill={accent} />
-      <rect x={x} y={y + 9} width={w} height="3" rx="1.5" fill="#000" opacity="0.28" />
+      <rect x={x} y={y} width={w} height="13" rx="3" fill="#e5a52a" stroke={INK} strokeWidth={STROKE - 1.4} />
+      <rect x={x + 3} y={y + 2} width={w - 6} height="3.4" rx="1.7" fill="#ffe9a8" />
     </g>
   );
 }

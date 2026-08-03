@@ -14,6 +14,7 @@
 
 import { useMemo, useState } from "react";
 import { ChevronDown, Search, X } from "lucide-react";
+import { Boxy } from "@/components/art/boxy";
 import { FAQ, FAQ_TOPICS, type FaqItem, type FaqTopic } from "@/lib/faq";
 import { plural } from "@/lib/plural";
 
@@ -65,7 +66,7 @@ export function FaqBrowser() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search — try “lives”, “refund”, “case”…"
             aria-label="Search the FAQ"
-            className="w-full rounded-xl bg-white/5 py-3.5 pl-11 pr-11 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:bg-white/10"
+            className="w-full rounded-xl bg-black/25 py-3.5 pl-11 pr-11 font-medium text-foreground outline-none transition placeholder:text-zinc-500 focus:bg-black/35"
           />
           {searching && (
             <button
@@ -93,8 +94,9 @@ export function FaqBrowser() {
       </div>
 
       {results.length === 0 ? (
-        <div className="panel rounded-2xl px-6 py-12 text-center">
-          <p className="font-semibold text-zinc-200">Nothing matches that.</p>
+        <div className="panel rounded-3xl px-6 py-10 text-center">
+          <Boxy mood="dizzy" className="mx-auto size-24" />
+          <p className="mt-1 font-black tracking-tight">Nothing matches that.</p>
           <p className="mt-1 text-sm text-zinc-500">
             Try fewer words, or{" "}
             <button
@@ -121,7 +123,7 @@ export function FaqBrowser() {
           <div className="space-y-8">
             {grouped.map(({ topic: name, items }) => (
               <section key={name} className="space-y-2">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-brass">
+                <h2 className="text-sm font-black uppercase tracking-widest text-brass">
                   {name}
                 </h2>
                 {items.map((item) => (
@@ -161,10 +163,10 @@ function Chip({
       aria-pressed={active}
       onClick={onClick}
       className={
-        "rounded-full px-3.5 py-1.5 text-sm font-medium transition " +
+        "rounded-xl px-3.5 py-2 text-sm font-bold transition " +
         (active
-          ? "bg-brass text-zinc-950"
-          : "border border-white/10 bg-white/5 text-zinc-400 hover:border-brass/40 hover:text-zinc-200")
+          ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.45),0_3px_0_var(--brass-deep)]"
+          : "border-2 border-white/12 bg-white/6 text-zinc-300 hover:border-brass/50 hover:bg-white/10")
       }
     >
       {children}
@@ -189,7 +191,7 @@ function Answer({
         aria-expanded={open}
         className="flex w-full items-center gap-3 px-5 py-4 text-left"
       >
-        <span className="min-w-0 flex-1 font-medium text-zinc-100">
+        <span className="min-w-0 flex-1 font-bold">
           {item.question}
         </span>
         <ChevronDown

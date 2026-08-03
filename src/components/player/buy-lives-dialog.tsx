@@ -67,7 +67,8 @@ export function BuyLivesDialog({
           type="button"
           disabled={busy}
           onClick={() => void checkout()}
-          className="w-full rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright disabled:opacity-50"
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
         >
           {busy ? "Opening checkout…" : `Pay ${formatNaira(total)}`}
         </button>

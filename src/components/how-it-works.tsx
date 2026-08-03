@@ -12,9 +12,13 @@
 // what is this, what does it cost, how do I win, and can I put one up.
 
 import { useState } from "react";
-import { ArrowRight, HelpCircle, Heart, Lock, Trophy, Wallet } from "lucide-react";
+import { ArrowRight, HelpCircle } from "lucide-react";
 import Link from "next/link";
 import { Modal } from "@/components/ui/modal";
+import { Boxy } from "@/components/art/boxy";
+import { PowerUpArt } from "@/components/art/power-up-art";
+import { SafeArt } from "@/components/safe/safe-art";
+import { HeartArt } from "@/components/player/lives-badge";
 import { LIVES_MAX, MIN_LENGTH } from "@/lib/constants";
 import { formatNaira, minFundingKobo, splitFunding } from "@/lib/game/rewards";
 
@@ -51,11 +55,13 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
     <Modal
       title="How Spendbox works"
       subtitle="A password, real money, and no clues you haven't earned."
+      icon={<Boxy mood="sly" still className="size-8" />}
       onClose={onClose}
       footer={
         <Link
           href="/dashboard"
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright"
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-brass px-4 py-3.5 text-ink"
         >
           Put up a box of your own
           <ArrowRight className="size-4" aria-hidden />
@@ -64,22 +70,22 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
     >
       <div className="space-y-4 pb-1">
         <Step
-          icon={<Lock className="size-4 text-brass" aria-hidden />}
+          icon={<SafeArt design="brass" className="size-8" />}
           title="Guess blind"
           body="Somebody has hidden a password and put money behind it. You aren't told how long it is or what it's made of. Anything on a keyboard can be in it — letters in either case, digits, and symbols like & $ # ) ( ; : ! ? *."
         />
         <Step
-          icon={<Heart className="size-4 text-brass" aria-hidden />}
+          icon={<HeartArt className="size-7" />}
           title="One life, one guess"
           body={`Every attempt costs one life, win or lose. You hold ${LIVES_MAX}, shared across every box, and one comes back every hour — twenty-four a day, free, forever. Nobody has to buy anything: paying only buys speed.`}
         />
         <Step
-          icon={<Trophy className="size-4 text-brass" aria-hidden />}
+          icon={<Boxy mood="cheer" still className="size-9" />}
           title="A number, not a colour"
           body="A guess comes back with two things: whether it was too short, too long or exactly right, and a single score out of 100. What that score is made of is never published, so two very different guesses can score the same and working out which explanation fits is the whole game. 100% is the password, and nothing else reaches it."
         />
         <Step
-          icon={<Wallet className="size-4 text-brass" aria-hidden />}
+          icon={<PowerUpArt kind="x_ray" className="size-8" />}
           title="Power-ups are the only paid part"
           body="Each one buys back exactly one thing the game withholds — the length, what it's made of, the parts behind a score, half its characters, or an hour with no life limit at all. On someone's box, 70% of what you spend goes to them."
         />
@@ -111,9 +117,7 @@ function Step({
 }) {
   return (
     <div className="flex gap-3 border-t border-zinc-100 pt-3 first:border-0 first:pt-0">
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brass/10">
-        {icon}
-      </span>
+      <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center">{icon}</span>
       <div className="min-w-0">
         <p className="text-sm font-semibold text-zinc-900">{title}</p>
         <p className="mt-0.5 text-sm leading-relaxed text-zinc-500">{body}</p>

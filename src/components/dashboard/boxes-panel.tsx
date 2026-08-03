@@ -17,13 +17,14 @@ import Link from "next/link";
 import { useState } from "react";
 import { ExternalLink, Trash2, TrendingUp, Zap } from "lucide-react";
 import { SafeArt } from "@/components/safe/safe-art";
+import { Boxy } from "@/components/art/boxy";
 import { formatNaira, rewardLabel, splitFunding } from "@/lib/game/rewards";
 import { MAX_FUNDING_KOBO } from "@/lib/constants";
 import { plural } from "@/lib/plural";
 import type { OwnedBox } from "@/lib/types";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { RevenueEstimate } from "./revenue-estimate";
-import { Empty, GHOST, INPUT, Panel, PRIMARY, ShareButton, StatusPill } from "./shared";
+import { GHOST, INPUT, Panel, PRIMARY, ShareButton, StatusPill } from "./shared";
 
 export function BoxesPanel({
   boxes,
@@ -37,13 +38,22 @@ export function BoxesPanel({
   if (boxes.length === 0) {
     return (
       <Panel>
-        <Empty>
-          Nothing up yet. Put a reward behind a password and share the link —
-          that&apos;s the whole thing.
-        </Empty>
-        <button type="button" onClick={onBuild} className={`mx-auto block ${GHOST}`}>
-          Build your first spendbox
-        </button>
+        <div className="py-4 text-center">
+          <Boxy mood="happy" className="mx-auto size-28" />
+          <p className="mt-1 text-lg font-black tracking-tight">Nothing up yet.</p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-zinc-400">
+            Put a reward behind a password and share the link — that&apos;s the
+            whole thing.
+          </p>
+          <button
+            type="button"
+            onClick={onBuild}
+            style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+            className="btn-chunky mx-auto mt-5 block rounded-2xl bg-brass px-6 py-3 text-ink"
+          >
+            Build your first spendbox
+          </button>
+        </div>
       </Panel>
     );
   }
@@ -105,7 +115,7 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
   const unpublished = box.status === "draft" || box.status === "funding";
 
   return (
-    <article className="panel rounded-2xl p-4">
+    <article className="panel rounded-3xl p-4">
       <header className="flex items-start gap-3">
         <SafeArt
           design={box.design}

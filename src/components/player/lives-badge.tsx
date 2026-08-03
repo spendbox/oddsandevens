@@ -7,7 +7,6 @@
 // and a slot machine.
 
 import { useEffect, useState } from "react";
-import { Heart } from "lucide-react";
 import { usePlayer } from "./player-context";
 
 /**
@@ -40,6 +39,15 @@ export function countdown(target: string, now: number): string {
   return `${Math.ceil(ms / 1000)}s`;
 }
 
+/**
+ * The life counter.
+ *
+ * A chunky pill with a real heart in it rather than an outline glyph, because
+ * this is the number a player checks more than any other and it should read
+ * like a resource in a game, not a status in a toolbar. It goes berry and
+ * pulses when the pool is empty — the one place in the app that is allowed to
+ * nag, and only because running out is the thing you most need to notice.
+ */
 export function LivesBadge({ onBuy }: { onBuy?: () => void }) {
   const { player, ready, verified, refresh } = usePlayer();
   const now = useNow(player.nextLifeAt);
@@ -64,25 +72,53 @@ export function LivesBadge({ onBuy }: { onBuy?: () => void }) {
       type="button"
       onClick={onBuy}
       disabled={!onBuy}
+      style={
+        {
+          "--btn-lip": empty ? "var(--berry-deep)" : "rgba(0,0,0,0.35)",
+        } as React.CSSProperties
+      }
       className={
-        "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition " +
-        (empty
-          ? "border-red-500/40 bg-red-500/10 text-red-300"
-          : "border-white/10 bg-white/5 text-zinc-200 hover:border-brass/40") +
+        "btn-chunky flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm " +
+        (empty ? "bg-berry text-ink" : "bg-white/8 text-foreground") +
         (onBuy ? " cursor-pointer" : " cursor-default")
       }
       title={onBuy ? "Buy more lives" : undefined}
     >
-      <Heart
-        className={"size-4 " + (empty ? "text-red-400" : "fill-brass text-brass")}
-        aria-hidden
-      />
-      <span className="font-semibold tabular-nums">{player.lives}</span>
+      <HeartArt className={"size-5 " + (empty ? "opacity-70" : "")} />
+      <span className="font-black tabular-nums">{player.lives}</span>
       {player.nextLifeAt && (
-        <span className="text-xs text-zinc-400">
+        <span className={"text-xs font-semibold " + (empty ? "text-ink/70" : "text-zinc-400")}>
           +1 in {countdown(player.nextLifeAt, now)}
         </span>
       )}
     </button>
+  );
+}
+
+/**
+ * A heart with a shine on it.
+ *
+ * Drawn rather than an icon-font glyph for one reason: it needs a highlight.
+ * A flat silhouette at 20px reads as a symbol, and two extra shapes turn it
+ * into an object — which is the whole difference between an app and a game.
+ */
+export function HeartArt({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <defs>
+        <linearGradient id="heart-fill" x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0%" stopColor="#ff9ab8" />
+          <stop offset="100%" stopColor="#e0325f" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M12 21.2 C 5.2 16.6 2 13.2 2 9.4 A 5.4 5.4 0 0 1 12 6.4 A 5.4 5.4 0 0 1 22 9.4 C 22 13.2 18.8 16.6 12 21.2 Z"
+        fill="url(#heart-fill)"
+        stroke="#150e2b"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <ellipse cx="8.4" cy="9" rx="2.4" ry="1.6" fill="#fff" opacity="0.6" transform="rotate(-28 8.4 9)" />
+    </svg>
   );
 }
