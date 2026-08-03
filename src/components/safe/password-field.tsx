@@ -22,6 +22,7 @@ export function PasswordField({
   busy,
   revealed,
   livesLeft,
+  freeRun,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -30,6 +31,8 @@ export function PasswordField({
   busy: boolean;
   revealed: Revealed;
   livesLeft: number;
+  /** Second Wind is running: this guess costs nothing at all. */
+  freeRun: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
 
@@ -100,12 +103,14 @@ export function PasswordField({
           )}
         </span>
 
-        <span className="text-zinc-600">
+        <span className={freeRun ? "text-mark-green" : "text-zinc-600"}>
           {disabled
-            ? " "
-            : livesLeft > 0
-              ? `Costs 1 life · ${livesLeft} left`
-              : "No lives left"}
+            ? " "
+            : freeRun
+              ? "Free — Second Wind is running"
+              : livesLeft > 0
+                ? `Costs 1 life · ${livesLeft} left`
+                : "No lives left"}
         </span>
       </div>
 

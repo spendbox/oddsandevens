@@ -5,6 +5,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import { ALPHABET, LIVES_MAX, LIFE_PRICE_KOBO, LIFE_REGEN_MINUTES } from "@/lib/constants";
 import { maskEmail } from "@/lib/mask";
 import { difficultyOf } from "@/lib/game/difficulty";
+import { toDesign } from "@/lib/game/designs";
 import { isChallenge } from "@/lib/game/rewards";
 import type { PlayerState, PublicBox } from "@/lib/types";
 
@@ -18,7 +19,7 @@ import type { PlayerState, PublicBox } from "@/lib/types";
  * travel any further.
  */
 export const PUBLIC_BOX_COLUMNS =
-  "id, kind, slug, title, blurb, length, reward_kobo, status, attempts_count, players_count, published_at, unlocked_at, unlocked_by, contributor_id";
+  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, published_at, unlocked_at, unlocked_by, contributor_id";
 
 export interface BoxRow {
   id: string;
@@ -28,6 +29,7 @@ export interface BoxRow {
   blurb: string | null;
   length: number;
   reward_kobo: number;
+  design: string;
   status: PublicBox["status"];
   attempts_count: number;
   players_count: number;
@@ -56,6 +58,7 @@ export function toPublicBox(
     blurb: row.blurb,
     rewardKobo: row.reward_kobo,
     isChallenge: isChallenge(row.reward_kobo),
+    design: toDesign(row.design),
     difficulty: difficultyOf(row.length),
     status: row.status,
     attemptsCount: row.attempts_count,

@@ -2,24 +2,22 @@
 //
 // A contributor about to put ₦1,000,000 behind a password reasonably wants to
 // know what comes back. The honest answer is a range with its workings shown,
-// not a single confident number — so this returns both ends and the UI prints
-// the arithmetic next to them.
+// not a single confident number — so this returns both ends and every input
+// that went into them, and the UI prints the arithmetic next to the figures.
 //
-// The only income a box has is power-ups: 70% of every one bought by somebody
-// attacking it. Funding is not income; it's the reward, and it leaves.
+// Two things earn:
+//
+//   **Power-ups.** Priced as a share of the reward, so a box worth more sells
+//   more expensive hints. 70% of every one goes to the contributor.
+//
+//   **Lives.** Also 70%. A life is bought because a particular safe is in
+//   front of somebody, and it now pays the person who put that safe up.
+//
+// Funding is not income. It's the reward, and it leaves.
 
-import { POWER_UP_KINDS, POWER_UPS, splitPowerUp } from "@/lib/game/power-ups";
-
-/** The cheapest single power-up — one cautious hunter's likely spend. */
-export const CHEAPEST_KOBO = Math.min(
-  ...POWER_UP_KINDS.map((kind) => POWER_UPS[kind].priceKobo)
-);
-
-/** Everything on the shelf — one determined hunter buying the lot. */
-export const FULL_SHELF_KOBO = POWER_UP_KINDS.reduce(
-  (total, kind) => total + POWER_UPS[kind].priceKobo,
-  0
-);
+import { LIFE_PRICE_KOBO } from "@/lib/constants";
+import { POWER_UP_KINDS, priceKobo } from "@/lib/game/power-ups";
+import { CONTRIBUTOR_SHARE_PERCENT, splitSale } from "@/lib/game/rewards";
 
 /**
  * Not every hunter buys anything. Most people try a box, get nowhere and
@@ -28,6 +26,17 @@ export const FULL_SHELF_KOBO = POWER_UP_KINDS.reduce(
  * because a number a contributor plans around ought to be one they can check.
  */
 export const SPENDING_SHARE = 0.25;
+
+/**
+ * Lives bought by a hunter at the top of the range.
+ *
+ * The pool refills on its own — seven at a time, one an hour — so nobody has
+ * to buy any, and the low end of the range assumes nobody does. Twenty is
+ * roughly a day's impatience: a hunter who doesn't want to wait out the clock
+ * on an evening's session. It is a guess, it is labelled as one on screen, and
+ * it is the single assumption here most worth disagreeing with.
+ */
+export const LIVES_PER_SPENDER = 20;
 
 /**
  * The basis every projection is quoted against.
@@ -48,34 +57,47 @@ export interface RevenueRange {
   hunters: number;
   /** How many of those are assumed to buy anything at all. */
   spenders: number;
+  /** The reward the shelf was priced against. */
+  rewardKobo: number;
+  /** Gross price of the cheapest thing on the shelf, on this box. */
   cheapestKobo: number;
+  /** Gross price of every power-up on this box, bought once each. */
   fullShelfKobo: number;
+  /** Gross price of the lives assumed at the top of the range. */
+  livesKobo: number;
+  livesPerSpender: number;
   sharePercent: number;
 }
 
 /**
- * The range per thousand hunters.
+ * The range per thousand hunters, for a box with this reward behind it.
  *
- * Low end: a quarter of them buy one Length Lock and nothing else.
- * High end: a quarter of them buy the entire shelf.
+ * Low end: a quarter of them buy the cheapest single power-up and nothing
+ * else, and never pay for a life.
+ * High end: a quarter of them buy the whole shelf and twenty lives.
  *
  * Both ends are the contributor's 70% share, not the gross.
  */
-export function revenueRange(hunters: number = BASIS): RevenueRange {
+export function revenueRange(rewardKobo: number, hunters: number = BASIS): RevenueRange {
+  const prices = POWER_UP_KINDS.map((kind) => priceKobo(kind, rewardKobo));
+  const cheapestKobo = Math.min(...prices);
+  const fullShelfKobo = prices.reduce((total, price) => total + price, 0);
+  const livesKobo = LIVES_PER_SPENDER * LIFE_PRICE_KOBO;
+
   const spenders = Math.max(0, Math.round(hunters * SPENDING_SHARE));
-  const low = splitPowerUp(CHEAPEST_KOBO).contributorKobo * spenders;
-  const high = splitPowerUp(FULL_SHELF_KOBO).contributorKobo * spenders;
+  const low = splitSale(cheapestKobo).contributorKobo * spenders;
+  const high = splitSale(fullShelfKobo + livesKobo).contributorKobo * spenders;
 
   return {
     lowKobo: low,
     highKobo: high,
     hunters,
     spenders,
-    cheapestKobo: CHEAPEST_KOBO,
-    fullShelfKobo: FULL_SHELF_KOBO,
-    sharePercent: 70,
+    rewardKobo,
+    cheapestKobo,
+    fullShelfKobo,
+    livesKobo,
+    livesPerSpender: LIVES_PER_SPENDER,
+    sharePercent: CONTRIBUTOR_SHARE_PERCENT,
   };
 }
-
-/** The standing rate, which is what every surface quotes. */
-export const PER_THOUSAND = revenueRange(BASIS);

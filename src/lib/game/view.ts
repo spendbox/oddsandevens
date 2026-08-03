@@ -6,7 +6,12 @@
 // about how many lives are left or which characters are dead.
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { breakdownActive, offerings, parseRevealed } from "@/lib/game/power-ups";
+import {
+  breakdownActive,
+  offerings,
+  parseRevealed,
+  secondWindActive,
+} from "@/lib/game/power-ups";
 import {
   ensurePlayer,
   PUBLIC_BOX_COLUMNS,
@@ -118,6 +123,7 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
       .filter((n): n is string => !!n),
     hasBreakdown: lens,
     breakdownUntil: lens ? revealed.breakdownUntil : null,
+    secondWindUntil: secondWindActive(revealed) ? revealed.secondWindUntil : null,
     bestPercent: await bestScore(db, hunt.id),
     won: hunt.won_at !== null,
   };
@@ -172,7 +178,7 @@ export async function buildPlayView(
       box: publicBox,
       player: toPlayerState(null, null),
       hunt: null,
-      powerUps: offerings(parseRevealed(null)),
+      powerUps: offerings(parseRevealed(null), box.reward_kobo),
       claim: null,
     };
   }
@@ -194,7 +200,7 @@ export async function buildPlayView(
     box: publicBox,
     player: toPlayerState(playerRow, email),
     hunt: state,
-    powerUps: offerings(state?.revealed ?? parseRevealed(null)),
+    powerUps: offerings(state?.revealed ?? parseRevealed(null), box.reward_kobo),
     claim: claim
       ? {
           amountKobo: Number(claim.amount_kobo),

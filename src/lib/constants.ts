@@ -16,7 +16,20 @@
 export const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 export const LOWER = "abcdefghijklmnopqrstuvwxyz".split("");
 export const DIGITS = "0123456789".split("");
-export const SPECIALS = ["!", "@", "#", "$", "%", "&", "*", "?", "+", "=", "-", "_"];
+
+/**
+ * Every printable symbol a QWERTY keyboard can produce without a modifier
+ * hunt — the full unshifted and shifted punctuation rows.
+ *
+ * Space is the one deliberate omission. It is invisible in a monospaced field,
+ * survives a copy-paste inconsistently, and a player who cannot see whether
+ * their guess ends in one is being cheated rather than challenged.
+ */
+export const SPECIALS = [
+  "!", '"', "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
+  ":", ";", "<", "=", ">", "?", "@", "[", "\\", "]", "^", "_", "`", "{", "|",
+  "}", "~",
+];
 
 export const ALPHABET = [...UPPER, ...LOWER, ...DIGITS, ...SPECIALS];
 export const ALPHABET_SET = new Set(ALPHABET);
@@ -28,7 +41,7 @@ export const ALPHABET_SET = new Set(ALPHABET);
  * Case comes free once a position is found — a wrong-case hit is reported, so
  * `k` landing on `K` tells the player to stop searching and flip the case. So
  * the real per-position search is over case-folded classes: 26 letters, 10
- * digits, 12 specials. This is what the difficulty estimate is built on.
+ * digits and every symbol. This is what the difficulty estimate is built on.
  */
 export const CHARACTER_CLASSES = UPPER.length + DIGITS.length + SPECIALS.length;
 
@@ -55,7 +68,14 @@ export const MAX_FUNDING_KOBO = 10_000_000 * KOBO;
 /** What Spendbox keeps of a box's funding, and of every power-up sale. */
 export const PLATFORM_SHARE_PERCENT = 30;
 
-/** One life, bought rather than waited for. 100% of this is platform revenue. */
+/**
+ * One life, bought rather than waited for.
+ *
+ * Bought from a box's page, 70% goes to that box's contributor — a hunter
+ * grinding somebody's password is worth something to them whether or not any
+ * power-up gets sold. Bought from the player's own page, where there is no box
+ * to credit, the whole thing is platform revenue.
+ */
 export const LIFE_PRICE_KOBO = 150 * KOBO;
 export const LIFE_PURCHASE_MAX = 100;
 

@@ -50,6 +50,7 @@ interface Overview {
     fundingCutKobo: number;
     powerUpPlatformKobo: number;
     lifeKobo: number;
+    lifeGrossKobo: number;
     totalKobo: number;
     contributorKobo: number;
     livesSold: number;
@@ -108,7 +109,7 @@ export default function AdminPage() {
           <Figure
             label="From lives"
             value={formatNaira(overview.revenue.lifeKobo)}
-            hint={`${overview.revenue.livesSold} sold`}
+            hint={`${overview.revenue.livesSold} sold, ${formatNaira(overview.revenue.lifeGrossKobo)} gross`}
           />
           <Figure
             label="From power-ups"

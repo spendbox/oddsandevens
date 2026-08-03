@@ -5,10 +5,12 @@ import { getAdminUser } from "@/lib/admin-auth";
 /**
  * Where the platform's money comes from.
  *
- * Three streams, and they behave differently: the cut of every box's funding,
- * the 30% of every power-up sale, and the whole of every life bought. Lives are
- * the only one with no contributor attached, which is why they're counted on
- * their own rather than folded into the power-up line.
+ * Three streams: the cut of every box's funding, the 30% of every power-up
+ * sale, and the 30% of every life. Lives used to be ours in full; they are now
+ * split like everything else a player spends, because a life is bought with a
+ * particular safe on screen and the person who put that safe up earns from it.
+ * They keep their own line because they're the one stream that can arrive with
+ * no contributor at all — bought from the player's own page, or on our box.
  *
  * Every figure is derived from *paid orders*. That is the whole point of this
  * route and it used to be wrong: the funding cut was inferred from a box's
@@ -27,8 +29,14 @@ export async function GET() {
       // box_id comes back so the cut can be attributed to the box that was
       // actually paid for, rather than to every box that merely exists.
       db.from("funding_orders").select("box_id, amount_kobo").eq("status", "paid"),
-      db.from("power_up_orders").select("platform_kobo, price_kobo").eq("status", "paid"),
-      db.from("life_orders").select("price_kobo, quantity").eq("status", "paid"),
+      db
+        .from("power_up_orders")
+        .select("platform_kobo, contributor_kobo, price_kobo")
+        .eq("status", "paid"),
+      db
+        .from("life_orders")
+        .select("price_kobo, platform_kobo, contributor_kobo, quantity")
+        .eq("status", "paid"),
       db.from("boxes").select("id, status, reward_kobo, platform_fee_kobo"),
     ]);
 
@@ -54,16 +62,18 @@ export async function GET() {
     .reduce((total, box) => total + Number(box.platform_fee_kobo), 0);
 
   const powerUpPlatformKobo = sum(powerUps, "platform_kobo");
-  const powerUpGrossKobo = sum(powerUps, "price_kobo");
-  const lifeKobo = sum(lives, "price_kobo");
+  const lifePlatformKobo = sum(lives, "platform_kobo");
+  const lifeGrossKobo = sum(lives, "price_kobo");
 
   return NextResponse.json({
     revenue: {
       fundingCutKobo,
       powerUpPlatformKobo,
-      lifeKobo,
-      totalKobo: fundingCutKobo + powerUpPlatformKobo + lifeKobo,
-      contributorKobo: powerUpGrossKobo - powerUpPlatformKobo,
+      lifeKobo: lifePlatformKobo,
+      lifeGrossKobo,
+      totalKobo: fundingCutKobo + powerUpPlatformKobo + lifePlatformKobo,
+      // Everything paid through to contributors, from both streams.
+      contributorKobo: sum(powerUps, "contributor_kobo") + sum(lives, "contributor_kobo"),
       fundingCollectedKobo,
       livesSold: sum(lives, "quantity"),
       powerUpsSold: (powerUps ?? []).length,

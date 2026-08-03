@@ -31,9 +31,14 @@ behind a password and wants people to attack it.
 ## Guessing
 
 A password is 3 to 26 characters from the 26 letters (both cases), ten digits
-and twelve symbols — 74 in all. **Case is part of the password.** `k` and `K`
-are different characters, which roughly squares the search space and is the
-single biggest reason a box takes hundreds of attempts rather than a dozen.
+and every symbol on a QWERTY keyboard — 94 in all. Anything you can type is
+fair game: `& $ # ) ( ; : ! ? *` and the rest. The one exclusion is the space,
+because a password you can't tell the length of by eye shouldn't also be one
+you can't tell the *shape* of by eye.
+
+**Case is part of the password.** `k` and `K` are different characters, which
+roughly squares the search space and is, with the symbols, why a box takes
+hundreds of attempts rather than a dozen.
 
 An attempt answers two things:
 
@@ -82,8 +87,8 @@ need be. It's the only honest fix when something breaks on our side.
 
 ## The breakdown is a purchase
 
-By default a score is one opaque number. **Colour Read** (₦5,000) splits every
-attempt — the ones already made included — into its three parts: exact hits,
+By default a score is one opaque number. **Colour Read** (1.5% of the reward)
+splits every attempt — the ones already made included — into its three parts: exact hits,
 right-letter-wrong-case hits, and characters that are in there somewhere else.
 
 It lasts **24 hours** and can be bought again after that. Alone among the
@@ -114,30 +119,33 @@ they wrote the password and already know its length.
 The model is the strategy the feedback actually permits: binary-search the
 length (~5 attempts), then walk the positions one at a time, because a *count*
 with no positions attached can only be read by changing one position and
-watching it move. A wrong-case hit resolves the case for free, so the search
-runs over 48 case-folded classes.
+watching it move.
 
-| Length | Tier | Free play | With Colour Read |
-| --- | --- | --- | --- |
-| 3 | Warm | 224 | 124 |
-| 6 | Tricky | 443 | 267 |
-| 10 | Hard | 736 | 387 |
-| 18 | Brutal | 1,319 | 650 |
-| 26 | Merciless | 1,904 | 1,043 |
+| Length | Tier | Free play | With Colour Read | Printed |
+| --- | --- | --- | --- | --- |
+| 3 | Warm | 229 | 155 | ~285 |
+| 6 | Tricky | 512 | 269 | ~565 |
+| 10 | Hard | 889 | 481 | ~950 |
+| 18 | Brutal | 1,649 | 876 | ~1,700 |
+| 26 | Merciless | 2,394 | 1,355 | ~2,400 |
 
-Both columns are measured, not guessed: a solver implementing the only strategy
-the scoring permits, median of 15 random passwords per length. It cracks 15/15
-at every length, and the formula the app prints reproduces the free-play column
-exactly.
+The first two columns are measured, not guessed: a solver implementing the only
+strategy the scoring permits, median of 15 random passwords per length. It
+cracks 15/15 at every length in both modes.
 
-Why free play costs twice as much: with a single number, the only safe reading
-of a position is "try every character and keep the best". Thresholds on the
-delta don't work — the character already sitting there may itself be scoring,
-and a misplaced character is worth more than a right-place-wrong-case one, so a
-naive argmax over one case gets led to the wrong answer. Only an exact hit is
-guaranteed to top the scale, and proving you've found it means trying all 73
-other characters. With the breakdown, an exact hit announces itself and the
-scan stops halfway.
+"Printed" is what the app shows, from `estimateAttempts`. It tracks the
+measurement closely from ten characters up and runs about a quarter high at
+three, which is the direction an estimate on a contributor's screen ought to
+err: a box that turns out easier than advertised disappoints nobody.
+
+Why free play costs nearly twice as much: with a single number, the only safe
+reading of a position is "try every character and keep the best". Thresholds on
+the delta don't work — the character already sitting there may itself be
+scoring, and a misplaced character is worth more than a right-place-wrong-case
+one, so a naive argmax over one case gets led to the wrong answer. Only an
+exact hit is guaranteed to top the scale, and proving you've found it means
+trying all 93 other characters. With the breakdown, an exact hit announces
+itself and the scan stops roughly halfway.
 
 ---
 
@@ -149,31 +157,47 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 
 | Power-up | Price | What it does |
 | --- | --- | --- |
-| Colour Read | ₦5,000 | Splits every score, past and future, into its three parts — for 24 hours |
-| Length Lock | ₦500 | Tells you exactly how many characters the password has |
-| Sweep | ₦1,000 | Strikes 4 characters off that the password doesn't use anywhere |
-| First Light | ₦1,500 | Locks in the opening character, case and all |
-| Last Light | ₦2,000 | Locks in the closing character, case and all |
-| Case Map | ₦2,500 | Counts the uppercase, lowercase, digits and symbols — without positions |
-| Spotlight | ₦3,500 | Lights up one position not yet pinned down |
-| X-Ray | ₦10,000 | Every character the password is built from, without saying where any go |
+| Length Lock | 0.25% | Tells you exactly how many characters the password has |
+| Case Map | 0.5% | Counts the uppercase, lowercase, digits and symbols — without positions |
+| Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
+| Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
+| X-Ray | 2% | Names half the password's distinct characters, unordered |
+
+**Prices are a share of the box's reward**, floored so that a challenge box
+with nothing behind it still has a shelf to sell. A hint that saves you a
+fortnight of grinding on a ₦7,000,000 safe is not worth what the same hint is
+worth on a ₦7,000 one, and a flat price got that wrong in both directions. The
+floors are ₦200 / ₦300 / ₦300 / ₦500 / ₦1,000 in the order above.
+
+Each one is tied to a specific thing the scoring withholds — the length, what
+the password is made of, the pace of the game, the components behind a score,
+half the characters — and each says on its own dialog what it deliberately does
+*not* do. Nothing buys on a tap: tapping opens the full explanation, and paying
+is a second, deliberate action inside it.
 
 Nothing is revealed at checkout. The order is created `pending` and the effect
 only fires once Paystack confirms the money, so a cancelled payment reveals
 nothing. The note a purchase produces is stored on the order, which means
 re-verifying a reference replays the same answer rather than re-rolling a
-random Sweep.
+random X-Ray.
+
+### Second Wind and the life pool
+
+Second Wind is the only power-up that doesn't reveal anything. It writes an
+expiry onto the hunt, and `spend_attempt` checks it *before* the life pool:
+while it runs, a guess needs no life and spends none. That check has to live in
+the migration rather than in a route, because the route is not the thing that
+decrements the counter.
+
+The window is read defensively — a malformed timestamp in `revealed` fails
+closed, charging a life as usual, rather than aborting the guess.
 
 ### Availability never leaks the password
 
 A greyed-out power-up must not become a free hint, so every availability rule
-is decided from public facts — the password's length and what the player has
-already bought — and never from the password.
-
-Sweep is the interesting one. A password of length *L* uses at most *L*
-distinct characters, so at least `74 − L` of the alphabet is guaranteed absent.
-Until Length Lock has been bought there is no known *L*, so the most permissive
-bound is used and the button's state still says nothing.
+is decided from public facts — what the player has already bought, and a length
+they have already paid to learn — and never from the password. Anything that
+would need the password to decide stays on sale.
 
 ---
 
@@ -216,17 +240,23 @@ kobo short of what a winner is actually paid.
 | Stream | Contributor | Spendbox |
 | --- | --- | --- |
 | Power-up bought against a contributor's box | 70% | 30% |
-| Power-up bought against the public box | — | 100% |
+| Lives bought while hunting a contributor's box | 70% | 30% |
+| Anything bought against the public box | — | 100% |
+| Lives bought from `/me`, with no box in front of them | — | 100% |
 | Funding a contributor's box | becomes the reward (70%) | 30% |
-| Lives | — | 100% |
 
-Lives aren't attached to any box, so there is nobody to share them with.
+A life is nominally attached to no box — buy one anywhere and it works
+everywhere. But the *decision* to buy one almost always is attached to a box:
+somebody is three characters from cracking a particular safe and won't wait an
+hour for the next guess. So the box that was on screen rides along with the
+purchase and its contributor takes 70%, exactly as on a power-up. With no box,
+and on the platform's own box, the whole thing stays here.
 
 A contributor's share is real money rather than a line in a report: their bank
 account is registered with Paystack as a **subaccount**, and every power-up
-sale is charged against it. Paystack splits at settlement, so their share never
-sits in a Spendbox balance waiting for someone to move it, and nobody here
-moves it by hand.
+sale — and every life sold with their box on screen — is charged against it.
+Paystack splits at settlement, so their share never sits in a Spendbox balance
+waiting for someone to move it, and nobody here moves it by hand.
 
 The one exception is a **reward**, which can't ride a subaccount — the winner is
 a stranger with no account here until the moment they win. So a cracked box
@@ -261,12 +291,42 @@ be sent somewhere — and a signed cookie remembers them for six months.
 
 Four tabs and no more. **Boxes** is what's up and what each has earned, with a
 share button that uses the native share sheet where there is one (on a phone
-that means WhatsApp, not a clipboard). **Build** is two decisions — the
-password and the reward — with the difficulty, the attempt estimate and our
-cut all updating as you type, so nothing is a surprise at checkout. **Attempts** is who
-has been having a go, addresses starred out before they leave the server.
-**Money** is power-up income, the split written out in full, the winners, and
-the bank account it all settles to.
+that means WhatsApp, not a clipboard). **Build** is four cards — the box, the
+password, the reward and which safe it wears — each opening a dialog with the
+whole of that decision in it and nothing else, and each showing a tick when
+it's done. The difficulty, the attempt estimate, our cut and the likely income
+all update as you fill them in, so nothing is a surprise at checkout.
+**Attempts** is who has been having a go, addresses starred out before they
+leave the server. **Money** is income from power-ups and lives, the split
+written out in full, the winners, and the bank account it all settles to.
+
+A box is editable and deletable right up until it is *paid for* — not until it
+is created. A draft and a box whose checkout was abandoned are equally unplayed
+and both are the contributor's to change or throw away; editing one cancels any
+outstanding checkout and drops it back to a draft, so a stale payment can never
+publish a password nobody agreed to. Once money has arrived, the password, the
+name and the safe are permanent, and the reward is the only thing that moves —
+upwards only.
+
+---
+
+## The safe
+
+Every box wears one of six safes — Brass, Vault, Midnight, Emerald, Crimson,
+Ivory — chosen by whoever put it up. It is decoration and only decoration: no
+rule reads it, and it is stored as a single checked column on `boxes`.
+
+It is **drawn, not downloaded**. One SVG takes a palette and renders at any
+size, so the thumbnail on a lobby card and the hero filling a play screen are
+the same component. A set of GIFs would have been six fixed-size, fixed-palette
+files of a few hundred kilobytes each, and none of them could react to
+anything.
+
+Because it's live it does: the dial rocks gently at rest, spins while a guess is
+in flight, and the door swings on its hinge when a box is cracked. All of the
+motion is CSS on SVG elements, and all of it is switched off by the global
+`prefers-reduced-motion` rule — with every animation stripped it is still a
+picture of a safe.
 
 ---
 
@@ -318,6 +378,8 @@ src/lib/game/feedback.ts    scoring a guess (pure, server-only)
 src/lib/game/rewards.ts     the funding ladder and the 70/30 split
 src/lib/game/difficulty.ts  attempts-to-crack, tiers, brute-force cost
 src/lib/game/power-ups.ts   the catalogue, availability, and effects
+src/lib/game/revenue.ts     what a box is likely to earn, per 1,000 hunters
+src/lib/game/designs.ts     the six safes a contributor can pick from
 src/lib/game/boxes.ts       reading boxes without reading passwords
 src/lib/game/view.ts        assembling what the play screen sees
 src/lib/game/settle.ts      turning a confirmed payment into the thing it bought
@@ -325,7 +387,10 @@ src/app/api/boxes/…         play: the box, the run, the guess, the power-up
 src/app/api/player/…        lives, verification, history, reward claims
 src/app/api/contributor/…   profile, boxes, funding, attempts, earnings, payout
 src/app/api/admin/…         the public box, reward claims, revenue
-supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard
+src/components/safe/        the play screen, and the safe itself in SVG
+supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
+                            0027 made a score a percentage, 0028 added
+                            Second Wind, the life split and box designs
 ```
 
 ---
@@ -374,14 +439,15 @@ Point Paystack's webhook at `https://your-domain/api/paystack/webhook`.
 power-up effects and availability — is checked by transpiling `src/lib/game/*`
 and asserting against hand-worked cases: that the ladder is monotonic and lands
 on ₦10,000,000 at 26 characters, that a split always reconciles to the funding,
-that Sweep only ever strikes characters the password doesn't use, that a
-greyed-out power-up is never decided by the password.
+that X-Ray never names a character the password doesn't use, that a greyed-out
+power-up is never decided by the password.
 
 **A solver** plays the game. It implements the only strategy the feedback
 permits — binary-search the length, then walk the positions — against the real
 scoring rule, and reports the median attempts per length over 15 random
-passwords. It cracks 40/40, lands within ~10% of the estimate the UI shows, and
-puts every length inside the intended 50–5000 band.
+passwords, in both free-play and Colour Read modes. It cracks 15/15 at every
+length in both, and puts every length inside the intended 50–5000 band. See the
+difficulty table for how the printed estimate compares.
 
 **The SQL half** runs against a scratch Postgres with stand-ins for the
 Supabase-managed `auth` and `storage` schemas, including the `protect_delete`

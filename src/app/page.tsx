@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { ArrowRight, Heart, Lock } from "lucide-react";
+import { ArrowRight, Sparkles, Trophy } from "lucide-react";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { LIVES_MAX, MIN_LENGTH } from "@/lib/constants";
 import { PUBLIC_BOX_COLUMNS, toPublicBox, type BoxRow } from "@/lib/game/boxes";
-import { formatNaira, minFundingKobo, rewardLabel, splitFunding } from "@/lib/game/rewards";
+import { formatNaira, minFundingKobo, rewardLabel } from "@/lib/game/rewards";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { plural } from "@/lib/plural";
 import { PlayerProvider } from "@/components/player/player-context";
 import { SiteHeader } from "@/components/site-header";
 import { BoxCard } from "@/components/box-card";
+import { HowItWorksButton } from "@/components/how-it-works";
+import { SafeArt } from "@/components/safe/safe-art";
 import type { PublicBox } from "@/lib/types";
 
 const RECENT_UNLOCKS = 6;
@@ -60,56 +62,82 @@ export default async function Home() {
       <SiteHeader />
 
       <main className="flex-1">
-        <section className="mx-auto w-full max-w-5xl px-4 pb-10 pt-10 sm:pt-16">
+        {/*
+          The hero. One sentence of what this is, one line of what it costs, and
+          the safe itself doing something — everything else that used to be up
+          here is a tap away in the explainer instead. The board is what people
+          came for and it should start within a screen of the top.
+        */}
+        <section className="relative mx-auto w-full max-w-5xl overflow-hidden px-4 pb-10 pt-10 sm:pt-14">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-0 -z-10 size-[34rem] -translate-x-1/2 -translate-y-1/3 rounded-full bg-brass/10 blur-3xl"
+          />
+
           <div className="animate-fade-up mx-auto max-w-2xl text-center">
-            <h1 className="text-4xl font-black tracking-tight sm:text-6xl">
+            <SafeArt design="brass" className="mx-auto size-24 sm:size-32" />
+            <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-6xl">
               Guess the password.
               <br />
               <span className="brass-text">Open the safe.</span>
             </h1>
             <p className="mx-auto mt-4 max-w-lg text-zinc-400">
-              Every spendbox is a password with real money behind it. You
-              don&apos;t get told how long it is. Every guess costs a life and
-              comes back with one number: how close you are, out of 100. What
-              that number is made of is never explained.
+              Every spendbox is a password with real money behind it. Playing is
+              free — {LIVES_MAX} lives, one back every hour — and every guess
+              comes back with a single number: how close you are, out of 100.
             </p>
-            <p className="mt-3 text-sm text-zinc-500">
-              Playing is free. You hold {LIVES_MAX} lives and one comes back every
-              hour, so a hard box is a long siege rather than a quick go.
-            </p>
+
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              {featured && (
+                <Link
+                  href={`/b/${featured.slug}`}
+                  className="inline-flex items-center gap-2 rounded-xl bg-brass px-6 py-3 font-bold text-zinc-950 transition hover:bg-brass-bright"
+                >
+                  Take a crack at it
+                  <ArrowRight className="size-4" aria-hidden />
+                </Link>
+              )}
+              <HowItWorksButton />
+            </div>
           </div>
 
           {featured && (
-            <div className="animate-fade-up panel mx-auto mt-10 max-w-2xl rounded-3xl p-6 text-center sm:p-8">
-              <h2 className="text-xl font-bold sm:text-2xl">{featured.title}</h2>
-              {featured.blurb && (
-                <p className="mt-1 text-sm text-zinc-400">{featured.blurb}</p>
-              )}
-              <p
-                className={
-                  "mt-4 font-black tabular-nums " +
-                  (featured.isChallenge
-                    ? "text-3xl text-zinc-300"
-                    : "brass-text text-5xl sm:text-6xl")
-                }
-              >
-                {rewardLabel(featured.rewardKobo)}
-              </p>
-              <div className="mt-3 flex justify-center">
-                <DifficultyBadge difficulty={featured.difficulty} />
+            <Link
+              href={`/b/${featured.slug}`}
+              className="animate-fade-up panel group mx-auto mt-10 flex max-w-2xl flex-col items-center gap-4 rounded-3xl p-6 text-center transition hover:border-brass/40 sm:flex-row sm:p-8 sm:text-left"
+            >
+              <SafeArt
+                design={featured.design}
+                className="size-24 shrink-0 transition group-hover:scale-105 sm:size-28"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center justify-center gap-1.5 text-xs uppercase tracking-widest text-brass sm:justify-start">
+                  <Sparkles className="size-3.5" aria-hidden />
+                  Open to everyone
+                </p>
+                <h2 className="mt-1 text-xl font-bold sm:text-2xl">{featured.title}</h2>
+                {featured.blurb && (
+                  <p className="mt-1 text-sm text-zinc-400">{featured.blurb}</p>
+                )}
+                <p
+                  className={
+                    "mt-3 font-black tabular-nums " +
+                    (featured.isChallenge
+                      ? "text-2xl text-zinc-300"
+                      : "brass-text text-4xl sm:text-5xl")
+                  }
+                >
+                  {rewardLabel(featured.rewardKobo)}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:justify-start">
+                  <DifficultyBadge difficulty={featured.difficulty} />
+                  <span className="text-sm text-zinc-500">
+                    {plural(featured.playersCount, "hunter")} ·{" "}
+                    {plural(featured.attemptsCount, "attempt")} so far
+                  </span>
+                </div>
               </div>
-              <p className="mt-2 text-sm text-zinc-500">
-                {plural(featured.playersCount, "hunter")} ·{" "}
-                {plural(featured.attemptsCount, "attempt")} so far
-              </p>
-              <Link
-                href={`/b/${featured.slug}`}
-                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brass px-6 py-3 font-bold text-zinc-950 transition hover:bg-brass-bright"
-              >
-                Take a crack at it
-                <ArrowRight className="size-4" aria-hidden />
-              </Link>
-            </div>
+            </Link>
           )}
         </section>
 
@@ -128,7 +156,8 @@ export default async function Home() {
 
         {opened.length > 0 && (
           <section className="mx-auto w-full max-w-5xl px-4 pb-12">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
+              <Trophy className="size-4 text-brass" aria-hidden />
               Already opened
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -139,7 +168,7 @@ export default async function Home() {
           </section>
         )}
 
-        <HowItWorks />
+        <PutOneUp />
       </main>
 
       <footer className="border-t border-white/5 py-8 text-center text-xs text-zinc-600">
@@ -155,53 +184,48 @@ export default async function Home() {
   );
 }
 
-function HowItWorks() {
-  const steps = [
-    {
-      icon: Lock,
-      title: "Guess blind",
-      body: "Letters, digits and symbols, and case matters. Nothing tells you how long the password is, and a guess scores a single percentage whose arithmetic is never published — two very different guesses can score the same. 100% is the password.",
-    },
-    {
-      icon: Heart,
-      title: "One life, one guess",
-      body: `Every attempt costs a life, win or lose. You hold ${LIVES_MAX}, shared across every box, and one refills every hour — twenty-four a day, free, forever. Buying more only buys you speed.`,
-    },
-    {
-      icon: ArrowRight,
-      title: "Or put one up",
-      body: `Anyone can. A three-character password starts at ${formatNaira(
-        minFundingKobo(MIN_LENGTH)
-      )} to fund; longer ones cost more, because they take longer to crack. 70% becomes the reward — ${formatNaira(
-        splitFunding(minFundingKobo(MIN_LENGTH)).rewardKobo
-      )} at the floor — and you earn 70% of every power-up bought attacking it.`,
-    },
-  ];
+/**
+ * The other half of the site, which the lobby otherwise never mentions.
+ *
+ * The three explainer cards that used to sit here are in a dialog now — they
+ * were the most important text on the page and the least read, because
+ * everybody had already scrolled to the boxes. What's left is the one thing a
+ * visitor genuinely can't discover by clicking a safe: that they can put one
+ * up themselves, and roughly what that costs.
+ */
+function PutOneUp() {
+  const floor = minFundingKobo(MIN_LENGTH);
 
   return (
     <section className="mx-auto w-full max-w-5xl px-4 pb-16">
-      <div className="grid gap-3 sm:grid-cols-3">
-        {steps.map(({ icon: Icon, title, body }, i) => (
-          <div
-            key={title}
-            style={{ ["--i" as string]: i }}
-            className="panel animate-fade-up stagger rounded-2xl p-5"
-          >
-            <Icon className="size-5 text-brass" aria-hidden />
-            <h3 className="mt-3 font-semibold">{title}</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">{body}</p>
+      <div className="panel animate-fade-up flex flex-col items-center gap-6 rounded-3xl p-6 sm:flex-row sm:p-8">
+        <div className="flex shrink-0 gap-2">
+          <SafeArt design="emerald" className="size-16 sm:size-20" />
+          <SafeArt design="midnight" className="size-16 sm:size-20" />
+          <SafeArt design="crimson" className="hidden size-16 sm:block sm:size-20" />
+        </div>
+        <div className="min-w-0 flex-1 text-center sm:text-left">
+          <h2 className="text-xl font-bold sm:text-2xl">Put a safe up yourself</h2>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+            Anyone can, and it isn&apos;t an application — a name, a password and a
+            reward is the whole of it. From {formatNaira(floor)}, in a safe you
+            pick. You keep 70% of everything hunters spend trying to open it, and
+            whoever cracks it takes the reward.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 rounded-xl bg-brass px-5 py-2.5 text-sm font-bold text-zinc-950 transition hover:bg-brass-bright"
+            >
+              Build a spendbox
+              <ArrowRight className="size-4" aria-hidden />
+            </Link>
+            <HowItWorksButton
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-semibold transition hover:border-brass/40"
+              label="Read the rules first"
+            />
           </div>
-        ))}
-      </div>
-
-      <div className="mt-6 text-center">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-semibold transition hover:border-brass/40"
-        >
-          Build a spendbox
-          <ArrowRight className="size-4" aria-hidden />
-        </Link>
+        </div>
       </div>
     </section>
   );

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Lock, LockOpen, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import { rewardLabel } from "@/lib/game/rewards";
 import { DifficultyBadge } from "@/components/difficulty-badge";
+import { SafeArt } from "@/components/safe/safe-art";
 import { plural } from "@/lib/plural";
 import type { PublicBox } from "@/lib/types";
 
@@ -25,18 +26,14 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
             {box.kind === "general" ? "The public box" : `by ${box.contributor}`}
           </p>
         </div>
-        <span
-          className={
-            "flex size-9 shrink-0 items-center justify-center rounded-lg " +
-            (open ? "bg-white/5" : "bg-brass/10")
-          }
-        >
-          {open ? (
-            <LockOpen className="size-4 text-zinc-400" aria-hidden />
-          ) : (
-            <Lock className="size-4 text-brass" aria-hidden />
-          )}
-        </span>
+        {/* The contributor's own safe, at thumbnail size. An opened box shows
+            it swung — the card should read as spent before you get to the
+            greyed-out figure underneath. */}
+        <SafeArt
+          design={box.design}
+          mood={open ? "open" : "idle"}
+          className="size-11 shrink-0 transition group-hover:scale-105"
+        />
       </div>
 
       <p

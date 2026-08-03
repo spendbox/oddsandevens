@@ -86,6 +86,25 @@ export function splitFunding(fundingKobo: number): Split {
   return { fundingKobo, rewardKobo: fundingKobo - platformKobo, platformKobo };
 }
 
+/**
+ * The 70/30 split on anything a *player* spends against a box — a power-up or
+ * a life. Same direction of rounding as the funding split: the odd kobo goes
+ * to the platform, so the two never disagree by a rounding rule.
+ *
+ * On the platform's own box there is nobody to pay, and the caller decides
+ * that rather than this: it takes an amount, not a box.
+ */
+export function splitSale(kobo: number): {
+  contributorKobo: number;
+  platformKobo: number;
+} {
+  const platformKobo = Math.ceil((kobo * PLATFORM_SHARE_PERCENT) / 100);
+  return { contributorKobo: kobo - platformKobo, platformKobo };
+}
+
+/** What a contributor keeps out of everything a player spends. 70. */
+export const CONTRIBUTOR_SHARE_PERCENT = 100 - PLATFORM_SHARE_PERCENT;
+
 /** ₦1,234,500 rather than 123450000. */
 export function formatNaira(kobo: number): string {
   return `₦${Math.round(kobo / KOBO).toLocaleString("en-NG")}`;

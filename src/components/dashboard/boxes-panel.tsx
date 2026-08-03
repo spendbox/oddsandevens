@@ -6,14 +6,17 @@
 // something waiting to be paid for, live and under siege, or cracked. The card
 // says which, and puts the one action that matters next to it.
 //
-// The line between draft and funded is the important one. A draft is yours to
-// edit or throw away. The moment money is behind it, players start spending
-// real lives against that exact password — so it can't be edited, can't be
-// deleted, and the reward can only go up.
+// The line between unpublished and funded is the important one, and it is
+// *publication*, not creation: a draft and a box whose checkout was abandoned
+// are equally unplayed, and both are yours to edit or throw away. The moment
+// money is behind it, players start spending real lives against that exact
+// password — so it can't be edited, can't be deleted, and the reward can only
+// go up.
 
 import Link from "next/link";
 import { useState } from "react";
 import { ExternalLink, Trash2, TrendingUp, Zap } from "lucide-react";
+import { SafeArt } from "@/components/safe/safe-art";
 import { formatNaira, rewardLabel, splitFunding } from "@/lib/game/rewards";
 import { MAX_FUNDING_KOBO } from "@/lib/constants";
 import { plural } from "@/lib/plural";
@@ -91,21 +94,31 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
   }
 
   async function discard() {
-    if (!window.confirm(`Delete the draft “${box.title}”? This can't be undone.`)) return;
+    if (!window.confirm(`Delete “${box.title}”? This can't be undone.`)) return;
     setBusy(true);
     const res = await fetch(`/api/contributor/boxes/${box.id}`, { method: "DELETE" });
     setBusy(false);
     if (res.ok) onChanged();
-    else setError("Couldn't delete that. Only drafts can be deleted.");
+    else setError("Couldn't delete that. A box that's been paid for is permanent.");
   }
+
+  const unpublished = box.status === "draft" || box.status === "funding";
 
   return (
     <article className="panel rounded-2xl p-4">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <header className="flex items-start gap-3">
+        <SafeArt
+          design={box.design}
+          mood={box.status === "unlocked" ? "open" : "idle"}
+          className="size-12 shrink-0"
+        />
+        <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold text-zinc-100">{box.title}</h3>
           <p className="mt-0.5 text-xs text-zinc-500">
-            {box.length} characters · you paid {formatNaira(box.fundingKobo)}
+            {box.length} characters ·{" "}
+            {unpublished
+              ? `${formatNaira(box.fundingKobo)} to fund`
+              : `you paid ${formatNaira(box.fundingKobo)}`}
           </p>
         </div>
         <StatusPill status={box.status} />
@@ -128,7 +141,11 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
         />
       </div>
 
-      <RevenueEstimate hunters={box.playersCount} earnedKobo={box.earnedKobo} />
+      <RevenueEstimate
+        rewardKobo={box.rewardKobo}
+        hunters={box.playersCount}
+        earnedKobo={box.earnedKobo}
+      />
 
       {box.status === "unlocked" && (
         <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-400">
@@ -139,10 +156,14 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
         </p>
       )}
 
-      {box.status === "draft" && (
+      {unpublished && (
         <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-400">
-          A draft. Nobody can see it and nothing has been charged. Fund it to put
-          it live — after that the password is fixed for good.
+          {box.status === "draft"
+            ? "A draft. Nobody can see it and nothing has been charged."
+            : "Waiting on payment. Nobody can see it and nothing has been charged yet."}{" "}
+          Fund it to put it live — after that the password, the name and the safe
+          are fixed for good, and the only thing you can change is the reward,
+          upwards.
         </p>
       )}
 
@@ -158,7 +179,7 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
       )}
 
       <footer className="mt-3 flex flex-wrap items-center gap-2">
-        {box.status === "draft" || box.status === "funding" ? (
+        {unpublished ? (
           <>
             <button
               type="button"

@@ -5,10 +5,10 @@ import { appBaseUrl } from "@/lib/base-url";
 import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
 import { newReference } from "@/lib/game/boxes";
 import {
-  POWER_UPS,
   isAvailable,
   isPowerUpKind,
   parseRevealed,
+  priceKobo,
   splitPowerUp,
 } from "@/lib/game/power-ups";
 import { findBox, findHunt } from "@/lib/game/view";
@@ -69,10 +69,12 @@ export async function POST(
     return NextResponse.json({ error: "power_up_spent" }, { status: 409 });
   }
 
-  const powerUp = POWER_UPS[kind];
+  // Priced here, off the box's own reward, and never taken from the request.
+  // The browser is told the price so it can show it; it doesn't get to name it.
+  const price = priceKobo(kind, box.reward_kobo);
   const split = box.contributor_id
-    ? splitPowerUp(powerUp.priceKobo)
-    : { contributorKobo: 0, platformKobo: powerUp.priceKobo };
+    ? splitPowerUp(price)
+    : { contributorKobo: 0, platformKobo: price };
 
   const subaccount = box.contributor_id
     ? ((
@@ -92,7 +94,7 @@ export async function POST(
     player_id: player.id,
     contributor_id: box.contributor_id,
     kind,
-    price_kobo: powerUp.priceKobo,
+    price_kobo: price,
     contributor_kobo: split.contributorKobo,
     platform_kobo: split.platformKobo,
   });
@@ -103,7 +105,7 @@ export async function POST(
 
   const init = await initializeTransaction({
     email,
-    amountKobo: powerUp.priceKobo,
+    amountKobo: price,
     reference,
     callbackUrl: `${appBaseUrl(req)}/b/${box.slug}?reference=${reference}`,
     subaccount,

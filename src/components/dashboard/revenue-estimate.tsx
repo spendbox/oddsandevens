@@ -14,6 +14,10 @@
 // the box is worth running. A rate is the thing a contributor can multiply by
 // their own expectations. What the box has *actually* made sits beside it, so
 // the projection is never confused with the takings.
+//
+// The range moves with the reward, because the shelf does: every power-up is
+// priced as a share of what's behind the password. A bigger box sells dearer
+// hints, and this is where a contributor sees that before they commit.
 
 import { useState } from "react";
 import { ChevronDown, TrendingUp } from "lucide-react";
@@ -22,15 +26,18 @@ import { BASIS, revenueRange, SPENDING_SHARE } from "@/lib/game/revenue";
 import { plural } from "@/lib/plural";
 
 export function RevenueEstimate({
+  rewardKobo,
   hunters,
   earnedKobo,
 }: {
+  /** What's behind the password. The whole shelf is priced off it. */
+  rewardKobo: number;
   /** Real hunters so far. Shown as fact, never used as the projection basis. */
   hunters: number;
   earnedKobo: number;
 }) {
   const [open, setOpen] = useState(false);
-  const range = revenueRange();
+  const range = revenueRange(rewardKobo);
 
   return (
     <div className="mt-3 rounded-xl bg-white/5 p-3">
@@ -67,9 +74,17 @@ export function RevenueEstimate({
       {open && (
         <div className="mt-2 space-y-1.5 border-t border-white/5 pt-2 text-[11px] leading-relaxed text-zinc-500">
           <p>
-            Power-ups are a box&apos;s only income. You keep{" "}
-            <strong className="text-zinc-300">{range.sharePercent}%</strong> of every
-            one bought while somebody is attacking it; Spendbox keeps the rest.
+            You keep <strong className="text-zinc-300">{range.sharePercent}%</strong> of
+            everything a hunter spends on your box — power-ups and lives alike.
+            Spendbox keeps the rest.
+          </p>
+          <p>
+            Power-ups are priced as a share of your reward, so this range moves
+            with it. On {formatNaira(range.rewardKobo)} the shelf runs from{" "}
+            <strong className="text-zinc-300">{formatNaira(range.cheapestKobo)}</strong>{" "}
+            to{" "}
+            <strong className="text-zinc-300">{formatNaira(range.fullShelfKobo)}</strong>{" "}
+            for all of it.
           </p>
           <p>
             Most people try a box, get nowhere and wander off. We assume{" "}
@@ -80,17 +95,18 @@ export function RevenueEstimate({
             {range.hunters.toLocaleString("en-NG")}.
           </p>
           <p>
-            <strong className="text-zinc-300">Low end:</strong> each of them buys one
-            power-up at {formatNaira(range.cheapestKobo)}.{" "}
-            <strong className="text-zinc-300">High end:</strong> each buys the whole
-            shelf at {formatNaira(range.fullShelfKobo)}.
+            <strong className="text-zinc-300">Low end:</strong> each spender buys the
+            cheapest power-up, {formatNaira(range.cheapestKobo)}, and never pays for a
+            life. <strong className="text-zinc-300">High end:</strong> each buys the
+            whole shelf plus {plural(range.livesPerSpender, "life", "lives")} —{" "}
+            {formatNaira(range.livesKobo)} of lives on top.
           </p>
           <p className="text-zinc-600">
             It&apos;s a rate, not a forecast — multiply it by however many people you
-            think your link will reach. The spending share is a guess rather than a
-            measurement, and a harder box keeps people hunting longer, which pushes
-            towards the top of the range. What you funded isn&apos;t in here —
-            that&apos;s the reward, and it leaves.
+            think your link will reach. The spending share and the twenty lives are
+            guesses rather than measurements, and a harder box keeps people hunting
+            longer, which pushes towards the top of the range. What you funded
+            isn&apos;t in here — that&apos;s the reward, and it leaves.
           </p>
         </div>
       )}

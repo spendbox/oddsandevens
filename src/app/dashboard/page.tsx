@@ -39,6 +39,9 @@ const NO_EARNINGS: ContributorEarnings = {
   totalKobo: 0,
   last30dKobo: 0,
   powerUpsSold: 0,
+  powerUpKobo: 0,
+  lifeKobo: 0,
+  livesSold: 0,
   platformKobo: 0,
   sharePercent: 70,
 };

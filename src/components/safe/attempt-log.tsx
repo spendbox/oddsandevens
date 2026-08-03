@@ -11,13 +11,25 @@
 //
 // Every row opens. The compressed form is right for skimming and wrong for the
 // moment you stop on one and think, which is where the game is played.
+//
+// And it sorts. Chronological order is right while you're playing and useless
+// afterwards: three hundred attempts in, the question is never "what did I try
+// last?" but "what are my best five, and what do they have in common?".
 
-import { useState } from "react";
-import { MoveDown, MoveUp, Target } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Clock, MoveDown, MoveUp, Target } from "lucide-react";
 import { LENGTH_HINT_COPY } from "@/lib/game/feedback";
 import type { AttemptRecord } from "@/lib/types";
 import { AttemptDialog } from "./attempt-dialog";
 import { ScorePill } from "./score-pill";
+
+export type AttemptSort = "recent" | "best" | "worst";
+
+const SORTS: { id: AttemptSort; label: string; icon: typeof Clock }[] = [
+  { id: "recent", label: "Newest", icon: Clock },
+  { id: "best", label: "Best", icon: ArrowDownWideNarrow },
+  { id: "worst", label: "Worst", icon: ArrowUpNarrowWide },
+];
 
 const LENGTH_ICON = {
   shorter: MoveUp,
@@ -31,8 +43,29 @@ const LENGTH_STYLE = {
   exact: "text-mark-green",
 } as const;
 
-export function AttemptLog({ attempts }: { attempts: AttemptRecord[] }) {
+export function AttemptLog({
+  attempts,
+  rewardKobo,
+}: {
+  attempts: AttemptRecord[];
+  /** What the shelf costs on this box, for the upsell inside a row. */
+  rewardKobo: number;
+}) {
   const [open, setOpen] = useState<AttemptRecord | null>(null);
+  const [sort, setSort] = useState<AttemptSort>("recent");
+
+  // The server sends them newest first. Sorting is a copy, never in place —
+  // the array belongs to the view and is re-used across renders.
+  const ordered = useMemo(() => {
+    if (sort === "recent") return attempts;
+    const copy = [...attempts];
+    copy.sort((a, b) =>
+      sort === "best"
+        ? b.scorePercent - a.scorePercent || b.ordinal - a.ordinal
+        : a.scorePercent - b.scorePercent || a.ordinal - b.ordinal
+    );
+    return copy;
+  }, [attempts, sort]);
 
   if (attempts.length === 0) {
     return (
@@ -46,8 +79,34 @@ export function AttemptLog({ attempts }: { attempts: AttemptRecord[] }) {
 
   return (
     <>
+      {attempts.length > 1 && (
+        <div
+          role="group"
+          aria-label="Sort attempts"
+          className="flex gap-1 rounded-xl bg-white/5 p-1"
+        >
+          {SORTS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={sort === id}
+              onClick={() => setSort(id)}
+              className={
+                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition " +
+                (sort === id
+                  ? "bg-brass/15 text-brass"
+                  : "text-zinc-500 hover:text-zinc-300")
+              }
+            >
+              <Icon className="size-3.5" aria-hidden />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <ol className="space-y-1.5">
-        {attempts.map((attempt) => (
+        {ordered.map((attempt) => (
           <AttemptRow
             key={attempt.ordinal}
             attempt={attempt}
@@ -55,7 +114,14 @@ export function AttemptLog({ attempts }: { attempts: AttemptRecord[] }) {
           />
         ))}
       </ol>
-      {open && <AttemptDialog attempt={open} onClose={() => setOpen(null)} />}
+
+      {open && (
+        <AttemptDialog
+          attempt={open}
+          rewardKobo={rewardKobo}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </>
   );
 }

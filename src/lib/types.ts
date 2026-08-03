@@ -3,7 +3,8 @@
 // that neither is its length, unless the player has paid to learn it.
 
 import type { Breakdown, LengthHint } from "@/lib/game/feedback";
-import type { PowerUpKind, Revealed } from "@/lib/game/power-ups";
+import type { Offering, Revealed } from "@/lib/game/power-ups";
+import type { Design } from "@/lib/game/designs";
 import type { Difficulty } from "@/lib/game/difficulty";
 
 export type BoxStatus = "draft" | "funding" | "live" | "unlocked" | "closed";
@@ -27,6 +28,8 @@ export interface PublicBox {
   rewardKobo: number;
   /** True when there's no money behind it — a challenge, not a ₦0 reward. */
   isChallenge: boolean;
+  /** Which safe it wears. Decoration; no rule reads it. */
+  design: Design;
   difficulty: Difficulty;
   status: BoxStatus;
   attemptsCount: number;
@@ -77,6 +80,8 @@ export interface HuntState {
   hasBreakdown: boolean;
   /** When that lapses, so the screen can count it down. Null when inactive. */
   breakdownUntil: string | null;
+  /** While this is in the future, guesses on this box cost no lives. */
+  secondWindUntil: string | null;
   /** The best score reached so far — the number a long hunt is measured by. */
   bestPercent: number;
   won: boolean;
@@ -86,13 +91,13 @@ export interface PlayView {
   box: PublicBox;
   player: PlayerState;
   hunt: HuntState | null;
-  powerUps: {
-    kind: PowerUpKind;
-    name: string;
-    blurb: string;
-    priceKobo: number;
-    available: boolean;
-  }[];
+  /**
+   * The shelf, priced against *this* box. Every power-up costs a share of the
+   * reward, so the same hint is a different price on a ₦7,000,000 safe and a
+   * ₦7,000 one — which means the catalogue can't be a constant in the browser
+   * and has to arrive with the view.
+   */
+  powerUps: Offering[];
   /** Set when this player already won this box. */
   claim: { amountKobo: number; status: "unclaimed" | "submitted" | "paid" } | null;
 }
@@ -148,10 +153,15 @@ export interface HuntRow {
 }
 
 export interface ContributorEarnings {
-  /** 70% of every power-up sold against this contributor's boxes. */
+  /** 70% of everything players spent against this contributor's boxes. */
   totalKobo: number;
   last30dKobo: number;
   powerUpsSold: number;
+  /** Their 70% of power-ups alone. */
+  powerUpKobo: number;
+  /** Their 70% of lives bought while hunting one of their boxes. */
+  lifeKobo: number;
+  livesSold: number;
   /** What the platform kept, shown so the split is never a mystery. */
   platformKobo: number;
   sharePercent: number;

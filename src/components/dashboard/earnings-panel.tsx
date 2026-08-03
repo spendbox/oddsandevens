@@ -27,9 +27,9 @@ export function EarningsPanel({
         <Stat label="Earned" value={formatNaira(earnings.totalKobo)} hint="All time" />
         <Stat label="Last 30 days" value={formatNaira(earnings.last30dKobo)} />
         <Stat
-          label="Power-ups sold"
-          value={String(earnings.powerUpsSold)}
-          hint={`You keep ${earnings.sharePercent}%`}
+          label="Sold to hunters"
+          value={`${earnings.powerUpsSold} + ${earnings.livesSold}`}
+          hint={`Power-ups + lives · you keep ${earnings.sharePercent}%`}
         />
       </div>
 
@@ -46,9 +46,11 @@ export function EarningsPanel({
 
       <Panel title="Where the money went">
         <dl className="space-y-2 text-sm">
-          <Row label="Players spent on power-ups">
+          <Row label="Players spent on your boxes">
             {formatNaira(earnings.totalKobo + earnings.platformKobo)}
           </Row>
+          <Row label="— of that, power-ups">{formatNaira(earnings.powerUpKobo)}</Row>
+          <Row label="— of that, lives">{formatNaira(earnings.lifeKobo)}</Row>
           <Row label={`Your share (${earnings.sharePercent}%)`} accent>
             {formatNaira(earnings.totalKobo)}
           </Row>
@@ -57,9 +59,10 @@ export function EarningsPanel({
           </Row>
         </dl>
         <p className="mt-3 text-xs text-zinc-500">
-          What you put up isn&apos;t income and isn&apos;t counted here —
-          it&apos;s the reward, paid to whoever cracks the box. Power-ups are how
-          a box pays you back.
+          Both lines are your {earnings.sharePercent}% — of every power-up bought
+          against one of your boxes, and of every life bought while hunting one.
+          What you put up isn&apos;t income and isn&apos;t counted here: that&apos;s
+          the reward, paid to whoever cracks the box.
         </p>
       </Panel>
 

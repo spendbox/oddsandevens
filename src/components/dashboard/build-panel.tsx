@@ -2,16 +2,32 @@
 
 // Building a spendbox.
 //
-// Two decisions and no more: what the password is, and how much is behind it.
-// Everything else — the reward, our cut, the difficulty, how long players will
-// be at it — falls out of those two, and the form shows each one changing as
-// it's typed. Nobody should discover what they've built at the checkout.
+// It used to be one long form: four fieldsets stacked down a page, every one of
+// them open, every one of them shouting. That is a bad shape for a decision
+// with real money at the end of it — you cannot see what you have decided
+// because everything you have not decided is in the way.
+//
+// So: four cards. Each says what it is, what you have chosen, and whether it is
+// done. Tapping one opens a dialog with the whole of that decision in it and
+// nothing else. The page you come back to is a summary you can read at a
+// glance, and the button at the bottom only lights up when the summary is
+// complete.
 //
 // A box lands as a **draft**: nothing is charged and nothing is published until
 // it's funded, so a password is worth rewriting a few times first.
 
 import { useMemo, useState } from "react";
-import { Dice5, Eye, EyeOff } from "lucide-react";
+import {
+  Check,
+  Dice5,
+  Eye,
+  EyeOff,
+  Palette,
+  Pencil,
+  Tag,
+  Vault,
+  Wallet,
+} from "lucide-react";
 import {
   ALPHABET,
   ALPHABET_SET,
@@ -34,6 +50,9 @@ import {
   freeTime,
   roughly,
 } from "@/lib/game/difficulty";
+import { DESIGNS, DESIGN_SPECS, DEFAULT_DESIGN, type Design } from "@/lib/game/designs";
+import { Modal } from "@/components/ui/modal";
+import { SafeArt } from "@/components/safe/safe-art";
 import { RevenueEstimate } from "./revenue-estimate";
 import { INPUT, Panel, PRIMARY } from "./shared";
 
@@ -45,12 +64,15 @@ function suggest(length: number): string {
   return Array.from(bytes, (n) => ALPHABET[n % ALPHABET.length]).join("");
 }
 
+type Card = "box" | "password" | "reward" | "design" | null;
+
 export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
   const [title, setTitle] = useState("");
   const [blurb, setBlurb] = useState("");
   const [secret, setSecret] = useState("");
   const [fundingNaira, setFundingNaira] = useState("");
-  const [reveal, setReveal] = useState(false);
+  const [design, setDesign] = useState<Design>(DEFAULT_DESIGN);
+  const [card, setCard] = useState<Card>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,22 +89,16 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
   );
 
   const length = clean.length;
-  const valid = length >= MIN_LENGTH && length <= MAX_LENGTH && rejected.length === 0;
+  const passwordOk = length >= MIN_LENGTH && length <= MAX_LENGTH && rejected.length === 0;
   const floor = length >= MIN_LENGTH ? minFundingKobo(Math.min(length, MAX_LENGTH)) : 0;
   const fundingKobo = Math.round(Number(fundingNaira || 0) * 100);
   const split = splitFunding(Math.max(fundingKobo, floor));
-
-  const attempts = valid ? estimateAttempts(length) : 0;
+  const titleOk = title.trim().length > 0;
+  const rewardOk = passwordOk && fundingKobo >= floor && fundingKobo > 0;
+  const ready = titleOk && passwordOk && rewardOk;
 
   async function build() {
-    if (!valid) {
-      setError(`The password needs ${MIN_LENGTH}–${MAX_LENGTH} usable characters.`);
-      return;
-    }
-    if (fundingKobo < floor) {
-      setError(`A ${length}-character password needs at least ${formatNaira(floor)}.`);
-      return;
-    }
+    if (!ready) return;
 
     setBusy(true);
     setError(null);
@@ -94,6 +110,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
         blurb: blurb.trim(),
         secret: clean,
         fundingKobo,
+        design,
       }),
     });
     const body = (await res.json().catch(() => ({}))) as {
@@ -118,109 +135,63 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
     setBlurb("");
     setSecret("");
     setFundingNaira("");
+    setDesign(DEFAULT_DESIGN);
     onBuilt();
   }
 
   return (
     <div className="space-y-4">
-      <Panel title="The box">
-        <div className="space-y-3">
-          <input
-            value={title}
-            maxLength={TITLE_MAX}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Name it — “The Friday Safe”"
-            className={INPUT}
-          />
-          <textarea
-            value={blurb}
-            maxLength={BLURB_MAX}
-            rows={2}
-            onChange={(e) => setBlurb(e.target.value)}
-            placeholder="One line for the card. Optional."
-            className={`${INPUT} resize-none`}
-          />
-        </div>
-      </Panel>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <BuildCard
+          icon={<Tag className="size-4" aria-hidden />}
+          label="The box"
+          value={titleOk ? title.trim() : "Give it a name"}
+          done={titleOk}
+          onOpen={() => setCard("box")}
+        />
+        <BuildCard
+          icon={<Vault className="size-4" aria-hidden />}
+          label="The password"
+          value={
+            passwordOk
+              ? `${length} characters · ${difficultyOf(length)}`
+              : "Write one, or roll one"
+          }
+          done={passwordOk}
+          onOpen={() => setCard("password")}
+        />
+        <BuildCard
+          icon={<Wallet className="size-4" aria-hidden />}
+          label="The reward"
+          value={
+            rewardOk
+              ? `${formatNaira(split.rewardKobo)} to whoever cracks it`
+              : passwordOk
+                ? `From ${formatNaira(floor)}`
+                : "Write the password first"
+          }
+          done={rewardOk}
+          onOpen={() => passwordOk && setCard("reward")}
+          disabled={!passwordOk}
+        />
+        <BuildCard
+          icon={<Palette className="size-4" aria-hidden />}
+          label="The safe"
+          value={DESIGN_SPECS[design].name}
+          done
+          art={<SafeArt design={design} className="size-9" />}
+          onOpen={() => setCard("design")}
+        />
+      </div>
 
-      <Panel title="The password">
-        <div className="space-y-2">
-          <div className="relative">
-            <input
-              type={reveal ? "text" : "password"}
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              placeholder="Type it, or roll one"
-              spellCheck={false}
-              autoComplete="off"
-              autoCapitalize="off"
-              autoCorrect="off"
-              className={`${INPUT} pr-20 font-mono tracking-[0.15em]`}
-            />
-            <div className="absolute inset-y-0 right-0 flex items-center gap-1 pr-2">
-              <button
-                type="button"
-                onClick={() => setReveal((r) => !r)}
-                aria-label={reveal ? "Hide" : "Show"}
-                className="flex size-8 items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-300"
-              >
-                {reveal ? (
-                  <EyeOff className="size-4" aria-hidden />
-                ) : (
-                  <Eye className="size-4" aria-hidden />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSecret(suggest(length >= MIN_LENGTH ? length : 8));
-                  setReveal(true);
-                }}
-                aria-label="Suggest a password"
-                className="flex size-8 items-center justify-center rounded-lg text-zinc-500 hover:text-brass"
-              >
-                <Dice5 className="size-4" aria-hidden />
-              </button>
-            </div>
-          </div>
-
-          <p className="text-xs text-zinc-500">
-            {MIN_LENGTH}–{MAX_LENGTH} characters. Letters, digits and{" "}
-            <span className="font-mono">! @ # $ % &amp; * ? + = - _</span>.{" "}
-            <strong className="text-zinc-300">Case matters</strong> — players have to
-            get it exactly right.
-            {length > 0 && (
-              <>
-                {" "}
-                <span className="text-zinc-300">
-                  {length} character{length === 1 ? "" : "s"}
-                </span>
-              </>
-            )}
-          </p>
-
-          {rejected.length > 0 && (
-            <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300">
-              These aren&apos;t allowed and would change your password:{" "}
-              <span className="font-mono">{rejected.join(" ")}</span>. Remove them.
-            </p>
-          )}
-
-          <p className="rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-500">
-            Nobody at Spendbox can read this back to you — not even on this page
-            once you leave it. Keep your own copy.
-          </p>
-        </div>
-      </Panel>
-
-      {valid && (
+      {passwordOk && (
         <Panel title="What you're building">
           <div className="grid gap-2 sm:grid-cols-3">
             <Figure label="Difficulty" value={difficultyOf(length)} />
-            <Figure label="Attempts to crack" value={roughly(attempts)} />
+            <Figure label="Attempts to crack" value={roughly(estimateAttempts(length))} />
             <Figure
               label="On free lives"
-              value={freeTime(daysOfFreeLives(attempts))}
+              value={freeTime(daysOfFreeLives(estimateAttempts(length)))}
             />
           </div>
           <p className="mt-3 text-xs text-zinc-500">
@@ -229,65 +200,330 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
             arithmetic behind it is never disclosed, the only safe reading of a
             position is to try every character and keep the best — which is why
             the number is what it is. A player who buys Colour Read roughly
-            halves it, to about{" "}
-            {roughly(estimateAttemptsWithBreakdown(length))}.
+            halves it, to about {roughly(estimateAttemptsWithBreakdown(length))}.
           </p>
 
-          <RevenueEstimate hunters={0} earnedKobo={0} />
+          {rewardOk && (
+            <RevenueEstimate rewardKobo={split.rewardKobo} hunters={0} earnedKobo={0} />
+          )}
         </Panel>
       )}
-
-      <Panel title="The reward">
-        <div className="space-y-3">
-          <div className="relative">
-            <span className="absolute inset-y-0 left-4 flex items-center text-zinc-500">₦</span>
-            <input
-              inputMode="numeric"
-              value={fundingNaira}
-              onChange={(e) => setFundingNaira(e.target.value.replace(/[^\d]/g, ""))}
-              placeholder={
-                valid ? String(Math.round(floor / 100)) : "Write a password first"
-              }
-              className={`${INPUT} pl-8 font-mono`}
-            />
-          </div>
-
-          {valid && (
-            <dl className="grid grid-cols-3 gap-2 text-center">
-              <Split label="You pay" value={formatNaira(split.fundingKobo)} />
-              <Split label="Reward" value={formatNaira(split.rewardKobo)} accent />
-              <Split label="Spendbox keeps" value={formatNaira(split.platformKobo)} />
-            </dl>
-          )}
-
-          <p className="text-xs text-zinc-500">
-            {valid
-              ? `A ${length}-character password needs at least ${formatNaira(floor)}. Put up more for a bigger reward — and you can raise it later, but never lower it.`
-              : "The floor rises with the password's length."}
-          </p>
-
-        </div>
-      </Panel>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       <button
         type="button"
-        disabled={busy}
+        disabled={busy || !ready}
         onClick={() => void build()}
         className={`w-full ${PRIMARY}`}
       >
-        {busy ? "Saving…" : "Save as draft"}
+        {busy ? "Saving…" : ready ? "Save as draft" : "Fill in the cards above"}
       </button>
 
       <p className="text-center text-xs text-zinc-500">
-        Drafts are free, invisible and editable. You fund it from the Boxes tab
-        when you&apos;re happy — and after that the password is fixed and the box
-        can never be deleted.
+        Drafts are free, invisible and editable — and you can throw one away at
+        any point before it&apos;s paid for. You fund it from the Boxes tab when
+        you&apos;re happy. After that the password, the name and the safe are
+        fixed for good; the only thing you can still change is the reward, and
+        it can only go up.
       </p>
 
       <FundingLadder />
+
+      {card === "box" && (
+        <CardDialog title="The box" onClose={() => setCard(null)}>
+          <label className="block">
+            <span className="text-sm font-medium text-zinc-700">Name</span>
+            <input
+              value={title}
+              maxLength={TITLE_MAX}
+              autoFocus
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="The Friday Safe"
+              className={LIGHT_INPUT}
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium text-zinc-700">One line for the card</span>
+            <textarea
+              value={blurb}
+              maxLength={BLURB_MAX}
+              rows={3}
+              onChange={(e) => setBlurb(e.target.value)}
+              placeholder="Optional. Say something that makes people want a go."
+              className={`${LIGHT_INPUT} resize-none`}
+            />
+            <span className="mt-1 block text-right text-xs text-zinc-400">
+              {blurb.length}/{BLURB_MAX}
+            </span>
+          </label>
+        </CardDialog>
+      )}
+
+      {card === "password" && (
+        <PasswordCard
+          secret={secret}
+          setSecret={setSecret}
+          clean={clean}
+          rejected={rejected}
+          onClose={() => setCard(null)}
+        />
+      )}
+
+      {card === "reward" && (
+        <CardDialog title="The reward" onClose={() => setCard(null)}>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-4 flex items-center text-zinc-400">₦</span>
+            <input
+              inputMode="numeric"
+              autoFocus
+              value={fundingNaira}
+              onChange={(e) => setFundingNaira(e.target.value.replace(/[^\d]/g, ""))}
+              placeholder={String(Math.round(floor / 100))}
+              className={`${LIGHT_INPUT} pl-8 font-mono`}
+            />
+          </div>
+
+          <dl className="grid grid-cols-3 gap-2 text-center">
+            <LightSplit label="You pay" value={formatNaira(split.fundingKobo)} />
+            <LightSplit label="Reward" value={formatNaira(split.rewardKobo)} accent />
+            <LightSplit label="Spendbox keeps" value={formatNaira(split.platformKobo)} />
+          </dl>
+
+          <p className="text-sm text-zinc-500">
+            A {length}-character password needs at least {formatNaira(floor)}. Put
+            up more for a bigger reward — and you can raise it later, but never
+            lower it.
+          </p>
+          <p className="text-sm text-zinc-500">
+            The reward is what the shelf is priced against: every power-up costs a
+            share of it, so a bigger box earns you more per hint as well as
+            drawing more people to it.
+          </p>
+        </CardDialog>
+      )}
+
+      {card === "design" && (
+        <CardDialog title="The safe" onClose={() => setCard(null)}>
+          <p className="text-sm text-zinc-500">
+            Decoration, and only decoration — it changes nothing about the game.
+            It&apos;s what people see on the card, the share link and the screen
+            they spend a fortnight staring at.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {DESIGNS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setDesign(key)}
+                className={
+                  "flex flex-col items-center gap-1 rounded-xl border-2 p-2 transition " +
+                  (design === key
+                    ? "border-brass bg-brass/5"
+                    : "border-zinc-200 hover:border-zinc-300")
+                }
+              >
+                <SafeArt design={key} className="size-14" />
+                <span className="text-xs font-medium text-zinc-700">
+                  {DESIGN_SPECS[key].name}
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="text-sm text-zinc-500">{DESIGN_SPECS[design].note}</p>
+        </CardDialog>
+      )}
     </div>
+  );
+}
+
+const LIGHT_INPUT =
+  "mt-1 w-full rounded-xl border border-zinc-200 px-4 py-3 text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-brass";
+
+/**
+ * One decision, closed.
+ *
+ * The tick is the whole point: four cards, four ticks, and the button at the
+ * bottom is honest about being disabled because you can see exactly which one
+ * is missing.
+ */
+function BuildCard({
+  icon,
+  label,
+  value,
+  done,
+  art,
+  disabled,
+  onOpen,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  done: boolean;
+  art?: React.ReactNode;
+  disabled?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onOpen}
+      className={
+        "panel flex items-center gap-3 rounded-2xl p-4 text-left transition " +
+        (disabled
+          ? "cursor-not-allowed opacity-50"
+          : "hover:-translate-y-0.5 hover:border-brass/40")
+      }
+    >
+      {art ?? (
+        <span
+          className={
+            "flex size-9 shrink-0 items-center justify-center rounded-lg " +
+            (done ? "bg-mark-green/15 text-mark-green" : "bg-white/5 text-zinc-500")
+          }
+        >
+          {done ? <Check className="size-4" aria-hidden /> : icon}
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block text-[11px] uppercase tracking-wide text-zinc-500">
+          {label}
+        </span>
+        <span
+          className={
+            "block truncate text-sm font-medium " +
+            (done ? "text-zinc-100" : "text-zinc-500")
+          }
+        >
+          {value}
+        </span>
+      </span>
+      <Pencil className="size-4 shrink-0 text-zinc-600" aria-hidden />
+    </button>
+  );
+}
+
+function CardDialog({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Modal
+      title={title}
+      onClose={onClose}
+      footer={
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright"
+        >
+          Done
+        </button>
+      }
+    >
+      <div className="space-y-4 pb-1">{children}</div>
+    </Modal>
+  );
+}
+
+function PasswordCard({
+  secret,
+  setSecret,
+  clean,
+  rejected,
+  onClose,
+}: {
+  secret: string;
+  setSecret: (next: string) => void;
+  clean: string;
+  rejected: string[];
+  onClose: () => void;
+}) {
+  const [reveal, setReveal] = useState(false);
+  const length = clean.length;
+
+  return (
+    <CardDialog title="The password" onClose={onClose}>
+      <div className="relative">
+        <input
+          type={reveal ? "text" : "password"}
+          value={secret}
+          autoFocus
+          onChange={(e) => setSecret(e.target.value)}
+          placeholder="Type it, or roll one"
+          spellCheck={false}
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          className={`${LIGHT_INPUT} pr-20 font-mono tracking-[0.15em]`}
+        />
+        <div className="absolute inset-y-0 right-0 top-1 flex items-center gap-1 pr-2">
+          <button
+            type="button"
+            onClick={() => setReveal((r) => !r)}
+            aria-label={reveal ? "Hide" : "Show"}
+            className="flex size-8 items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-700"
+          >
+            {reveal ? (
+              <EyeOff className="size-4" aria-hidden />
+            ) : (
+              <Eye className="size-4" aria-hidden />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSecret(suggest(length >= MIN_LENGTH ? length : 8));
+              setReveal(true);
+            }}
+            aria-label="Suggest a password"
+            className="flex size-8 items-center justify-center rounded-lg text-zinc-400 hover:text-brass"
+          >
+            <Dice5 className="size-4" aria-hidden />
+          </button>
+        </div>
+      </div>
+
+      <p className="text-sm text-zinc-500">
+        {MIN_LENGTH}–{MAX_LENGTH} characters.{" "}
+        <strong className="text-zinc-700">
+          Anything on a keyboard can go in it
+        </strong>{" "}
+        — letters in either case, digits, and every symbol:{" "}
+        <span className="break-all font-mono text-xs">
+          ! &quot; # $ % &amp; &apos; ( ) * + , - . / : ; &lt; = &gt; ? @ [ \ ] ^ _ ` {"{"} | {"}"} ~
+        </span>
+        . <strong className="text-zinc-700">Case matters</strong> — players have to
+        get it exactly right.
+        {length > 0 && (
+          <>
+            {" "}
+            <span className="text-zinc-700">
+              {length} character{length === 1 ? "" : "s"}, {difficultyOf(length)}.
+            </span>
+          </>
+        )}
+      </p>
+
+      {rejected.length > 0 && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          These aren&apos;t allowed and would change your password:{" "}
+          <span className="font-mono">{rejected.join(" ")}</span>. Remove them.
+          Spaces are the usual culprit.
+        </p>
+      )}
+
+      <p className="rounded-lg bg-zinc-100 px-3 py-2.5 text-sm text-zinc-600">
+        Nobody at Spendbox can read this back to you — not even on this page once
+        you leave it. Keep your own copy.
+      </p>
+    </CardDialog>
   );
 }
 
@@ -300,13 +536,22 @@ function Figure({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Split({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function LightSplit({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
   return (
-    <div className="rounded-xl bg-white/5 px-2 py-2.5">
+    <div className="rounded-xl bg-zinc-100 px-2 py-2.5">
       <dt className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</dt>
       <dd
         className={
-          "mt-0.5 font-mono text-sm font-bold " + (accent ? "text-brass" : "text-zinc-200")
+          "mt-0.5 font-mono text-sm font-bold " +
+          (accent ? "text-brass" : "text-zinc-800")
         }
       >
         {value}
@@ -351,3 +596,5 @@ function FundingLadder() {
     </details>
   );
 }
+
+export { INPUT };

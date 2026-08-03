@@ -11,6 +11,7 @@ import { getAuthedContributor } from "@/lib/contributor-auth";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
 import { fundingIsValid, minFundingKobo, splitFunding } from "@/lib/game/rewards";
 import { estimateAttempts } from "@/lib/game/difficulty";
+import { toDesign, type Design } from "@/lib/game/designs";
 import type { OwnedBox } from "@/lib/types";
 
 /** The contributor's own boxes, with the earnings each one has thrown off. */
@@ -32,22 +33,37 @@ export async function GET() {
     created_at: string;
   })[];
 
-  // One query for all the power-up income, bucketed by box in memory — a box
-  // list is short, and this keeps it to two round trips however long it gets.
-  const { data: orders } = await db
-    .from("power_up_orders")
-    .select("box_id, contributor_kobo")
-    .eq("contributor_id", contributor.id)
-    .eq("status", "paid");
+  // Two queries for all the income, bucketed by box in memory — a box list is
+  // short, and this keeps it to a fixed number of round trips however long it
+  // gets. Lives count towards a box now: they're bought with that safe on
+  // screen and they pay its contributor.
+  const [{ data: orders }, { data: lifeOrders }] = await Promise.all([
+    db
+      .from("power_up_orders")
+      .select("box_id, contributor_kobo")
+      .eq("contributor_id", contributor.id)
+      .eq("status", "paid"),
+    db
+      .from("life_orders")
+      .select("box_id, contributor_kobo")
+      .eq("contributor_id", contributor.id)
+      .eq("status", "paid"),
+  ]);
 
+  type Income = { box_id: string | null; contributor_kobo: number };
   const earned = new Map<string, { kobo: number; count: number }>();
-  for (const order of (orders ?? []) as { box_id: string; contributor_kobo: number }[]) {
-    const current = earned.get(order.box_id) ?? { kobo: 0, count: 0 };
-    earned.set(order.box_id, {
-      kobo: current.kobo + Number(order.contributor_kobo),
-      count: current.count + 1,
-    });
-  }
+  const fold = (rows: Income[], counts: boolean) => {
+    for (const order of rows) {
+      if (!order.box_id) continue;
+      const current = earned.get(order.box_id) ?? { kobo: 0, count: 0 };
+      earned.set(order.box_id, {
+        kobo: current.kobo + Number(order.contributor_kobo),
+        count: current.count + (counts ? 1 : 0),
+      });
+    }
+  };
+  fold((orders ?? []) as Income[], true);
+  fold((lifeOrders ?? []) as Income[], false);
 
   const boxes: OwnedBox[] = rows.map((row) => ({
     ...toPublicBox(row, { contributor: contributor.display_name }),
@@ -56,9 +72,11 @@ export async function GET() {
     platformFeeKobo: Number(row.platform_fee_kobo),
     earnedKobo: earned.get(row.id)?.kobo ?? 0,
     powerUpsSold: earned.get(row.id)?.count ?? 0,
-    // Only a draft can still be changed. Once money is behind a box, players
-    // are spending real lives against that exact password.
-    editable: row.status === "draft",
+    // Anything unpublished can still be changed or thrown away. The line is
+    // publication, not creation: a box awaiting a payment that never came is
+    // as unplayed as a draft. Once it's live, players are spending real lives
+    // against that exact password and it is permanent.
+    editable: row.status === "draft" || row.status === "funding",
     createdAt: row.created_at,
     // The author wrote the password, so telling them its length — and the
     // attempt estimate derived from it — reveals nothing they don't know.
@@ -106,6 +124,7 @@ export async function POST(req: Request) {
         funding_kobo: split.fundingKobo,
         reward_kobo: split.rewardKobo,
         platform_fee_kobo: split.platformKobo,
+        design: parsed.design,
         status: "draft",
       })
       .select(PUBLIC_BOX_COLUMNS)
@@ -131,6 +150,7 @@ export interface ParsedBox {
   blurb: string;
   secret: string;
   fundingKobo: number;
+  design: Design;
 }
 
 /**
@@ -150,12 +170,16 @@ export async function readBoxBody(
     blurb?: string;
     secret?: string;
     fundingKobo?: number;
+    design?: string;
   };
 
   const title = (body.title ?? "").trim();
   const blurb = (body.blurb ?? "").trim();
   const secret = body.secret ?? "";
   const fundingKobo = Math.trunc(Number(body.fundingKobo ?? 0));
+  // Decoration, so an unrecognised one is quietly the default rather than a
+  // 400 — there is nothing here worth failing a box creation over.
+  const design = toDesign(body.design);
 
   if (!title || title.length > TITLE_MAX) return { error: "invalid_title" };
   if (blurb.length > BLURB_MAX) return { error: "invalid_blurb" };
@@ -169,5 +193,5 @@ export async function readBoxBody(
     return { error: "funding_too_low", minFundingKobo: minFundingKobo(secret.length) };
   }
 
-  return { title, blurb, secret, fundingKobo };
+  return { title, blurb, secret, fundingKobo, design };
 }

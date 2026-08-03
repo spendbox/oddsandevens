@@ -13,7 +13,16 @@ import { countdown, useNow } from "./lives-badge";
 
 const QUICK_PICKS = [1, 3, 5, 10];
 
-export function BuyLivesDialog({ onClose }: { onClose: () => void }) {
+export function BuyLivesDialog({
+  onClose,
+  /** The box they were hunting, if they were. Its contributor takes 70%. */
+  slug,
+  contributor,
+}: {
+  onClose: () => void;
+  slug?: string;
+  contributor?: string | null;
+}) {
   const { player } = usePlayer();
   const now = useNow(player.nextLifeAt);
   const [quantity, setQuantity] = useState(3);
@@ -26,7 +35,7 @@ export function BuyLivesDialog({ onClose }: { onClose: () => void }) {
     const res = await fetch("/api/player/lives", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quantity }),
+      body: JSON.stringify({ quantity, slug }),
     });
     const body = (await res.json().catch(() => ({}))) as {
       authorizationUrl?: string;
@@ -72,6 +81,13 @@ export function BuyLivesDialog({ onClose }: { onClose: () => void }) {
             ? ` — the next one in ${countdown(player.nextLifeAt, now)}.`
             : ", and your pool is full right now."}
         </p>
+
+        {contributor && (
+          <p className="text-sm text-zinc-500">
+            70% of this goes to {contributor}, who put up the box you&apos;re
+            hunting. Lives you buy anywhere work everywhere.
+          </p>
+        )}
 
         <div className="flex flex-wrap gap-2">
           {QUICK_PICKS.map((n) => (
