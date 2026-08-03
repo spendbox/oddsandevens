@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://spendbox.site"),
-  title: "Spendbox — branded games for your business",
+  title: "Spendbox — guess the password, open the safe",
   description:
-    "Hide rewards in a tile grid, share one link, and turn customers into regulars.",
+    "Every spendbox is a password and a prize. Guess it, and the money is yours. Playing is free.",
 };
 
 export default function RootLayout({
@@ -29,7 +29,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-background text-foreground">
+        {children}
+      </body>
     </html>
   );
 }

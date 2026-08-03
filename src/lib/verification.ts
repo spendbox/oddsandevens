@@ -3,9 +3,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendVerificationCodeEmail } from "@/lib/email";
 
 export type CodePurpose =
-  | "merchant_signup"
+  | "contributor_signup"
   | "password_reset"
-  | "customer_verify";
+  | "player_verify";
 
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS = 5;

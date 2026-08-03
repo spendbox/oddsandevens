@@ -1,122 +1,120 @@
-// Game constants. The Postgres functions in supabase/migrations mirror the
-// cooldown and tier caps — change both places together.
+// Platform-wide constants. The Postgres functions in supabase/migrations
+// mirror the life economy (LIVES_MAX, LIFE_REGEN_MINUTES) and the 70/30
+// split — change both places together.
 
-export const COOLDOWN_HOURS = 10;
+// ---------------------------------------------------------------------------
+// The alphabet
+// ---------------------------------------------------------------------------
 
-// Every grid is a fixed 7x7 board.
-export const GRID_SIZE = 7;
-
-// Reward validity is configured in days on the dashboard.
-export const REWARD_EXPIRY_DAYS_MIN = 1;
-export const REWARD_EXPIRY_DAYS_MAX = 60;
-export const REWARD_EXPIRY_DAYS_DEFAULT = 30;
-
-// A completed grid rests before it auto-resets with fresh stock.
-export const GRID_RESET_DAYS_DEFAULT = 7;
-
-export const TIER_LIMITS = {
-  free: { maxRewards: 2, maxActiveGrids: 1, resetDaysMin: 7, resetDaysMax: 7 },
-  premium: {
-    maxRewards: 10,
-    // Premium runs unlimited grids — grids can model whole product lines.
-    maxActiveGrids: Number.POSITIVE_INFINITY,
-    resetDaysMin: 7,
-    resetDaysMax: 365,
-  },
-} as const;
-
-export type SubscriptionTier = keyof typeof TIER_LIMITS;
-
-export const TILE_SHAPES = [
-  "square",
-  "interlock-sharp",
-  "interlock-curved",
-  "interlock-round",
-  "interlock-chevron",
-] as const;
-export type TileShape = (typeof TILE_SHAPES)[number];
-
-// Premium is a yearly plan: each payment buys 365 days.
-export const PREMIUM_TERM_DAYS = 365;
-
-// Fallback premium price if the app_settings row is missing (kobo, ₦5,000).
-export const DEFAULT_PREMIUM_PRICE_KOBO = 500_000;
-
-// Plays-based allowances. A "play" is one tile tap that actually consumes a
-// tile (a hit or a miss); cooldown/taken/invalid taps don't count. Each
-// merchant gets an annual base allowance by tier (below, admin-tunable), plus
-// any purchased top-up plays that don't expire. When both run out, play pauses.
-export const PLAYS_PERIOD_DAYS = 365;
-export const DEFAULT_FREE_YEARLY_PLAYS = 100;
-export const DEFAULT_PREMIUM_YEARLY_PLAYS = 5000;
-// Top-ups are priced per 1,000 plays; the business buys any custom quantity.
-export const DEFAULT_TOPUP_PRICE_PER_1000_KOBO = 100_000; // ₦1,000 / 1,000 plays
 /**
- * What a player pays for more plays, and how many they get. ₦250 for ten,
- * good for the current week — the only thing a *player* ever pays for, and
- * strictly optional: the free weekly three are enough to top a board.
- * Overridden by app_settings (life_topup_price_kobo / life_topup_lives).
+ * Everything a password can be built from.
+ *
+ * Case matters. `k` and `K` are different characters, which roughly squares
+ * the search space against an uppercase-only alphabet, and is the single
+ * biggest reason a box now takes hundreds of attempts rather than a dozen.
  */
-export const DEFAULT_LIFE_TOPUP_PRICE_KOBO = 25_000; // ₦250
-export const DEFAULT_LIFE_TOPUP_LIVES = 10;
+export const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+export const LOWER = "abcdefghijklmnopqrstuvwxyz".split("");
+export const DIGITS = "0123456789".split("");
+
 /**
- * A business can set its own price instead. Below ₦500 the Paystack fee eats
- * most of it and the split stops being worth splitting, so that's the floor.
- * Overridden by app_settings (life_topup_min_price_kobo).
+ * Every printable symbol a QWERTY keyboard can produce without a modifier
+ * hunt — the full unshifted and shifted punctuation rows.
+ *
+ * Space is the one deliberate omission. It is invisible in a monospaced field,
+ * survives a copy-paste inconsistently, and a player who cannot see whether
+ * their guess ends in one is being cheated rather than challenged.
  */
-export const DEFAULT_LIFE_TOPUP_MIN_PRICE_KOBO = 50_000; // ₦500
+export const SPECIALS = [
+  "!", '"', "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
+  ":", ";", "<", "=", ">", "?", "@", "[", "\\", "]", "^", "_", "`", "{", "|",
+  "}", "~",
+];
 
-// What Spendbox keeps of a life purchase; the business keeps the rest. The
-// split itself is done in `life_revenue` — this is only the fallback for a
-// setting that hasn't been written yet.
-export const DEFAULT_PLATFORM_SHARE_PERCENT = 30;
+export const ALPHABET = [...UPPER, ...LOWER, ...DIGITS, ...SPECIALS];
+export const ALPHABET_SET = new Set(ALPHABET);
 
-export const TOPUP_MIN_PLAYS = 100;
-export const TOPUP_MAX_PLAYS = 1_000_000;
+/**
+ * How many characters a player has to *distinguish between* at one position,
+ * rather than how many exist.
+ *
+ * Case comes free once a position is found — a wrong-case hit is reported, so
+ * `k` landing on `K` tells the player to stop searching and flip the case. So
+ * the real per-position search is over case-folded classes: 26 letters, 10
+ * digits and every symbol. This is what the difficulty estimate is built on.
+ */
+export const CHARACTER_CLASSES = UPPER.length + DIGITS.length + SPECIALS.length;
 
-// Grid descriptions are optional, customer-facing, and capped like details.
-export const GRID_DESCRIPTION_MAX = 300;
+// ---------------------------------------------------------------------------
+// Password shape
+// ---------------------------------------------------------------------------
 
-// Icon slugs a business can attach to a reward (see lib/reward-icons.tsx for
-// the component map). Stored in rewards.icon / reward_templates.icon.
-export const REWARD_ICON_SLUGS = [
-  "gift",
-  "percent",
-  "ticket",
-  "star",
-  "sparkles",
-  "heart",
-  "gem",
-  "coffee",
-  "pizza",
-  "sandwich",
-  "croissant",
-  "salad",
-  "drumstick",
-  "ice-cream",
-  "cake",
-  "drink",
-  "beer",
-  "utensils",
-  "shirt",
-  "bag",
-  "scissors",
-  "music",
-  "car",
-  "dumbbell",
-  "phone",
-] as const;
-export type RewardIconSlug = (typeof REWARD_ICON_SLUGS)[number];
+export const MIN_LENGTH = 3;
+export const MAX_LENGTH = 26;
+
+/** How long a guess may be. Nothing stops a player probing past the maximum. */
+export const MAX_GUESS_LENGTH = 40;
+
+// ---------------------------------------------------------------------------
+// Money
+// ---------------------------------------------------------------------------
+
+/** Everything money is stored in kobo (₦1 = 100 kobo). */
+export const KOBO = 100;
+
+/** Paystack caps a single transfer at ₦10,000,000, so funding can't exceed it. */
+export const MAX_FUNDING_KOBO = 10_000_000 * KOBO;
+
+/** What Spendbox keeps of a box's funding, and of every power-up sale. */
+export const PLATFORM_SHARE_PERCENT = 30;
+
+/**
+ * One life, bought rather than waited for.
+ *
+ * Bought from a box's page, 70% goes to that box's contributor — a hunter
+ * grinding somebody's password is worth something to them whether or not any
+ * power-up gets sold. Bought from the player's own page, where there is no box
+ * to credit, the whole thing is platform revenue.
+ */
+export const LIFE_PRICE_KOBO = 150 * KOBO;
+export const LIFE_PURCHASE_MAX = 100;
+
+// ---------------------------------------------------------------------------
+// Lives
+// ---------------------------------------------------------------------------
+
+/**
+ * Lives are held by the *player*, not by a box: one pool spent across the
+ * public box and every contributor box alike.
+ *
+ * One life buys one guess. There is no limit on how many guesses a box will
+ * take — only on how fast a player can afford them — so the pool is small and
+ * the refill is the pace of the whole game.
+ */
+export const LIVES_MAX = 7;
+export const LIFE_REGEN_MINUTES = 60;
+
+// ---------------------------------------------------------------------------
+// Text shapes
+// ---------------------------------------------------------------------------
+
+export const TITLE_MAX = 70;
+export const BLURB_MAX = 240;
+export const DISPLAY_NAME_MAX = 40;
 
 export const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export const SLUG_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
-export const HEX_COLOR_REGEX = /^#[0-9a-f]{6}$/;
-export const PHONE_REGEX = /^[0-9+][0-9 ]{5,19}$/;
+export const HANDLE_REGEX = SLUG_REGEX;
+export const ACCOUNT_NUMBER_REGEX = /^\d{10}$/;
 
-export const MAX_LOGO_BYTES = 1024 * 1024; // 1 MB
-export const MAX_GRID_IMAGE_BYTES = 3 * 1024 * 1024; // 3 MB
-export const LOGO_CONTENT_TYPES: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-};
+/**
+ * Referrals, mirrored from `0029_referral_lives.sql`.
+ *
+ * The migration is the authority — the bonus is banked and spent by
+ * `settle_life_purchase`, and nothing in the app grants a life. These exist so
+ * copy can say "10" and "5" without a round trip, and must be changed together
+ * with the functions of the same names.
+ */
+export const REFERRAL_MIN_LIVES = 10;
+export const INVITER_BONUS_LIVES = 5;
+export const INVITEE_BONUS_LIVES = 5;

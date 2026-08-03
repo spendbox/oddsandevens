@@ -1,122 +1,215 @@
-// Shapes returned by the Postgres game functions (jsonb) and the API routes.
+// The shapes route handlers return. Anything a browser can see is in here,
+// which is also the easiest way to check that `boxes.secret` never is — and
+// that neither is its length, unless the player has paid to learn it.
 
-export type RedeemResult =
-  | {
-      result: "redeemed";
-      description: string;
-      // Codes minted by the retired tile board are still redeemable, so the
-      // old types stay readable even though nothing mints them now.
-      reward_type: "tile" | "game" | "loyalty_discount";
-      discount_percent: number | null;
-      customer_email: string;
-      unlocked_at: string;
-    }
-  | { result: "error"; error: "code_not_found" | "already_redeemed" | "expired" };
+import type { Breakdown, LengthHint } from "@/lib/game/feedback";
+import type { Offering, Revealed } from "@/lib/game/power-ups";
+import type { Design } from "@/lib/game/designs";
+import type { Difficulty } from "@/lib/game/difficulty";
 
-/** What the staff code box resolves to: a one-time code minted per prize. */
-export type StaffLookupResult =
-  | {
-      result: "found";
-      kind: "code";
-      customer_email: string;
-      description: string;
-      status: "unredeemed" | "redeemed" | "expired";
-      expires_at: string;
-    }
-  | { result: "error"; error: "code_not_found" | "merchant_not_found" };
+export type BoxStatus = "draft" | "funding" | "live" | "unlocked" | "closed";
 
-export interface CustomerState {
-  cooldownUntil: string | null;
-  codes: {
-    code: string;
-    description: string;
-    status: string;
-    expiresAt: string;
-  }[];
+/**
+ * A box as anyone may see it.
+ *
+ * Note what is missing: the password's length, and anything that would give it
+ * away. `estimatedAttempts` used to be here and had to go — it's a
+ * deterministic function of the length, so shipping it handed over the exact
+ * answer to the first thing a player has to work out. The difficulty tier
+ * survives because it only narrows the length to a band of five or six, which
+ * is the intended trade for making a box's cost legible before you commit
+ * weeks to it.
+ */
+export interface PublicBox {
+  slug: string;
+  kind: "general" | "contributor";
+  title: string;
+  blurb: string | null;
+  rewardKobo: number;
+  /** True when there's no money behind it — a challenge, not a ₦0 reward. */
+  isChallenge: boolean;
+  /** Which safe it wears. Decoration; no rule reads it. */
+  design: Design;
+  difficulty: Difficulty;
+  status: BoxStatus;
+  attemptsCount: number;
+  playersCount: number;
+  contributor: string | null;
+  publishedAt: string | null;
+  unlockedAt: string | null;
+  /** Masked address of whoever cracked it, once someone has. */
+  unlockedBy: string | null;
 }
 
-// Per-customer summary for the merchant dashboard's customers list.
-export interface CustomerSummary {
-  email: string;
-  totalPlays: number;
-  lastPlayedAt: string | null;
-  /** Cooldown end, if the customer is currently in cooldown. */
-  nextPlayAt: string | null;
-  activeCodes: { description: string; expiresAt: string }[];
-  totalUnlocks: number;
+/** The player's own life pool, as the header shows it. */
+export interface PlayerState {
+  email: string | null;
+  lives: number;
+  livesMax: number;
+  /** When the next life lands, or null when the pool is full. */
+  nextLifeAt: string | null;
+  lifePriceKobo: number;
+  /** Their own invite code. Null until they've verified an address. */
+  inviteCode: string | null;
+  /** Bonus lives banked, which land free on their next paid top-up. */
+  bonusLivesPending: number;
 }
 
-// Aggregate KPIs for the dashboard's stats row.
-export interface MerchantStats {
-  totalCustomers: number;
-  totalPlays: number;
-  rewardsUnlocked: number;
-  redemptions: number;
-  redemptionsLast30d: number;
-  redemptionRate: number; // redemptions / all codes issued, 0..1
-  activeCodes: number;
-  revenue: LifeRevenue;
+/** What the invite screen shows: the link, and what it has earned so far. */
+export interface ReferralState {
+  inviteCode: string | null;
+  /** People who used the link and have since paid for a real top-up. */
+  qualified: number;
+  /** People who used the link at all. */
+  joined: number;
+  bonusLivesPending: number;
+  /** The terms, so the copy is never out of step with the migration. */
+  minLives: number;
+  inviterBonus: number;
+  inviteeBonus: number;
 }
 
 /**
- * Money from players buying extra plays. The business keeps the larger share
- * and the platform takes the rest; the split is done in `life_revenue` so
- * there is exactly one place that knows the rate.
+ * One guess and the verdict it earned.
+ *
+ * `breakdown` is null unless the hunt has bought Colour Read. That's enforced
+ * where the record is built, not here and not in the browser — the components
+ * simply don't travel until they've been paid for.
  */
-export interface LifeRevenue {
-  grossKobo: number;
-  businessKobo: number;
-  platformKobo: number;
-  business30dKobo: number;
-  orders: number;
+export interface AttemptRecord {
+  ordinal: number;
+  value: string;
+  lengthHint: LengthHint;
+  /** 0–100, two decimal places. 100 means solved. */
+  scorePercent: number;
+  breakdown: Breakdown | null;
+  at: string;
+}
+
+/** The live state of one player's hunt on one box. */
+export interface HuntState {
+  attemptsCount: number;
+  /** Newest first — a long hunt is read from the top. */
+  attempts: AttemptRecord[];
+  revealed: Revealed;
+  /** Notes from power-ups already bought on this hunt, newest last. */
+  notes: string[];
+  /** True while Colour Read is in force; every attempt then carries a breakdown. */
+  hasBreakdown: boolean;
+  /** When that lapses, so the screen can count it down. Null when inactive. */
+  breakdownUntil: string | null;
+  /** While this is in the future, guesses on this box cost no lives. */
+  secondWindUntil: string | null;
+  /** The best score reached so far — the number a long hunt is measured by. */
+  bestPercent: number;
+  won: boolean;
+}
+
+export interface PlayView {
+  box: PublicBox;
+  player: PlayerState;
+  hunt: HuntState | null;
+  /**
+   * The shelf, priced against *this* box. Every power-up costs a share of the
+   * reward, so the same hint is a different price on a ₦7,000,000 safe and a
+   * ₦7,000 one — which means the catalogue can't be a constant in the browser
+   * and has to arrive with the view.
+   */
+  powerUps: Offering[];
+  /** Set when this player already won this box. */
+  claim: { amountKobo: number; status: "unclaimed" | "submitted" | "paid" } | null;
+}
+
+/** What comes back from spending a life on a guess. */
+export interface AttemptResult extends PlayView {
+  outcome: "open" | "won" | "pipped";
+  verdict: { lengthHint: LengthHint; scorePercent: number } | null;
+}
+
+// ---------------------------------------------------------------------------
+// Contributor dashboard
+// ---------------------------------------------------------------------------
+
+export interface ContributorProfile {
+  displayName: string;
+  handle: string;
+  payout: {
+    bankName: string | null;
+    accountNumber: string | null;
+    accountName: string | null;
+    connected: boolean;
+  };
+}
+
+/** One of the contributor's own boxes, with the numbers only they see. */
+export interface OwnedBox extends PublicBox {
+  id: string;
+  /** What they paid in. The reward is 70% of this. */
+  fundingKobo: number;
+  platformFeeKobo: number;
+  earnedKobo: number;
+  powerUpsSold: number;
+  /** Only a draft can be edited or deleted; a funded box is permanent. */
+  editable: boolean;
+  createdAt: string;
+  /** The author's own copy of the length — they wrote it, so they know it. */
+  length: number;
+}
+
+/** A row on the Attempts screen. The address is masked; it always is. */
+export interface HuntRow {
+  player: string;
+  boxTitle: string;
+  boxSlug: string;
+  attempts: number;
+  won: boolean;
+  powerUpsBought: number;
+  /**
+   * Their best score on this box, 0–100. The one number that says whether a
+   * hunter is idly poking at a safe or three characters from opening it.
+   *
+   * Safe to show its author and nobody else: they wrote the password, so a
+   * closeness reading tells them nothing about it they don't already know.
+   */
+  bestPercent: number;
+  startedAt: string;
+  lastAttemptAt: string | null;
+}
+
+export interface ContributorEarnings {
+  /** 70% of everything players spent against this contributor's boxes. */
+  totalKobo: number;
+  last30dKobo: number;
+  powerUpsSold: number;
+  /** Their 70% of power-ups alone. */
+  powerUpKobo: number;
+  /** Their 70% of lives bought while hunting one of their boxes. */
+  lifeKobo: number;
   livesSold: number;
-  platformSharePercent: number;
+  /** What the platform kept, shown so the split is never a mystery. */
+  platformKobo: number;
+  sharePercent: number;
 }
 
-// Plays-based plan state for the dashboard (from /api/merchant/plan).
-export interface MerchantPlan {
-  tier: "free" | "premium";
-  premiumExpiresAt: string | null;
-  baseAllowance: number; // annual plays for the current tier
-  premiumYearlyPlays: number; // annual plays a premium plan grants (for the upsell)
-  playsUsed: number; // plays used this annual period
-  baseRemaining: number; // baseAllowance - playsUsed, floored at 0
-  topupPlays: number; // purchased, non-expiring plays
-  playsRemaining: number; // baseRemaining + topupPlays
-  periodEnd: string; // when the annual window resets
-  premiumPriceKobo: number;
-  topupPricePer1000Kobo: number;
-  paymentsEnabled: boolean;
+export interface WinnerRow {
+  player: string;
+  boxTitle: string;
+  boxSlug: string;
+  rewardKobo: number;
+  unlockedAt: string;
+  claimStatus: "unclaimed" | "submitted" | "paid";
 }
 
-/** A reusable reward in the merchant's catalogue (Build → Rewards). */
-export interface RewardTemplate {
-  id: string;
-  description: string;
-  details: string | null;
-  icon: string | null;
-  default_expiry_days: number;
-  created_at: string;
-}
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
 
-// Free image library entry (curated in /admin).
-export interface LibraryImage {
-  id: string;
-  title: string;
-  url: string;
-}
+/** Every checkout in the app answers with this. */
+export type CheckoutResponse =
+  | { result: "redirect"; authorizationUrl: string }
+  | { result: "error"; error: string };
 
-/** One business a customer has played, for the /me portal. */
-export interface PlayerAccount {
-  businessName: string;
-  slug: string;
-  logoUrl: string | null;
-  brandColor: string;
-  cooldownUntil: string | null;
-  codes: {
-    code: string;
-    description: string;
-    status: string;
-    expiresAt: string;
-  }[];
+export interface Bank {
+  name: string;
+  code: string;
 }

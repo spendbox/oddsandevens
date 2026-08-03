@@ -1,14 +1,13 @@
 import { Resend } from "resend";
+import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 
-// All emails are fire-and-forget: a game result has already committed by the
-// time we send, so a delivery failure must never surface as a game error.
-// Without RESEND_API_KEY (local dev), emails are logged instead of sent.
+// All emails are fire-and-forget: by the time one is sent the box has already
+// been unlocked or the code already stored, so a delivery failure must never
+// surface as a game error. Without RESEND_API_KEY (local dev), emails are
+// logged instead of sent.
 
 const FROM = process.env.EMAIL_FROM ?? "Spendbox <notifications@spendbox.site>";
 
-// Canonical app URL for links inside emails. On Vercel this falls back to the
-// production domain automatically; set APP_URL to override (e.g. custom domain
-// before it's the Vercel production domain, or non-Vercel hosting).
 function appUrl(): string | null {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
@@ -17,11 +16,9 @@ function appUrl(): string | null {
   return null;
 }
 
-function boardLink(slug: string): string {
+function link(path: string, label: string): string {
   const base = appUrl();
-  return base
-    ? `<p><a href="${base}/g/${slug}">Play again</a> once your cooldown ends.</p>`
-    : "";
+  return base ? `<p><a href="${base}${path}">${label}</a></p>` : "";
 }
 
 function resend(): Resend | null {
@@ -43,101 +40,125 @@ async function send(to: string, subject: string, html: string) {
   }
 }
 
-function formatExpiry(expiresAt: string) {
-  return new Date(expiresAt).toUTCString();
-}
+const WRAP = 'style="font-family:sans-serif;max-width:480px"';
+const CODE_STYLE =
+  "font-size:32px;letter-spacing:8px;font-weight:bold;background:#f4f4f5;padding:14px 16px;border-radius:8px;text-align:center";
 
-// One-time 6-digit code for signup, password reset, or customer verification.
+/** One-time 6-digit code for signup, password reset, or player verification. */
 export async function sendVerificationCodeEmail(params: {
   to: string;
   code: string;
-  purpose: "merchant_signup" | "password_reset" | "customer_verify";
+  purpose: "contributor_signup" | "password_reset" | "player_verify";
 }) {
   const { to, code, purpose } = params;
   const heading =
     purpose === "password_reset"
       ? "Reset your Spendbox password"
-      : purpose === "customer_verify"
+      : purpose === "player_verify"
         ? "Confirm your email to play"
         : "Confirm your email";
   const intro =
     purpose === "password_reset"
       ? "Use this code to reset your password:"
-      : purpose === "customer_verify"
-        ? "Enter this code to verify your email and claim your rewards:"
+      : purpose === "player_verify"
+        ? "Enter this code so we know where to send the prize if you crack a safe:"
         : "Enter this code to finish creating your Spendbox account:";
   await send(
     to,
     `${code} is your Spendbox code`,
-    `<div style="font-family:sans-serif;max-width:480px">
+    `<div ${WRAP}>
       <h2>${heading}</h2>
       <p>${intro}</p>
-      <p style="font-size:32px;letter-spacing:8px;font-weight:bold;background:#f4f4f5;padding:14px 16px;border-radius:8px;text-align:center">${code}</p>
+      <p style="${CODE_STYLE}">${code}</p>
       <p>It expires in 10 minutes. If you didn't request this, you can ignore
       this email.</p>
     </div>`
   );
 }
 
-export async function sendRewardUnlockedEmail(params: {
+/** To the winner, the moment a safe opens. */
+export async function sendBoxUnlockedEmail(params: {
   to: string;
-  businessName: string;
-  slug: string;
-  description: string;
-  code: string;
-  expiresAt: string;
+  title: string;
+  rewardKobo: number;
 }) {
-  const { to, businessName, slug, description, code, expiresAt } = params;
+  const { to, title, rewardKobo } = params;
   await send(
     to,
-    `🎉 You won: ${description} at ${businessName}`,
-    `<div style="font-family:sans-serif;max-width:480px">
-      <h2>You hit a reward at ${businessName}!</h2>
-      <p><strong>${description}</strong></p>
-      <p>Show this code to staff to redeem it:</p>
-      <p style="font-size:28px;letter-spacing:6px;font-weight:bold;background:#f4f4f5;padding:12px 16px;border-radius:8px;text-align:center">${code}</p>
-      <p>⏳ Expires <strong>${formatExpiry(expiresAt)}</strong>. After that the code is invalid.</p>
-      ${boardLink(slug)}
+    `🔓 You cracked "${title}" — ${rewardLabel(rewardKobo)}`,
+    `<div ${WRAP}>
+      <h2>The safe is open.</h2>
+      <p>You guessed the password on <strong>${title}</strong> and won
+      <strong>${rewardLabel(rewardKobo)}</strong>.</p>
+      <p>Tell us where to send it — add your bank account and we'll transfer
+      the prize.</p>
+      ${link("/me", "Claim your prize")}
     </div>`
   );
 }
 
-// Sent to the customer when staff redeems one of their reward codes, so they
-// have a record that it was claimed.
-export async function sendRewardRedeemedEmail(params: {
+/** To the contributor, when their box is cracked. */
+export async function sendBoxCrackedEmail(params: {
   to: string;
-  businessName: string;
-  slug: string;
-  description: string;
+  title: string;
+  player: string;
+  rewardKobo: number;
 }) {
-  const { to, businessName, slug, description } = params;
+  const { to, title, player, rewardKobo } = params;
   await send(
     to,
-    `Redeemed: ${description} at ${businessName}`,
-    `<div style="font-family:sans-serif;max-width:480px">
-      <h2>Your reward was redeemed 🎉</h2>
-      <p><strong>${description}</strong> at ${businessName} has just been marked
-      as redeemed. Enjoy!</p>
-      ${boardLink(slug)}
+    `Your spendbox "${title}" has been cracked`,
+    `<div ${WRAP}>
+      <h2>Somebody got it</h2>
+      <p>${player} guessed the password on <strong>${title}</strong> and has
+      won the ${rewardLabel(rewardKobo)} reward. The box is now closed and can't
+      be played again.</p>
+      <p>Everything players spent on power-ups while attacking it is still
+      yours — build another one whenever you like.</p>
+      ${link("/dashboard", "Open your dashboard")}
     </div>`
   );
 }
 
-export async function sendMerchantHitEmail(params: {
+/** To the contributor, once their stake clears and the box is playable. */
+export async function sendBoxLiveEmail(params: {
   to: string;
-  businessName: string;
-  description: string;
-  customerEmail: string;
+  title: string;
+  slug: string;
+  rewardKobo: number;
 }) {
-  const { to, businessName, description, customerEmail } = params;
+  const { to, title, slug, rewardKobo } = params;
+  const base = appUrl();
   await send(
     to,
-    `Spendbox: a customer just won "${description}"`,
-    `<div style="font-family:sans-serif;max-width:480px">
-      <h2>Reward unlocked on your grid</h2>
-      <p>A customer (${customerEmail}) just won <strong>${description}</strong> at ${businessName}.</p>
-      <p>They received a redemption code by email — your staff can redeem it from the dashboard when they visit.</p>
-      ${appUrl() ? `<p><a href="${appUrl()}/dashboard">Open your dashboard</a></p>` : ""}
+    `"${title}" is live`,
+    `<div ${WRAP}>
+      <h2>Your spendbox is live</h2>
+      <p><strong>${title}</strong> is open, with ${rewardLabel(rewardKobo)}
+      behind the password.</p>
+      ${base ? `<p>Share this link: <a href="${base}/b/${slug}">${base}/b/${slug}</a></p>` : ""}
+      ${link("/dashboard", "Open your dashboard")}
+    </div>`
+  );
+}
+
+/** To the winner, when an admin sends the transfer. */
+export async function sendRewardPaidEmail(params: {
+  to: string;
+  title: string;
+  amountKobo: number;
+  accountName: string | null;
+}) {
+  const { to, title, amountKobo, accountName } = params;
+  await send(
+    to,
+    `${formatNaira(amountKobo)} is on its way`,
+    `<div ${WRAP}>
+      <h2>Prize sent</h2>
+      <p>We've transferred <strong>${formatNaira(amountKobo)}</strong> for
+      <strong>${title}</strong>${accountName ? ` to ${accountName}` : ""}.</p>
+      <p>Bank transfers usually land within a few minutes.</p>
+      ${link("/", "Find another safe")}
     </div>`
   );
 }

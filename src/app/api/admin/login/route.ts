@@ -6,36 +6,37 @@ import {
   checkAdminCredentials,
 } from "@/lib/admin-auth";
 
-const SESSION_MAX_AGE = 7 * 24 * 3600; // one week
-
-// Admin login: checks the submitted email/password against the ADMIN_EMAIL /
-// ADMIN_PASSWORD environment variables and sets the admin session cookie.
+/** Sign in to /admin with the credentials configured in the environment. */
 export async function POST(req: Request) {
   if (!adminCredentialsConfigured()) {
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
   }
 
-  const body = await req.json().catch(() => null);
-  const email = String(body?.email ?? "");
-  const password = String(body?.password ?? "");
-  if (!checkAdminCredentials(email, password)) {
+  const body = (await req.json().catch(() => ({}))) as {
+    email?: string;
+    password?: string;
+  };
+  if (!checkAdminCredentials(body.email ?? "", body.password ?? "")) {
     return NextResponse.json({ error: "invalid_credentials" }, { status: 401 });
   }
 
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(ADMIN_COOKIE, adminSessionToken()!, {
+  const token = adminSessionToken();
+  if (!token) return NextResponse.json({ error: "not_configured" }, { status: 503 });
+
+  const res = NextResponse.json({ result: "signed_in" });
+  res.cookies.set(ADMIN_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_MAX_AGE,
+    maxAge: 60 * 60 * 12,
   });
   return res;
 }
 
-// Admin logout: clear the session cookie.
+/** Sign out. */
 export async function DELETE() {
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(ADMIN_COOKIE, "", { path: "/", maxAge: 0 });
+  const res = NextResponse.json({ result: "signed_out" });
+  res.cookies.delete(ADMIN_COOKIE);
   return res;
 }

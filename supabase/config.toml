@@ -1,6 +1,6 @@
 # Minimal Supabase CLI config so `supabase link` / `db push` / local `start`
 # work from a fresh clone. Extend as needed (auth, storage, etc.).
-project_id = "tilehunt"
+project_id = "spendbox"
 
 [db]
 port = 54322
