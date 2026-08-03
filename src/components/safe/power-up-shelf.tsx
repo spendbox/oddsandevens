@@ -53,9 +53,7 @@ export function PowerUpShelf({
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-xs text-zinc-500">
-          Priced against this box&apos;s reward. Tap one to read what it does.
-        </p>
+        <p className="text-xs text-zinc-500">Tap one to read what it does.</p>
         {view.box.contributor && (
           <p className="shrink-0 text-xs text-zinc-500">
             70% to {view.box.contributor}
@@ -244,21 +242,21 @@ function PowerUpDialog({
           <p className="mt-1 text-sm text-zinc-600">{powerUp.caveat}</p>
         </div>
 
+        {/*
+          The price, and not how it was arrived at. It *is* a share of the
+          reward, but printing the share turns the shelf into a way of measuring
+          the box — and a player who can read a percentage off five prices can
+          check they agree, which is a puzzle nobody asked for.
+        */}
         <div className="flex items-baseline justify-between gap-3 border-t border-zinc-100 pt-3">
-          <span className="text-sm text-zinc-500">
-            {(powerUp.share * 100).toFixed(2).replace(/\.?0+$/, "")}% of the reward
-            {powerUp.priceKobo === powerUp.floorKobo && ", or the floor — whichever is more"}
-          </span>
+          <span className="text-sm text-zinc-500">Price on this box</span>
           <span className="shrink-0 font-mono text-lg font-bold text-zinc-900">
             {formatNaira(powerUp.priceKobo)}
           </span>
         </div>
 
         {contributor && (
-          <p className="text-xs text-zinc-500">
-            70% of this goes to {contributor}, who put the box up. Spendbox keeps
-            30%.
-          </p>
+          <p className="text-xs text-zinc-500">70% of this goes to {contributor}.</p>
         )}
 
         {!powerUp.available && !running && (

@@ -70,7 +70,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     blurb:
       "Counts the uppercase, lowercase, digits and symbols — without saying where any sit.",
     detail:
-      "Breaks the password down by kind: how many capitals, how many lowercase letters, how many digits, how many symbols. On a 94-character alphabet that is a large cut — knowing there are no digits at all removes ten candidates from every position you have left.",
+      "Reveals the composition of the password: how many uppercase letters, lowercase letters, digits, and symbols it contains. This dramatically narrows the search space. In a 94-character alphabet, learning that a password contains no digits immediately eliminates 10 possible characters from every remaining position. Every detail reduces uncertainty, turning a seemingly impossible challenge into a solvable puzzle.",
     caveat: "It gives you counts, not characters, and never a position.",
     share: 0.005,
     floorKobo: 300 * KOBO,
@@ -79,8 +79,8 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     kind: "second_wind",
     name: "Second Wind",
     blurb: `Unlimited guesses on this box for ${SECOND_WIND_HOURS} hour. Costs no lives at all.`,
-    detail: `For one hour, guesses on this box are free — your life pool isn't touched and there's no waiting between attempts. It is the only way to work fast: everything else on this shelf tells you something, and this gives you the time to use it. Best bought the moment you've narrowed the password down and just need to grind the positions out.`,
-    caveat: `One hour, this box only, and the clock starts the moment it's paid for — not when you next open the page.`,
+    detail: `For one hour, guesses on this box are free — your life pool isn't touched and there's no waiting between attempts. It is the only way to work fast: everything else on this shelf tells you something, and this gives you the time to use it.`,
+    caveat: `The hour starts as soon as you pay, and it only covers this box.`,
     share: 0.005,
     floorKobo: 300 * KOBO,
   },
@@ -101,7 +101,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
       "Names half of the different characters the password is built from — the actual characters, with their case. It does not say where any of them go, how many times each appears, or what the other half are. On a long password this is the single biggest cut to the search: every character it names is one you can stop hunting for.",
     caveat:
       "Half, rounded up, chosen at random. Unordered, and it says nothing about position.",
-    share: 0.02,
+    share: 0.05,
     floorKobo: 1_000 * KOBO,
   },
 };
@@ -223,7 +223,21 @@ export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
   }
 }
 
-export interface Offering extends PowerUpSpec {
+/**
+ * One power-up as the browser sees it.
+ *
+ * Note what it does *not* extend: `PowerUpSpec`. The share and the floor stay
+ * on the server. A player is told what something costs on this box, not the
+ * formula that got there — spreading `spec` would have put the percentage in
+ * the API response for anyone who opened the network tab, which is the same
+ * disclosure as printing it on the page and harder to notice.
+ */
+export interface Offering {
+  kind: PowerUpKind;
+  name: string;
+  blurb: string;
+  detail: string;
+  caveat: string;
   priceKobo: number;
   available: boolean;
   /** When this one lapses, if it's currently running. */
@@ -232,17 +246,24 @@ export interface Offering extends PowerUpSpec {
 
 /** The catalogue as the play screen shows it, priced against this box. */
 export function offerings(revealed: Revealed, rewardKobo: number): Offering[] {
-  return POWER_UP_KINDS.map((kind) => ({
-    ...POWER_UPS[kind],
-    priceKobo: priceKobo(kind, rewardKobo),
-    available: isAvailable(kind, revealed),
-    activeUntil:
-      kind === "breakdown"
-        ? revealed.breakdownUntil
-        : kind === "second_wind"
-          ? revealed.secondWindUntil
-          : null,
-  }));
+  return POWER_UP_KINDS.map((kind) => {
+    const { name, blurb, detail, caveat } = POWER_UPS[kind];
+    return {
+      kind,
+      name,
+      blurb,
+      detail,
+      caveat,
+      priceKobo: priceKobo(kind, rewardKobo),
+      available: isAvailable(kind, revealed),
+      activeUntil:
+        kind === "breakdown"
+          ? revealed.breakdownUntil
+          : kind === "second_wind"
+            ? revealed.secondWindUntil
+            : null,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

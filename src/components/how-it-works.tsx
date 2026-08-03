@@ -81,7 +81,7 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
         <Step
           icon={<Wallet className="size-4 text-brass" aria-hidden />}
           title="Power-ups are the only paid part"
-          body="Each one buys back exactly one thing the game withholds — the length, what it's made of, the parts behind a score, half its characters, or an hour with no life limit at all. They're priced as a share of the reward, so a bigger box costs more to get help on. On someone's box, 70% of what you spend goes to them."
+          body="Each one buys back exactly one thing the game withholds — the length, what it's made of, the parts behind a score, half its characters, or an hour with no life limit at all. On someone's box, 70% of what you spend goes to them."
         />
 
         <div className="border-t border-zinc-100 pt-3">

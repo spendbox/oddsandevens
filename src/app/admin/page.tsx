@@ -18,7 +18,7 @@ import {
   TITLE_MAX,
 } from "@/lib/constants";
 import { formatNaira, rewardLabel } from "@/lib/game/rewards";
-import { difficultyOf, estimateAttempts, roughly } from "@/lib/game/difficulty";
+import { difficultyOf } from "@/lib/game/difficulty";
 import { GrantLives } from "@/components/admin/grant-lives";
 import type { PublicBox } from "@/lib/types";
 
@@ -331,9 +331,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         </div>
 
         <p className="text-xs text-zinc-500">
-          {clean.length} characters
-          {valid &&
-            ` — ${difficultyOf(clean.length)}, about ${roughly(estimateAttempts(clean.length))} attempts to crack`}
+          {clean.length} characters{valid && ` — ${difficultyOf(clean.length)}`}
         </p>
 
         {error && <p className="text-sm text-red-400">{error}</p>}

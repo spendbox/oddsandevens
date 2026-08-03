@@ -283,10 +283,7 @@ export function PlaySurface({
                       <ScorePill percent={view.hunt.bestPercent} />
                     </div>
                   )}
-                  <AttemptLog
-                    attempts={view.hunt?.attempts ?? []}
-                    rewardKobo={view.box.rewardKobo}
-                  />
+                  <AttemptLog attempts={view.hunt?.attempts ?? []} />
                   {view.hunt &&
                     view.hunt.attemptsCount > (view.hunt.attempts.length ?? 0) && (
                       <p className="text-center text-xs text-zinc-600">

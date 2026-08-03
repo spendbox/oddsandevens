@@ -108,35 +108,35 @@ It is also, measurably, about half the game — see the table below.
 
 ## Difficulty
 
-Every box shows a difficulty tier. **Players see only the tier**: the attempt
-estimate is a deterministic function of the password's length, so printing it
-publicly would hand over the exact answer to the first thing a player has to
-work out. A tier only narrows the length to a band of five or six.
+Every box shows a difficulty tier, and **the tier is all anybody sees** —
+players and contributors alike. The attempt estimate is a deterministic
+function of the password's length, so printing it anywhere public would hand
+over the exact answer to the first thing a player has to work out; a tier only
+narrows the length to a band of five or six.
 
-Contributors see the full reading — attempts and days on free lives — because
-they wrote the password and already know its length.
+Contributors used to get the full reading, since they wrote the password and
+already know its length. It's gone. It was two more numbers on a screen that
+had plenty, it never changed what anyone did next, and keeping it meant every
+new surface was one slip away from leaking it. `estimateAttempts` still exists
+and still backs the model below; nothing in the app prints it.
 
 The model is the strategy the feedback actually permits: binary-search the
 length (~5 attempts), then walk the positions one at a time, because a *count*
 with no positions attached can only be read by changing one position and
 watching it move.
 
-| Length | Tier | Free play | With Colour Read | Printed |
-| --- | --- | --- | --- | --- |
-| 3 | Warm | 229 | 155 | ~285 |
-| 6 | Tricky | 512 | 269 | ~565 |
-| 10 | Hard | 889 | 481 | ~950 |
-| 18 | Brutal | 1,649 | 876 | ~1,700 |
-| 26 | Merciless | 2,394 | 1,355 | ~2,400 |
+| Length | Tier | Free play | With Colour Read |
+| --- | --- | --- | --- |
+| 3 | Warm | 229 | 155 |
+| 6 | Tricky | 512 | 269 |
+| 10 | Hard | 889 | 481 |
+| 18 | Brutal | 1,649 | 876 |
+| 26 | Merciless | 2,394 | 1,355 |
 
-The first two columns are measured, not guessed: a solver implementing the only
-strategy the scoring permits, median of 15 random passwords per length. It
-cracks 15/15 at every length in both modes.
-
-"Printed" is what the app shows, from `estimateAttempts`. It tracks the
-measurement closely from ten characters up and runs about a quarter high at
-three, which is the direction an estimate on a contributor's screen ought to
-err: a box that turns out easier than advertised disappoints nobody.
+Both columns are measured, not guessed: a solver implementing the only strategy
+the scoring permits, median of 15 random passwords per length. It cracks 15/15
+at every length in both modes. This table is the reason the tiers sit where
+they do; it is documentation, not a screen.
 
 Why free play costs nearly twice as much: with a single number, the only safe
 reading of a position is "try every character and keep the best". Thresholds on
@@ -161,13 +161,19 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Case Map | 0.5% | Counts the uppercase, lowercase, digits and symbols — without positions |
 | Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
-| X-Ray | 2% | Names half the password's distinct characters, unordered |
+| X-Ray | 5% | Names half the password's distinct characters, unordered |
 
 **Prices are a share of the box's reward**, floored so that a challenge box
 with nothing behind it still has a shelf to sell. A hint that saves you a
 fortnight of grinding on a ₦7,000,000 safe is not worth what the same hint is
 worth on a ₦7,000 one, and a flat price got that wrong in both directions. The
 floors are ₦200 / ₦300 / ₦300 / ₦500 / ₦1,000 in the order above.
+
+The *share* is server-side only. A player is shown what something costs on the
+box in front of them and nothing about how that number was reached — and
+`Offering`, the shape that goes over the wire, deliberately does not extend
+`PowerUpSpec`, so the percentage isn't in the API response either. Printing it
+would have turned the shelf into a way of measuring the box.
 
 Each one is tied to a specific thing the scoring withholds — the length, what
 the password is made of, the pace of the game, the components behind a score,
@@ -294,8 +300,8 @@ share button that uses the native share sheet where there is one (on a phone
 that means WhatsApp, not a clipboard). **Build** is four cards — the box, the
 password, the reward and which safe it wears — each opening a dialog with the
 whole of that decision in it and nothing else, and each showing a tick when
-it's done. The difficulty, the attempt estimate, our cut and the likely income
-all update as you fill them in, so nothing is a surprise at checkout.
+it's done. The difficulty, our cut and the likely income update as you fill
+them in, so nothing is a surprise at checkout.
 **Attempts** is who has been having a go, addresses starred out before they
 leave the server. **Money** is income from power-ups and lives, the split
 written out in full, the winners, and the bank account it all settles to.
@@ -388,7 +394,7 @@ player has no Supabase session to refresh.
 src/lib/constants.ts        the alphabet, lengths, life economy
 src/lib/game/feedback.ts    scoring a guess (pure, server-only)
 src/lib/game/rewards.ts     the funding ladder and the 70/30 split
-src/lib/game/difficulty.ts  attempts-to-crack, tiers, brute-force cost
+src/lib/game/difficulty.ts  the tiers, and the model behind them
 src/lib/game/power-ups.ts   the catalogue, availability, and effects
 src/lib/game/revenue.ts     what a box is likely to earn, per 1,000 hunters
 src/lib/game/designs.ts     the six safes a contributor can pick from

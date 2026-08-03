@@ -43,14 +43,7 @@ const LENGTH_STYLE = {
   exact: "text-mark-green",
 } as const;
 
-export function AttemptLog({
-  attempts,
-  rewardKobo,
-}: {
-  attempts: AttemptRecord[];
-  /** What the shelf costs on this box, for the upsell inside a row. */
-  rewardKobo: number;
-}) {
+export function AttemptLog({ attempts }: { attempts: AttemptRecord[] }) {
   const [open, setOpen] = useState<AttemptRecord | null>(null);
   const [sort, setSort] = useState<AttemptSort>("recent");
 
@@ -116,11 +109,7 @@ export function AttemptLog({
       </ol>
 
       {open && (
-        <AttemptDialog
-          attempt={open}
-          rewardKobo={rewardKobo}
-          onClose={() => setOpen(null)}
-        />
+        <AttemptDialog attempt={open} onClose={() => setOpen(null)} />
       )}
     </>
   );

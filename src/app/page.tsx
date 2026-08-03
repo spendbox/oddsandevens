@@ -81,10 +81,12 @@ export default async function Home() {
               <br />
               <span className="brass-text">Open the safe.</span>
             </h1>
-            <p className="mx-auto mt-4 max-w-lg text-zinc-400">
-              Every spendbox is a password with real money behind it. Playing is
-              free — {LIVES_MAX} lives, one back every hour — and every guess
-              comes back with a single number: how close you are, out of 100.
+            <p className="mx-auto mt-4 max-w-xl text-zinc-400">
+              Every Spendbox protects real money behind a unique password.
+              Playing is free: you start with {LIVES_MAX} lives and regain 1 life
+              every hour. With each guess, you&apos;ll receive a single score
+              from 0 to 100, showing exactly how close you are to cracking the
+              code.
             </p>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -205,12 +207,16 @@ function PutOneUp() {
           <SafeArt design="crimson" className="hidden size-16 sm:block sm:size-20" />
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left">
-          <h2 className="text-xl font-bold sm:text-2xl">Put a safe up yourself</h2>
+          <h2 className="text-xl font-bold sm:text-2xl">Build your own Spendbox</h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-            Anyone can, and it isn&apos;t an application — a name, a password and a
-            reward is the whole of it. From {formatNaira(floor)}, in a safe you
-            pick. You keep 70% of everything hunters spend trying to open it, and
-            whoever cracks it takes the reward.
+            Anyone can create a Spendbox — no application, no approval process.
+            Just choose a name, set a password, and decide on a reward.
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+            Fund your Spendbox with as little as {formatNaira(floor)} and publish
+            it for the world to challenge. You keep 70% of everything hunters
+            spend attempting to crack it, while the person who successfully
+            unlocks it wins the reward inside.
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
             <Link

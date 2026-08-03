@@ -136,8 +136,6 @@ export interface OwnedBox extends PublicBox {
   createdAt: string;
   /** The author's own copy of the length — they wrote it, so they know it. */
   length: number;
-  /** Same reasoning: only the author sees the attempt estimate. */
-  estimatedAttempts: number;
 }
 
 /** A row on the Attempts screen. The address is masked; it always is. */

@@ -125,10 +125,7 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
       </header>
 
       <div className="mt-2">
-        <DifficultyBadge
-          difficulty={box.difficulty}
-          detail={{ estimatedAttempts: box.estimatedAttempts }}
-        />
+        <DifficultyBadge difficulty={box.difficulty} />
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">

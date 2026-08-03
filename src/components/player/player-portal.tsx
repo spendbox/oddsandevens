@@ -199,52 +199,61 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
           </p>
         ) : (
           <ul className="space-y-2">
-            {hunts.map((hunt) => (
-              <li
-                key={hunt.id}
-                className="panel flex items-center justify-between gap-3 rounded-xl px-4 py-3"
-              >
-                <div className="min-w-0">
-                  {hunt.slug ? (
-                    <Link
-                      href={`/b/${hunt.slug}`}
-                      className="block truncate text-sm font-medium hover:text-brass"
-                    >
+            {hunts.map((hunt) => {
+              // The whole row is the link, not the title inside it. A card with
+              // one destination should have one target the size of the card —
+              // hunting for the four words that happen to be underlined is a
+              // phone-sized annoyance nobody should have to put up with.
+              const body = (
+                <>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
                       {hunt.title}
                       {hunt.isPublicBox && (
                         <span className="ml-2 text-[11px] font-normal text-zinc-500">
                           public box
                         </span>
                       )}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {plural(hunt.attempts, "attempt")} ·{" "}
+                      {new Date(hunt.lastAttemptAt ?? hunt.startedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold " +
+                      (hunt.won
+                        ? "bg-mark-green/20 text-mark-green"
+                        : hunt.boxStatus === "live"
+                          ? "bg-brass/20 text-brass"
+                          : "bg-white/5 text-zinc-500")
+                    }
+                  >
+                    {hunt.won
+                      ? "Opened"
+                      : hunt.boxStatus === "live"
+                        ? "Still open"
+                        : hunt.boxStatus === "unlocked"
+                          ? "Taken"
+                          : "Closed"}
+                  </span>
+                </>
+              );
+              const shell = "panel flex items-center justify-between gap-3 rounded-xl px-4 py-3";
+
+              return (
+                <li key={hunt.id}>
+                  {hunt.slug ? (
+                    <Link href={`/b/${hunt.slug}`} className={`${shell} panel-lift`}>
+                      {body}
                     </Link>
                   ) : (
-                    <p className="truncate text-sm font-medium">{hunt.title}</p>
+                    <div className={shell}>{body}</div>
                   )}
-                  <p className="text-xs text-zinc-500">
-                    {plural(hunt.attempts, "attempt")} ·{" "}
-                    {new Date(hunt.lastAttemptAt ?? hunt.startedAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <span
-                  className={
-                    "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold " +
-                    (hunt.won
-                      ? "bg-mark-green/20 text-mark-green"
-                      : hunt.boxStatus === "live"
-                        ? "bg-brass/20 text-brass"
-                        : "bg-white/5 text-zinc-500")
-                  }
-                >
-                  {hunt.won
-                    ? "Opened"
-                    : hunt.boxStatus === "live"
-                      ? "Still open"
-                      : hunt.boxStatus === "unlocked"
-                        ? "Taken"
-                        : "Closed"}
-                </span>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

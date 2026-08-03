@@ -1,16 +1,16 @@
-// How hard a box is.
+// How hard a box is: one word.
 //
-// Players get the tier and nothing else. The attempt estimate is a
-// deterministic function of the password's length, so printing it publicly
-// would hand over the exact answer to the first thing a player has to work
-// out — the tier only places the length in a band of five or six.
+// It used to carry an attempt estimate and how many days of free lives that
+// came to, for the contributor who wrote the password. Both are gone. They were
+// two more numbers on a screen that already had plenty, and neither changed
+// what anyone did next — the tier is the decision.
 //
-// Contributors get the full reading, because they wrote the password and
-// already know its length. That's what `detail` is for, and it must never be
-// set on a player-facing surface.
+// It stays safe to show anywhere for the same reason it always was: a tier only
+// places the length in a band of five or six, where the estimate it replaced
+// was a deterministic function of the exact length.
 
 import { Flame } from "lucide-react";
-import { daysOfFreeLives, freeTime, roughly, type Difficulty } from "@/lib/game/difficulty";
+import type { Difficulty } from "@/lib/game/difficulty";
 
 const TONES: Record<Difficulty, string> = {
   Warm: "bg-mark-green/15 text-mark-green",
@@ -20,31 +20,13 @@ const TONES: Record<Difficulty, string> = {
   Merciless: "bg-red-500/15 text-red-300",
 };
 
-export function DifficultyBadge({
-  difficulty,
-  detail,
-}: {
-  difficulty: Difficulty;
-  /**
-   * Contributor-only. Adds the attempt estimate and how long it represents.
-   * Never pass this on a page a player can see.
-   */
-  detail?: { estimatedAttempts: number };
-}) {
+export function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
   return (
-    <span className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs">
-      <span
-        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${TONES[difficulty]}`}
-      >
-        <Flame className="size-3" aria-hidden />
-        {difficulty}
-      </span>
-      {detail && (
-        <span className="text-zinc-500">
-          {roughly(detail.estimatedAttempts)} attempts ·{" "}
-          {freeTime(daysOfFreeLives(detail.estimatedAttempts))} on free lives
-        </span>
-      )}
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${TONES[difficulty]}`}
+    >
+      <Flame className="size-3" aria-hidden />
+      {difficulty}
     </span>
   );
 }

@@ -42,14 +42,7 @@ import {
   minFundingKobo,
   splitFunding,
 } from "@/lib/game/rewards";
-import {
-  daysOfFreeLives,
-  difficultyOf,
-  estimateAttempts,
-  estimateAttemptsWithBreakdown,
-  freeTime,
-  roughly,
-} from "@/lib/game/difficulty";
+import { difficultyOf } from "@/lib/game/difficulty";
 import { DESIGNS, DESIGN_SPECS, DEFAULT_DESIGN, type Design } from "@/lib/game/designs";
 import { Modal } from "@/components/ui/modal";
 import { SafeArt } from "@/components/safe/safe-art";
@@ -184,28 +177,9 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
         />
       </div>
 
-      {passwordOk && (
+      {rewardOk && (
         <Panel title="What you're building">
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Figure label="Difficulty" value={difficultyOf(length)} />
-            <Figure label="Attempts to crack" value={roughly(estimateAttempts(length))} />
-            <Figure
-              label="On free lives"
-              value={freeTime(daysOfFreeLives(estimateAttempts(length)))}
-            />
-          </div>
-          <p className="mt-3 text-xs text-zinc-500">
-            A methodical player finds the length first, then works one position at
-            a time. Because a guess comes back as a single percentage and the
-            arithmetic behind it is never disclosed, the only safe reading of a
-            position is to try every character and keep the best — which is why
-            the number is what it is. A player who buys Colour Read roughly
-            halves it, to about {roughly(estimateAttemptsWithBreakdown(length))}.
-          </p>
-
-          {rewardOk && (
-            <RevenueEstimate rewardKobo={split.rewardKobo} hunters={0} earnedKobo={0} />
-          )}
+          <RevenueEstimate rewardKobo={split.rewardKobo} hunters={0} earnedKobo={0} />
         </Panel>
       )}
 
@@ -219,14 +193,6 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
       >
         {busy ? "Saving…" : ready ? "Save as draft" : "Fill in the cards above"}
       </button>
-
-      <p className="text-center text-xs text-zinc-500">
-        Drafts are free, invisible and editable — and you can throw one away at
-        any point before it&apos;s paid for. You fund it from the Boxes tab when
-        you&apos;re happy. After that the password, the name and the safe are
-        fixed for good; the only thing you can still change is the reward, and
-        it can only go up.
-      </p>
 
       <FundingLadder />
 
@@ -291,14 +257,8 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
           </dl>
 
           <p className="text-sm text-zinc-500">
-            A {length}-character password needs at least {formatNaira(floor)}. Put
-            up more for a bigger reward — and you can raise it later, but never
-            lower it.
-          </p>
-          <p className="text-sm text-zinc-500">
-            The reward is what the shelf is priced against: every power-up costs a
-            share of it, so a bigger box earns you more per hint as well as
-            drawing more people to it.
+            At least {formatNaira(floor)} for {length} characters. You can raise
+            it later, but never lower it.
           </p>
         </CardDialog>
       )}
@@ -455,7 +415,11 @@ function PasswordCard({
           type={reveal ? "text" : "password"}
           value={secret}
           autoFocus
-          onChange={(e) => setSecret(e.target.value)}
+          // Hard-stopped at the ceiling. `maxLength` covers typing; the slice
+          // covers a paste, which `maxLength` doesn't always. Letting somebody
+          // write 38 characters and only telling them afterwards was cruel.
+          maxLength={MAX_LENGTH}
+          onChange={(e) => setSecret(e.target.value.slice(0, MAX_LENGTH))}
           placeholder="Type it, or roll one"
           spellCheck={false}
           autoComplete="off"
@@ -490,51 +454,30 @@ function PasswordCard({
         </div>
       </div>
 
-      <p className="text-sm text-zinc-500">
-        {MIN_LENGTH}–{MAX_LENGTH} characters.{" "}
-        <strong className="text-zinc-700">
-          Anything on a keyboard can go in it
-        </strong>{" "}
-        — letters in either case, digits, and every symbol:{" "}
-        <span className="break-all font-mono text-xs">
-          ! &quot; # $ % &amp; &apos; ( ) * + , - . / : ; &lt; = &gt; ? @ [ \ ] ^ _ ` {"{"} | {"}"} ~
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="text-zinc-500">
+          {MIN_LENGTH}–{MAX_LENGTH} characters. Letters, digits and symbols.
+          Case matters.
         </span>
-        . <strong className="text-zinc-700">Case matters</strong> — players have to
-        get it exactly right.
-        {length > 0 && (
-          <>
-            {" "}
-            <span className="text-zinc-700">
-              {length} character{length === 1 ? "" : "s"}, {difficultyOf(length)}.
-            </span>
-          </>
-        )}
-      </p>
+        <span className="shrink-0 font-mono text-zinc-700">
+          {length > 0 ? `${length} · ${difficultyOf(length)}` : `0/${MAX_LENGTH}`}
+        </span>
+      </div>
 
       {rejected.length > 0 && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          These aren&apos;t allowed and would change your password:{" "}
+          Not allowed:{" "}
           <span className="font-mono">{rejected.join(" ")}</span>. Remove them.
-          Spaces are the usual culprit.
         </p>
       )}
 
       <p className="rounded-lg bg-zinc-100 px-3 py-2.5 text-sm text-zinc-600">
-        Nobody at Spendbox can read this back to you — not even on this page once
-        you leave it. Keep your own copy.
+        Nobody at Spendbox can read this back to you. Keep your own copy.
       </p>
     </CardDialog>
   );
 }
 
-function Figure({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-white/5 px-3 py-2.5 text-center">
-      <p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
-      <p className="mt-0.5 text-sm font-bold text-zinc-200">{value}</p>
-    </div>
-  );
-}
 
 function LightSplit({
   label,
@@ -574,7 +517,6 @@ function FundingLadder() {
               <th className="pb-2 font-medium">Characters</th>
               <th className="pb-2 font-medium">Minimum</th>
               <th className="pb-2 font-medium">Reward</th>
-              <th className="pb-2 font-medium">Attempts</th>
             </tr>
           </thead>
           <tbody className="font-mono text-zinc-300">
@@ -584,9 +526,6 @@ function FundingLadder() {
                 <td className="py-1.5">{formatNaira(row.minFundingKobo)}</td>
                 <td className="py-1.5 text-brass">
                   {formatNaira(splitFunding(row.minFundingKobo).rewardKobo)}
-                </td>
-                <td className="py-1.5 text-zinc-500">
-                  {roughly(estimateAttempts(row.length))}
                 </td>
               </tr>
             ))}

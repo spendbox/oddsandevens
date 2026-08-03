@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { BadgeCheck } from "lucide-react";
-import { ACCOUNT_NUMBER_REGEX, PLATFORM_SHARE_PERCENT } from "@/lib/constants";
+import { ACCOUNT_NUMBER_REGEX } from "@/lib/constants";
 import type { Bank, ContributorProfile } from "@/lib/types";
 import { INPUT, Panel, PRIMARY } from "./shared";
 
@@ -110,13 +110,11 @@ export function PayoutPanel({
           {busy ? "Checking the account…" : profile.payout.connected ? "Update" : "Connect"}
         </button>
 
-        <p className="text-xs text-zinc-500">
-          We check the number with your bank and show you the name on it before
-          saving. {100 - PLATFORM_SHARE_PERCENT}% of every power-up sale settles
-          here automatically.
-          {banks.length === 0 &&
-            " The bank list isn't loading right now — try again shortly."}
-        </p>
+        {banks.length === 0 && (
+          <p className="text-xs text-zinc-500">
+            The bank list isn&apos;t loading right now — try again shortly.
+          </p>
+        )}
       </div>
     </Panel>
   );

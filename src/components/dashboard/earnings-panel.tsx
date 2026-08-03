@@ -58,12 +58,6 @@ export function EarningsPanel({
             {formatNaira(earnings.platformKobo)}
           </Row>
         </dl>
-        <p className="mt-3 text-xs text-zinc-500">
-          Both lines are your {earnings.sharePercent}% — of every power-up bought
-          against one of your boxes, and of every life bought while hunting one.
-          What you put up isn&apos;t income and isn&apos;t counted here: that&apos;s
-          the reward, paid to whoever cracks the box.
-        </p>
       </Panel>
 
       <Panel title="Winners">

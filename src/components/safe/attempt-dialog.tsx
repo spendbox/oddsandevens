@@ -16,8 +16,6 @@
 import { Lock, MoveDown, MoveUp, Target } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { plural } from "@/lib/plural";
-import { BREAKDOWN_HOURS, POWER_UPS, priceKobo } from "@/lib/game/power-ups";
-import { formatNaira } from "@/lib/game/rewards";
 import type { AttemptRecord } from "@/lib/types";
 import { ScorePill } from "./score-pill";
 
@@ -44,12 +42,9 @@ const LENGTH_COPY = {
 
 export function AttemptDialog({
   attempt,
-  rewardKobo,
   onClose,
 }: {
   attempt: AttemptRecord;
-  /** Colour Read is priced off the box, so the upsell needs to know it. */
-  rewardKobo: number;
   onClose: () => void;
 }) {
   const length = LENGTH_COPY[attempt.lengthHint];
@@ -129,7 +124,7 @@ export function AttemptDialog({
             />
           </>
         ) : (
-          <LockedBreakdown rewardKobo={rewardKobo} />
+          <LockedBreakdown />
         )}
       </div>
     </Modal>
@@ -137,26 +132,30 @@ export function AttemptDialog({
 }
 
 /**
- * The upsell, stated as a fact rather than a nag.
+ * What a score is, for a player who hasn't bought the breakdown.
  *
- * It appears once per opened attempt and says exactly what the purchase does,
- * including that it applies backwards — which is the part that makes it worth
- * buying two hundred attempts in rather than never.
+ * This used to be an advert for Colour Read, price and all. It isn't now. The
+ * shelf sells the shelf; a player who has stopped on one attempt to think is
+ * asking what the number means, and the honest answer — the same score can be
+ * reached several ways — is more useful to them than a price tag, and is also
+ * the thing that makes the game interesting.
  */
-function LockedBreakdown({ rewardKobo }: { rewardKobo: number }) {
-  const powerUp = POWER_UPS.breakdown;
-  const price = priceKobo("breakdown", rewardKobo);
+function LockedBreakdown() {
   return (
     <div className="flex gap-3 border-t border-zinc-100 pt-3">
       <Lock className="mt-0.5 size-4 shrink-0 text-zinc-400" aria-hidden />
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-zinc-900">What made up this score</p>
-        <p className="mt-0.5 text-sm leading-snug text-zinc-500">
-          A score is a sum, and this one could have been reached several ways.{" "}
-          <strong className="text-zinc-700">{powerUp.name}</strong> (
-          {formatNaira(price)}) splits every attempt into exact hits,
-          wrong-case hits and characters that are in there somewhere else — the
-          ones you&apos;ve already made included — for {BREAKDOWN_HOURS} hours.
+      <div className="min-w-0 space-y-2">
+        <p className="text-sm font-semibold text-zinc-900">What Makes Up the Score?</p>
+        <p className="text-sm leading-relaxed text-zinc-500">
+          A score is only a measure of how close your guess is to the password.
+          The higher the score, the closer you are to unlocking the Spendbox.
+        </p>
+        <p className="text-sm leading-relaxed text-zinc-500">
+          Keep in mind that the same score can be reached in many different ways.
+          Two guesses might receive identical scores while sharing completely
+          different similarities to the password. Every attempt gives you another
+          piece of the puzzle, rewarding careful thinking, pattern recognition,
+          and persistence.
         </p>
       </div>
     </div>

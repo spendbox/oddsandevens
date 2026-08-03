@@ -10,7 +10,6 @@ import {
 import { getAuthedContributor } from "@/lib/contributor-auth";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
 import { fundingIsValid, minFundingKobo, splitFunding } from "@/lib/game/rewards";
-import { estimateAttempts } from "@/lib/game/difficulty";
 import { toDesign, type Design } from "@/lib/game/designs";
 import type { OwnedBox } from "@/lib/types";
 
@@ -78,10 +77,9 @@ export async function GET() {
     // against that exact password and it is permanent.
     editable: row.status === "draft" || row.status === "funding",
     createdAt: row.created_at,
-    // The author wrote the password, so telling them its length — and the
-    // attempt estimate derived from it — reveals nothing they don't know.
+    // The author wrote the password, so telling them its length reveals
+    // nothing they don't already know.
     length: row.length,
-    estimatedAttempts: estimateAttempts(row.length),
   }));
 
   return NextResponse.json({ boxes });
