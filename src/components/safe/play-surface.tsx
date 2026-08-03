@@ -10,11 +10,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { LockOpen, Swords, Trophy, Users } from "lucide-react";
-import { LIVES_MAX } from "@/lib/constants";
+import { LockOpen, MoveDown, MoveUp, Swords, Target, Trophy, Users } from "lucide-react";
+import { LIVES_MAX, MAX_ATTEMPTS_PER_BOX_PER_DAY } from "@/lib/constants";
+import { plural } from "@/lib/plural";
 import { EMPTY_REVEALED } from "@/lib/game/power-ups";
 import { formatNaira, rewardLabel } from "@/lib/game/rewards";
-import { roughly } from "@/lib/game/difficulty";
 import type { AttemptResult, PlayView } from "@/lib/types";
 import { usePlayer } from "@/components/player/player-context";
 import { VerifyDialog } from "@/components/player/verify-dialog";
@@ -102,10 +102,20 @@ export function PlaySurface({
     const body = (await res.json().catch(() => ({}))) as AttemptResult & {
       error?: string;
       nextLifeAt?: string;
+      nextSlotAt?: string;
     };
     setBusy(false);
 
     if (!res.ok) {
+      if (body.error === "daily_cap") {
+        setMessage(
+          body.nextSlotAt
+            ? `That's your ${MAX_ATTEMPTS_PER_BOX_PER_DAY} attempts on this box for today. The next slot opens in ${countdown(body.nextSlotAt, Date.now())}.`
+            : `That's your ${MAX_ATTEMPTS_PER_BOX_PER_DAY} attempts on this box for today.`
+        );
+        await reload();
+        return;
+      }
       if (body.error === "no_lives") {
         setMessage(
           body.nextLifeAt
@@ -162,6 +172,21 @@ export function PlaySurface({
                 revealed={revealed}
                 livesLeft={view.player.lives}
               />
+            )}
+
+            {view.dailyCap.used > 0 && outcome === "open" && (
+              <p className="text-center text-xs text-zinc-500">
+                {view.dailyCap.used} of {view.dailyCap.cap} attempts used on this box
+                today
+                {view.dailyCap.nextSlotAt && (
+                  <>
+                    {" · "}
+                    <span className="text-mark-orange">
+                      next slot in {countdown(view.dailyCap.nextSlotAt, now)}
+                    </span>
+                  </>
+                )}
+              </p>
             )}
 
             {view.player.lives === 0 && view.player.nextLifeAt && (
@@ -241,17 +266,17 @@ function BoxHeader({ view }: { view: PlayView }) {
       </p>
 
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <DifficultyBadge box={box} />
+        <DifficultyBadge difficulty={box.difficulty} />
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-zinc-500">
         <span className="flex items-center gap-1.5">
           <Users className="size-3.5" aria-hidden />
-          {box.playersCount} {box.playersCount === 1 ? "hunter" : "hunters"}
+          {plural(box.playersCount, "hunter")}
         </span>
         <span className="flex items-center gap-1.5">
           <Swords className="size-3.5" aria-hidden />
-          {box.attemptsCount} {box.attemptsCount === 1 ? "attempt" : "attempts"} so far
+          {plural(box.attemptsCount, "attempt")} so far
         </span>
       </div>
     </header>
@@ -266,10 +291,27 @@ function Rules() {
         How a guess is marked
       </summary>
       <ul className="mt-3 space-y-2 text-sm text-zinc-400">
-        <li>
-          <strong className="text-zinc-200">Length.</strong> You&apos;re told whether
-          your guess is too short, too long, or exactly right. Nothing says how
-          long the password is until you work it out.
+        <li className="flex gap-2">
+          <MoveUp className="mt-0.5 size-4 shrink-0 text-sky-300" aria-hidden />
+          <span>
+            <strong className="text-zinc-200">Up arrow — add characters.</strong>{" "}
+            Your guess was shorter than the password.
+          </span>
+        </li>
+        <li className="flex gap-2">
+          <MoveDown className="mt-0.5 size-4 shrink-0 text-sky-300" aria-hidden />
+          <span>
+            <strong className="text-zinc-200">Down arrow — remove characters.</strong>{" "}
+            Your guess was longer than the password.
+          </span>
+        </li>
+        <li className="flex gap-2">
+          <Target className="mt-0.5 size-4 shrink-0 text-mark-green" aria-hidden />
+          <span>
+            <strong className="text-zinc-200">Target — right length.</strong> Exactly
+            as many characters as the password. Nothing tells you the number until
+            you find it.
+          </span>
         </li>
         <li>
           <strong className="text-mark-green">Exactly right.</strong> How many
@@ -284,6 +326,14 @@ function Rules() {
         <li className="text-zinc-500">
           A character that&apos;s in the password but in the wrong place earns
           nothing at all. Position is everything.
+        </li>
+        <li className="text-zinc-500">
+          Tap any attempt in the log to read its verdict in full.
+        </li>
+        <li className="text-zinc-500">
+          You can make {MAX_ATTEMPTS_PER_BOX_PER_DAY} attempts on one box a day.
+          Buying lives makes you faster, never unlimited — a hard box is a siege
+          everyone can join.
         </li>
       </ul>
     </details>
@@ -334,7 +384,7 @@ function Cracked({ view }: { view: PlayView }) {
             {view.box.unlockedBy ?? "A player"} guessed the password
             {view.box.isChallenge ? "" : ` and took ${formatNaira(view.box.rewardKobo)}`}
             {view.box.attemptsCount > 0 && (
-              <> after {roughly(view.box.attemptsCount)} attempts across everyone</>
+              <> after {plural(view.box.attemptsCount, "attempt")} across everyone</>
             )}
             . An opened box can&apos;t be played again.
           </>

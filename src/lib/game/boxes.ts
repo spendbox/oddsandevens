@@ -4,7 +4,7 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { ALPHABET, LIVES_MAX, LIFE_PRICE_KOBO, LIFE_REGEN_MINUTES } from "@/lib/constants";
 import { maskEmail } from "@/lib/mask";
-import { difficultyOf, estimateAttempts } from "@/lib/game/difficulty";
+import { difficultyOf } from "@/lib/game/difficulty";
 import { isChallenge } from "@/lib/game/rewards";
 import type { PlayerState, PublicBox } from "@/lib/types";
 
@@ -40,10 +40,10 @@ export interface BoxRow {
 /**
  * A box as a browser may see it.
  *
- * The length goes in and does not come out. What comes out is the difficulty
- * tier and the attempt estimate derived from it — enough to decide whether a
- * box is worth your month, not enough to skip the first thing you have to
- * work out.
+ * The length goes in and does not come out — nor does anything invertible back
+ * to it. What comes out is the difficulty tier, which places the length in a
+ * band of five or six: enough to decide whether a box is worth your month, not
+ * enough to skip the first thing you have to work out.
  */
 export function toPublicBox(
   row: BoxRow,
@@ -57,7 +57,6 @@ export function toPublicBox(
     rewardKobo: row.reward_kobo,
     isChallenge: isChallenge(row.reward_kobo),
     difficulty: difficultyOf(row.length),
-    estimatedAttempts: estimateAttempts(row.length),
     status: row.status,
     attemptsCount: row.attempts_count,
     playersCount: row.players_count,

@@ -16,6 +16,7 @@ import {
   ALPHABET,
   ALPHABET_SET,
   BLURB_MAX,
+  MAX_ATTEMPTS_PER_BOX_PER_DAY,
   MAX_LENGTH,
   MIN_LENGTH,
   TITLE_MAX,
@@ -34,6 +35,7 @@ import {
   freeTime,
   roughly,
 } from "@/lib/game/difficulty";
+import { RevenueEstimate } from "./revenue-estimate";
 import { INPUT, Panel, PRIMARY } from "./shared";
 
 /** A suggested password. Generated in the browser: it's only a suggestion, and
@@ -226,9 +228,15 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
           </div>
           <p className="mt-3 text-xs text-zinc-500">
             A methodical player finds the length first, then works one position at
-            a time. That&apos;s the estimate — a determined one may be faster,
-            most will be far slower.
+            a time. That&apos;s the estimate — a determined one may be faster, most
+            will be far slower. Nobody may make more than{" "}
+            {MAX_ATTEMPTS_PER_BOX_PER_DAY} attempts on one box a day, so this is
+            also at least{" "}
+            {freeTime(attempts / MAX_ATTEMPTS_PER_BOX_PER_DAY)} of elapsed time
+            however much anyone spends.
           </p>
+
+          <RevenueEstimate hunters={0} earnedKobo={0} launched={false} />
         </Panel>
       )}
 
@@ -265,11 +273,15 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
             <p className="flex items-start gap-2 rounded-lg bg-mark-orange/10 px-3 py-2.5 text-xs text-mark-orange">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
               <span>
-                Worth checking: buying every attempt outright would cost about{" "}
-                <strong>{formatNaira(bruteCost)}</strong> in lives, and the reward is{" "}
-                <strong>{formatNaira(split.rewardKobo)}</strong>. A patient,
-                systematic player can profit from this box. A longer password or a
-                smaller reward closes that gap.
+                Worth knowing: a systematic player needs about{" "}
+                <strong>{formatNaira(bruteCost)}</strong> of lives to work through
+                this box, and the reward is{" "}
+                <strong>{formatNaira(split.rewardKobo)}</strong> — so a patient one
+                comes out ahead. The {MAX_ATTEMPTS_PER_BOX_PER_DAY}-a-day ceiling
+                means they&apos;d still need{" "}
+                {freeTime(attempts / MAX_ATTEMPTS_PER_BOX_PER_DAY)} in the open,
+                with everyone else free to beat them to it. A longer password or a
+                smaller reward closes the gap further.
               </span>
             </p>
           )}

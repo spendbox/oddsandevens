@@ -1,12 +1,17 @@
-// How hard a box is, said before anyone commits to it.
+// How hard a box is.
 //
-// A player about to spend weeks of lives deserves the number up front, and
-// "Brutal · ~470 attempts · about 3 weeks of free lives" is a far more useful
-// thing to read than a character count — which is just as well, because the
-// character count is the first thing they have to work out and can't be shown.
+// Players get the tier and nothing else. The attempt estimate is a
+// deterministic function of the password's length, so printing it publicly
+// would hand over the exact answer to the first thing a player has to work
+// out — the tier only places the length in a band of five or six.
+//
+// Contributors get the full reading, because they wrote the password and
+// already know its length. That's what `detail` is for, and it must never be
+// set on a player-facing surface.
 
 import { Flame } from "lucide-react";
 import { daysOfFreeLives, freeTime, roughly, type Difficulty } from "@/lib/game/difficulty";
+import { MAX_ATTEMPTS_PER_BOX_PER_DAY } from "@/lib/constants";
 
 const TONES: Record<Difficulty, string> = {
   Warm: "bg-mark-green/15 text-mark-green",
@@ -17,26 +22,33 @@ const TONES: Record<Difficulty, string> = {
 };
 
 export function DifficultyBadge({
-  box,
-  showTime = true,
+  difficulty,
+  detail,
 }: {
-  box: { difficulty: Difficulty; estimatedAttempts: number };
-  showTime?: boolean;
+  difficulty: Difficulty;
+  /**
+   * Contributor-only. Adds the attempt estimate and how long it represents.
+   * Never pass this on a page a player can see.
+   */
+  detail?: { estimatedAttempts: number };
 }) {
   return (
     <span className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs">
       <span
-        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${TONES[box.difficulty]}`}
+        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${TONES[difficulty]}`}
       >
         <Flame className="size-3" aria-hidden />
-        {box.difficulty}
+        {difficulty}
       </span>
-      <span className="text-zinc-500">
-        {roughly(box.estimatedAttempts)} attempts
-        {showTime && (
-          <> · {freeTime(daysOfFreeLives(box.estimatedAttempts))} on free lives</>
-        )}
-      </span>
+      {detail && (
+        <span className="text-zinc-500">
+          {roughly(detail.estimatedAttempts)} attempts ·{" "}
+          {freeTime(daysOfFreeLives(detail.estimatedAttempts))} on free lives · at
+          least{" "}
+          {freeTime(detail.estimatedAttempts / MAX_ATTEMPTS_PER_BOX_PER_DAY)} even
+          if bought
+        </span>
+      )}
     </span>
   );
 }

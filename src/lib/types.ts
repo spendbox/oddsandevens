@@ -11,11 +11,13 @@ export type BoxStatus = "draft" | "funding" | "live" | "unlocked" | "closed";
 /**
  * A box as anyone may see it.
  *
- * Note what is missing: the password's length. It is the first thing a player
- * has to work out, so it can't be sitting in a JSON payload. Difficulty and
- * the attempt estimate are derived from it server-side and shipped instead —
- * they narrow the length a little, which is the intended trade for making the
- * box's cost legible before you commit weeks to it.
+ * Note what is missing: the password's length, and anything that would give it
+ * away. `estimatedAttempts` used to be here and had to go — it's a
+ * deterministic function of the length, so shipping it handed over the exact
+ * answer to the first thing a player has to work out. The difficulty tier
+ * survives because it only narrows the length to a band of five or six, which
+ * is the intended trade for making a box's cost legible before you commit
+ * weeks to it.
  */
 export interface PublicBox {
   slug: string;
@@ -26,7 +28,6 @@ export interface PublicBox {
   /** True when there's no money behind it — a challenge, not a ₦0 reward. */
   isChallenge: boolean;
   difficulty: Difficulty;
-  estimatedAttempts: number;
   status: BoxStatus;
   attemptsCount: number;
   playersCount: number;
@@ -81,12 +82,21 @@ export interface PlayView {
   }[];
   /** Set when this player already won this box. */
   claim: { amountKobo: number; status: "unclaimed" | "submitted" | "paid" } | null;
+  dailyCap: DailyCap;
 }
 
 /** What comes back from spending a life on a guess. */
 export interface AttemptResult extends PlayView {
   outcome: "open" | "won" | "pipped";
   verdict: { lengthHint: LengthHint; exact: number; miscase: number } | null;
+}
+
+/** How much of today's per-box ceiling a player has spent. */
+export interface DailyCap {
+  used: number;
+  cap: number;
+  /** When the next slot opens, if they're at the ceiling. */
+  nextSlotAt: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +127,8 @@ export interface OwnedBox extends PublicBox {
   createdAt: string;
   /** The author's own copy of the length — they wrote it, so they know it. */
   length: number;
+  /** Same reasoning: only the author sees the attempt estimate. */
+  estimatedAttempts: number;
 }
 
 /** A row on the Attempts screen. The address is masked; it always is. */

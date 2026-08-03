@@ -73,14 +73,44 @@ Lives can also be bought at **₦150 each**, up to 100 at a time. Nobody has to
 — the pool refills whether or not anyone pays, and the buy dialog says so
 before it says anything else.
 
+Admins can grant lives from `/admin`, to an address that has never played if
+need be. It's the only honest fix when something breaks on our side.
+
+---
+
+## Why you can't buy a box
+
+A methodical player can isolate one position per guess, so a box falls in a
+predictable number of attempts. With lives on sale at a flat price and no limit
+on how many you could burn in a day, that made every box an arithmetic problem:
+buy N lives, solve it, take a reward worth many times what the lives cost.
+
+**A player may make 50 attempts on one box in a rolling 24 hours.** The free
+refill supplies 24 a day, so paying buys about double pace and never more. A
+600-attempt box therefore takes a fortnight at minimum however much anyone
+spends — a fortnight spent in public, with everyone else free to beat them to
+it. The ceiling is enforced in `spend_attempt` rather than a route handler,
+because a limit a second browser tab can race past is not a limit, and hitting
+it costs no life at all.
+
+This makes brute-forcing slow, public and contested. It does not by itself make
+it *unprofitable* — only a reward smaller than the lives it costs would do
+that. The Build screen shows both numbers side by side and says so plainly when
+a box is worth more than it costs to work through, so the decision is at least
+an informed one.
+
 ---
 
 ## Difficulty
 
-Every box shows a tier and an attempt estimate, to the player and the
-contributor alike, derived the same way. "26 characters" would mean nothing to
-somebody deciding whether to spend their month — and can't be shown anyway.
-"Merciless · ~600 attempts · about 3 weeks on free lives" means a great deal.
+Every box shows a difficulty tier. **Players see only the tier**: the attempt
+estimate is a deterministic function of the password's length, so printing it
+publicly would hand over the exact answer to the first thing a player has to
+work out. A tier only narrows the length to a band of five or six.
+
+Contributors see the full reading — attempts, days on free lives, and the
+minimum elapsed time under the daily ceiling — because they wrote the password
+and already know its length.
 
 The model is the strategy the feedback actually permits: binary-search the
 length (~5 attempts), then walk the positions one at a time, because a *count*

@@ -69,11 +69,9 @@ export function PowerUpShelf({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
           Power-ups
         </h2>
-        <p className="text-xs text-zinc-500">
-          {view.box.contributor
-            ? `70% goes to ${view.box.contributor}`
-            : "Funds the free public box"}
-        </p>
+        {view.box.contributor && (
+          <p className="text-xs text-zinc-500">70% goes to {view.box.contributor}</p>
+        )}
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">

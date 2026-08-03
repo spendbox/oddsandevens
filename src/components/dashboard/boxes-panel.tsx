@@ -16,8 +16,10 @@ import { useState } from "react";
 import { ExternalLink, Trash2, TrendingUp, Zap } from "lucide-react";
 import { formatNaira, rewardLabel, splitFunding } from "@/lib/game/rewards";
 import { MAX_FUNDING_KOBO } from "@/lib/constants";
+import { plural } from "@/lib/plural";
 import type { OwnedBox } from "@/lib/types";
 import { DifficultyBadge } from "@/components/difficulty-badge";
+import { RevenueEstimate } from "./revenue-estimate";
 import { Empty, GHOST, INPUT, Panel, PRIMARY, ShareButton, StatusPill } from "./shared";
 
 export function BoxesPanel({
@@ -110,7 +112,10 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
       </header>
 
       <div className="mt-2">
-        <DifficultyBadge box={box} />
+        <DifficultyBadge
+          difficulty={box.difficulty}
+          detail={{ estimatedAttempts: box.estimatedAttempts }}
+        />
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
@@ -119,13 +124,20 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
         <Figure
           label="Attempts"
           value={String(box.attemptsCount)}
-          hint={`${box.playersCount} ${box.playersCount === 1 ? "hunter" : "hunters"}`}
+          hint={plural(box.playersCount, "hunter")}
         />
       </div>
 
+      <RevenueEstimate
+        hunters={box.playersCount}
+        earnedKobo={box.earnedKobo}
+        launched={box.status !== "draft"}
+      />
+
       {box.status === "unlocked" && (
         <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-400">
-          Cracked by {box.unlockedBy ?? "a player"} after {box.attemptsCount} attempts.
+          Cracked by {box.unlockedBy ?? "a player"} after{" "}
+          {plural(box.attemptsCount, "attempt")}.
           An opened box can&apos;t be played again — the{" "}
           {rewardLabel(box.rewardKobo)} is on its way to them.
         </p>
@@ -205,7 +217,7 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
 
         {box.powerUpsSold > 0 && (
           <span className="ml-auto text-xs text-zinc-500">
-            {box.powerUpsSold} power-up{box.powerUpsSold === 1 ? "" : "s"} sold
+            {plural(box.powerUpsSold, "power-up")} sold
           </span>
         )}
       </footer>

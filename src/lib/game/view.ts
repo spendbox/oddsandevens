@@ -14,7 +14,8 @@ import {
   toPublicBox,
   type BoxRow,
 } from "@/lib/game/boxes";
-import type { AttemptRecord, HuntState, PlayView } from "@/lib/types";
+import { MAX_ATTEMPTS_PER_BOX_PER_DAY } from "@/lib/constants";
+import type { AttemptRecord, DailyCap, HuntState, PlayView } from "@/lib/types";
 import type { LengthHint } from "@/lib/game/feedback";
 
 type Db = ReturnType<typeof supabaseAdmin>;
@@ -65,6 +66,41 @@ interface AttemptDbRow {
   miscase_count: number;
   created_at: string;
 }
+
+/**
+ * How much of today's ceiling this hunt has spent.
+ *
+ * Counted in a rolling 24 hours to match `spend_attempt`, which is the thing
+ * that actually enforces it — a UI that disagreed with the server about how
+ * many attempts were left would be worse than showing nothing.
+ */
+async function dailyCap(db: Db, huntId: string): Promise<DailyCap> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await db
+    .from("attempts")
+    .select("created_at")
+    .eq("hunt_id", huntId)
+    .gt("created_at", since)
+    .order("created_at")
+    .limit(MAX_ATTEMPTS_PER_BOX_PER_DAY);
+
+  const rows = (data ?? []) as { created_at: string }[];
+  const used = rows.length;
+  return {
+    used,
+    cap: MAX_ATTEMPTS_PER_BOX_PER_DAY,
+    nextSlotAt:
+      used >= MAX_ATTEMPTS_PER_BOX_PER_DAY && rows[0]
+        ? new Date(new Date(rows[0].created_at).getTime() + 24 * 60 * 60 * 1000).toISOString()
+        : null,
+  };
+}
+
+const NO_ATTEMPTS_YET: DailyCap = {
+  used: 0,
+  cap: MAX_ATTEMPTS_PER_BOX_PER_DAY,
+  nextSlotAt: null,
+};
 
 async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
   const [{ data: attempts }, { data: orders }] = await Promise.all([
@@ -135,6 +171,7 @@ export async function buildPlayView(
       hunt: null,
       powerUps: offerings(parseRevealed(null)),
       claim: null,
+      dailyCap: NO_ATTEMPTS_YET,
     };
   }
 
@@ -156,6 +193,7 @@ export async function buildPlayView(
     player: toPlayerState(playerRow, email),
     hunt: state,
     powerUps: offerings(state?.revealed ?? parseRevealed(null)),
+    dailyCap: hunt ? await dailyCap(db, hunt.id) : NO_ATTEMPTS_YET,
     claim: claim
       ? {
           amountKobo: Number(claim.amount_kobo),

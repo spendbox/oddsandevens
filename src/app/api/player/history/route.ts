@@ -2,48 +2,59 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { playerEmail } from "@/lib/player-session";
 
-const LIMIT = 30;
+const LIMIT = 50;
 
 interface HistoryRow {
   id: string;
-  status: "active" | "won" | "lost";
-  guesses_used: number;
-  guesses_allowed: number;
+  attempts_count: number;
+  won_at: string | null;
   started_at: string;
-  ended_at: string | null;
-  boxes: { title: string; slug: string; prize_kobo: number; status: string } | null;
+  last_attempt_at: string | null;
+  boxes: {
+    title: string;
+    slug: string;
+    reward_kobo: number;
+    status: string;
+    kind: string;
+  } | null;
 }
 
-/** The player's own record: what they've attacked and how it went. */
+/**
+ * The player's own record: every box they've had a go at, public one included.
+ *
+ * Ordered by when they last touched it rather than when they started, because
+ * a hunt is something you come back to over days and the one you were on last
+ * night is the one you want at the top.
+ */
 export async function GET() {
   const email = await playerEmail();
-  if (!email) return NextResponse.json({ runs: [] });
+  if (!email) return NextResponse.json({ hunts: [] });
 
   const db = supabaseAdmin();
   const { data: player } = await db.from("players").select("id").eq("email", email).maybeSingle();
-  if (!player) return NextResponse.json({ runs: [] });
+  if (!player) return NextResponse.json({ hunts: [] });
 
   const { data } = await db
-    .from("runs")
+    .from("hunts")
     .select(
-      "id, status, guesses_used, guesses_allowed, started_at, ended_at, boxes(title, slug, prize_kobo, status)"
+      "id, attempts_count, won_at, started_at, last_attempt_at, boxes(title, slug, reward_kobo, status, kind)"
     )
     .eq("player_id", player.id)
-    .order("started_at", { ascending: false })
+    .order("last_attempt_at", { ascending: false, nullsFirst: false })
     .limit(LIMIT);
 
   return NextResponse.json({
-    runs: ((data ?? []) as unknown as HistoryRow[]).map((row) => ({
+    hunts: ((data ?? []) as unknown as HistoryRow[]).map((row) => ({
       id: row.id,
-      status: row.status,
-      guessesUsed: row.guesses_used,
-      guessesAllowed: row.guesses_allowed,
+      attempts: row.attempts_count,
+      won: row.won_at !== null,
       startedAt: row.started_at,
-      endedAt: row.ended_at,
+      lastAttemptAt: row.last_attempt_at,
       title: row.boxes?.title ?? "A spendbox",
       slug: row.boxes?.slug ?? null,
-      prizeKobo: Number(row.boxes?.prize_kobo ?? 0),
+      rewardKobo: Number(row.boxes?.reward_kobo ?? 0),
       boxStatus: row.boxes?.status ?? "closed",
+      isPublicBox: row.boxes?.kind === "general",
     })),
   });
 }

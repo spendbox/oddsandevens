@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Heart, Trophy } from "lucide-react";
 import { LIVES_MAX } from "@/lib/constants";
 import { formatNaira } from "@/lib/game/rewards";
+import { plural } from "@/lib/plural";
 import type { Bank } from "@/lib/types";
 import { usePlayer } from "./player-context";
 import { countdown, useNow } from "./lives-badge";
@@ -12,15 +13,18 @@ import { BuyLivesDialog } from "./buy-lives-dialog";
 import { VerifyDialog } from "./verify-dialog";
 import { PrizeClaimForm, type Prize } from "./prize-claim-form";
 
-interface HistoryRun {
+interface HistoryHunt {
   id: string;
-  status: "active" | "won" | "lost";
-  guessesUsed: number;
-  guessesAllowed: number;
+  attempts: number;
+  won: boolean;
   startedAt: string;
+  lastAttemptAt: string | null;
   title: string;
   slug: string | null;
   rewardKobo: number;
+  boxStatus: string;
+  /** The platform's own box. Worth marking — it's where most people start. */
+  isPublicBox: boolean;
 }
 
 export function PlayerPortal({ pendingReference }: { pendingReference: string | null }) {
@@ -28,7 +32,7 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
   const now = useNow(player.nextLifeAt);
   const [prizes, setPrizes] = useState<Prize[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
-  const [runs, setRuns] = useState<HistoryRun[]>([]);
+  const [hunts, setHunts] = useState<HistoryHunt[]>([]);
   const [dialog, setDialog] = useState<"none" | "verify" | "lives">("none");
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -43,7 +47,7 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
       setBanks(body.banks);
     }
     if (historyRes.ok) {
-      setRuns(((await historyRes.json()) as { runs: HistoryRun[] }).runs);
+      setHunts(((await historyRes.json()) as { hunts: HistoryHunt[] }).hunts);
     }
   }, []);
 
@@ -183,9 +187,9 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
-          Your attempts
+          Every safe you&apos;ve hunted
         </h2>
-        {runs.length === 0 ? (
+        {hunts.length === 0 ? (
           <p className="text-sm text-zinc-500">
             Nothing yet.{" "}
             <Link href="/" className="text-brass underline">
@@ -195,38 +199,49 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
           </p>
         ) : (
           <ul className="space-y-2">
-            {runs.map((run) => (
+            {hunts.map((hunt) => (
               <li
-                key={run.id}
+                key={hunt.id}
                 className="panel flex items-center justify-between gap-3 rounded-xl px-4 py-3"
               >
                 <div className="min-w-0">
-                  {run.slug ? (
+                  {hunt.slug ? (
                     <Link
-                      href={`/b/${run.slug}`}
-                      className="truncate text-sm font-medium hover:text-brass"
+                      href={`/b/${hunt.slug}`}
+                      className="block truncate text-sm font-medium hover:text-brass"
                     >
-                      {run.title}
+                      {hunt.title}
+                      {hunt.isPublicBox && (
+                        <span className="ml-2 text-[11px] font-normal text-zinc-500">
+                          public box
+                        </span>
+                      )}
                     </Link>
                   ) : (
-                    <p className="truncate text-sm font-medium">{run.title}</p>
+                    <p className="truncate text-sm font-medium">{hunt.title}</p>
                   )}
                   <p className="text-xs text-zinc-500">
-                    {run.guessesUsed} of {run.guessesAllowed} guesses ·{" "}
-                    {new Date(run.startedAt).toLocaleDateString()}
+                    {plural(hunt.attempts, "attempt")} ·{" "}
+                    {new Date(hunt.lastAttemptAt ?? hunt.startedAt).toLocaleDateString()}
                   </p>
                 </div>
                 <span
                   className={
                     "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold " +
-                    (run.status === "won"
+                    (hunt.won
                       ? "bg-mark-green/20 text-mark-green"
-                      : run.status === "active"
+                      : hunt.boxStatus === "live"
                         ? "bg-brass/20 text-brass"
                         : "bg-white/5 text-zinc-500")
                   }
                 >
-                  {run.status === "won" ? "Opened" : run.status === "active" ? "Live" : "Spent"}
+                  {hunt.won
+                    ? "Opened"
+                    : hunt.boxStatus === "live"
+                      ? "Still open"
+                      : hunt.boxStatus === "unlocked"
+                        ? "Taken"
+                        : "Closed"}
                 </span>
               </li>
             ))}

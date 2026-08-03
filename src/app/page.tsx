@@ -5,6 +5,7 @@ import { LIVES_MAX, MIN_LENGTH } from "@/lib/constants";
 import { PUBLIC_BOX_COLUMNS, toPublicBox, type BoxRow } from "@/lib/game/boxes";
 import { formatNaira, minFundingKobo, rewardLabel, splitFunding } from "@/lib/game/rewards";
 import { DifficultyBadge } from "@/components/difficulty-badge";
+import { plural } from "@/lib/plural";
 import { PlayerProvider } from "@/components/player/player-context";
 import { SiteHeader } from "@/components/site-header";
 import { BoxCard } from "@/components/box-card";
@@ -80,10 +81,7 @@ export default async function Home() {
 
           {featured && (
             <div className="animate-fade-up panel mx-auto mt-10 max-w-2xl rounded-3xl p-6 text-center sm:p-8">
-              <p className="text-xs uppercase tracking-widest text-zinc-500">
-                The public box — free, on us
-              </p>
-              <h2 className="mt-2 text-xl font-bold sm:text-2xl">{featured.title}</h2>
+              <h2 className="text-xl font-bold sm:text-2xl">{featured.title}</h2>
               {featured.blurb && (
                 <p className="mt-1 text-sm text-zinc-400">{featured.blurb}</p>
               )}
@@ -98,11 +96,11 @@ export default async function Home() {
                 {rewardLabel(featured.rewardKobo)}
               </p>
               <div className="mt-3 flex justify-center">
-                <DifficultyBadge box={featured} />
+                <DifficultyBadge difficulty={featured.difficulty} />
               </div>
               <p className="mt-2 text-sm text-zinc-500">
-                {featured.playersCount} hunters · {featured.attemptsCount} attempts so
-                far
+                {plural(featured.playersCount, "hunter")} ·{" "}
+                {plural(featured.attemptsCount, "attempt")} so far
               </p>
               <Link
                 href={`/b/${featured.slug}`}

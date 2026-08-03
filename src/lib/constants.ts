@@ -74,6 +74,22 @@ export const LIFE_PURCHASE_MAX = 100;
 export const LIVES_MAX = 7;
 export const LIFE_REGEN_MINUTES = 60;
 
+/**
+ * The most attempts one player may make on one box in a rolling 24 hours.
+ *
+ * This is the anti-brute-force measure, and it works by making *time* the
+ * scarce thing rather than money. The free refill supplies 24 lives a day, so
+ * a paying player can push a single box to 50 and no further — roughly double
+ * pace, never a thousand times it. A box that takes 600 attempts therefore
+ * takes a fortnight at minimum no matter what anyone spends, and spends that
+ * fortnight in public with everybody else free to beat them to it.
+ *
+ * Mirrored by `attempts_per_box_per_day()` in the migrations, which is where
+ * it is actually enforced — a ceiling a second browser tab can race past is
+ * not a ceiling.
+ */
+export const MAX_ATTEMPTS_PER_BOX_PER_DAY = 50;
+
 // ---------------------------------------------------------------------------
 // Text shapes
 // ---------------------------------------------------------------------------

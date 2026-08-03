@@ -2,9 +2,10 @@ import Link from "next/link";
 import { Lock, LockOpen, Users } from "lucide-react";
 import { rewardLabel } from "@/lib/game/rewards";
 import { DifficultyBadge } from "@/components/difficulty-badge";
+import { plural } from "@/lib/plural";
 import type { PublicBox } from "@/lib/types";
 
-/** One safe in the lobby. The prize is the headline because it is the point. */
+/** One safe in the lobby. The reward is the headline because it is the point. */
 export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) {
   const open = box.status === "unlocked";
 
@@ -51,14 +52,14 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
         {rewardLabel(box.rewardKobo)}
       </p>
 
-      <DifficultyBadge box={box} showTime={false} />
+      <DifficultyBadge difficulty={box.difficulty} />
 
       <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
         <span className="flex items-center gap-1">
           <Users className="size-3" aria-hidden />
-          {box.playersCount}
+          {plural(box.playersCount, "hunter")}
         </span>
-        <span>{box.attemptsCount} attempts</span>
+        <span>{plural(box.attemptsCount, "attempt")}</span>
         {open && box.unlockedBy && (
           <span className="text-brass/70">opened by {box.unlockedBy}</span>
         )}

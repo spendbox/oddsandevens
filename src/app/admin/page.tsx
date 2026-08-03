@@ -2,10 +2,10 @@
 
 // The platform's own back room.
 //
-// Two jobs: author the public box, and send prizes to the people who cracked
-// one. Everything else on the platform runs itself — contributor payouts go
-// through Paystack subaccounts and never need a human — so this stays small on
-// purpose.
+// Three jobs: author the public box, send rewards to the people who cracked
+// one, and hand out lives when something goes wrong on our side. Everything
+// else runs itself — contributor payouts go through Paystack subaccounts and
+// never need a human — so this stays small on purpose.
 
 import { useCallback, useEffect, useState } from "react";
 import { Lock, ShieldCheck } from "lucide-react";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/constants";
 import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 import { difficultyOf, estimateAttempts, roughly } from "@/lib/game/difficulty";
+import { GrantLives } from "@/components/admin/grant-lives";
 import type { PublicBox } from "@/lib/types";
 
 const INPUT =
@@ -136,6 +137,8 @@ export default function AdminPage() {
           </ul>
         )}
       </section>
+
+      <GrantLives />
 
       <GeneralBoxForm onCreated={() => void load()} />
 
