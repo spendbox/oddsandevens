@@ -16,7 +16,6 @@ import {
   ALPHABET,
   ALPHABET_SET,
   BLURB_MAX,
-  MAX_ATTEMPTS_PER_BOX_PER_DAY,
   MAX_LENGTH,
   MIN_LENGTH,
   TITLE_MAX,
@@ -32,6 +31,7 @@ import {
   daysOfFreeLives,
   difficultyOf,
   estimateAttempts,
+  estimateAttemptsWithBreakdown,
   freeTime,
   roughly,
 } from "@/lib/game/difficulty";
@@ -220,7 +220,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
         <Panel title="What you're building">
           <div className="grid gap-2 sm:grid-cols-3">
             <Figure label="Difficulty" value={difficultyOf(length)} />
-            <Figure label="Attempts to crack" value={`${roughly(attempts)}`} />
+            <Figure label="Attempts to crack" value={roughly(attempts)} />
             <Figure
               label="On free lives"
               value={freeTime(daysOfFreeLives(attempts))}
@@ -228,12 +228,12 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
           </div>
           <p className="mt-3 text-xs text-zinc-500">
             A methodical player finds the length first, then works one position at
-            a time. That&apos;s the estimate — a determined one may be faster, most
-            will be far slower. Nobody may make more than{" "}
-            {MAX_ATTEMPTS_PER_BOX_PER_DAY} attempts on one box a day, so this is
-            also at least{" "}
-            {freeTime(attempts / MAX_ATTEMPTS_PER_BOX_PER_DAY)} of elapsed time
-            however much anyone spends.
+            a time. Because a guess comes back as a single percentage and the
+            arithmetic behind it is never disclosed, the only safe reading of a
+            position is to try every character and keep the best — which is why
+            the number is what it is. A player who buys Colour Read roughly
+            halves it, to about{" "}
+            {roughly(estimateAttemptsWithBreakdown(length))}.
           </p>
 
           <RevenueEstimate hunters={0} earnedKobo={0} launched={false} />
@@ -277,11 +277,8 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
                 <strong>{formatNaira(bruteCost)}</strong> of lives to work through
                 this box, and the reward is{" "}
                 <strong>{formatNaira(split.rewardKobo)}</strong> — so a patient one
-                comes out ahead. The {MAX_ATTEMPTS_PER_BOX_PER_DAY}-a-day ceiling
-                means they&apos;d still need{" "}
-                {freeTime(attempts / MAX_ATTEMPTS_PER_BOX_PER_DAY)} in the open,
-                with everyone else free to beat them to it. A longer password or a
-                smaller reward closes the gap further.
+                comes out ahead. A longer password or a smaller reward closes the
+                gap.
               </span>
             </p>
           )}

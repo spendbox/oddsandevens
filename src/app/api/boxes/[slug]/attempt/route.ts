@@ -13,7 +13,8 @@ import { maskEmail } from "@/lib/mask";
  * Nothing about the comparison happens here: `spend_attempt` takes the life,
  * scores the guess against the password, records the attempt and settles a win
  * in a single statement inside Postgres. The password is never read into this
- * process, and two requests can't both spend the last life.
+ * process, the weights behind the score never leave it, and two requests can't
+ * both spend the last life.
  *
  * The guess is NOT length-checked. Not knowing how long the password is is the
  * first thing a player has to beat, and probing lengths is a legitimate — and
@@ -53,8 +54,7 @@ export async function POST(
     error?: string;
     next_life_at?: string;
     length_hint?: LengthHint;
-    exact?: number;
-    miscase?: number;
+    score_percent?: string | number;
     outcome?: string;
   };
 
@@ -83,8 +83,7 @@ export async function POST(
     outcome,
     verdict: {
       lengthHint: verdict.length_hint ?? "exact",
-      exact: verdict.exact ?? 0,
-      miscase: verdict.miscase ?? 0,
+      scorePercent: Number(verdict.score_percent ?? 0),
     },
   });
 }

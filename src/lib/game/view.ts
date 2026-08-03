@@ -14,8 +14,7 @@ import {
   toPublicBox,
   type BoxRow,
 } from "@/lib/game/boxes";
-import { MAX_ATTEMPTS_PER_BOX_PER_DAY } from "@/lib/constants";
-import type { AttemptRecord, DailyCap, HuntState, PlayView } from "@/lib/types";
+import type { AttemptRecord, HuntState, PlayView } from "@/lib/types";
 import type { LengthHint } from "@/lib/game/feedback";
 
 type Db = ReturnType<typeof supabaseAdmin>;
@@ -64,49 +63,18 @@ interface AttemptDbRow {
   length_hint: LengthHint;
   exact_count: number;
   miscase_count: number;
+  elsewhere_count: number;
+  score_percent: string | number;
   created_at: string;
 }
-
-/**
- * How much of today's ceiling this hunt has spent.
- *
- * Counted in a rolling 24 hours to match `spend_attempt`, which is the thing
- * that actually enforces it — a UI that disagreed with the server about how
- * many attempts were left would be worse than showing nothing.
- */
-async function dailyCap(db: Db, huntId: string): Promise<DailyCap> {
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { data } = await db
-    .from("attempts")
-    .select("created_at")
-    .eq("hunt_id", huntId)
-    .gt("created_at", since)
-    .order("created_at")
-    .limit(MAX_ATTEMPTS_PER_BOX_PER_DAY);
-
-  const rows = (data ?? []) as { created_at: string }[];
-  const used = rows.length;
-  return {
-    used,
-    cap: MAX_ATTEMPTS_PER_BOX_PER_DAY,
-    nextSlotAt:
-      used >= MAX_ATTEMPTS_PER_BOX_PER_DAY && rows[0]
-        ? new Date(new Date(rows[0].created_at).getTime() + 24 * 60 * 60 * 1000).toISOString()
-        : null,
-  };
-}
-
-const NO_ATTEMPTS_YET: DailyCap = {
-  used: 0,
-  cap: MAX_ATTEMPTS_PER_BOX_PER_DAY,
-  nextSlotAt: null,
-};
 
 async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
   const [{ data: attempts }, { data: orders }] = await Promise.all([
     db
       .from("attempts")
-      .select("ordinal, value, length_hint, exact_count, miscase_count, created_at")
+      .select(
+        "ordinal, value, length_hint, exact_count, miscase_count, elsewhere_count, score_percent, created_at"
+      )
       .eq("hunt_id", hunt.id)
       .order("ordinal", { ascending: false })
       .limit(ATTEMPT_PAGE),
@@ -118,24 +86,55 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
       .order("paid_at"),
   ]);
 
+  const revealed = parseRevealed(hunt.revealed);
+
+  // The gate. Component counts are on every row in the database, and they stay
+  // there until Colour Read is bought — a browser that has not paid for the
+  // breakdown never receives it, so there is nothing to un-hide in devtools.
   const records: AttemptRecord[] = ((attempts ?? []) as AttemptDbRow[]).map((row) => ({
     ordinal: row.ordinal,
     value: row.value,
     lengthHint: row.length_hint,
-    exact: row.exact_count,
-    miscase: row.miscase_count,
+    scorePercent: Number(row.score_percent),
+    breakdown: revealed.breakdown
+      ? {
+          exact: row.exact_count,
+          miscase: row.miscase_count,
+          elsewhere: row.elsewhere_count,
+        }
+      : null,
     at: row.created_at,
   }));
 
   return {
     attemptsCount: hunt.attempts_count,
     attempts: records,
-    revealed: parseRevealed(hunt.revealed),
+    revealed,
     notes: ((orders ?? []) as { note: string | null }[])
       .map((o) => o.note)
       .filter((n): n is string => !!n),
+    hasBreakdown: revealed.breakdown,
+    bestPercent: await bestScore(db, hunt.id),
     won: hunt.won_at !== null,
   };
+}
+
+/**
+ * The highest score this hunt has reached.
+ *
+ * Queried rather than taken from the page of attempts on screen: a hunt runs
+ * to hundreds and the best one is often far above the fold. It's the number a
+ * player actually navigates by.
+ */
+async function bestScore(db: Db, huntId: string): Promise<number> {
+  const { data } = await db
+    .from("attempts")
+    .select("score_percent")
+    .eq("hunt_id", huntId)
+    .order("score_percent", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return Number(data?.score_percent ?? 0);
 }
 
 /**
@@ -171,7 +170,6 @@ export async function buildPlayView(
       hunt: null,
       powerUps: offerings(parseRevealed(null)),
       claim: null,
-      dailyCap: NO_ATTEMPTS_YET,
     };
   }
 
@@ -193,7 +191,6 @@ export async function buildPlayView(
     player: toPlayerState(playerRow, email),
     hunt: state,
     powerUps: offerings(state?.revealed ?? parseRevealed(null)),
-    dailyCap: hunt ? await dailyCap(db, hunt.id) : NO_ATTEMPTS_YET,
     claim: claim
       ? {
           amountKobo: Number(claim.amount_kobo),

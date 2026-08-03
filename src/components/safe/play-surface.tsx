@@ -11,7 +11,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { LockOpen, MoveDown, MoveUp, Swords, Target, Trophy, Users } from "lucide-react";
-import { LIVES_MAX, MAX_ATTEMPTS_PER_BOX_PER_DAY } from "@/lib/constants";
+import { ScorePill } from "./score-pill";
+import { LIVES_MAX } from "@/lib/constants";
 import { plural } from "@/lib/plural";
 import { EMPTY_REVEALED } from "@/lib/game/power-ups";
 import { formatNaira, rewardLabel } from "@/lib/game/rewards";
@@ -102,20 +103,10 @@ export function PlaySurface({
     const body = (await res.json().catch(() => ({}))) as AttemptResult & {
       error?: string;
       nextLifeAt?: string;
-      nextSlotAt?: string;
     };
     setBusy(false);
 
     if (!res.ok) {
-      if (body.error === "daily_cap") {
-        setMessage(
-          body.nextSlotAt
-            ? `That's your ${MAX_ATTEMPTS_PER_BOX_PER_DAY} attempts on this box for today. The next slot opens in ${countdown(body.nextSlotAt, Date.now())}.`
-            : `That's your ${MAX_ATTEMPTS_PER_BOX_PER_DAY} attempts on this box for today.`
-        );
-        await reload();
-        return;
-      }
       if (body.error === "no_lives") {
         setMessage(
           body.nextLifeAt
@@ -174,21 +165,6 @@ export function PlaySurface({
               />
             )}
 
-            {view.dailyCap.used > 0 && outcome === "open" && (
-              <p className="text-center text-xs text-zinc-500">
-                {view.dailyCap.used} of {view.dailyCap.cap} attempts used on this box
-                today
-                {view.dailyCap.nextSlotAt && (
-                  <>
-                    {" · "}
-                    <span className="text-mark-orange">
-                      next slot in {countdown(view.dailyCap.nextSlotAt, now)}
-                    </span>
-                  </>
-                )}
-              </p>
-            )}
-
             {view.player.lives === 0 && view.player.nextLifeAt && (
               <p className="text-center text-sm text-zinc-400">
                 Next life in{" "}
@@ -209,13 +185,17 @@ export function PlaySurface({
             <Rules />
 
             <section className="space-y-2">
-              <div className="flex items-baseline justify-between gap-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
                   Your attempts
                 </h2>
                 {view.hunt && view.hunt.attemptsCount > 0 && (
-                  <span className="font-mono text-xs text-zinc-500">
-                    {view.hunt.attemptsCount} so far
+                  <span className="flex items-center gap-2 text-xs text-zinc-500">
+                    <span className="font-mono">
+                      {plural(view.hunt.attemptsCount, "attempt")}
+                    </span>
+                    <span>best</span>
+                    <ScorePill percent={view.hunt.bestPercent} />
                   </span>
                 )}
               </div>
@@ -314,26 +294,25 @@ function Rules() {
           </span>
         </li>
         <li>
-          <strong className="text-mark-green">Exactly right.</strong> How many
-          positions held the right character, in the right case — never which
-          ones.
-        </li>
-        <li>
-          <strong className="text-mark-orange">Wrong case.</strong> How many
-          positions held the right letter but the wrong case. Case is part of the
-          password.
-        </li>
-        <li className="text-zinc-500">
-          A character that&apos;s in the password but in the wrong place earns
-          nothing at all. Position is everything.
+          <strong className="text-zinc-200">A score out of 100.</strong> How close
+          the guess is. Every position contributes something — an exact character
+          most, the right letter in the wrong case least, a character that&apos;s in
+          the password but somewhere else in between — and the total is measured
+          against a perfect guess.{" "}
+          <strong className="text-brass">100% is the password itself</strong>, and
+          nothing else reaches it.
         </li>
         <li className="text-zinc-500">
-          Tap any attempt in the log to read its verdict in full.
+          How much each of those is worth is not published. Two very different
+          guesses can score the same, and working out which explanation fits is
+          the game.
         </li>
         <li className="text-zinc-500">
-          You can make {MAX_ATTEMPTS_PER_BOX_PER_DAY} attempts on one box a day.
-          Buying lives makes you faster, never unlimited — a hard box is a siege
-          everyone can join.
+          Case counts. <span className="font-mono">k</span> and{" "}
+          <span className="font-mono">K</span> are different characters.
+        </li>
+        <li className="text-zinc-500">
+          Tap any attempt in the log to read it in full.
         </li>
       </ul>
     </details>

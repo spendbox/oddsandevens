@@ -1,11 +1,12 @@
 // Power-ups: the only thing a player ever has to pay for, and the only way a
 // contributor makes money back.
 //
-// They matter far more than they used to. A box now hides its length, gives no
-// "that letter is in there somewhere" signal, and cares about case — so a
-// methodical solve runs to hundreds of attempts. Every power-up here removes a
-// specific chunk of that work, and each one is priced roughly against the
-// lives it saves.
+// They matter far more than they used to. A box hides its length, cares about
+// case, and answers a guess with a single percentage whose arithmetic is never
+// disclosed — so a methodical solve runs to hundreds of attempts. Every
+// power-up here removes a specific chunk of that work, and each is priced
+// roughly against the lives it saves. Colour Read is the largest because it
+// changes what every attempt means rather than adding one more fact.
 //
 // Everything except the catalogue is server-only: `apply` reads the password.
 // What reaches the browser is the accumulated `Revealed` state, which is the
@@ -15,6 +16,7 @@ import { randomInt } from "node:crypto";
 import { ALPHABET, KOBO, PLATFORM_SHARE_PERCENT } from "@/lib/constants";
 
 export const POWER_UP_KINDS = [
+  "breakdown",
   "length_lock",
   "sweep",
   "case_map",
@@ -36,6 +38,23 @@ export interface PowerUp {
 export const SWEEP_SIZE = Math.max(1, Math.ceil(ALPHABET.length * 0.05));
 
 export const POWER_UPS: Record<PowerUpKind, PowerUp> = {
+  /**
+   * The big one, and priced like it.
+   *
+   * By default a guess comes back as a single percentage, and a single number
+   * that could have been arrived at several ways is very hard to reason about.
+   * This turns it into three: how much came from exact hits, from the right
+   * letter in the wrong case, and from characters sitting somewhere else. It
+   * applies to every attempt on the hunt, the ones already made included, so
+   * buying it late retroactively explains everything you've done.
+   */
+  breakdown: {
+    kind: "breakdown",
+    name: "Colour Read",
+    blurb:
+      "Splits every score — past and future — into exact hits, wrong-case hits and characters that are in there somewhere else.",
+    priceKobo: 5_000 * KOBO,
+  },
   length_lock: {
     kind: "length_lock",
     name: "Length Lock",
@@ -116,6 +135,11 @@ export interface CaseMap {
  * sent to the browser as-is: the player has paid for all of it.
  */
 export interface Revealed {
+  /**
+   * Whether this hunt has bought the breakdown. The one flag here that changes
+   * what past attempts look like rather than adding a new fact.
+   */
+  breakdown: boolean;
   /** The password's length, once Length Lock has been bought. */
   length: number | null;
   /** Position index (as a string key, because it round-trips through jsonb) → character. */
@@ -130,6 +154,7 @@ export interface Revealed {
 }
 
 export const EMPTY_REVEALED: Revealed = {
+  breakdown: false,
   length: null,
   positions: {},
   dead: [],
@@ -142,6 +167,7 @@ export const EMPTY_REVEALED: Revealed = {
 export function parseRevealed(raw: unknown): Revealed {
   const value = (raw ?? {}) as Partial<Revealed>;
   return {
+    breakdown: value.breakdown === true,
     length: typeof value.length === "number" ? value.length : null,
     positions: value.positions ?? {},
     dead: Array.isArray(value.dead) ? value.dead : [],
@@ -169,6 +195,8 @@ export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
   const known = revealed.length;
 
   switch (kind) {
+    case "breakdown":
+      return !revealed.breakdown;
     case "length_lock":
       return known === null;
     case "sweep": {
@@ -224,6 +252,12 @@ export function apply(
   const counted = { ...before, used };
 
   switch (kind) {
+    case "breakdown":
+      return {
+        revealed: { ...counted, breakdown: true },
+        note: "Every score is now split into its parts — including the ones you already made.",
+      };
+
     case "length_lock":
       return {
         revealed: { ...counted, length: secret.length },

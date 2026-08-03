@@ -7,19 +7,40 @@
 /** Whether the guess was shorter than, longer than, or the right length. */
 export type LengthHint = "shorter" | "longer" | "exact";
 
+/**
+ * What every attempt earns: one number.
+ *
+ * A percentage of a perfect guess, where a perfect guess is the password
+ * itself. **How it is arrived at is deliberately undocumented** — different
+ * kinds of near-miss are worth different amounts, and a total that could have
+ * come from several combinations is far harder to read than three labelled
+ * counts. That opacity is the game.
+ *
+ * 100% means solved and nothing else does: the score is measured against the
+ * longer of the guess and the password, so padding a correct prefix out dilutes
+ * it rather than being free.
+ */
 export interface Verdict {
   lengthHint: LengthHint;
-  /**
-   * Positions that were exactly right — right character, right place, right
-   * case. Never *which* positions: that is the whole difficulty of the game.
-   */
+  /** 0–100, to two decimal places. */
+  scorePercent: number;
+}
+
+/**
+ * The verdict taken apart — sold, not given.
+ *
+ * Turning one opaque number into three labelled ones is the single most useful
+ * thing a player can buy, which is why it costs what it costs. Withheld on the
+ * server rather than hidden in the browser: `buildPlayView` never puts these on
+ * the wire for a hunt that hasn't bought them.
+ */
+export interface Breakdown {
+  /** Right character, right place, right case. */
   exact: number;
-  /**
-   * Positions holding the right letter in the right place but in the wrong
-   * case. The one mercy in the scheme — it says "stop searching this position,
-   * just flip the case".
-   */
+  /** Right letter, right place, wrong case. */
   miscase: number;
+  /** Right character, sitting somewhere else in the password. */
+  elsewhere: number;
 }
 
 /**
@@ -36,26 +57,34 @@ export function isWellFormed(guess: string, alphabet: Set<string>, maxLength: nu
 }
 
 export const LENGTH_HINT_COPY: Record<LengthHint, string> = {
-  shorter: "Too short",
-  longer: "Too long",
+  shorter: "Add characters",
+  longer: "Remove characters",
   exact: "Right length",
 };
 
-/** A one-line reading of a verdict, for the attempt log. */
-export function summarise(verdict: Verdict): string {
-  const parts: string[] = [LENGTH_HINT_COPY[verdict.lengthHint]];
-  if (verdict.exact > 0) parts.push(`${verdict.exact} exact`);
-  if (verdict.miscase > 0) parts.push(`${verdict.miscase} wrong case`);
-  if (verdict.exact === 0 && verdict.miscase === 0) parts.push("nothing landed");
-  return parts.join(" · ");
+/**
+ * The score as it's printed.
+ *
+ * One decimal place, always. Two would give away more of the arithmetic; zero
+ * would erase the signal entirely on a long password, where a single
+ * near-miss can be worth a few tenths of a percent and rounding it to "0%"
+ * would look identical to having found nothing at all.
+ */
+export function formatScore(percent: number): string {
+  return `${percent.toFixed(1)}%`;
 }
 
 /**
- * Whether a verdict is worth drawing attention to.
+ * How warm a score is, for colouring it.
  *
- * A player grinding hundreds of attempts needs the good ones to stand out in
- * the log, and "good" here means something actually landed.
+ * Bands rather than a gradient: a player comparing two attempts should be able
+ * to see at a glance that one is in a better neighbourhood, without the colour
+ * pretending to more precision than the number has.
  */
-export function isNotable(verdict: Verdict): boolean {
-  return verdict.exact > 0 || verdict.miscase > 0;
+export function scoreBand(percent: number): "cold" | "cool" | "warm" | "hot" | "solved" {
+  if (percent >= 100) return "solved";
+  if (percent >= 75) return "hot";
+  if (percent >= 45) return "warm";
+  if (percent > 0) return "cool";
+  return "cold";
 }

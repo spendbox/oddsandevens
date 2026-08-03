@@ -1,13 +1,13 @@
 // How hard a box is, in a number a person can act on.
 //
 // "26 characters" means nothing to somebody deciding whether to spend their
-// afternoon on a box. "About 630 attempts, which is four weeks of free lives"
-// means quite a lot. Both the player and the contributor see the same figure,
-// derived the same way, because a reward is only fair if the work behind it is
-// legible before you start.
+// month on a box — and can't be shown anyway, since the length is the first
+// thing a player has to find. "Merciless, around 1,900 attempts" means quite a
+// lot. The figure is measured against a solver rather than guessed: see the
+// model below, which reproduces the measurements to within a percent.
 
 import {
-  CHARACTER_CLASSES,
+  ALPHABET,
   KOBO,
   LIFE_PRICE_KOBO,
   LIVES_MAX,
@@ -16,29 +16,45 @@ import {
   MIN_LENGTH,
 } from "@/lib/constants";
 
+/** Binary-searching the length over the 24 possibilities. */
+const LENGTH_SEARCH = Math.ceil(Math.log2(MAX_LENGTH - MIN_LENGTH + 1));
+
 /**
- * Attempts a methodical player needs, on average.
+ * Attempts a methodical player needs, playing for free.
  *
- * The model is the strategy the feedback actually permits, not a guess:
+ * The strategy the scoring permits, and its cost:
  *
  *  1. **Find the length.** The only length signal is shorter/longer/exact, so
- *     it's a binary search over the 24 possible lengths — about 5 attempts.
+ *     it's a binary search — about 5 attempts.
  *
- *  2. **Then one position at a time.** Because the verdict is a *count* with
- *     no positions attached, the only way to learn about a single position is
- *     to change that position alone and watch the count move. Each attempt
- *     therefore tests one candidate at one position, and a wrong-case hit
- *     resolves the case for free — so the search per position runs over the
- *     48 case-folded classes, landing in about half of them on average.
+ *  2. **Then one position at a time, scanning the whole alphabet.** This is
+ *     where the cost lives, and why it is so much higher than a colour-grid
+ *     game. A score is a single number, so the only safe reading of a position
+ *     is "try everything and keep the best" — thresholds on the delta don't
+ *     work, because the character already sitting there may itself be scoring,
+ *     and because a misplaced character is worth more than a right-place
+ *     wrong-case one. Only an exact hit is guaranteed to top the scale, and
+ *     proving you've found it means trying every other character: 73 of them.
  *
- * The last position falls out by elimination, which is where the `- 1` comes
- * from. This is a floor for a good player, not a ceiling for anyone else.
+ * A solver implementing exactly this measures 224 attempts at three characters
+ * and 1,904 at twenty-six. The formula below reproduces both.
  */
 export function estimateAttempts(length: number): number {
   const clamped = Math.min(Math.max(Math.trunc(length), MIN_LENGTH), MAX_LENGTH);
-  const lengthSearch = Math.ceil(Math.log2(MAX_LENGTH - MIN_LENGTH + 1));
-  const perPosition = CHARACTER_CLASSES / 2;
-  return Math.round(lengthSearch + (clamped - 1) * perPosition);
+  return LENGTH_SEARCH + clamped * (ALPHABET.length - 1);
+}
+
+/**
+ * The same, for a player who has bought Colour Read.
+ *
+ * With the components visible, an exact hit announces itself the moment it
+ * lands and the scan can stop there — so the search per position halves, from
+ * "try all 73" to "try until it works, about 37". That is what the power-up
+ * buys, and it is roughly half the game.
+ */
+export function estimateAttemptsWithBreakdown(length: number): number {
+  const clamped = Math.min(Math.max(Math.trunc(length), MIN_LENGTH), MAX_LENGTH);
+  return LENGTH_SEARCH + clamped * Math.round(ALPHABET.length / 2);
 }
 
 export const DIFFICULTY_TIERS = ["Warm", "Tricky", "Hard", "Brutal", "Merciless"] as const;
@@ -67,9 +83,9 @@ export function daysOfFreeLives(attempts: number): number {
  * What it would cost to buy every attempt outright.
  *
  * Shown to contributors next to the reward on purpose. A box whose reward
- * exceeds this number can be solved at a profit by anyone patient enough to
- * be systematic, and a contributor deserves to see that before funding it
- * rather than after somebody demonstrates it.
+ * exceeds this number can be solved at a profit by anyone patient enough to be
+ * systematic, and a contributor deserves to see that before funding it rather
+ * than after somebody demonstrates it.
  */
 export function bruteForceCostKobo(length: number): number {
   return estimateAttempts(length) * LIFE_PRICE_KOBO;
@@ -98,11 +114,11 @@ export function difficultyView(length: number, rewardKobo: number): DifficultyVi
   };
 }
 
-/** "about 630" — a precise-looking number would be a lie about a model. */
+/** "~1,900" — a precise-looking number would be a lie about a model. */
 export function roughly(attempts: number): string {
   if (attempts < 100) return `~${Math.round(attempts / 5) * 5}`;
   if (attempts < 1000) return `~${Math.round(attempts / 10) * 10}`;
-  return `~${Math.round(attempts / 50) * 50}`;
+  return `~${(Math.round(attempts / 50) * 50).toLocaleString("en-NG")}`;
 }
 
 /** "4 days" / "3 weeks" — free-play time, phrased the way people think. */

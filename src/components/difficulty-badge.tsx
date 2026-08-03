@@ -11,7 +11,6 @@
 
 import { Flame } from "lucide-react";
 import { daysOfFreeLives, freeTime, roughly, type Difficulty } from "@/lib/game/difficulty";
-import { MAX_ATTEMPTS_PER_BOX_PER_DAY } from "@/lib/constants";
 
 const TONES: Record<Difficulty, string> = {
   Warm: "bg-mark-green/15 text-mark-green",
@@ -43,10 +42,7 @@ export function DifficultyBadge({
       {detail && (
         <span className="text-zinc-500">
           {roughly(detail.estimatedAttempts)} attempts ·{" "}
-          {freeTime(daysOfFreeLives(detail.estimatedAttempts))} on free lives · at
-          least{" "}
-          {freeTime(detail.estimatedAttempts / MAX_ATTEMPTS_PER_BOX_PER_DAY)} even
-          if bought
+          {freeTime(daysOfFreeLives(detail.estimatedAttempts))} on free lives
         </span>
       )}
     </span>

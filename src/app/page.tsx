@@ -70,8 +70,8 @@ export default async function Home() {
             <p className="mx-auto mt-4 max-w-lg text-zinc-400">
               Every spendbox is a password with real money behind it. You
               don&apos;t get told how long it is. Every guess costs a life and
-              answers three things — too short, too long or right; how many
-              characters landed exactly; how many were right but the wrong case.
+              comes back with one number: how close you are, out of 100. What
+              that number is made of is never explained.
             </p>
             <p className="mt-3 text-sm text-zinc-500">
               Playing is free. You hold {LIVES_MAX} lives and one comes back every
@@ -160,7 +160,7 @@ function HowItWorks() {
     {
       icon: Lock,
       title: "Guess blind",
-      body: "Letters, digits and symbols, and case matters. Nothing tells you how long the password is — every guess answers only whether it's too short, too long or right, plus how many characters landed exactly and how many were right but the wrong case.",
+      body: "Letters, digits and symbols, and case matters. Nothing tells you how long the password is, and a guess scores a single percentage whose arithmetic is never published — two very different guesses can score the same. 100% is the password.",
     },
     {
       icon: Heart,

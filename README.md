@@ -3,10 +3,9 @@
 **Guess the password. Open the safe.**
 
 A spendbox is a password with money behind it. You aren't told how long it is.
-Every guess costs one life and answers exactly three things — whether it's too
-short, too long or right; how many characters landed exactly; how many were
-right but in the wrong case — and never *which* ones. Work it out and the money
-is yours.
+Every guess costs one life and comes back with one number: how close you are,
+out of 100. What that number is made of is never explained. Reach 100% and the
+money is yours.
 
 Playing is free: seven lives, one back every hour, forever.
 
@@ -36,23 +35,26 @@ and twelve symbols — 74 in all. **Case is part of the password.** `k` and `K`
 are different characters, which roughly squares the search space and is the
 single biggest reason a box takes hundreds of attempts rather than a dozen.
 
-An attempt answers three questions:
+An attempt answers two things:
 
 | | |
 | --- | --- |
 | **Length** | Too short, too long, or exactly right. Nothing ever says how long the password is — that's the first thing you have to hunt. |
-| **Exactly right** | How many positions held the right character in the right case. |
-| **Wrong case** | How many positions held the right letter in the right place, but the wrong case. |
+| **Score** | How close the guess is, as a percentage of a perfect one. |
 
-Two things are deliberately absent. You are never told *which* positions those
-counts refer to. And a character that's in the password but in the **wrong
-place earns nothing at all** — there is no Wordle-style "somewhere in there"
-signal. Position is everything, and working out which of your own guesses moved
-the counter is the entire game.
+Every position contributes to the score: an exact character most, the right
+letter in the wrong case least, a character that's in the password but sitting
+somewhere else in between. **How much each is worth is not published** — not in
+the app, not in the API, not in any copy. Two very different guesses can score
+the same, and working out which explanation fits is the game.
 
-A guess shorter than the password is compared over its own length; a longer one
-over the password's. So a six-character probe against a ten-character password
-can still score, which is what makes length-hunting playable.
+The denominator is the longer of the guess and the password, so padding a
+correct prefix out dilutes the score rather than being free. That's what makes
+**100% mean solved and nothing else**.
+
+A guess shorter than the password is compared over its own length, and can
+still find a character that lives further along — which is what makes
+length-hunting playable.
 
 The password is read, compared and dropped **inside Postgres** — `score_attempt`
 and `spend_attempt` are plpgsql, so it never enters application memory at all.
@@ -65,9 +67,9 @@ A player holds **7 lives**, and **one comes back every hour** — 24 a day, free
 forever. They're held by the *player*, not by a box: one pool spent across the
 public box and every contributor box alike.
 
-**One life buys one guess**, win or lose. There is no bounded "run" and no cap
-on how many attempts a box will take — only on how fast you can afford them. A
-hard box is a siege, not a sitting.
+**One life buys one guess**, win or lose. There is no bounded "run", no cap on
+how many attempts a box takes, and no ceiling on how fast you may make them —
+only on how many lives you have. A hard box is a siege, not a sitting.
 
 Lives can also be bought at **₦150 each**, up to 100 at a time. Nobody has to
 — the pool refills whether or not anyone pays, and the buy dialog says so
@@ -78,26 +80,17 @@ need be. It's the only honest fix when something breaks on our side.
 
 ---
 
-## Why you can't buy a box
+## The breakdown is a purchase
 
-A methodical player can isolate one position per guess, so a box falls in a
-predictable number of attempts. With lives on sale at a flat price and no limit
-on how many you could burn in a day, that made every box an arithmetic problem:
-buy N lives, solve it, take a reward worth many times what the lives cost.
+By default a score is one opaque number. **Colour Read** (₦5,000) splits every
+attempt — the ones already made included — into its three parts: exact hits,
+right-letter-wrong-case hits, and characters that are in there somewhere else.
 
-**A player may make 50 attempts on one box in a rolling 24 hours.** The free
-refill supplies 24 a day, so paying buys about double pace and never more. A
-600-attempt box therefore takes a fortnight at minimum however much anyone
-spends — a fortnight spent in public, with everyone else free to beat them to
-it. The ceiling is enforced in `spend_attempt` rather than a route handler,
-because a limit a second browser tab can race past is not a limit, and hitting
-it costs no life at all.
+It is withheld on the server, not hidden in the browser. `buildPlayView` never
+puts the component counts on the wire for a hunt that hasn't bought them, so
+there is nothing to reveal by poking at the page.
 
-This makes brute-forcing slow, public and contested. It does not by itself make
-it *unprofitable* — only a reward smaller than the lives it costs would do
-that. The Build screen shows both numbers side by side and says so plainly when
-a box is worth more than it costs to work through, so the decision is at least
-an informed one.
+It is also, measurably, about half the game — see the table below.
 
 ---
 
@@ -108,9 +101,8 @@ estimate is a deterministic function of the password's length, so printing it
 publicly would hand over the exact answer to the first thing a player has to
 work out. A tier only narrows the length to a band of five or six.
 
-Contributors see the full reading — attempts, days on free lives, and the
-minimum elapsed time under the daily ceiling — because they wrote the password
-and already know its length.
+Contributors see the full reading — attempts and days on free lives — because
+they wrote the password and already know its length.
 
 The model is the strategy the feedback actually permits: binary-search the
 length (~5 attempts), then walk the positions one at a time, because a *count*
@@ -118,16 +110,27 @@ with no positions attached can only be read by changing one position and
 watching it move. A wrong-case hit resolves the case for free, so the search
 runs over 48 case-folded classes.
 
-| Length | Tier | Estimated | Measured |
+| Length | Tier | Free play | With Colour Read |
 | --- | --- | --- | --- |
-| 3 | Warm | ~55 | 65 |
-| 6 | Tricky | ~125 | 125 |
-| 10 | Hard | ~220 | 225 |
-| 18 | Brutal | ~410 | 371 |
-| 26 | Merciless | ~600 | 547 |
+| 3 | Warm | 224 | 124 |
+| 6 | Tricky | 443 | 267 |
+| 10 | Hard | 736 | 387 |
+| 18 | Brutal | 1,319 | 650 |
+| 26 | Merciless | 1,904 | 1,043 |
 
-"Measured" is a solver implementing exactly that strategy against the real
-scoring rule, median of 15 random passwords per length. It cracks 40/40.
+Both columns are measured, not guessed: a solver implementing the only strategy
+the scoring permits, median of 15 random passwords per length. It cracks 15/15
+at every length, and the formula the app prints reproduces the free-play column
+exactly.
+
+Why free play costs twice as much: with a single number, the only safe reading
+of a position is "try every character and keep the best". Thresholds on the
+delta don't work — the character already sitting there may itself be scoring,
+and a misplaced character is worth more than a right-place-wrong-case one, so a
+naive argmax over one case gets led to the wrong answer. Only an exact hit is
+guaranteed to top the scale, and proving you've found it means trying all 73
+other characters. With the breakdown, an exact hit announces itself and the
+scan stops halfway.
 
 ---
 
@@ -139,6 +142,7 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 
 | Power-up | Price | What it does |
 | --- | --- | --- |
+| Colour Read | ₦5,000 | Splits every score, past and future, into its three parts |
 | Length Lock | ₦500 | Tells you exactly how many characters the password has |
 | Sweep | ₦1,000 | Strikes 4 characters off that the password doesn't use anywhere |
 | First Light | ₦1,500 | Locks in the opening character, case and all |
@@ -393,6 +397,7 @@ asserts that neither can read a password or call a privileged function.
   and that's the whole retention model.
 - **No automated reward transfers.** A winner's bank details are checked with
   the bank, but the transfer itself is a human pressing a button in `/admin`.
+- **No cap on attempts.** Play as fast as you can afford to.
 - **No editing a funded box.** A draft is yours to change or throw away. The
   moment money goes behind it the password is fixed for good, the box can never
   be deleted, and the reward can only be raised — never lowered.

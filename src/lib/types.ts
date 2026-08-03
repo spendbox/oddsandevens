@@ -2,7 +2,7 @@
 // which is also the easiest way to check that `boxes.secret` never is — and
 // that neither is its length, unless the player has paid to learn it.
 
-import type { LengthHint } from "@/lib/game/feedback";
+import type { Breakdown, LengthHint } from "@/lib/game/feedback";
 import type { PowerUpKind, Revealed } from "@/lib/game/power-ups";
 import type { Difficulty } from "@/lib/game/difficulty";
 
@@ -48,13 +48,20 @@ export interface PlayerState {
   lifePriceKobo: number;
 }
 
-/** One guess and the verdict it earned. */
+/**
+ * One guess and the verdict it earned.
+ *
+ * `breakdown` is null unless the hunt has bought Colour Read. That's enforced
+ * where the record is built, not here and not in the browser — the components
+ * simply don't travel until they've been paid for.
+ */
 export interface AttemptRecord {
   ordinal: number;
   value: string;
   lengthHint: LengthHint;
-  exact: number;
-  miscase: number;
+  /** 0–100, two decimal places. 100 means solved. */
+  scorePercent: number;
+  breakdown: Breakdown | null;
   at: string;
 }
 
@@ -66,6 +73,10 @@ export interface HuntState {
   revealed: Revealed;
   /** Notes from power-ups already bought on this hunt, newest last. */
   notes: string[];
+  /** True once Colour Read is bought; every attempt then carries a breakdown. */
+  hasBreakdown: boolean;
+  /** The best score reached so far — the number a long hunt is measured by. */
+  bestPercent: number;
   won: boolean;
 }
 
@@ -82,21 +93,12 @@ export interface PlayView {
   }[];
   /** Set when this player already won this box. */
   claim: { amountKobo: number; status: "unclaimed" | "submitted" | "paid" } | null;
-  dailyCap: DailyCap;
 }
 
 /** What comes back from spending a life on a guess. */
 export interface AttemptResult extends PlayView {
   outcome: "open" | "won" | "pipped";
-  verdict: { lengthHint: LengthHint; exact: number; miscase: number } | null;
-}
-
-/** How much of today's per-box ceiling a player has spent. */
-export interface DailyCap {
-  used: number;
-  cap: number;
-  /** When the next slot opens, if they're at the ceiling. */
-  nextSlotAt: string | null;
+  verdict: { lengthHint: LengthHint; scorePercent: number } | null;
 }
 
 // ---------------------------------------------------------------------------

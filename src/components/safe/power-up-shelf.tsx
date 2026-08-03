@@ -10,12 +10,13 @@
 // you spend goes to the person who put the prize up.
 
 import { useState } from "react";
-import { Eraser, Eye, Flashlight, Layers, Ruler, Scan, Sparkles } from "lucide-react";
+import { Eraser, Eye, Flashlight, Layers, Palette, Ruler, Scan, Sparkles } from "lucide-react";
 import { formatNaira } from "@/lib/game/rewards";
 import type { PowerUpKind } from "@/lib/game/power-ups";
 import type { PlayView } from "@/lib/types";
 
 const ICONS: Record<PowerUpKind, typeof Eraser> = {
+  breakdown: Palette,
   length_lock: Ruler,
   sweep: Eraser,
   case_map: Layers,
