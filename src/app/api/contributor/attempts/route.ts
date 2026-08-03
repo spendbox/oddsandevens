@@ -36,7 +36,7 @@ export async function GET() {
   const boxIds = ((boxes ?? []) as { id: string }[]).map((b) => b.id);
   if (boxIds.length === 0) return NextResponse.json({ attempts: [] });
 
-  const [{ data: hunts }, { data: orders }] = await Promise.all([
+  const [{ data: hunts }, { data: orders }, { data: best }] = await Promise.all([
     db
       .from("hunts")
       .select(
@@ -50,11 +50,31 @@ export async function GET() {
       .select("hunt_id")
       .eq("contributor_id", contributor.id)
       .eq("status", "paid"),
+    // How close each hunter has got. This is the number a contributor actually
+    // watches — "412 attempts" says somebody is trying, and "97.6%" says
+    // somebody is about to take the money.
+    //
+    // Sorted descending and folded in memory rather than grouped in SQL:
+    // PostgREST has no GROUP BY, and the first row per hunt in this order *is*
+    // the maximum.
+    db
+      .from("attempts")
+      .select("hunt_id, score_percent, hunts!inner(box_id)")
+      .in("hunts.box_id", boxIds)
+      .order("score_percent", { ascending: false })
+      .limit(4000),
   ]);
 
   const bought = new Map<string, number>();
   for (const order of (orders ?? []) as { hunt_id: string }[]) {
     bought.set(order.hunt_id, (bought.get(order.hunt_id) ?? 0) + 1);
+  }
+
+  const bestPercent = new Map<string, number>();
+  for (const row of (best ?? []) as { hunt_id: string; score_percent: number }[]) {
+    if (!bestPercent.has(row.hunt_id)) {
+      bestPercent.set(row.hunt_id, Number(row.score_percent));
+    }
   }
 
   const hunted: HuntRow[] = ((hunts ?? []) as unknown as HuntJoin[]).map((hunt) => ({
@@ -64,6 +84,7 @@ export async function GET() {
     attempts: hunt.attempts_count,
     won: hunt.won_at !== null,
     powerUpsBought: bought.get(hunt.id) ?? 0,
+    bestPercent: bestPercent.get(hunt.id) ?? 0,
     startedAt: hunt.started_at,
     lastAttemptAt: hunt.last_attempt_at,
   }));

@@ -49,6 +49,24 @@ export interface PlayerState {
   /** When the next life lands, or null when the pool is full. */
   nextLifeAt: string | null;
   lifePriceKobo: number;
+  /** Their own invite code. Null until they've verified an address. */
+  inviteCode: string | null;
+  /** Bonus lives banked, which land free on their next paid top-up. */
+  bonusLivesPending: number;
+}
+
+/** What the invite screen shows: the link, and what it has earned so far. */
+export interface ReferralState {
+  inviteCode: string | null;
+  /** People who used the link and have since paid for a real top-up. */
+  qualified: number;
+  /** People who used the link at all. */
+  joined: number;
+  bonusLivesPending: number;
+  /** The terms, so the copy is never out of step with the migration. */
+  minLives: number;
+  inviterBonus: number;
+  inviteeBonus: number;
 }
 
 /**
@@ -146,6 +164,14 @@ export interface HuntRow {
   attempts: number;
   won: boolean;
   powerUpsBought: number;
+  /**
+   * Their best score on this box, 0–100. The one number that says whether a
+   * hunter is idly poking at a safe or three characters from opening it.
+   *
+   * Safe to show its author and nobody else: they wrote the password, so a
+   * closeness reading tells them nothing about it they don't already know.
+   */
+  bestPercent: number;
   startedAt: string;
   lastAttemptAt: string | null;
 }

@@ -26,7 +26,12 @@ const ANONYMOUS: PlayerState = {
   livesMax: LIVES_MAX,
   nextLifeAt: null,
   lifePriceKobo: LIFE_PRICE_KOBO,
+  inviteCode: null,
+  bonusLivesPending: 0,
 };
+
+/** Where a `?ref=` code waits between arriving and being claimable. */
+const REF_KEY = "spendbox.ref";
 
 interface PlayerContextValue {
   player: PlayerState;
@@ -65,6 +70,54 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
     void load();
   }, [refresh]);
+
+  /**
+   * An invite code, from arrival to claim.
+   *
+   * These two things happen minutes or days apart: somebody follows a `?ref=`
+   * link, plays for a while as a stranger, and only verifies an address when
+   * they run out of lives or win something. There is nobody to attach the code
+   * to until that happens, so it waits in `localStorage` and is replayed the
+   * first time we know who they are.
+   *
+   * The server treats a stale, wrong or already-used code as a no-op, so this
+   * doesn't have to be careful about firing twice — it just clears the key
+   * once the round trip is done, whatever the answer was.
+   */
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("ref");
+    if (fromUrl) {
+      window.localStorage.setItem(REF_KEY, fromUrl);
+      // Take it out of the URL: a shared screenshot of somebody else's link
+      // shouldn't keep re-attributing them.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("ref");
+      window.history.replaceState({}, "", url.toString());
+    }
+
+    if (!player.email) return;
+    const pending = window.localStorage.getItem(REF_KEY);
+    if (!pending) return;
+
+    let cancelled = false;
+    async function claim() {
+      try {
+        await fetch("/api/player/invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: pending }),
+        });
+      } catch {
+        // Leave the key in place; the next page load tries again.
+        return;
+      }
+      if (!cancelled) window.localStorage.removeItem(REF_KEY);
+    }
+    void claim();
+    return () => {
+      cancelled = true;
+    };
+  }, [player.email]);
 
   /**
    * Lives arrive on the hour, so the header would otherwise sit on a stale

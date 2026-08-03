@@ -75,6 +75,9 @@ export interface PlayerRow {
   email: string;
   lives: number;
   lives_accrued_at: string;
+  invite_code: string | null;
+  /** Referral bonus banked, waiting for their next paid top-up. */
+  bonus_lives_pending: number;
 }
 
 /**
@@ -104,6 +107,8 @@ export function toPlayerState(player: PlayerRow | null, email: string | null): P
       livesMax: LIVES_MAX,
       nextLifeAt: null,
       lifePriceKobo: LIFE_PRICE_KOBO,
+      inviteCode: null,
+      bonusLivesPending: 0,
     };
   }
   const full = player.lives >= LIVES_MAX;
@@ -117,6 +122,8 @@ export function toPlayerState(player: PlayerRow | null, email: string | null): P
           new Date(player.lives_accrued_at).getTime() + LIFE_REGEN_MINUTES * 60_000
         ).toISOString(),
     lifePriceKobo: LIFE_PRICE_KOBO,
+    inviteCode: player.invite_code ?? null,
+    bonusLivesPending: player.bonus_lives_pending ?? 0,
   };
 }
 

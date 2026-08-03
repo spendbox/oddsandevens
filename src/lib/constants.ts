@@ -106,3 +106,15 @@ export const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 export const SLUG_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
 export const HANDLE_REGEX = SLUG_REGEX;
 export const ACCOUNT_NUMBER_REGEX = /^\d{10}$/;
+
+/**
+ * Referrals, mirrored from `0029_referral_lives.sql`.
+ *
+ * The migration is the authority — the bonus is banked and spent by
+ * `settle_life_purchase`, and nothing in the app grants a life. These exist so
+ * copy can say "10" and "5" without a round trip, and must be changed together
+ * with the functions of the same names.
+ */
+export const REFERRAL_MIN_LIVES = 10;
+export const INVITER_BONUS_LIVES = 5;
+export const INVITEE_BONUS_LIVES = 3;

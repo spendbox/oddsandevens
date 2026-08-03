@@ -96,20 +96,32 @@ export async function settlePowerUp(
   return { settled: true, note };
 }
 
+/**
+ * A paid top-up.
+ *
+ * `settle_life_purchase` rather than `credit_lives` because a top-up does
+ * three things, not one: it credits what was bought, pays out any referral
+ * bonus banked since last time, and — if this is the purchase that finally
+ * qualifies the invite that brought this player here — banks the next one for
+ * them and for whoever invited them. The ordering matters and lives in the
+ * migration, where it can't be got wrong by a second caller.
+ */
 export async function settleLives(
   db: Db,
   reference: string
-): Promise<{ settled: boolean; quantity: number }> {
+): Promise<{ settled: boolean; quantity: number; bonus: number }> {
   const { claimed, row } = await markPaid(db, "life_orders", reference);
-  if (!row) return { settled: false, quantity: 0 };
+  if (!row) return { settled: false, quantity: 0, bonus: 0 };
   const quantity = Number(row.quantity ?? 0);
-  if (!claimed) return { settled: row.status === "paid", quantity };
+  if (!claimed) return { settled: row.status === "paid", quantity, bonus: 0 };
 
-  await db.rpc("credit_lives", {
+  const { data } = await db.rpc("settle_life_purchase", {
     p_player_id: row.player_id as string,
-    p_count: quantity,
+    p_quantity: quantity,
   });
-  return { settled: true, quantity };
+  const bonus = Number((data as { bonus_applied?: number } | null)?.bonus_applied ?? 0);
+
+  return { settled: true, quantity, bonus };
 }
 
 /**

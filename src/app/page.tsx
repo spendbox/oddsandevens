@@ -10,6 +10,7 @@ import { PlayerProvider } from "@/components/player/player-context";
 import { SiteHeader } from "@/components/site-header";
 import { BoxCard } from "@/components/box-card";
 import { HowItWorksButton } from "@/components/how-it-works";
+import { SiteFooter } from "@/components/site-footer";
 import { SafeArt } from "@/components/safe/safe-art";
 import type { PublicBox } from "@/lib/types";
 
@@ -173,15 +174,7 @@ export default async function Home() {
         <PutOneUp />
       </main>
 
-      <footer className="border-t border-white/5 py-8 text-center text-xs text-zinc-600">
-        <Link href="/dashboard" className="hover:text-zinc-400">
-          Contributor dashboard
-        </Link>
-        <span className="mx-2">·</span>
-        <Link href="/me" className="hover:text-zinc-400">
-          Your lives and rewards
-        </Link>
-      </footer>
+      <SiteFooter />
     </PlayerProvider>
   );
 }

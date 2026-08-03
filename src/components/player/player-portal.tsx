@@ -12,6 +12,7 @@ import { countdown, useNow } from "./lives-badge";
 import { BuyLivesDialog } from "./buy-lives-dialog";
 import { VerifyDialog } from "./verify-dialog";
 import { PrizeClaimForm, type Prize } from "./prize-claim-form";
+import { InvitePanel } from "./invite-panel";
 
 interface HistoryHunt {
   id: string;
@@ -141,6 +142,8 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
           Buy more
         </button>
       </section>
+
+      <InvitePanel />
 
       {unclaimed.length > 0 && (
         <section className="space-y-3">

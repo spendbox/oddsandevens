@@ -51,6 +51,16 @@ export interface PowerUpSpec {
   share: number;
   /** The least it can ever cost, so a challenge box still has a shelf. */
   floorKobo: number;
+  /**
+   * How often it can be bought on one box.
+   *
+   * `once` means the answer it gives is permanent — a length doesn't change,
+   * and neither does what the password is made of, so buying it twice would
+   * pay for the same sentence. `hourly`/`daily` rent a window instead, and are
+   * buyable again the moment it lapses. Worth saying out loud on the dialog:
+   * "can I buy this again?" is the first thing anyone wonders.
+   */
+  repeat: "once" | "hourly" | "daily";
 }
 
 export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
@@ -63,6 +73,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     caveat: "It says how many characters, never which ones.",
     share: 0.0025,
     floorKobo: 200 * KOBO,
+    repeat: "once",
   },
   case_map: {
     kind: "case_map",
@@ -74,6 +85,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     caveat: "It gives you counts, not characters, and never a position.",
     share: 0.005,
     floorKobo: 300 * KOBO,
+    repeat: "once",
   },
   second_wind: {
     kind: "second_wind",
@@ -83,6 +95,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     caveat: `The hour starts as soon as you pay, and it only covers this box.`,
     share: 0.005,
     floorKobo: 300 * KOBO,
+    repeat: "hourly",
   },
   breakdown: {
     kind: "breakdown",
@@ -92,6 +105,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     caveat: `${BREAKDOWN_HOURS} hours, then it lapses and can be bought again. It gives you the counts, never which positions they refer to, and never the arithmetic behind the score.`,
     share: 0.015,
     floorKobo: 500 * KOBO,
+    repeat: "daily",
   },
   x_ray: {
     kind: "x_ray",
@@ -103,6 +117,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
       "Half, rounded up, chosen at random. Unordered, and it says nothing about position.",
     share: 0.05,
     floorKobo: 1_000 * KOBO,
+    repeat: "once",
   },
 };
 
@@ -238,6 +253,7 @@ export interface Offering {
   blurb: string;
   detail: string;
   caveat: string;
+  repeat: PowerUpSpec["repeat"];
   priceKobo: number;
   available: boolean;
   /** When this one lapses, if it's currently running. */
@@ -247,13 +263,14 @@ export interface Offering {
 /** The catalogue as the play screen shows it, priced against this box. */
 export function offerings(revealed: Revealed, rewardKobo: number): Offering[] {
   return POWER_UP_KINDS.map((kind) => {
-    const { name, blurb, detail, caveat } = POWER_UPS[kind];
+    const { name, blurb, detail, caveat, repeat } = POWER_UPS[kind];
     return {
       kind,
       name,
       blurb,
       detail,
       caveat,
+      repeat,
       priceKobo: priceKobo(kind, rewardKobo),
       available: isAvailable(kind, revealed),
       activeUntil:

@@ -82,10 +82,20 @@ export function BuyLivesDialog({
             : ", and your pool is full right now."}
         </p>
 
+        {player.bonusLivesPending > 0 && (
+          <p className="rounded-xl bg-brass/10 px-3 py-2.5 text-sm text-brass">
+            <strong>
+              +{player.bonusLivesPending} free{" "}
+              {player.bonusLivesPending === 1 ? "life" : "lives"}
+            </strong>{" "}
+            from your invites land with this one. You&apos;ll get{" "}
+            {quantity + player.bonusLivesPending} in total.
+          </p>
+        )}
+
         {contributor && (
           <p className="text-sm text-zinc-500">
-            70% of this goes to {contributor}, who put up the box you&apos;re
-            hunting. Lives you buy anywhere work everywhere.
+            Lives you buy anywhere work everywhere.
           </p>
         )}
 

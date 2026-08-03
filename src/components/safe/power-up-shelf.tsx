@@ -19,6 +19,7 @@ import {
   Eye,
   Layers,
   Palette,
+  Repeat2,
   Ruler,
   Wallet,
 } from "lucide-react";
@@ -89,7 +90,16 @@ export function PowerUpShelf({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="font-semibold text-zinc-100">{powerUp.name}</span>
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="truncate font-semibold text-zinc-100">
+                      {powerUp.name}
+                    </span>
+                    {powerUp.repeat === "once" && (
+                      <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500">
+                        Once
+                      </span>
+                    )}
+                  </span>
                   <span className="shrink-0 font-mono text-sm text-brass">
                     {formatNaira(powerUp.priceKobo)}
                   </span>
@@ -101,6 +111,8 @@ export function PowerUpShelf({
                     </span>
                   ) : powerUp.available ? (
                     powerUp.blurb
+                  ) : powerUp.repeat === "once" ? (
+                    "Bought. It only sells once."
                   ) : (
                     "Already bought — it has nothing left to tell you."
                   )}
@@ -143,10 +155,9 @@ export function PowerUpShelf({
 /**
  * The whole pitch, then the button.
  *
- * It says what the power-up does, what it deliberately does *not* do, and what
- * it costs — including the arithmetic that got to the price, because "1.5% of
- * the reward" is a number a player can check and a flat ₦10,000 was one they
- * had to take on faith.
+ * It says what the power-up does, what it deliberately does *not* do, whether
+ * it can be bought again, and what it costs on this box — and never how that
+ * price was arrived at.
  */
 function PowerUpDialog({
   powerUp,
@@ -241,6 +252,15 @@ function PowerUpDialog({
           </p>
           <p className="mt-1 text-sm text-zinc-600">{powerUp.caveat}</p>
         </div>
+
+        <p className="flex items-start gap-2 text-sm text-zinc-500">
+          <Repeat2 className="mt-0.5 size-4 shrink-0" aria-hidden />
+          {powerUp.repeat === "once"
+            ? "One purchase per box. What it tells you never changes, so there'd be nothing to buy a second time."
+            : powerUp.repeat === "hourly"
+              ? "Runs for an hour, then lapses. Buy it again whenever you need another."
+              : "Runs for 24 hours, then lapses. Buy it again whenever you need another."}
+        </p>
 
         {/*
           The price, and not how it was arrived at. It *is* a share of the

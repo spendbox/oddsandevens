@@ -83,6 +83,29 @@ before it says anything else.
 Admins can grant lives from `/admin`, to an address that has never played if
 need be. It's the only honest fix when something breaks on our side.
 
+### Invites
+
+Every player has an invite code. When somebody who arrived on their link pays
+for **10 lives or more**, five free lives are banked for the inviter and three
+for them. The inviter's stacks without limit — ten paying invitees is fifty
+lives.
+
+Both land on the recipient's **next** paid top-up rather than immediately.
+That's the whole reason `bonus_lives_pending` is a column and not a credit: a
+bonus that appeared instantly would just be a discount, and one that lands next
+time is a reason to come back.
+
+Bonus lives are free lives. Nobody is charged for them, so they never enter a
+price and never see the 70/30 split.
+
+The ordering inside `settle_life_purchase` is the feature and is why it's one
+function rather than three calls: bonuses banked *before* a purchase are paid
+out with it, and the qualification that purchase might trigger is banked
+*after*, so a purchase can never qualify itself. Self-referral is closed three
+ways — a player can't be their own inviter (a check constraint), an inviter is
+attached once and never changed, and each invited player qualifies exactly
+once however often they top up.
+
 ---
 
 ## The breakdown is a purchase
@@ -247,6 +270,7 @@ kobo short of what a winner is actually paid.
 | --- | --- | --- |
 | Power-up bought against a contributor's box | 70% | 30% |
 | Lives bought while hunting a contributor's box | 70% | 30% |
+| Bonus lives from an invite | — | — |
 | Anything bought against the public box | — | 100% |
 | Lives bought from `/me`, with no box in front of them | — | 100% |
 | Funding a contributor's box | becomes the reward (70%) | 30% |
@@ -285,7 +309,9 @@ money twice.
 | --- | --- | --- |
 | `/` | anyone | The lobby: the public box, every funded box, and the safes already opened |
 | `/b/[slug]` | anyone | A box, played. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
-| `/me` | a verified player | Lives, attempts, and where a reward has got to. Not an account — there's no password here |
+| `/me` | a verified player | Lives, invites, attempts, and where a reward has got to. Not an account — there's no password here |
+| `/faq` | anyone | Every explanation the game screens deliberately don't give, searchable |
+| `/terms`, `/privacy` | anyone | The rules and what's collected, with the figures computed from the same constants the code uses |
 | `/signup` | a contributor | Email-first: known address asks for a password, new address emails a code |
 | `/dashboard` | a contributor | Boxes, Build, Attempts, Money |
 | `/admin` | the platform | The public box, rewards to send, and where the revenue came from |
@@ -303,7 +329,9 @@ whole of that decision in it and nothing else, and each showing a tick when
 it's done. The difficulty, our cut and the likely income update as you fill
 them in, so nothing is a surprise at checkout.
 **Attempts** is who has been having a go, addresses starred out before they
-leave the server. **Money** is income from power-ups and lives, the split
+leave the server, with each hunter's **best score** — the one number that says
+whether somebody is idly poking at a safe or three characters from opening it.
+It's safe there and nowhere else: the person reading it wrote the password. **Money** is income from power-ups and lives, the split
 written out in full, the winners, and the bank account it all settles to.
 
 A box is editable and deletable right up until it is *paid for* — not until it
@@ -398,6 +426,7 @@ src/lib/game/difficulty.ts  the tiers, and the model behind them
 src/lib/game/power-ups.ts   the catalogue, availability, and effects
 src/lib/game/revenue.ts     what a box is likely to earn, per 1,000 hunters
 src/lib/game/designs.ts     the six safes a contributor can pick from
+src/lib/faq.ts              every answer, computed from the same constants
 src/lib/game/boxes.ts       reading boxes without reading passwords
 src/lib/game/view.ts        assembling what the play screen sees
 src/lib/game/settle.ts      turning a confirmed payment into the thing it bought
@@ -408,7 +437,8 @@ src/app/api/admin/…         the public box, reward claims, revenue
 src/components/safe/        the play screen, and the safe itself in SVG
 supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0027 made a score a percentage, 0028 added
-                            Second Wind, the life split and box designs
+                            Second Wind, the life split and box designs,
+                            0029 added invites
 ```
 
 ---
