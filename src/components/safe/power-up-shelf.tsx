@@ -102,7 +102,9 @@ export function PowerUpShelf({
                     ? "Opening checkout…"
                     : powerUp.available
                       ? powerUp.blurb
-                      : "Already bought, or nothing left for it to tell you."}
+                      : powerUp.kind === "breakdown"
+                        ? "Running — buy it again once it lapses."
+                        : "Already bought, or nothing left for it to tell you."}
                 </span>
               </span>
             </button>

@@ -37,6 +37,17 @@ export interface PowerUp {
 /** How many characters one Sweep clears: 5% of the alphabet, rounded up. */
 export const SWEEP_SIZE = Math.max(1, Math.ceil(ALPHABET.length * 0.05));
 
+/**
+ * How long Colour Read lasts.
+ *
+ * Alone among the power-ups it rents rather than sells: everything else hands
+ * over a fact that stays true forever, while this one changes how the whole
+ * board reads and would otherwise be a single purchase that permanently halves
+ * the game. A day is long enough to be worth having and short enough that a
+ * hunt running to a thousand attempts has to decide when to spend it.
+ */
+export const BREAKDOWN_HOURS = 24;
+
 export const POWER_UPS: Record<PowerUpKind, PowerUp> = {
   /**
    * The big one, and priced like it.
@@ -47,12 +58,13 @@ export const POWER_UPS: Record<PowerUpKind, PowerUp> = {
    * letter in the wrong case, and from characters sitting somewhere else. It
    * applies to every attempt on the hunt, the ones already made included, so
    * buying it late retroactively explains everything you've done.
+   *
+   * It lasts 24 hours and can be bought again after that.
    */
   breakdown: {
     kind: "breakdown",
     name: "Colour Read",
-    blurb:
-      "Splits every score — past and future — into exact hits, wrong-case hits and characters that are in there somewhere else.",
+    blurb: `Splits every score — past and future — into exact hits, wrong-case hits and characters that are in there somewhere else. Lasts ${BREAKDOWN_HOURS} hours.`,
     priceKobo: 5_000 * KOBO,
   },
   length_lock: {
@@ -136,10 +148,13 @@ export interface CaseMap {
  */
 export interface Revealed {
   /**
-   * Whether this hunt has bought the breakdown. The one flag here that changes
-   * what past attempts look like rather than adding a new fact.
+   * When Colour Read runs out, or null if it was never bought.
+   *
+   * The one thing on this record that expires. Everything else here is a fact
+   * about the password and stays true; this is a lens on the whole board, and
+   * a permanent one would halve the game for a single payment.
    */
-  breakdown: boolean;
+  breakdownUntil: string | null;
   /** The password's length, once Length Lock has been bought. */
   length: number | null;
   /** Position index (as a string key, because it round-trips through jsonb) → character. */
@@ -154,7 +169,7 @@ export interface Revealed {
 }
 
 export const EMPTY_REVEALED: Revealed = {
-  breakdown: false,
+  breakdownUntil: null,
   length: null,
   positions: {},
   dead: [],
@@ -167,7 +182,8 @@ export const EMPTY_REVEALED: Revealed = {
 export function parseRevealed(raw: unknown): Revealed {
   const value = (raw ?? {}) as Partial<Revealed>;
   return {
-    breakdown: value.breakdown === true,
+    breakdownUntil:
+      typeof value.breakdownUntil === "string" ? value.breakdownUntil : null,
     length: typeof value.length === "number" ? value.length : null,
     positions: value.positions ?? {},
     dead: Array.isArray(value.dead) ? value.dead : [],
@@ -175,6 +191,19 @@ export function parseRevealed(raw: unknown): Revealed {
     caseMap: value.caseMap ?? null,
     used: value.used ?? {},
   };
+}
+
+/**
+ * Whether Colour Read is currently in force.
+ *
+ * Checked against a clock rather than a flag, and checked server-side wherever
+ * it matters: `buildPlayView` asks this before putting any component count on
+ * the wire, so an expired lens stops working even if the browser still has an
+ * old page open.
+ */
+export function breakdownActive(revealed: Revealed, now = Date.now()): boolean {
+  if (!revealed.breakdownUntil) return false;
+  return new Date(revealed.breakdownUntil).getTime() > now;
 }
 
 /**
@@ -196,7 +225,9 @@ export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
 
   switch (kind) {
     case "breakdown":
-      return !revealed.breakdown;
+      // Re-buyable the moment it lapses; a hunt long enough to need it twice
+      // is exactly the hunt it was priced for.
+      return !breakdownActive(revealed);
     case "length_lock":
       return known === null;
     case "sweep": {
@@ -252,11 +283,13 @@ export function apply(
   const counted = { ...before, used };
 
   switch (kind) {
-    case "breakdown":
+    case "breakdown": {
+      const until = new Date(Date.now() + BREAKDOWN_HOURS * 60 * 60 * 1000);
       return {
-        revealed: { ...counted, breakdown: true },
-        note: "Every score is now split into its parts — including the ones you already made.",
+        revealed: { ...counted, breakdownUntil: until.toISOString() },
+        note: `Every score is split into its parts for the next ${BREAKDOWN_HOURS} hours — including the ones you already made.`,
       };
+    }
 
     case "length_lock":
       return {

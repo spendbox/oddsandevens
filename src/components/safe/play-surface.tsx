@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { LockOpen, MoveDown, MoveUp, Swords, Target, Trophy, Users } from "lucide-react";
+import { LockOpen, MoveDown, MoveUp, Palette, Swords, Target, Trophy, Users } from "lucide-react";
 import { ScorePill } from "./score-pill";
 import { LIVES_MAX } from "@/lib/constants";
 import { plural } from "@/lib/plural";
@@ -46,7 +46,8 @@ export function PlaySurface({
   const [outcome, setOutcome] = useState<Outcome>("open");
   const [dialog, setDialog] = useState<"none" | "verify" | "lives">("none");
   const [message, setMessage] = useState<string | null>(null);
-  const now = useNow(view.player.nextLifeAt);
+  // Ticks while either a life or the Colour Read window is counting down.
+  const now = useNow(view.player.nextLifeAt ?? view.hunt?.breakdownUntil ?? null);
 
   const open = view.box.status === "live";
   const revealed = view.hunt?.revealed ?? EMPTY_REVEALED;
@@ -148,6 +149,16 @@ export function PlaySurface({
             {message && (
               <p className="rounded-xl border border-brass/30 bg-brass/10 px-3 py-2.5 text-center text-sm text-brass">
                 {message}
+              </p>
+            )}
+
+            {view.hunt?.hasBreakdown && view.hunt.breakdownUntil && (
+              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-xl border border-brass/30 bg-brass/10 px-3 py-2 text-center text-xs text-brass">
+                <Palette className="size-3.5" aria-hidden />
+                Colour Read is on — every score is split into its parts for another{" "}
+                <span className="font-mono">
+                  {countdown(view.hunt.breakdownUntil, now)}
+                </span>
               </p>
             )}
 

@@ -128,11 +128,7 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
         />
       </div>
 
-      <RevenueEstimate
-        hunters={box.playersCount}
-        earnedKobo={box.earnedKobo}
-        launched={box.status !== "draft"}
-      />
+      <RevenueEstimate hunters={box.playersCount} earnedKobo={box.earnedKobo} />
 
       {box.status === "unlocked" && (
         <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-400">

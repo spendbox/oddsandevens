@@ -6,7 +6,7 @@
 // about how many lives are left or which characters are dead.
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { offerings, parseRevealed } from "@/lib/game/power-ups";
+import { breakdownActive, offerings, parseRevealed } from "@/lib/game/power-ups";
 import {
   ensurePlayer,
   PUBLIC_BOX_COLUMNS,
@@ -88,15 +88,18 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
 
   const revealed = parseRevealed(hunt.revealed);
 
-  // The gate. Component counts are on every row in the database, and they stay
-  // there until Colour Read is bought — a browser that has not paid for the
-  // breakdown never receives it, so there is nothing to un-hide in devtools.
+  // The gate, and it is a clock rather than a flag. Component counts sit on
+  // every row in the database and stay there unless Colour Read is *currently*
+  // in force — a browser that hasn't paid, or whose 24 hours have run out,
+  // never receives them, so there is nothing to un-hide in devtools and an
+  // old page left open stops working on its own.
+  const lens = breakdownActive(revealed);
   const records: AttemptRecord[] = ((attempts ?? []) as AttemptDbRow[]).map((row) => ({
     ordinal: row.ordinal,
     value: row.value,
     lengthHint: row.length_hint,
     scorePercent: Number(row.score_percent),
-    breakdown: revealed.breakdown
+    breakdown: lens
       ? {
           exact: row.exact_count,
           miscase: row.miscase_count,
@@ -113,7 +116,8 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
     notes: ((orders ?? []) as { note: string | null }[])
       .map((o) => o.note)
       .filter((n): n is string => !!n),
-    hasBreakdown: revealed.breakdown,
+    hasBreakdown: lens,
+    breakdownUntil: lens ? revealed.breakdownUntil : null,
     bestPercent: await bestScore(db, hunt.id),
     won: hunt.won_at !== null,
   };

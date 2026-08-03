@@ -86,6 +86,13 @@ By default a score is one opaque number. **Colour Read** (₦5,000) splits every
 attempt — the ones already made included — into its three parts: exact hits,
 right-letter-wrong-case hits, and characters that are in there somewhere else.
 
+It lasts **24 hours** and can be bought again after that. Alone among the
+power-ups it rents rather than sells: everything else hands over a fact that
+stays true forever, while this changes how the whole board reads and would
+otherwise be one payment that permanently halves the game. The expiry is
+checked against a clock on the server, so a page left open stops receiving
+component counts the moment the window closes.
+
 It is withheld on the server, not hidden in the browser. `buildPlayView` never
 puts the component counts on the wire for a hunt that hasn't bought them, so
 there is nothing to reveal by poking at the page.
@@ -142,7 +149,7 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 
 | Power-up | Price | What it does |
 | --- | --- | --- |
-| Colour Read | ₦5,000 | Splits every score, past and future, into its three parts |
+| Colour Read | ₦5,000 | Splits every score, past and future, into its three parts — for 24 hours |
 | Length Lock | ₦500 | Tells you exactly how many characters the password has |
 | Sweep | ₦1,000 | Strikes 4 characters off that the password doesn't use anywhere |
 | First Light | ₦1,500 | Locks in the opening character, case and all |

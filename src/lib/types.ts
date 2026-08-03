@@ -73,8 +73,10 @@ export interface HuntState {
   revealed: Revealed;
   /** Notes from power-ups already bought on this hunt, newest last. */
   notes: string[];
-  /** True once Colour Read is bought; every attempt then carries a breakdown. */
+  /** True while Colour Read is in force; every attempt then carries a breakdown. */
   hasBreakdown: boolean;
+  /** When that lapses, so the screen can count it down. Null when inactive. */
+  breakdownUntil: string | null;
   /** The best score reached so far — the number a long hunt is measured by. */
   bestPercent: number;
   won: boolean;

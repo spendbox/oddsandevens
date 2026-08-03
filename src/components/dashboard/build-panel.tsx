@@ -11,7 +11,7 @@
 // it's funded, so a password is worth rewriting a few times first.
 
 import { useMemo, useState } from "react";
-import { Dice5, Eye, EyeOff, TriangleAlert } from "lucide-react";
+import { Dice5, Eye, EyeOff } from "lucide-react";
 import {
   ALPHABET,
   ALPHABET_SET,
@@ -27,7 +27,6 @@ import {
   splitFunding,
 } from "@/lib/game/rewards";
 import {
-  bruteForceCostKobo,
   daysOfFreeLives,
   difficultyOf,
   estimateAttempts,
@@ -74,8 +73,6 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
   const split = splitFunding(Math.max(fundingKobo, floor));
 
   const attempts = valid ? estimateAttempts(length) : 0;
-  const bruteCost = valid ? bruteForceCostKobo(length) : 0;
-  const underpriced = valid && split.rewardKobo > bruteCost;
 
   async function build() {
     if (!valid) {
@@ -236,7 +233,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
             {roughly(estimateAttemptsWithBreakdown(length))}.
           </p>
 
-          <RevenueEstimate hunters={0} earnedKobo={0} launched={false} />
+          <RevenueEstimate hunters={0} earnedKobo={0} />
         </Panel>
       )}
 
@@ -269,19 +266,6 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
               : "The floor rises with the password's length."}
           </p>
 
-          {underpriced && (
-            <p className="flex items-start gap-2 rounded-lg bg-mark-orange/10 px-3 py-2.5 text-xs text-mark-orange">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <span>
-                Worth knowing: a systematic player needs about{" "}
-                <strong>{formatNaira(bruteCost)}</strong> of lives to work through
-                this box, and the reward is{" "}
-                <strong>{formatNaira(split.rewardKobo)}</strong> — so a patient one
-                comes out ahead. A longer password or a smaller reward closes the
-                gap.
-              </span>
-            </p>
-          )}
         </div>
       </Panel>
 

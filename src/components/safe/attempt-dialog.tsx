@@ -16,7 +16,7 @@
 import { Lock, MoveDown, MoveUp, Target } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { plural } from "@/lib/plural";
-import { POWER_UPS } from "@/lib/game/power-ups";
+import { BREAKDOWN_HOURS, POWER_UPS } from "@/lib/game/power-ups";
 import { formatNaira } from "@/lib/game/rewards";
 import type { AttemptRecord } from "@/lib/types";
 import { ScorePill } from "./score-pill";
@@ -152,7 +152,7 @@ function LockedBreakdown() {
           <strong className="text-zinc-700">{powerUp.name}</strong> (
           {formatNaira(powerUp.priceKobo)}) splits every attempt into exact hits,
           wrong-case hits and characters that are in there somewhere else — the
-          ones you&apos;ve already made included.
+          ones you&apos;ve already made included — for {BREAKDOWN_HOURS} hours.
         </p>
       </div>
     </div>

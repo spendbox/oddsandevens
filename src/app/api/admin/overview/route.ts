@@ -5,10 +5,16 @@ import { getAdminUser } from "@/lib/admin-auth";
 /**
  * Where the platform's money comes from.
  *
- * Three streams, and they behave differently: the cut of every stake, the
- * 30% of every power-up sale, and the whole of every life bought. Lives are
+ * Three streams, and they behave differently: the cut of every box's funding,
+ * the 30% of every power-up sale, and the whole of every life bought. Lives are
  * the only one with no contributor attached, which is why they're counted on
  * their own rather than folded into the power-up line.
+ *
+ * Every figure is derived from *paid orders*. That is the whole point of this
+ * route and it used to be wrong: the funding cut was inferred from a box's
+ * status, so a draft an admin closed — never funded, never a naira collected —
+ * still added its notional fee to the total. Status describes intent; only an
+ * order describes money.
  */
 export async function GET() {
   if (!(await getAdminUser())) {
@@ -18,28 +24,38 @@ export async function GET() {
   const db = supabaseAdmin();
   const [{ data: funding }, { data: powerUps }, { data: lives }, { data: boxes }] =
     await Promise.all([
-      db.from("funding_orders").select("amount_kobo").eq("status", "paid"),
+      // box_id comes back so the cut can be attributed to the box that was
+      // actually paid for, rather than to every box that merely exists.
+      db.from("funding_orders").select("box_id, amount_kobo").eq("status", "paid"),
       db.from("power_up_orders").select("platform_kobo, price_kobo").eq("status", "paid"),
       db.from("life_orders").select("price_kobo, quantity").eq("status", "paid"),
-      db.from("boxes").select("status, reward_kobo, platform_fee_kobo"),
+      db.from("boxes").select("id, status, reward_kobo, platform_fee_kobo"),
     ]);
 
-  const fundingKobo = sum(funding, "amount_kobo");
-  const powerUpPlatformKobo = sum(powerUps, "platform_kobo");
-  const powerUpGrossKobo = sum(powerUps, "price_kobo");
-  const lifeKobo = sum(lives, "price_kobo");
-
+  const fundingRows = (funding ?? []) as { box_id: string; amount_kobo: number }[];
   const boxRows = (boxes ?? []) as {
+    id: string;
     status: string;
     reward_kobo: number;
     platform_fee_kobo: number;
   }[];
 
-  // The platform's cut of a box's funding is only banked once the box is
-  // actually funded; drafts and unfunded boxes are worth nothing.
+  const fundedBoxIds = new Set(fundingRows.map((row) => row.box_id));
+  const fundingCollectedKobo = fundingRows.reduce(
+    (total, row) => total + Number(row.amount_kobo),
+    0
+  );
+
+  // Our share of the funding that actually arrived. Taken from the box's own
+  // `platform_fee_kobo` so it matches to the kobo what `splitFunding` and
+  // `raise_reward` computed — but only for boxes with a paid order behind them.
   const fundingCutKobo = boxRows
-    .filter((b) => ["live", "unlocked", "closed"].includes(b.status))
-    .reduce((total, b) => total + Number(b.platform_fee_kobo), 0);
+    .filter((box) => fundedBoxIds.has(box.id))
+    .reduce((total, box) => total + Number(box.platform_fee_kobo), 0);
+
+  const powerUpPlatformKobo = sum(powerUps, "platform_kobo");
+  const powerUpGrossKobo = sum(powerUps, "price_kobo");
+  const lifeKobo = sum(lives, "price_kobo");
 
   return NextResponse.json({
     revenue: {
@@ -48,7 +64,7 @@ export async function GET() {
       lifeKobo,
       totalKobo: fundingCutKobo + powerUpPlatformKobo + lifeKobo,
       contributorKobo: powerUpGrossKobo - powerUpPlatformKobo,
-      fundingCollectedKobo: fundingKobo,
+      fundingCollectedKobo,
       livesSold: sum(lives, "quantity"),
       powerUpsSold: (powerUps ?? []).length,
     },
@@ -56,6 +72,7 @@ export async function GET() {
       live: boxRows.filter((b) => b.status === "live").length,
       funding: boxRows.filter((b) => b.status === "funding").length,
       unlocked: boxRows.filter((b) => b.status === "unlocked").length,
+      // Owed, not paid: what unlocked boxes have promised their winners.
       rewardsOwedKobo: boxRows
         .filter((b) => b.status === "unlocked")
         .reduce((total, b) => total + Number(b.reward_kobo), 0),

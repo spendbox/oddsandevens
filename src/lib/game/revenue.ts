@@ -29,10 +29,22 @@ export const FULL_SHELF_KOBO = POWER_UP_KINDS.reduce(
  */
 export const SPENDING_SHARE = 0.25;
 
+/**
+ * The basis every projection is quoted against.
+ *
+ * Per *thousand* hunters, always — never per box and never per whatever the
+ * box happens to have attracted so far. Quoting a live box's real player count
+ * looked precise and was useless: a box with four hunters projected four
+ * hunters' worth of income, which tells a contributor nothing about whether
+ * the box is worth running. A fixed, large basis is a rate, and a rate is the
+ * thing you can actually multiply by your own expectations.
+ */
+export const BASIS = 1000;
+
 export interface RevenueRange {
   lowKobo: number;
   highKobo: number;
-  /** Hunters the range was computed from. */
+  /** Hunters the range was computed from — always `BASIS`. */
   hunters: number;
   /** How many of those are assumed to buy anything at all. */
   spenders: number;
@@ -42,14 +54,14 @@ export interface RevenueRange {
 }
 
 /**
- * The range for a given number of hunters.
+ * The range per thousand hunters.
  *
- * Low end: a quarter of them buy one Sweep and nothing else.
+ * Low end: a quarter of them buy one Length Lock and nothing else.
  * High end: a quarter of them buy the entire shelf.
  *
  * Both ends are the contributor's 70% share, not the gross.
  */
-export function revenueRange(hunters: number): RevenueRange {
+export function revenueRange(hunters: number = BASIS): RevenueRange {
   const spenders = Math.max(0, Math.round(hunters * SPENDING_SHARE));
   const low = splitPowerUp(CHEAPEST_KOBO).contributorKobo * spenders;
   const high = splitPowerUp(FULL_SHELF_KOBO).contributorKobo * spenders;
@@ -65,11 +77,5 @@ export function revenueRange(hunters: number): RevenueRange {
   };
 }
 
-/**
- * A per-hundred-hunters figure, for a box nobody has played yet.
- *
- * Quoting "₦0 – ₦0" to somebody who hasn't launched would be useless, and
- * inventing a player count would be a lie, so an unlaunched box is quoted per
- * hundred hunters and the contributor supplies their own expectation.
- */
-export const PER_HUNDRED = revenueRange(100);
+/** The standing rate, which is what every surface quotes. */
+export const PER_THOUSAND = revenueRange(BASIS);

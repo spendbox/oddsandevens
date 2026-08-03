@@ -7,46 +7,50 @@
 // confident number — so both ends are shown and the arithmetic sits right
 // underneath, collapsed but one tap away. A projection you can't check is
 // worth less than no projection at all.
+//
+// It is always quoted per thousand hunters. Quoting a live box's real player
+// count looked more precise and was useless — a box with four hunters
+// projected four hunters' worth of income, which says nothing about whether
+// the box is worth running. A rate is the thing a contributor can multiply by
+// their own expectations. What the box has *actually* made sits beside it, so
+// the projection is never confused with the takings.
 
 import { useState } from "react";
 import { ChevronDown, TrendingUp } from "lucide-react";
 import { formatNaira } from "@/lib/game/rewards";
-import { revenueRange, SPENDING_SHARE } from "@/lib/game/revenue";
+import { BASIS, revenueRange, SPENDING_SHARE } from "@/lib/game/revenue";
 import { plural } from "@/lib/plural";
 
 export function RevenueEstimate({
   hunters,
   earnedKobo,
-  /** Live boxes quote real hunters; an unfunded one has to quote per hundred. */
-  launched,
 }: {
+  /** Real hunters so far. Shown as fact, never used as the projection basis. */
   hunters: number;
   earnedKobo: number;
-  launched: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const basis = launched && hunters > 0 ? hunters : 100;
-  const range = revenueRange(basis);
+  const range = revenueRange();
 
   return (
     <div className="mt-3 rounded-xl bg-white/5 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-zinc-500">
           <TrendingUp className="size-3.5" aria-hidden />
-          {launched && hunters > 0
-            ? `Likely from ${plural(hunters, "hunter")}`
-            : "Likely per 100 hunters"}
+          Likely per {BASIS.toLocaleString("en-NG")} hunters
         </span>
         <span className="font-mono text-sm font-bold text-brass">
           {formatNaira(range.lowKobo)} – {formatNaira(range.highKobo)}
         </span>
       </div>
 
-      {earnedKobo > 0 && (
-        <p className="mt-1 text-[11px] text-zinc-500">
-          {formatNaira(earnedKobo)} of it earned so far.
-        </p>
-      )}
+      <p className="mt-1 text-[11px] text-zinc-500">
+        {earnedKobo > 0
+          ? `${formatNaira(earnedKobo)} earned so far from ${plural(hunters, "hunter")}.`
+          : hunters > 0
+            ? `${plural(hunters, "hunter")} so far, nothing bought yet.`
+            : "Nobody hunting yet."}
+      </p>
 
       <button
         type="button"
@@ -72,18 +76,19 @@ export function RevenueEstimate({
             <strong className="text-zinc-300">
               {Math.round(SPENDING_SHARE * 100)}%
             </strong>{" "}
-            of hunters buy anything at all — {plural(range.spenders, "spender")} out
-            of {plural(range.hunters, "hunter")}.
+            of hunters buy anything at all — {plural(range.spenders, "spender")} per{" "}
+            {range.hunters.toLocaleString("en-NG")}.
           </p>
           <p>
             <strong className="text-zinc-300">Low end:</strong> each of them buys one
-            Sweep at {formatNaira(range.cheapestKobo)}.{" "}
+            power-up at {formatNaira(range.cheapestKobo)}.{" "}
             <strong className="text-zinc-300">High end:</strong> each buys the whole
             shelf at {formatNaira(range.fullShelfKobo)}.
           </p>
           <p className="text-zinc-600">
-            It&apos;s an estimate, and the spending share is a guess rather than a
-            measurement. A harder box keeps people hunting longer, which pushes
+            It&apos;s a rate, not a forecast — multiply it by however many people you
+            think your link will reach. The spending share is a guess rather than a
+            measurement, and a harder box keeps people hunting longer, which pushes
             towards the top of the range. What you funded isn&apos;t in here —
             that&apos;s the reward, and it leaves.
           </p>
