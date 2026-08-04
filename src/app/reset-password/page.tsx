@@ -12,7 +12,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { PasswordInput } from "@/components/password-input";
 
 const INPUT =
-  "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-brass";
+  "field px-4 py-3";
 
 export default function ResetPasswordPage() {
   const router = useRouter();

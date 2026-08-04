@@ -31,8 +31,8 @@ import { usePlayer } from "./player-context";
 
 type Step = "email" | "password" | "code";
 
-const LIGHT_INPUT =
-  "mt-1 w-full rounded-xl border-2 border-zinc-200 px-4 py-3 text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-brass";
+/** `field` does the surface; this is only the spacing around the label. */
+const INPUT = "field mt-1.5 px-4 py-3";
 
 export function AccountDialog({ onClose }: { onClose: () => void }) {
   const { adopt } = usePlayer();
@@ -178,7 +178,7 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
             ? addr
             : `We sent a 6-digit code to ${addr}.`
       }
-      icon={<Boxy mood={step === "email" ? "happy" : "sly"} still className="size-9" />}
+      icon={<Boxy mood={step === "email" ? "happy" : "sly"} still />}
       width="sm"
       onClose={onClose}
       footer={
@@ -211,7 +211,7 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
               setPassword("");
               setCode("");
             }}
-            className="flex items-center gap-1.5 text-sm font-semibold text-zinc-500 transition hover:text-zinc-800 active:translate-y-px"
+            className="flex items-center gap-1.5 text-sm font-semibold text-zinc-400 transition hover:text-foreground"
           >
             <ArrowLeft className="size-4" aria-hidden />
             Different email
@@ -220,10 +220,10 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
 
         {step === "email" && (
           <label className="block">
-            <span className="text-sm font-semibold text-zinc-700">Email address</span>
+            <span className="text-sm font-bold text-zinc-300">Email address</span>
             <div className="relative">
               <Mail
-                className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-400"
+                className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-zinc-500"
                 aria-hidden
               />
               <input
@@ -234,11 +234,11 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && void identify()}
                 placeholder="you@example.com"
-                className={`${LIGHT_INPUT} pl-11`}
+                className={`${INPUT} pl-11`}
               />
             </div>
-            <span className="mt-2 block text-sm text-zinc-500">
-              New here? We&apos;ll set you up on the next screen. Playing is free.
+            <span className="mt-2 block text-sm text-zinc-400">
+              New here? We’ll set you up on the next screen. Playing is free.
             </span>
           </label>
         )}
@@ -246,7 +246,7 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
         {step === "code" && (
           <>
             <label className="block">
-              <span className="text-sm font-semibold text-zinc-700">The code</span>
+              <span className="text-sm font-bold text-zinc-300">The code</span>
               <input
                 inputMode="numeric"
                 autoFocus
@@ -254,7 +254,7 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                 placeholder="000000"
-                className={`${LIGHT_INPUT} text-center font-mono text-2xl tracking-[0.4em]`}
+                className={`${INPUT} text-center font-mono text-2xl tracking-[0.4em]`}
               />
             </label>
             <PasswordField
@@ -284,14 +284,18 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={() => void forgot()}
-              className="text-sm font-semibold text-brass-deep underline transition active:translate-y-px"
+              className="text-sm font-bold text-brass underline underline-offset-2"
             >
-              I&apos;ve forgotten my password
+              I’ve forgotten my password
             </button>
           </>
         )}
 
-        {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
+        {error && (
+          <p className="rounded-xl bg-berry/15 px-3 py-2 text-sm font-bold text-berry">
+            {error}
+          </p>
+        )}
       </div>
     </Modal>
   );
@@ -319,7 +323,7 @@ function PasswordField({
 }) {
   return (
     <label className="block">
-      <span className="text-sm font-semibold text-zinc-700">{label}</span>
+      <span className="text-sm font-bold text-zinc-300">{label}</span>
       <div className="relative">
         <input
           type={reveal ? "text" : "password"}
@@ -329,13 +333,13 @@ function PasswordField({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onSubmit()}
           placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
-          className={`${LIGHT_INPUT} pr-12`}
+          className={`${INPUT} pr-12`}
         />
         <button
           type="button"
           onClick={onReveal}
           aria-label={reveal ? "Hide password" : "Show password"}
-          className="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 active:translate-y-[calc(-50%+1px)]"
+          className="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-white/10 hover:text-foreground"
         >
           {reveal ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
         </button>

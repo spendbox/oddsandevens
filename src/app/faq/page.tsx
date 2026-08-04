@@ -30,7 +30,7 @@ export default function FaqPage() {
             </h1>
             <p className="mx-auto mt-2 max-w-lg text-zinc-400">
               The game screens stay out of your way on purpose. Everything they
-              don&apos;t explain is here.
+              don’t explain is here.
             </p>
           </header>
 

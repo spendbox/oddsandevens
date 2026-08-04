@@ -102,7 +102,7 @@ export function PowerUpShelf({
       {view.hunt && view.hunt.notes.length > 0 && (
         <div className="panel rounded-xl p-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            What you&apos;ve bought
+            What you’ve bought
           </h3>
           <ul className="mt-2 space-y-1 text-sm text-brass">
             {view.hunt.notes.map((note: string, i: number) => (
@@ -211,7 +211,7 @@ function PowerUpDialog({
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-2xl bg-zinc-100 px-4 py-3.5 font-bold text-zinc-700"
+            className="w-full rounded-2xl border-2 border-white/12 bg-white/8 px-4 py-3.5 font-bold text-zinc-300"
           >
             Back to the hunt
           </button>
@@ -219,13 +219,13 @@ function PowerUpDialog({
       }
     >
       <div className="space-y-4 pb-1">
-        <p className="text-sm leading-relaxed text-zinc-700">{powerUp.detail}</p>
+        <p className="text-sm leading-relaxed text-zinc-300">{powerUp.detail}</p>
 
-        <div className="rounded-xl bg-zinc-100 px-3 py-2.5">
+        <div className="rounded-xl bg-black/25 px-3 py-2.5">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            What it doesn&apos;t do
+            What it doesn’t do
           </p>
-          <p className="mt-1 text-sm text-zinc-600">{powerUp.caveat}</p>
+          <p className="mt-1 text-sm text-zinc-400">{powerUp.caveat}</p>
         </div>
 
         <p className="flex items-start gap-2 text-sm text-zinc-500">
@@ -245,9 +245,9 @@ function PowerUpDialog({
           the box — and a player who can read a percentage off five prices can
           check they agree, which is a puzzle nobody asked for.
         */}
-        <div className="flex items-baseline justify-between gap-3 border-t border-zinc-100 pt-3">
+        <div className="flex items-baseline justify-between gap-3 border-t border-white/10 pt-3">
           <span className="text-sm text-zinc-500">Price on this box</span>
-          <span className="shrink-0 font-mono text-lg font-bold text-zinc-900">
+          <span className="shrink-0 font-mono text-lg font-black text-brass">
             {formatNaira(powerUp.priceKobo)}
           </span>
         </div>
@@ -258,11 +258,13 @@ function PowerUpDialog({
 
         {!powerUp.available && !running && (
           <p className="text-sm text-zinc-500">
-            You&apos;ve already bought this one. It has nothing left to tell you.
+            You’ve already bought this one. It has nothing left to tell you.
           </p>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <p className="rounded-xl bg-berry/15 px-3 py-2 text-sm font-bold text-berry">{error}</p>
+        )}
       </div>
     </Modal>
   );

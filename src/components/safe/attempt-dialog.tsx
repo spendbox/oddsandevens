@@ -80,7 +80,7 @@ export function AttemptDialog({
         <div>
           <p className="text-xs uppercase tracking-wide text-zinc-500">You typed</p>
           {/* `break-all`: a 40-character guess has no spaces to break on. */}
-          <code className="mt-1 block break-all rounded-xl bg-zinc-100 px-3 py-2.5 font-mono text-base text-zinc-900">
+          <code className="mt-1 block break-all rounded-xl bg-black/30 px-3 py-2.5 font-mono text-base text-foreground">
             {attempt.value}
           </code>
           <p className="mt-1 text-xs text-zinc-500">
@@ -143,10 +143,10 @@ export function AttemptDialog({
  */
 function LockedBreakdown() {
   return (
-    <div className="flex gap-3 border-t border-zinc-100 pt-3">
+    <div className="flex gap-3 border-t border-white/10 pt-3">
       <Lock className="mt-0.5 size-4 shrink-0 text-zinc-400" aria-hidden />
       <div className="min-w-0 space-y-2">
-        <p className="text-sm font-semibold text-zinc-900">What Makes Up the Score?</p>
+        <p className="text-sm font-bold text-foreground">What Makes Up the Score?</p>
         <p className="text-sm leading-relaxed text-zinc-500">
           A score is only a measure of how close your guess is to the password.
           The higher the score, the closer you are to unlocking the Spendbox.
@@ -173,10 +173,10 @@ function Row({
   body: string;
 }) {
   return (
-    <div className="flex gap-3 border-t border-zinc-100 pt-3">
+    <div className="flex gap-3 border-t border-white/10 pt-3">
       <span className="mt-0.5 shrink-0">{icon}</span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-zinc-900">{title}</p>
+        <p className="text-sm font-bold text-foreground">{title}</p>
         <p className="mt-0.5 text-sm leading-snug text-zinc-500">{body}</p>
       </div>
     </div>

@@ -50,14 +50,18 @@ export function HowItWorksButton({
   );
 }
 
-function HowItWorksDialog({ onClose }: { onClose: () => void }) {
+export function HowItWorksDialog({ onClose }: { onClose: () => void }) {
   const floor = minFundingKobo(MIN_LENGTH);
 
   return (
     <Modal
-      title="Guess blind. One life = one guess."
-      subtitle="Everything the game screens deliberately don't say."
-      icon={<Boxy mood="sly" still className="size-9" />}
+      // The old title was a sentence — "Guess blind. One life = one guess." —
+      // which wrapped onto two lines on a phone and pushed the content down
+      // before anybody had read a word of it. It's the subtitle now, where a
+      // sentence belongs.
+      title="How it works"
+      subtitle="Guess blind. One life = one guess."
+      icon={<Boxy mood="sly" still />}
       onClose={onClose}
       footer={
         <Link
@@ -70,14 +74,14 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
         </Link>
       }
     >
-      <div className="space-y-5 pb-1 text-sm leading-relaxed text-zinc-600">
-        <div className="rounded-2xl bg-zinc-100 px-4 py-3">
-          <p className="font-semibold text-zinc-900">
+      <div className="space-y-4 pb-1 text-sm leading-relaxed text-zinc-300 sm:space-y-5">
+        <div className="rounded-2xl border border-brass/20 bg-brass/10 px-4 py-3">
+          <p className="font-bold text-brass-bright">
             Every Spendbox protects real money behind a unique password.
           </p>
           <p className="mt-1">
             Playing is free: you start with {LIVES_MAX} lives and regain 1 life
-            every hour. With each guess, you&apos;ll receive a single score from
+            every hour. With each guess, you’ll receive a single score from
             0 to 100, showing exactly how close you are to cracking the code.
           </p>
         </div>
@@ -87,7 +91,7 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
             A password locks every Spendbox and your goal is to crack it.
           </p>
           <p>
-            You don&apos;t know its length, the types of characters it contains,
+            You don’t know its length, the types of characters it contains,
             or where anything belongs. It could contain uppercase and lowercase
             letters, numbers, symbols — or any combination of them.
           </p>
@@ -98,12 +102,12 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
 
         <Section title="Length indicators">
           <Clue
-            icon={<MoveUp className="size-4 text-sky-600" aria-hidden />}
+            icon={<MoveUp className="size-4 text-sky" aria-hidden />}
             title="Too short"
             body="Your guess contains fewer characters than the password."
           />
           <Clue
-            icon={<MoveDown className="size-4 text-sky-600" aria-hidden />}
+            icon={<MoveDown className="size-4 text-sky" aria-hidden />}
             title="Too long"
             body="Your guess contains more characters than the password."
           />
@@ -117,7 +121,7 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
         <Section title="Your score">
           <p>
             Every guess receives a score from 0 to 100, showing how close you
-            are to the correct password. A score of 100 means you&apos;ve
+            are to the correct password. A score of 100 means you’ve
             cracked the Spendbox.
           </p>
           <p>
@@ -138,7 +142,7 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
             Uppercase and lowercase characters are treated as different
             characters.
           </p>
-          <p className="text-center font-mono text-lg font-black text-zinc-900">
+          <p className="text-center font-mono text-lg font-black text-foreground">
             K is not k
           </p>
         </Section>
@@ -162,7 +166,7 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
             you narrow down the password more quickly.
           </p>
           <p>
-            When you purchase a power-up on someone&apos;s Spendbox, 70% of what
+            When you purchase a power-up on someone’s Spendbox, 70% of what
             you spend goes directly to the creator of that box.
           </p>
         </Section>
@@ -202,8 +206,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-2 border-t border-zinc-100 pt-4">
-      <h3 className="flex items-center gap-2 text-base font-black tracking-tight text-zinc-900">
+    <section className="space-y-2 border-t border-white/10 pt-4">
+      <h3 className="flex items-center gap-2 text-base font-black tracking-tight text-foreground">
         {icon}
         {title}
       </h3>
@@ -222,10 +226,10 @@ function Clue({
   body: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-xl bg-zinc-50 px-3 py-2.5">
+    <div className="flex gap-3 rounded-xl bg-black/25 px-3 py-2.5">
       <span className="mt-0.5 shrink-0">{icon}</span>
       <div className="min-w-0">
-        <p className="font-semibold text-zinc-900">{title}</p>
+        <p className="font-bold text-foreground">{title}</p>
         <p className="mt-0.5">{body}</p>
       </div>
     </div>

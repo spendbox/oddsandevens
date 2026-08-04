@@ -28,11 +28,26 @@ export function Featured({ boxes }: { boxes: PublicBox[] }) {
 
   // Which card is centred, worked out from the scroll position rather than
   // tracked separately — a swipe, an arrow and a dot all move the same number.
+  //
+  // Measured against the cards themselves rather than by dividing the scroll
+  // offset by the track width. The gap between cards means those two numbers
+  // drift apart a little further with every slide, so by the fourth box the
+  // dots were lighting up one behind the card you were looking at.
   const onScroll = useCallback(() => {
     const el = track.current;
     if (!el) return;
-    const width = el.clientWidth || 1;
-    setIndex(Math.round(el.scrollLeft / width));
+    const middle = el.scrollLeft + el.clientWidth / 2;
+    let best = 0;
+    let bestGap = Infinity;
+    [...el.children].forEach((child, i) => {
+      const card = child as HTMLElement;
+      const gap = Math.abs(card.offsetLeft + card.offsetWidth / 2 - middle);
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = i;
+      }
+    });
+    setIndex(best);
   }, []);
 
   useEffect(() => {
@@ -45,17 +60,31 @@ export function Featured({ boxes }: { boxes: PublicBox[] }) {
   function go(to: number) {
     const el = track.current;
     if (!el) return;
-    const clamped = Math.max(0, Math.min(boxes.length - 1, to));
-    el.scrollTo({ left: clamped * el.clientWidth, behavior: "smooth" });
+    const clamped = Math.max(0, Math.min(el.children.length - 1, to));
+    const card = el.children[clamped] as HTMLElement | undefined;
+    if (!card) return;
+    el.scrollTo({
+      left: card.offsetLeft + card.offsetWidth / 2 - el.clientWidth / 2,
+      behavior: "smooth",
+    });
   }
 
   if (boxes.length === 0) return null;
 
   return (
     <section className="relative">
+      {/*
+        The padding is not decoration. A horizontal scroll container clips
+        vertically too — `overflow-y: visible` is not a thing next to
+        `overflow-x: auto` — so the card's hover lift, its glow and its focus
+        ring were all being sliced off along the top edge. The padding gives
+        them somewhere to go and the matching negative margin gives the space
+        back to the layout, which keeps each card exactly as wide as the
+        section that holds it.
+      */}
       <div
         ref={track}
-        className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-3 -my-3 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {boxes.map((box) => (
           <div key={box.slug} className="w-full shrink-0 snap-center">
@@ -138,9 +167,11 @@ function FeaturedCard({ box }: { box: PublicBox }) {
         <p
           className={
             "mt-3 font-black leading-none tabular-nums " +
+            // Stepped at 360px as well as at `sm`, because a seven-figure
+            // reward at `text-5xl` runs into both edges of a 320px screen.
             (box.isChallenge
               ? "text-3xl text-grape"
-              : "brass-text text-5xl sm:text-6xl")
+              : "brass-text text-4xl min-[360px]:text-5xl sm:text-6xl")
           }
         >
           {rewardLabel(box.rewardKobo)}

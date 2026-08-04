@@ -5,8 +5,15 @@
 import { Check, Share2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-export const INPUT =
-  "w-full rounded-xl border-2 border-white/10 bg-black/25 px-4 py-3 text-foreground outline-none transition placeholder:text-zinc-500 focus:border-brass";
+/**
+ * A text box.
+ *
+ * The surface itself is the `field` utility in `globals.css`, so a dialog that
+ * doesn't import from the dashboard can still get an identical box; this is
+ * only the padding, which `field` deliberately leaves alone so an input with an
+ * icon in it can inset one side without a specificity fight.
+ */
+export const INPUT = "field px-4 py-3";
 
 /** The one button on a screen that does the thing. Gold slab, hard lip. */
 export const PRIMARY = "btn-chunky rounded-2xl bg-brass px-5 py-3.5 text-ink";

@@ -36,7 +36,7 @@ export function EarningsPanel({
 
       {!connected && earnings.totalKobo > 0 && (
         <p className="rounded-xl border border-brass/30 bg-brass/10 px-4 py-3 text-sm text-brass">
-          You&apos;ve earned {formatNaira(earnings.totalKobo)} with nowhere to send
+          You’ve earned {formatNaira(earnings.totalKobo)} with nowhere to send
           it.{" "}
           <button type="button" onClick={onConnect} className="font-semibold underline">
             Add a bank account

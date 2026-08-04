@@ -41,8 +41,7 @@ const SORTS: { id: Sort; label: string }[] = [
   { id: "recent", label: "Recently seen" },
 ];
 
-const INPUT =
-  "w-full rounded-xl border-2 border-white/10 bg-black/25 px-4 py-2.5 text-foreground outline-none transition placeholder:text-zinc-500 focus:border-brass";
+const INPUT = "field px-4 py-2.5";
 
 export function UsersPanel() {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -121,9 +120,10 @@ export function UsersPanel() {
           <p className="font-black tracking-tight">This list needs a migration.</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-zinc-400">
             The database is missing <code className="font-mono">admin_players</code>, or
-            has it and the API hasn&apos;t noticed. Run{" "}
+            has it and the API hasn’t noticed. Run{" "}
             <code className="font-mono">npx supabase db push</code>, then{" "}
-            <code className="font-mono">notify pgrst, &apos;reload schema&apos;;</code>.
+            {/* A string, not prose — the quotes have to be the ones you type. */}
+            <code className="font-mono">{"notify pgrst, 'reload schema';"}</code>.
           </p>
         </div>
       ) : loading && users.length === 0 ? (

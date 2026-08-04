@@ -343,7 +343,7 @@ function TabButton({
       aria-selected={on}
       onClick={() => onPick(id)}
       className={
-        "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold transition " +
+        "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-[13px] font-bold transition sm:gap-2 sm:px-3 sm:text-sm " +
         (on
           ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.45),0_3px_0_var(--brass-deep)]"
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100")
@@ -460,10 +460,10 @@ function RulesDialog({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="space-y-4 pb-1">
-        <p className="text-sm leading-relaxed text-zinc-700">
-          There&apos;s a password behind this safe. You don&apos;t know how long
-          it is, what it&apos;s made of, or where anything sits.{" "}
-          <strong className="text-zinc-900">Anything on a keyboard</strong> can be
+        <p className="text-sm leading-relaxed text-zinc-300">
+          There’s a password behind this safe. You don’t know how long
+          it is, what it’s made of, or where anything sits.{" "}
+          <strong className="text-foreground">Anything on a keyboard</strong> can be
           in it — letters in either case, digits, and symbols like{" "}
           <span className="font-mono">&amp; $ # ) ( ; : ! ? *</span>. Type a guess,
           spend a life, and read what comes back.
@@ -485,31 +485,31 @@ function RulesDialog({ onClose }: { onClose: () => void }) {
           body="Exactly as many characters as the password. Nothing tells you the number until you find it."
         />
         <Rule
-          icon={<span className="text-sm font-bold text-zinc-900">%</span>}
+          icon={<span className="text-sm font-black text-brass">%</span>}
           title="A score out of 100"
           body="How close the guess is. Every position contributes something — an exact character most, the right letter in the wrong case least, a character that's in the password but somewhere else in between — and the total is measured against a perfect guess. 100% is the password itself, and nothing else reaches it."
         />
 
-        <div className="space-y-2 border-t border-zinc-100 pt-3 text-sm text-zinc-500">
+        <div className="space-y-2 border-t border-white/10 pt-3 text-sm text-zinc-500">
           <p>
-            <strong className="text-zinc-700">The arithmetic isn&apos;t
+            <strong className="text-foreground">The arithmetic isn’t
             published.</strong>{" "}
             Two very different guesses can score the same, and working out which
             explanation fits is the game.
           </p>
           <p>
-            <strong className="text-zinc-700">Case counts.</strong>{" "}
+            <strong className="text-foreground">Case counts.</strong>{" "}
             <span className="font-mono">k</span> and{" "}
             <span className="font-mono">K</span> are different characters.
           </p>
           <p>
-            <strong className="text-zinc-700">Lives come back on their own</strong>{" "}
+            <strong className="text-foreground">Lives come back on their own</strong>{" "}
             — one an hour, up to {LIVES_MAX}. You never have to buy any.
           </p>
           <p>
-            <strong className="text-zinc-700">Power-ups are the only paid
+            <strong className="text-foreground">Power-ups are the only paid
             part</strong>, and each one buys back exactly one of the things
-            withheld above. On someone&apos;s box, 70% of what you spend goes to
+            withheld above. On someone’s box, 70% of what you spend goes to
             them.
           </p>
           <p>Tap any attempt in the log to read it in full.</p>
@@ -529,12 +529,12 @@ function Rule({
   body: string;
 }) {
   return (
-    <div className="flex gap-3 border-t border-zinc-100 pt-3">
+    <div className="flex gap-3 border-t border-white/10 pt-3">
       <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-zinc-900">{title}</p>
+        <p className="text-sm font-bold text-foreground">{title}</p>
         <p className="mt-0.5 text-sm leading-snug text-zinc-500">{body}</p>
       </div>
     </div>
@@ -552,11 +552,11 @@ function Verdict({ outcome, view }: { outcome: Outcome; view: PlayView }) {
             <>You cracked it. No money behind this one — just the fact that you did it.</>
           ) : (
             <>
-              {formatNaira(view.box.rewardKobo)} is yours. We&apos;ve emailed you —{" "}
+              {formatNaira(view.box.rewardKobo)} is yours. We’ve emailed you —{" "}
               <Link href="/me" className="text-brass underline">
                 add your bank account
               </Link>{" "}
-              and we&apos;ll send it.
+              and we’ll send it.
             </>
           )}
         </p>

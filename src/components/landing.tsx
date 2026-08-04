@@ -215,7 +215,7 @@ function Tab({
       aria-selected={on}
       onClick={() => onPick(id)}
       className={
-        "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold transition active:translate-y-px " +
+        "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-[13px] font-bold transition active:translate-y-px sm:gap-2 sm:px-3 sm:text-sm " +
         (on
           ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.45),0_3px_0_var(--brass-deep)]"
           : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100")

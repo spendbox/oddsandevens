@@ -175,6 +175,24 @@
  *
  * `fixed` matters — repeating any of this per-scroll would band visibly.
  */
+/*
+ * Nothing scrolls sideways.
+ *
+ * The decoration on this site is built out of very large soft circles — a
+ * 34rem glow behind the hero, a wash behind each featured safe — and a circle
+ * wider than the screen it is centred on pushes the document out past the
+ * viewport. On a desktop nobody notices; on a 320px phone it was 122px of
+ * horizontal scroll on the front page, which reads as the page being broken.
+ *
+ * `clip` rather than `hidden` on purpose: `hidden` turns the element into a
+ * scroll container, which silently breaks `position: sticky` for everything
+ * inside it. `clip` just clips.
+ */
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   background-color: var(--background);
   background-image:
@@ -206,6 +224,63 @@ body {
     inset 0 1.5px 0 rgb(255 255 255 / 0.16),
     inset 0 -3px 0 rgb(0 0 0 / 0.28),
     0 14px 34px -16px rgb(0 0 0 / 0.75);
+}
+
+/*
+ * The face a dialog is cut from.
+ *
+ * Dialogs used to be white cards, on the theory that a form wants a clean sheet
+ * of paper under it. In a violet-night game they read as a different
+ * application opening on top of this one — and every one of them had to
+ * re-state its own text colours to survive the switch. This is the same
+ * material as `panel`, one step lighter so a sheet still separates from the
+ * page behind it, and it means a dialog inherits the site's colours instead of
+ * fighting them.
+ */
+@utility sheet {
+  background: linear-gradient(168deg, #40307a 0%, var(--surface-high) 40%, var(--surface) 100%);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  box-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.2),
+    0 -8px 60px -12px rgb(0 0 0 / 0.9),
+    0 30px 60px -20px rgb(0 0 0 / 0.85);
+}
+
+/*
+ * Every text box in the game.
+ *
+ * Inputs were being styled inline at a dozen call sites, which is how three of
+ * them ended up light-on-light after the theme changed. One utility, so a field
+ * looks like a slot cut into the surface wherever it appears.
+ */
+/* Padding is deliberately *not* set here — a field with an icon in it needs a
+   different inset on one side, and a utility that owns padding turns every
+   such case into a specificity argument. */
+@utility field {
+  width: 100%;
+  border-radius: 0.875rem;
+  border: 2px solid rgb(255 255 255 / 0.12);
+  background: rgb(0 0 0 / 0.28);
+  color: var(--foreground);
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+
+  &::placeholder {
+    color: rgb(255 255 255 / 0.35);
+  }
+
+  &:focus {
+    border-color: var(--brass);
+    background: rgb(0 0 0 / 0.4);
+  }
+
+  /* The global gold ring is right for a button and too much for a field that
+     already lights its own border. */
+  &:focus-visible {
+    outline: none;
+  }
 }
 
 /*
@@ -355,8 +430,10 @@ summary,
   }
 }
 
-/* Anything focused by keyboard gets the same ring, in the game's own gold. */
-:focus-visible {
+/* Anything focused by keyboard gets the same ring, in the game's own gold —
+   except a text box, which lights its own border and would otherwise wear a
+   second gold outline 2px outside the first. */
+:focus-visible:not(.field) {
   outline: 3px solid var(--brass);
   outline-offset: 2px;
   border-radius: 0.5rem;

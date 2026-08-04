@@ -25,7 +25,7 @@ interface BankState {
 }
 
 const INPUT =
-  "w-full rounded-xl border-2 border-white/10 bg-black/25 px-4 py-3 text-foreground outline-none transition placeholder:text-zinc-500 focus:border-brass";
+  "field px-4 py-3";
 
 export function BankPanel() {
   const [bank, setBank] = useState<BankState | null>(null);
@@ -150,7 +150,7 @@ export function BankPanel() {
 
         {banks.length === 0 && (
           <p className="text-xs text-zinc-500">
-            The bank list isn&apos;t loading right now — try again shortly.
+            The bank list isn’t loading right now — try again shortly.
           </p>
         )}
       </div>

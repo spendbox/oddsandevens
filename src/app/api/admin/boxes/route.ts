@@ -81,12 +81,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_reward" }, { status: 400 });
   }
 
+  // Publishing used to close every other live platform box first, because the
+  // schema allowed exactly one and "the public game" was singular. Both halves
+  // of that are gone — 0032 dropped the index, and featuring decides what sits
+  // at the top of the page now. A new box is a new box; the old ones keep
+  // playing until somebody cracks them or an admin closes them by hand.
   const db = supabaseAdmin();
-  await db
-    .from("boxes")
-    .update({ status: "closed" })
-    .eq("kind", "general")
-    .eq("status", "live");
 
   const { data, error } = await db
     .from("boxes")

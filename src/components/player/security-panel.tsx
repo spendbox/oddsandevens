@@ -12,7 +12,7 @@ import { Eye, EyeOff, KeyRound, LogOut } from "lucide-react";
 import { MIN_PASSWORD_LENGTH } from "@/lib/player-password";
 
 const INPUT =
-  "w-full rounded-xl border-2 border-white/10 bg-black/25 px-4 py-3 text-foreground outline-none transition placeholder:text-zinc-500 focus:border-brass";
+  "field px-4 py-3";
 
 export function SecurityPanel() {
   const [current, setCurrent] = useState("");
@@ -105,8 +105,8 @@ export function SecurityPanel() {
         </button>
 
         <p className="text-xs text-zinc-500">
-          Forgotten it instead? Sign out and use &ldquo;I&apos;ve forgotten my
-          password&rdquo; — we&apos;ll email you a code.
+          Forgotten it instead? Sign out and use “I’ve forgotten my
+          password” — we’ll email you a code.
         </p>
       </div>
 

@@ -40,7 +40,7 @@ import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
 import type { PublicBox } from "@/lib/types";
 
 const INPUT =
-  "w-full rounded-xl border-2 border-white/10 bg-black/25 px-4 py-3 text-foreground outline-none transition placeholder:text-zinc-500 focus:border-brass";
+  "field px-4 py-3";
 const PRIMARY = "btn-chunky rounded-2xl bg-brass px-5 py-3.5 text-ink";
 
 type Tab = "money" | "players" | "boxes" | "ours";
@@ -404,7 +404,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         The Spendbox box
       </h2>
       <p className="mt-1 text-xs text-zinc-500">
-        Funded by us, so there&apos;s nothing to collect and no split — just a
+        Funded by us, so there’s nothing to collect and no split — just a
         reward, or none at all, which makes it a pure challenge. You can have as
         many live at once as you like; feature the ones worth the front page.
       </p>

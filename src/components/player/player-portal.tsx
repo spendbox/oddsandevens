@@ -117,8 +117,8 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
         <Boxy mood="happy" className="mx-auto size-32" />
         <p className="mt-2 text-2xl font-black tracking-tight">Your safe house</p>
         <p className="mt-1 text-zinc-400">
-          Sign in and this page shows your lives, every safe you&apos;ve hunted,
-          and any reward you&apos;ve won.
+          Sign in and this page shows your lives, every safe you’ve hunted,
+          and any reward you’ve won.
         </p>
         <button
           type="button"
@@ -141,7 +141,7 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
     <div className="mx-auto w-full max-w-2xl space-y-5 px-4 py-8">
       <header>
         <h1 className="text-3xl font-black tracking-tight">Your safe house</h1>
-        <p className="mt-1 text-sm text-zinc-400">{player.email}</p>
+        <p className="mt-1 break-all text-sm text-zinc-400">{player.email}</p>
       </header>
 
       {notice && (

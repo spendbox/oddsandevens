@@ -159,11 +159,11 @@ export default function DashboardPage() {
           <span className="font-black tracking-tight">Spendbox</span>
         </Link>
         {profile && (
-          <span className="truncate text-sm text-zinc-400">{profile.displayName}</span>
+          <span className="hidden min-w-0 truncate text-sm text-zinc-400 sm:block">{profile.displayName}</span>
         )}
         <Link
           href="/me"
-          className="ml-auto truncate rounded-xl border-2 border-white/12 bg-white/6 px-3 py-1.5 text-xs font-bold text-zinc-300 transition hover:border-brass/50"
+          className="ml-auto min-w-0 max-w-[45%] truncate rounded-xl border-2 border-white/12 bg-white/6 px-3 py-1.5 text-xs font-bold text-zinc-300 transition hover:border-brass/50"
         >
           {player.email}
         </Link>

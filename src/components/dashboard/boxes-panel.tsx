@@ -42,7 +42,7 @@ export function BoxesPanel({
           <Boxy mood="happy" className="mx-auto size-28" />
           <p className="mt-1 text-lg font-black tracking-tight">Nothing up yet.</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-zinc-400">
-            Put a reward behind a password and share the link — that&apos;s the
+            Put a reward behind a password and share the link — that’s the
             whole thing.
           </p>
           <button
@@ -158,7 +158,7 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
         <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-400">
           Cracked by {box.unlockedBy ?? "a player"} after{" "}
           {plural(box.attemptsCount, "attempt")}.
-          An opened box can&apos;t be played again — the{" "}
+          An opened box can’t be played again — the{" "}
           {rewardLabel(box.rewardKobo)} is on its way to them.
         </p>
       )}
@@ -294,7 +294,7 @@ function RaiseForm({
 
       {split && (
         <p className="text-xs text-zinc-400">
-          You&apos;d pay <strong className="text-zinc-200">{formatNaira(extra)}</strong>{" "}
+          You’d pay <strong className="text-zinc-200">{formatNaira(extra)}</strong>{" "}
           more now, and the reward becomes{" "}
           <strong className="text-brass">{formatNaira(split.rewardKobo)}</strong>.
         </p>

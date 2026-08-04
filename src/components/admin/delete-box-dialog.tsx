@@ -26,7 +26,7 @@ interface Target {
 }
 
 const LIGHT_INPUT =
-  "mt-1 w-full rounded-xl border-2 border-zinc-200 px-4 py-3 text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-berry";
+  "field mt-1.5 px-4 py-3";
 
 export function DeleteBoxDialog({
   boxId,
@@ -95,7 +95,7 @@ export function DeleteBoxDialog({
     <Modal
       title={step === "ask" ? "Delete this box?" : "Confirm the deletion"}
       subtitle={step === "ask" ? boxTitle : `We emailed a code to ${sentTo}.`}
-      icon={<Boxy mood="dizzy" still className="size-9" />}
+      icon={<Boxy mood="dizzy" still />}
       width="sm"
       onClose={onClose}
       footer={
@@ -116,9 +116,9 @@ export function DeleteBoxDialog({
       }
     >
       <div className="space-y-4 pb-1">
-        <div className="flex gap-3 rounded-2xl bg-red-50 px-3 py-2.5">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-600" aria-hidden />
-          <p className="text-sm text-red-800">
+        <div className="flex gap-3 rounded-2xl border border-berry/30 bg-berry/12 px-3 py-2.5">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-berry" aria-hidden />
+          <p className="text-sm text-zinc-300">
             This cannot be undone. The box, every attempt made against it, and
             every hunt on it go with it. Money already taken is not refunded by
             deleting the box.
@@ -126,7 +126,7 @@ export function DeleteBoxDialog({
         </div>
 
         {target && (
-          <dl className="grid grid-cols-2 gap-2 rounded-2xl bg-zinc-100 p-3 text-sm">
+          <dl className="grid grid-cols-2 gap-2 rounded-2xl bg-black/25 p-3 text-sm">
             <Stat label="Status" value={target.status} />
             <Stat label="Hunters" value={String(target.playersCount)} />
             <Stat label="Attempts" value={String(target.attemptsCount)} />
@@ -136,7 +136,7 @@ export function DeleteBoxDialog({
 
         {step === "ask" ? (
           <label className="block">
-            <span className="text-sm font-semibold text-zinc-700">
+            <span className="text-sm font-bold text-zinc-300">
               Why? (kept in the audit log)
             </span>
             <input
@@ -149,7 +149,7 @@ export function DeleteBoxDialog({
           </label>
         ) : (
           <label className="block">
-            <span className="text-sm font-semibold text-zinc-700">The code</span>
+            <span className="text-sm font-bold text-zinc-300">The code</span>
             <input
               inputMode="numeric"
               autoFocus
@@ -162,7 +162,9 @@ export function DeleteBoxDialog({
           </label>
         )}
 
-        {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
+        {error && (
+          <p className="rounded-xl bg-berry/15 px-3 py-2 text-sm font-bold text-berry">{error}</p>
+        )}
       </div>
     </Modal>
   );
@@ -174,7 +176,7 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dt className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
         {label}
       </dt>
-      <dd className="truncate font-mono text-zinc-800">{value}</dd>
+      <dd className="truncate font-mono text-foreground">{value}</dd>
     </div>
   );
 }

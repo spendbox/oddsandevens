@@ -26,7 +26,7 @@ export function AttemptsPanel({ attempts }: { attempts: HuntRow[] }) {
           <Boxy mood="sad" className="mx-auto size-24" />
           <p className="mt-1 font-black tracking-tight">Nobody hunting yet.</p>
           <p className="mt-1 text-sm text-zinc-400">
-            Share a box&apos;s link and they&apos;ll show up here.
+            Share a box’s link and they’ll show up here.
           </p>
         </div>
       </Panel>

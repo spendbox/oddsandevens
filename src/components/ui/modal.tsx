@@ -1,6 +1,6 @@
 "use client";
 
-// One dialog for the whole dashboard.
+// One dialog for the whole game.
 //
 // Every popup here used to be hand-rolled, and every one of them was wrong on
 // a phone in the same way: sized in `vh`, which on mobile Safari and Chrome
@@ -14,6 +14,14 @@
 // browser chrome is showing), the header and footer are pinned, and only the
 // middle scrolls. On a phone it arrives as a sheet from the bottom, where a
 // thumb is; from `sm` up it is a centred card.
+//
+// Two things it stopped doing. It was a white card, which in a violet-night
+// game reads as a different application opening on top of this one — it is cut
+// from `sheet` now and inherits the site's colours. And it was sized for a
+// desktop first: an 18px title, 24px of padding and a 36px icon, all of which
+// a 360px phone pays for twice over. Every one of those steps down on small
+// screens, so the *content* is what fills a sheet rather than the frame
+// around it.
 
 import { useCallback, useEffect, type ReactNode } from "react";
 import { X } from "lucide-react";
@@ -75,52 +83,60 @@ export function Modal({
     <Portal>
       <div
         onClick={close}
-        className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-900/50 backdrop-blur-sm sm:items-center sm:p-4"
+        className="fixed inset-0 z-50 flex items-end justify-center bg-background-deep/75 backdrop-blur-sm sm:items-center sm:p-4"
       >
-      <div
-        role="dialog"
-        aria-modal="true"
-        onClick={(event) => event.stopPropagation()}
-        className={
-          // The panel is capped at the visible viewport and never taller, so
-          // there is nothing to scroll the *page* for.
-          "animate-pop-in flex max-h-[92svh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[calc(100svh-2rem)] sm:rounded-3xl " +
-          WIDTHS[width]
-        }
-      >
-        {/* Grab handle — the thing that says "this sheet moves". */}
-        <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
-          <span className="h-1 w-10 rounded-full bg-zinc-300" />
-        </div>
-
-        <header className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-4 sm:px-6 sm:pt-5">
-          <div className="min-w-0">
-            <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900">
-              {icon}
-              {title}
-            </h2>
-            {subtitle && (
-              <p className="mt-0.5 text-sm text-zinc-500">{subtitle}</p>
-            )}
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={(event) => event.stopPropagation()}
+          className={
+            // The panel is capped at the visible viewport and never taller, so
+            // there is nothing to scroll the *page* for.
+            "sheet animate-pop-in flex max-h-[90svh] w-full flex-col overflow-hidden rounded-t-3xl sm:max-h-[calc(100svh-2rem)] sm:rounded-3xl " +
+            WIDTHS[width]
+          }
+        >
+          {/* Grab handle — the thing that says "this sheet moves". */}
+          <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
+            <span className="h-1 w-10 rounded-full bg-white/25" />
           </div>
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close"
-            className="-mr-1.5 -mt-1 flex size-9 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100"
-          >
-            <X className="size-5" aria-hidden />
-          </button>
-        </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5 sm:px-6">
-          {children}
-        </div>
+          <header className="flex shrink-0 items-start justify-between gap-2 px-4 pb-2.5 pt-3 sm:gap-3 sm:px-6 sm:pb-3 sm:pt-5">
+            <div className="flex min-w-0 items-start gap-2 sm:gap-2.5">
+              {/* The icon shrinks on a phone rather than being hidden: it is
+                  the only thing telling you which dialog this is at a glance. */}
+              {icon && (
+                <span className="mt-0.5 shrink-0 [&>*]:size-7 sm:[&>*]:size-9">{icon}</span>
+              )}
+              <div className="min-w-0">
+                <h2 className="text-balance text-base font-black leading-snug tracking-tight sm:text-lg">
+                  {title}
+                </h2>
+                {subtitle && (
+                  <p className="mt-0.5 break-words text-xs text-zinc-400 sm:text-sm">
+                    {subtitle}
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Close"
+              className="-mr-1 -mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full text-zinc-400 transition hover:bg-white/10 hover:text-foreground"
+            >
+              <X className="size-5" aria-hidden />
+            </button>
+          </header>
 
-        {footer && (
-          <div className="shrink-0 border-t border-zinc-100 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-4">
-            {footer}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6 sm:pb-5">
+            {children}
           </div>
+
+          {footer && (
+            <div className="shrink-0 border-t border-white/10 bg-black/20 px-4 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-4">
+              {footer}
+            </div>
           )}
         </div>
       </div>

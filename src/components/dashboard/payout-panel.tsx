@@ -112,7 +112,7 @@ export function PayoutPanel({
 
         {banks.length === 0 && (
           <p className="text-xs text-zinc-500">
-            The bank list isn&apos;t loading right now — try again shortly.
+            The bank list isn’t loading right now — try again shortly.
           </p>
         )}
       </div>

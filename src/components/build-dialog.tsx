@@ -23,7 +23,7 @@ export function BuildDialog({ onClose }: { onClose: () => void }) {
     <Modal
       title="Build your own Spendbox"
       subtitle="Same account you play with."
-      icon={<Boxy mood="cheer" still className="size-9" />}
+      icon={<Boxy mood="cheer" still />}
       width="sm"
       onClose={onClose}
       footer={
@@ -37,11 +37,11 @@ export function BuildDialog({ onClose }: { onClose: () => void }) {
         </Link>
       }
     >
-      <div className="space-y-4 pb-1 text-sm leading-relaxed text-zinc-600">
+      <div className="space-y-4 pb-1 text-sm leading-relaxed text-zinc-300">
         <div className="flex justify-center gap-1">
-          <SafeArt design="crimson" className="size-16" />
-          <SafeArt design="emerald" className="size-16" />
-          <SafeArt design="midnight" className="size-16" />
+          <SafeArt design="crimson" className="size-14 sm:size-16" />
+          <SafeArt design="emerald" className="size-14 sm:size-16" />
+          <SafeArt design="midnight" className="size-14 sm:size-16" />
         </div>
 
         <p>
@@ -54,9 +54,9 @@ export function BuildDialog({ onClose }: { onClose: () => void }) {
           spend attempting to crack it, while the person who successfully
           unlocks it wins the reward inside.
         </p>
-        <p className="rounded-2xl bg-zinc-100 px-3 py-2.5 text-zinc-700">
+        <p className="rounded-2xl border border-grape/25 bg-grape/12 px-3 py-2.5">
           {share}% of what you put in becomes the reward —{" "}
-          <strong>{formatNaira(splitFunding(floor).rewardKobo)}</strong> at the
+          <strong className="text-brass">{formatNaira(splitFunding(floor).rewardKobo)}</strong> at the
           floor. Spendbox keeps {PLATFORM_SHARE_PERCENT}% for running the box.
         </p>
       </div>

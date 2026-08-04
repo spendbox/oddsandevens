@@ -68,7 +68,7 @@ export function AttemptLog({ attempts }: { attempts: AttemptRecord[] }) {
         <p className="mt-1 font-black tracking-tight">Nothing tried yet.</p>
         <p className="mx-auto mt-1 max-w-sm text-sm text-zinc-400">
           Every guess costs one life and comes back with two things: whether
-          it&apos;s the right length, and how close it is out of 100.
+          it’s the right length, and how close it is out of 100.
         </p>
       </div>
     );

@@ -84,7 +84,7 @@ export function RevenueEstimate({
 
           <p>
             Because every Spendbox behaves differently, these figures are not
-            predictions — they&apos;re scenarios designed to help you understand
+            predictions — they’re scenarios designed to help you understand
             the earning potential of your box.
           </p>
 

@@ -17,7 +17,7 @@ export function PasswordInput({
         {...props}
         type={visible ? "text" : "password"}
         className={
-          "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 pr-11 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-brass " +
+          "field px-4 py-3 pr-11 " +
           className
         }
       />
