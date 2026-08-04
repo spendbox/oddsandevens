@@ -42,6 +42,7 @@ export type StatKind = "hunters" | "attempts" | "best";
 export function SceneRail({
   box,
   bestGuess,
+  yourBest,
   onExplain,
   onBack,
   onReward,
@@ -51,6 +52,8 @@ export function SceneRail({
   box: PublicBox;
   /** The player's own best guess so far, or null before there is one. */
   bestGuess: string | null;
+  /** Their own best score. The one they navigate by. */
+  yourBest: number | null;
   onExplain: () => void;
   onBack?: () => void;
   onReward: () => void;
@@ -134,8 +137,8 @@ export function SceneRail({
         <Stat
           onClick={() => onStat("best")}
           icon={<Trophy className="size-3.5 text-brass" aria-hidden />}
-          value={`${Math.round(box.bestPercent)}%`}
-          label="The closest anybody has come"
+          value={`${Math.round(yourBest ?? 0)}%`}
+          label="Your best score on this safe"
           accent
         />
         {/* Down here with the rest of the readings, where it belongs — it is a

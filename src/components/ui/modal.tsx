@@ -137,21 +137,25 @@ export function Modal({
         style={keyboard > 0 ? { paddingBottom: keyboard } : undefined}
         className="fixed inset-0 z-50 flex max-h-[100svh] items-end justify-center bg-background-deep/75 backdrop-blur-sm transition-[padding] duration-150 sm:items-center sm:p-4"
       >
+        {/*
+          The column that holds the sheet and whatever sits above it.
+          `max-h-full` and `min-h-0` are both load-bearing: without the cap the
+          column is as tall as its content, so the sheet's own `max-h-full`
+          resolves against nothing and a long dialog grows straight off the top
+          of the screen — which is exactly what happened to the explainer, and
+          you were left looking at its last paragraph with no way to scroll up.
+        */}
         <div
           onClick={(event) => event.stopPropagation()}
-          className={"flex w-full flex-col justify-end " + WIDTHS[width]}
+          className={"flex max-h-full min-h-0 w-full min-w-0 flex-col justify-end " + WIDTHS[width]}
         >
-          {above}
+          {above && <div className="shrink-0">{above}</div>}
 
-        <div
-          role="dialog"
-          aria-modal="true"
-          className={
-            // The panel is capped at the visible viewport and never taller, so
-            // there is nothing to scroll the *page* for.
-            "sheet animate-pop-in flex max-h-full w-full flex-col overflow-hidden rounded-t-3xl sm:max-h-[calc(100svh-2rem)] sm:rounded-3xl"
-          }
-        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="sheet animate-pop-in flex min-h-0 w-full flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl"
+          >
           {/* Grab handle — the thing that says "this sheet moves". */}
           <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
             <span className="h-1 w-10 rounded-full bg-white/25" />
@@ -189,12 +193,12 @@ export function Modal({
             {children}
           </div>
 
-          {footer && (
-            <div className="shrink-0 border-t border-white/10 bg-black/20 px-4 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-4">
-              {footer}
-            </div>
-          )}
-        </div>
+            {footer && (
+              <div className="shrink-0 border-t border-white/10 bg-black/20 px-4 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-4">
+                {footer}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Portal>

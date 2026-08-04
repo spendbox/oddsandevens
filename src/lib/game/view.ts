@@ -19,13 +19,17 @@ import {
   toPublicBox,
   type BoxRow,
 } from "@/lib/game/boxes";
-import type { AttemptRecord, HuntState, PlayView } from "@/lib/types";
+import { maskEmail } from "@/lib/mask";
+import type { AttemptRecord, Drop, HuntState, PlayView, Rival } from "@/lib/types";
 import type { LengthHint } from "@/lib/game/feedback";
 
 type Db = ReturnType<typeof supabaseAdmin>;
 
 /** How much of a long hunt is sent down. The rest stays in the database. */
 const ATTEMPT_PAGE = 60;
+
+/** How many cars the chase draws. */
+const RIVALS = 10;
 
 export interface HuntRow {
   id: string;
@@ -34,9 +38,11 @@ export interface HuntRow {
   attempts_count: number;
   revealed: unknown;
   won_at: string | null;
+  best_percent: string | number;
 }
 
-export const HUNT_COLUMNS = "id, box_id, player_id, attempts_count, revealed, won_at";
+export const HUNT_COLUMNS =
+  "id, box_id, player_id, attempts_count, revealed, won_at, best_percent";
 
 /** The box behind a slug, or null. Never selects the password. */
 export async function findBox(db: Db, slug: string): Promise<BoxRow | null> {
@@ -124,27 +130,75 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
     hasBreakdown: lens,
     breakdownUntil: lens ? revealed.breakdownUntil : null,
     secondWindUntil: secondWindActive(revealed) ? revealed.secondWindUntil : null,
-    bestPercent: await bestScore(db, hunt.id),
+    bestPercent: Number(hunt.best_percent ?? 0),
     won: hunt.won_at !== null,
   };
 }
 
 /**
- * The highest score this hunt has reached.
+ * The top ten hunters on a box, closest first.
  *
- * Queried rather than taken from the page of attempts on screen: a hunt runs
- * to hundreds and the best one is often far above the fold. It's the number a
- * player actually navigates by.
+ * One query against `hunts.best_percent`, which 0034 added for exactly this —
+ * the alternative is a sort over every guess ever made against a popular safe,
+ * on every page load.
+ *
+ * Addresses are masked here, on the server, before they are in a payload. The
+ * play screen shows them when you tap a car, and "a**@g***.com is 62% of the
+ * way in" is the most a stranger should ever learn about another stranger.
  */
-async function bestScore(db: Db, huntId: string): Promise<number> {
+async function rivalsOn(db: Db, boxId: string, meId: string | null): Promise<Rival[]> {
   const { data } = await db
-    .from("attempts")
-    .select("score_percent")
-    .eq("hunt_id", huntId)
-    .order("score_percent", { ascending: false })
+    .from("hunts")
+    .select("player_id, best_percent")
+    .eq("box_id", boxId)
+    .order("best_percent", { ascending: false })
+    .limit(RIVALS);
+
+  const rows = (data ?? []) as { player_id: string; best_percent: string | number }[];
+  if (rows.length === 0) return [];
+
+  const { data: people } = await db
+    .from("players")
+    .select("id, email")
+    .in("id", rows.map((r) => r.player_id));
+  const emails = new Map(
+    ((people ?? []) as { id: string; email: string }[]).map((p) => [p.id, p.email])
+  );
+
+  return rows.map((row) => ({
+    player: maskEmail(emails.get(row.player_id) ?? ""),
+    percent: Number(row.best_percent ?? 0),
+    you: row.player_id === meId,
+  }));
+}
+
+/** An unclaimed offer, if one is waiting. */
+async function liveOffer(db: Db, playerId: string): Promise<Drop | null> {
+  const { data } = await db
+    .from("player_offers")
+    .select("id, kind, amount, power_up, expires_at")
+    .eq("player_id", playerId)
+    .is("claimed_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return Number(data?.score_percent ?? 0);
+
+  if (!data) return null;
+  const row = data as {
+    id: string;
+    kind: Drop["kind"];
+    amount: number;
+    power_up: string | null;
+    expires_at: string;
+  };
+  return {
+    id: row.id,
+    kind: row.kind,
+    amount: row.amount,
+    powerUp: row.power_up,
+    expiresAt: row.expires_at,
+  };
 }
 
 /**
@@ -178,6 +232,8 @@ export async function buildPlayView(
       box: publicBox,
       player: toPlayerState(null, null),
       hunt: null,
+      rivals: await rivalsOn(db, box.id, null),
+      offer: null,
       powerUps: offerings(parseRevealed(null), box.reward_kobo),
       claim: null,
     };
@@ -200,6 +256,8 @@ export async function buildPlayView(
     box: publicBox,
     player: toPlayerState(playerRow, email),
     hunt: state,
+    rivals: await rivalsOn(db, box.id, playerRow?.id ?? null),
+    offer: playerRow ? await liveOffer(db, playerRow.id) : null,
     powerUps: offerings(state?.revealed ?? parseRevealed(null), box.reward_kobo),
     claim: claim
       ? {

@@ -21,13 +21,15 @@ import type { PublicBox } from "@/lib/types";
 export function StatDialog({
   stat,
   box,
+  yourBest,
   onClose,
 }: {
   stat: StatKind;
   box: PublicBox;
+  yourBest: number | null;
   onClose: () => void;
 }) {
-  const copy = COPY[stat](box);
+  const copy = COPY[stat](box, yourBest);
 
   return (
     <Modal
@@ -58,7 +60,10 @@ export function StatDialog({
 
 const COPY: Record<
   StatKind,
-  (box: PublicBox) => { title: string; figure: string; body: string; icon: React.ReactNode }
+  (
+    box: PublicBox,
+    yours: number | null
+  ) => { title: string; figure: string; body: string; icon: React.ReactNode }
 > = {
   hunters: (box) => ({
     title: "Hunters",
@@ -72,10 +77,10 @@ const COPY: Record<
     icon: <Swords className="size-6 text-sky" aria-hidden />,
     body: "Guesses made at it, by everyone.",
   }),
-  best: (box) => ({
-    title: "Best yet",
-    figure: `${box.bestPercent.toFixed(1)}%`,
+  best: (box, yours) => ({
+    title: "Your best",
+    figure: `${(yours ?? 0).toFixed(1)}%`,
     icon: <Trophy className="size-6 text-brass" aria-hidden />,
-    body: "The closest anybody has come.",
+    body: `The closest anybody has come is ${box.bestPercent.toFixed(1)}%.`,
   }),
 };

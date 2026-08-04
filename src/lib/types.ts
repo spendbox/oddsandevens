@@ -123,10 +123,46 @@ export interface HuntState {
   won: boolean;
 }
 
+/**
+ * Somebody else on the same safe.
+ *
+ * The play screen draws the top ten as a field of cars, so this is deliberately
+ * the smallest thing that supports that: a masked address and how close they
+ * are. No id, no dates, nothing that identifies anybody to anybody.
+ */
+export interface Rival {
+  /** Masked before it leaves the server, always. */
+  player: string;
+  percent: number;
+  /** True for the one that is you, so your car can be marked. */
+  you: boolean;
+}
+
+/**
+ * A drop: something that falls out of the sky mid-hunt and is gone in minutes.
+ *
+ * Minted server-side and claimed server-side. It exists as a row rather than a
+ * browser-side coupon for the obvious reason — a discount the client names is
+ * a discount the client can name itself.
+ */
+export interface Drop {
+  id: string;
+  kind: "free_lives" | "power_up_discount";
+  /** A count of lives, or a percentage off. */
+  amount: number;
+  /** Which power-up a discount applies to. Null for free lives. */
+  powerUp: string | null;
+  expiresAt: string;
+}
+
 export interface PlayView {
   box: PublicBox;
   player: PlayerState;
   hunt: HuntState | null;
+  /** The top ten on this box, closest first. Includes you wherever you are. */
+  rivals: Rival[];
+  /** An unclaimed offer waiting, if there is one. */
+  offer: Drop | null;
   /**
    * The shelf, priced against *this* box. Every power-up costs a share of the
    * reward, so the same hint is a different price on a ₦7,000,000 safe and a

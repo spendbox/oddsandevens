@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { DESIGN_SPECS, type Design } from "@/lib/game/designs";
 import { cracksFor, TERRAINS, TERRAIN_MS, type ChaseTerrain, type Shot } from "@/lib/game/chase";
 import { daypartAt, type Daypart } from "@/lib/game/vault";
+import type { Rival } from "@/lib/types";
 
 export function ChaseScene({
   design,
@@ -33,6 +34,12 @@ export function ChaseScene({
   open,
   /** Tapping the safe. */
   onSafe,
+  /** The field: top ten on this box, closest first, you marked. */
+  rivals = [],
+  /** Tapping somebody's car. */
+  onRival,
+  /** Bumped when somebody *else* fires — their shot lands on the same safe. */
+  rivalShot = 0,
   className = "",
 }: {
   design: Design;
@@ -41,11 +48,20 @@ export function ChaseScene({
   shot?: Shot;
   open?: boolean;
   onSafe?: () => void;
+  rivals?: Rival[];
+  onRival?: (rival: Rival) => void;
+  rivalShot?: number;
   className?: string;
 }) {
   const terrain = useTerrain();
   const daypart = useDaypart();
   const cracks = open ? 10 : cracksFor(percent);
+  const lanes = {
+    mine: laneOf(rivals.findIndex((r) => r.you)),
+    // Somebody else's shot comes from wherever the leader is, which is the car
+    // a spectator is most likely to be looking at anyway.
+    other: laneOf(rivals.findIndex((r) => !r.you)),
+  };
 
   return (
     <div className={`absolute inset-0 overflow-hidden ${className}`}>
@@ -64,9 +80,23 @@ export function ChaseScene({
         <Streaks />
 
         <Safe design={design} cracks={cracks} open={open} onTap={onSafe} />
-        <Car night={daypart === "night" || daypart === "dawn"} />
 
-        {jolt > 0 && <Gunfire key={jolt} shot={shot ?? "miss"} />}
+        {/*
+          The field. Ordered by how close each of them is, laid across six
+          lanes and stepped back row by row, so nobody is ever behind anybody
+          else — a leaderboard you can read at a glance only works if you can
+          see all of it.
+        */}
+        <Field
+          rivals={rivals}
+          night={daypart === "night" || daypart === "dawn"}
+          onRival={onRival}
+        />
+
+        {jolt > 0 && <Gunfire key={jolt} shot={shot ?? "miss"} lane={lanes.mine} />}
+        {rivalShot > 0 && (
+          <Gunfire key={`r${rivalShot}`} shot="hit" lane={lanes.other} quiet />
+        )}
         {open && <Payday />}
       </div>
 
@@ -135,7 +165,7 @@ function Verge({ terrain }: { terrain: ChaseTerrain }) {
  */
 function Road({ terrain }: { terrain: ChaseTerrain }) {
   return (
-    <div aria-hidden className="absolute inset-y-0 left-1/2 w-[64%] -translate-x-1/2 sm:w-[52%]">
+    <div aria-hidden className="absolute inset-y-0 left-1/2 w-[80%] -translate-x-1/2 sm:w-[62%]">
       {/* The surface itself does not move. A repeating band across it read as
           floor tiles rather than tarmac — the speed comes from the markings,
           the tyre tracks and the streaks, all of which are things that would
@@ -332,7 +362,7 @@ function Safe({
       onClick={onTap}
       disabled={!onTap}
       aria-label="What is in this safe"
-      className="chase-safe absolute left-1/2 top-[21%] w-[46%] max-w-[16rem] disabled:cursor-default sm:w-[30%]"
+      className="chase-safe absolute left-1/2 top-[15%] w-[26%] max-w-[9rem] disabled:cursor-default sm:w-[16%]"
     >
       <svg viewBox="0 0 100 120" className="w-full drop-shadow-2xl" aria-hidden>
         <defs>
@@ -432,54 +462,185 @@ const CRACK_PATHS = [
 ];
 
 // ---------------------------------------------------------------------------
+// The field
+// ---------------------------------------------------------------------------
+
+/**
+ * Six lanes across the road, and four rows back.
+ *
+ * The arrangement is the leaderboard: first place takes the middle of the front
+ * row, and everybody else fills outward and backward. Nobody overlaps anybody,
+ * which is the only reason a field of ten is readable at all — and the closer
+ * you are to cracking it, the closer to the safe you are drawn.
+ */
+const GRID: { x: number; y: number }[] = [
+  // Front row: the leader in the middle, second and third either side.
+  { x: 50, y: 54 },
+  { x: 33, y: 56 },
+  { x: 67, y: 56 },
+  // Second row, offset so it shows through the gaps in the first.
+  { x: 41, y: 66 },
+  { x: 59, y: 66 },
+  { x: 28, y: 68 },
+  // Third.
+  { x: 50, y: 77 },
+  { x: 34, y: 78 },
+  { x: 66, y: 78 },
+  // And the back marker.
+  { x: 42, y: 87 },
+];
+
+function laneOf(index: number): { x: number; y: number } {
+  return GRID[Math.max(0, index) % GRID.length];
+}
+
+function Field({
+  rivals,
+  night,
+  onRival,
+}: {
+  rivals: Rival[];
+  night: boolean;
+  onRival?: (rival: Rival) => void;
+}) {
+  // Nobody on the board yet: one unbadged car, so the screen is never empty.
+  if (rivals.length === 0) {
+    return <Car night={night} at={laneOf(0)} scale={1} />;
+  }
+
+  return (
+    <>
+      {rivals.map((rival, i) => {
+        const at = laneOf(i);
+        return (
+          <button
+            key={`${rival.player}-${i}`}
+            type="button"
+            onClick={() => onRival?.(rival)}
+            disabled={!onRival}
+            aria-label={`${rival.player}, ${rival.percent.toFixed(1)}% in`}
+            className="absolute z-10 -translate-x-1/2 -translate-y-1/2 disabled:cursor-default"
+            style={{
+              left: `${at.x}%`,
+              top: `${at.y}%`,
+              // Further back is further away.
+              width: `${12.5 - Math.floor(i / 3) * 1.1}%`,
+            }}
+          >
+            <Car night={night} mine={rival.you} inline />
+            {rival.you && (
+              <span className="mt-0.5 block rounded-full border border-brass/60 bg-background/85 px-1 text-[9px] font-black leading-tight text-brass">
+                you
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // The car
 // ---------------------------------------------------------------------------
 
 /** The pursuit vehicle, from above, with the gun on the roof. */
-function Car({ night }: { night: boolean }) {
+function Car({
+  night,
+  mine,
+  at,
+  scale = 1,
+  inline = false,
+}: {
+  night: boolean;
+  /** Yours. Painted gold rather than grape, so you can find yourself. */
+  mine?: boolean;
+  at?: { x: number; y: number };
+  scale?: number;
+  /** Positioned by the caller rather than by itself. */
+  inline?: boolean;
+}) {
+  const body: [string, string] = mine ? ["#ffd76e", "#b8750f"] : ["#b57bff", "#6b2fc4"];
+
+  if (inline) {
+    return <CarArt night={night} body={body} className="chase-car w-full" />;
+  }
+
   return (
-    <div className="chase-car absolute left-1/2 top-[57%] w-[38%] max-w-[13rem] sm:w-[26%]">
+    <div
+      className="chase-car absolute z-10 -translate-x-1/2 -translate-y-1/2"
+      style={{ left: `${at?.x ?? 50}%`, top: `${at?.y ?? 58}%`, width: `${13 * scale}%` }}
+    >
+      <CarArt night={night} body={body} className="w-full" />
+    </div>
+  );
+}
+
+/**
+ * One car.
+ *
+ * Small on purpose. It was a third of the screen wide, which is a car you are
+ * sitting in rather than one you are watching — and there was no room for a
+ * second. At this size ten of them fit the road with a lane between each.
+ */
+function CarArt({
+  night,
+  body,
+  className = "",
+}: {
+  night: boolean;
+  body: [string, string];
+  className?: string;
+}) {
+  const uid = body[0].slice(1);
+  return (
+    <div className={`relative ${className}`}>
       {night && (
-        // Headlights: two cones thrown up the road, which is the whole of what
-        // night costs and most of what it buys.
+        // Headlights: two cones up the road, which is the whole of what night
+        // costs and most of what it buys.
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-[-60%] bottom-[62%] h-[220%]"
+          className="pointer-events-none absolute inset-x-[-70%] bottom-[70%] h-[210%]"
           style={{
             background:
-              "conic-gradient(from 200deg at 50% 100%, transparent 0deg, rgb(255 240 190 / 0.28) 25deg, transparent 50deg)",
-            filter: "blur(6px)",
+              "conic-gradient(from 200deg at 50% 100%, transparent 0deg, rgb(255 240 190 / 0.22) 25deg, transparent 50deg)",
+            filter: "blur(5px)",
           }}
         />
       )}
 
-      <svg viewBox="0 0 90 130" className="w-full drop-shadow-2xl" aria-hidden>
+      <svg viewBox="0 0 90 130" className="w-full drop-shadow-xl" aria-hidden>
         <defs>
-          <linearGradient id="cc-body" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#b57bff" />
-            <stop offset="1" stopColor="#6b2fc4" />
+          <linearGradient id={`cc-${uid}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={body[0]} />
+            <stop offset="1" stopColor={body[1]} />
           </linearGradient>
         </defs>
 
         {/* Wheels first, so the body's outline covers where they meet it. */}
-        {[30, 100].map((y) => (
+        {[32, 100].map((y) => (
           <g key={y}>
-            <rect x="0" y={y - 11} width="15" height="22" rx="6" fill="#160f2c" stroke="var(--ink)" strokeWidth="3" />
-            <rect x="75" y={y - 11} width="15" height="22" rx="6" fill="#160f2c" stroke="var(--ink)" strokeWidth="3" />
+            <rect x="0" y={y - 12} width="14" height="24" rx="6" fill="#160f2c" stroke="var(--ink)" strokeWidth="3" />
+            <rect x="76" y={y - 12} width="14" height="24" rx="6" fill="#160f2c" stroke="var(--ink)" strokeWidth="3" />
           </g>
         ))}
 
-        <rect x="9" y="8" width="72" height="114" rx="22" fill="url(#cc-body)" stroke="var(--ink)" strokeWidth="4" />
+        <rect x="9" y="10" width="72" height="112" rx="24" fill={`url(#cc-${uid})`} stroke="var(--ink)" strokeWidth="4" />
 
-        {/* Windscreen and roof, read from above. */}
-        <rect x="19" y="26" width="52" height="28" rx="11" fill="#1b1338" stroke="var(--ink)" strokeWidth="3" />
-        <rect x="19" y="76" width="52" height="22" rx="10" fill="#241a49" stroke="var(--ink)" strokeWidth="3" />
-        <path d="M22 14 h46 a10 10 0 0 1 6 8 H16 a10 10 0 0 1 6 -8 z" fill="#fff" opacity="0.22" />
+        {/* Two stripes down the bonnet, which is most of what makes a top-down
+            rectangle read as a car rather than a lozenge. */}
+        <rect x="34" y="14" width="7" height="104" rx="3.5" fill="#fff" opacity="0.28" />
+        <rect x="49" y="14" width="7" height="104" rx="3.5" fill="#fff" opacity="0.28" />
+
+        {/* Windscreen and rear glass. */}
+        <rect x="19" y="30" width="52" height="26" rx="11" fill="#160f2c" stroke="var(--ink)" strokeWidth="3" />
+        <rect x="21" y="82" width="48" height="20" rx="9" fill="#211741" stroke="var(--ink)" strokeWidth="3" />
+        <path d="M23 33 h44 v6 H23 z" fill="#fff" opacity="0.25" />
 
         {/* The gun, on the roof, pointing where the safe is. */}
-        <rect x="41" y="52" width="8" height="26" rx="4" fill="#8f7ac4" stroke="var(--ink)" strokeWidth="2.5" />
-        <circle cx="45" cy="66" r="9" fill="#9d86d6" stroke="var(--ink)" strokeWidth="3" />
-        <rect x="41.5" y="-4" width="7" height="60" rx="3.5" fill="#cbbcf0" stroke="var(--ink)" strokeWidth="2.5" />
+        <circle cx="45" cy="66" r="11" fill="#d9cbf5" stroke="var(--ink)" strokeWidth="3" />
+        <rect x="40" y="-6" width="10" height="66" rx="5" fill="#e6dcff" stroke="var(--ink)" strokeWidth="3" />
+        <rect x="37" y="-8" width="16" height="9" rx="4" fill="#b9a6e8" stroke="var(--ink)" strokeWidth="3" />
       </svg>
     </div>
   );
@@ -496,37 +657,94 @@ function Car({ night }: { night: boolean }) {
  * at the same speed and drifts wide past it. Same timing on purpose — a miss
  * that is visibly slower would be telling you the answer before it lands.
  */
-function Gunfire({ shot }: { shot: Shot }) {
+function Gunfire({
+  shot,
+  lane,
+  /** Somebody else's shot: same event, less of it. */
+  quiet = false,
+}: {
+  shot: Shot;
+  lane: { x: number; y: number };
+  quiet?: boolean;
+}) {
+  const reach = `${-(lane.y - 20)}vh`;
+
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
-      {/* Muzzle flash at the barrel. */}
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-20">
+      {/* The muzzle: a hard flash, a ring of blast, and smoke left behind. */}
       <span
-        className="absolute left-1/2 top-[58%] size-10 rounded-full bg-brass-bright blur-sm"
-        style={{ animation: "muzzle 0.22s ease-out both" }}
+        className="absolute size-10 rounded-full bg-brass-bright blur-[3px]"
+        style={{ left: `${lane.x}%`, top: `${lane.y - 6}%`, animation: "blast 0.3s ease-out both" }}
       />
+      {!quiet && (
+        <span
+          className="absolute size-16 rounded-full bg-white/25 blur-md"
+          style={{
+            left: `${lane.x}%`,
+            top: `${lane.y - 6}%`,
+            animation: "smoke 0.9s ease-out 0.1s both",
+          }}
+        />
+      )}
 
       {/* The round. */}
       <span
-        className="absolute left-1/2 top-[57%] h-8 w-1.5 rounded-full bg-gradient-to-t from-transparent via-brass to-white shadow-[0_0_12px_var(--brass)]"
+        className="absolute h-7 w-1.5 rounded-full bg-gradient-to-t from-transparent via-brass to-white shadow-[0_0_10px_var(--brass)]"
         style={{
-          ["--reach" as string]: "-32vh",
-          ["--wide" as string]: "22vw",
+          left: `${lane.x}%`,
+          top: `${lane.y - 7}%`,
+          ["--reach" as string]: reach,
+          ["--wide" as string]: "18vw",
           animation:
             shot === "hit"
-              ? "shot-hit 0.28s cubic-bezier(0.4,0,1,1) both"
-              : "shot-miss 0.42s cubic-bezier(0.3,0,0.8,1) both",
+              ? "shot-hit 0.26s cubic-bezier(0.4,0,1,1) both"
+              : "shot-miss 0.4s cubic-bezier(0.3,0,0.8,1) both",
         }}
       />
 
       {shot === "hit" && (
-        <span
-          className="absolute left-1/2 top-[28%] size-24 rounded-full border-4 border-white bg-brass/60"
-          style={{ animation: "impact 0.5s ease-out 0.24s both" }}
-        />
+        <>
+          {/* The impact: a white core, a ring going out, and chips off the
+              lid. Three things, because one flash is a light switch. */}
+          <span
+            className="absolute size-12 rounded-full bg-white"
+            style={{ left: "50%", top: "22%", animation: "blast 0.42s ease-out 0.22s both" }}
+          />
+          <span
+            className="absolute size-20 rounded-full border-4 border-brass"
+            style={{ left: "50%", top: "22%", animation: "impact 0.6s ease-out 0.24s both" }}
+          />
+          {CHIPS.map((c, i) => (
+            <span
+              key={i}
+              className="absolute size-1.5 rounded-[1px] bg-brass-bright"
+              style={{
+                left: "50%",
+                top: "22%",
+                ["--dx" as string]: `${c.dx}px`,
+                ["--dy" as string]: `${c.dy}px`,
+                ["--dr" as string]: `${c.dr}deg`,
+                animation: `chip 0.7s ease-out ${0.22 + i * 0.01}s both`,
+              }}
+            />
+          ))}
+        </>
       )}
     </div>
   );
 }
+
+/** Debris off an impact. Fixed, so it never re-rolls mid-animation. */
+const CHIPS = [
+  { dx: -46, dy: -30, dr: 220 },
+  { dx: 40, dy: -36, dr: -180 },
+  { dx: -54, dy: 18, dr: 140 },
+  { dx: 52, dy: 24, dr: -240 },
+  { dx: -18, dy: -52, dr: 300 },
+  { dx: 22, dy: 48, dr: -140 },
+  { dx: 64, dy: -8, dr: 200 },
+  { dx: -66, dy: -6, dr: -260 },
+];
 
 /** The safe finally gives, and what was in it comes out. */
 function Payday() {
@@ -537,7 +755,7 @@ function Payday() {
         return (
           <span
             key={i}
-            className="absolute left-1/2 top-[30%] size-4 rounded-full border-2 border-brass-deep bg-brass"
+            className="absolute left-1/2 top-[22%] size-4 rounded-full border-2 border-brass-deep bg-brass"
             style={{
               ["--cx" as string]: `${Math.cos(angle) * (120 + (i % 5) * 26)}px`,
               ["--cy" as string]: `${Math.sin(angle) * (110 + (i % 4) * 24)}px`,

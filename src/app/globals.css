@@ -1190,3 +1190,49 @@ summary,
     animation: none !important;
   }
 }
+
+/* An explosion at the muzzle, and one where the round lands. */
+@keyframes blast {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.25); }
+  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  55%  { opacity: 0.85; transform: translate(-50%, -50%) scale(1.5); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.1); }
+}
+
+/* Debris off an impact: a handful of chips thrown outward. */
+@keyframes chip {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  15%  { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) rotate(var(--dr, 200deg));
+  }
+}
+
+/* Smoke, left behind after the flash has gone. */
+@keyframes smoke {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  25%  { opacity: 0.5; }
+  100% { opacity: 0; transform: translate(-50%, -140%) scale(1.9); }
+}
+
+/* A drop, floating in and hanging there. */
+@keyframes drop-in-air {
+  0%   { opacity: 0; transform: translateY(-24px) scale(0.7); }
+  60%  { opacity: 1; transform: translateY(4px) scale(1.05); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes drop-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-8px) rotate(2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [style*="blast"],
+  [style*="chip"],
+  [style*="smoke"],
+  .drop-bob {
+    animation: none !important;
+  }
+}

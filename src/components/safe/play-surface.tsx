@@ -47,6 +47,9 @@ import { GuessDialog } from "./guess-dialog";
 import { PotDialog } from "./pot-dialog";
 import { StatDialog } from "./stat-dialog";
 import { ResultCard, ResultDialog, resultsMuted } from "./result-dialog";
+import { DropCrate } from "./drop-crate";
+import { useDrops } from "./use-drops";
+import type { Rival } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
 
 type Outcome = "open" | "won" | "pipped";
@@ -90,6 +93,17 @@ export function PlaySurface({
   const [shot, setShot] = useState<Shot>("miss");
   /** Which rail figure somebody has asked about. */
   const [stat, setStat] = useState<StatKind | null>(null);
+  /** Whose car has been tapped. */
+  const [rival, setRival] = useState<Rival | null>(null);
+  /**
+   * Guesses in a row that failed to beat your own best.
+   *
+   * The signal a drop is aimed at. A player five guesses into a cold run is
+   * the one about to close the tab.
+   */
+  const [coldStreak, setColdStreak] = useState(0);
+  /** Bumped when somebody else's guess lands on this safe. */
+  const [rivalShot, setRivalShot] = useState(0);
 
   const now = useNow(
     view.player.nextLifeAt ??
@@ -109,6 +123,14 @@ export function PlaySurface({
   const best = view.hunt && attempts.length > 0 ? view.hunt.bestPercent : null;
   const bestAttempt = bestOf(attempts);
   const secondWind = view.powerUps.find((p) => p.kind === "second_wind") ?? null;
+
+  const drops = useDrops({
+    slug,
+    lives: view.player.lives,
+    coldStreak,
+    initial: view.offer,
+    enabled: verified && open && !won,
+  });
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/boxes/${slug}`, { cache: "no-store" });
@@ -136,6 +158,33 @@ export function PlaySurface({
       cancelled = true;
     };
   }, [pendingReference, reload, slug]);
+
+  /**
+   * Watch for other people's guesses.
+   *
+   * The box's attempt count is the only thing that moves when a stranger
+   * plays, so that is what this polls. When it rises, somebody else has taken
+   * a shot at the same safe and the scene fires one — the safe is shared, and
+   * a chase where only your car ever shoots is not a chase.
+   */
+  useEffect(() => {
+    if (!open || won) return;
+    let seen = view.box.attemptsCount;
+    const id = window.setInterval(async () => {
+      const res = await fetch(`/api/boxes/${slug}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const fresh = (await res.json()) as PlayView;
+      if (fresh.box.attemptsCount > seen) {
+        seen = fresh.box.attemptsCount;
+        setRivalShot((n) => n + 1);
+        setView((current) => ({ ...current, box: fresh.box, rivals: fresh.rivals }));
+      }
+    }, 20_000);
+    return () => window.clearInterval(id);
+    // Deliberately not depending on `view` — this is a background watcher and
+    // re-arming it on every render would poll far harder than every 20s.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, open, won]);
 
   function refuse(note: string) {
     setMessage(note);
@@ -196,7 +245,9 @@ export function PlaySurface({
     setView(body);
     setTyped("");
     setOutcome(body.outcome ?? "open");
-    setShot(winning || (landed && landed.scorePercent > was) ? "hit" : "miss");
+    const improved = !!landed && landed.scorePercent > was;
+    setShot(winning || improved ? "hit" : "miss");
+    setColdStreak((n) => (improved || winning ? 0 : n + 1));
     setJolt((n) => n + 1);
     if (landed && !resultsMuted()) setResult({ attempt: landed, was });
     await refresh();
@@ -221,6 +272,9 @@ export function PlaySurface({
         shot={shot}
         open={won}
         onSafe={() => setSheet("pot")}
+        rivals={view.rivals}
+        onRival={setRival}
+        rivalShot={rivalShot}
       />
 
       {/* Everything else floats on top of it. `pointer-events-none` on the
@@ -231,6 +285,7 @@ export function PlaySurface({
           <SceneRail
             box={view.box}
             bestGuess={bestAttempt?.value ?? null}
+            yourBest={best}
             onExplain={() => setSheet("rules")}
             onBack={() => router.push("/")}
             onReward={() => setSheet("pot")}
@@ -266,6 +321,25 @@ export function PlaySurface({
 
         <div className="pointer-events-auto mx-auto w-full max-w-md space-y-3">
           {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
+
+          {drops.drop && (
+            <DropCrate
+              drop={drops.drop}
+              onDismiss={drops.dismiss}
+              onClaim={() => {
+                void drops.claim().then((got) => {
+                  if (got?.kind === "free_lives") {
+                    setMessage(`+${got.amount} free ${got.amount === 1 ? "life" : "lives"}`);
+                  } else if (got) {
+                    setMessage(`${got.amount}% off — it's on the shelf`);
+                  }
+                  void refresh();
+                  void reload();
+                });
+              }}
+              className="mx-auto w-fit"
+            />
+          )}
 
           {result && !won && (
             <ResultCard
@@ -379,12 +453,19 @@ export function PlaySurface({
         </Modal>
       )}
 
+      {rival && <RivalDialog rival={rival} onClose={() => setRival(null)} />}
+
       {sheet === "best" && bestAttempt && (
         <AttemptDialog attempt={bestAttempt} onClose={() => setSheet("none")} />
       )}
 
       {stat && (
-        <StatDialog stat={stat} box={view.box} onClose={() => setStat(null)} />
+        <StatDialog
+          stat={stat}
+          box={view.box}
+          yourBest={best}
+          onClose={() => setStat(null)}
+        />
       )}
 
       {result && won && (
@@ -396,6 +477,40 @@ export function PlaySurface({
         />
       )}
     </>
+  );
+}
+
+/**
+ * Who that car is.
+ *
+ * A masked address and a percentage, and nothing else — that is the whole of
+ * what one stranger should learn about another on a screen where the only
+ * shared fact is a password neither of them has.
+ */
+function RivalDialog({ rival, onClose }: { rival: Rival; onClose: () => void }) {
+  return (
+    <Modal
+      title={rival.you ? "That's you" : "Another hunter"}
+      width="sm"
+      onClose={onClose}
+      footer={
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
+        >
+          Back to the chase
+        </button>
+      }
+    >
+      <div className="space-y-2 pb-1 text-center">
+        <p className="break-all font-mono text-sm text-zinc-300">{rival.player}</p>
+        <p className="brass-text text-5xl font-black leading-none tracking-tight tabular-nums">
+          {rival.percent.toFixed(1)}%
+        </p>
+      </div>
+    </Modal>
   );
 }
 
