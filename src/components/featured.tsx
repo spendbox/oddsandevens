@@ -177,8 +177,17 @@ function FeaturedCard({ box }: { box: PublicBox }) {
           {rewardLabel(box.rewardKobo)}
         </p>
 
-        <div className="mt-4 flex items-stretch justify-center gap-2 sm:justify-start">
+        {/*
+          Difficulty first, on its own line, then the crowd. They were one row
+          and it read as three equal facts — but how hard a box is decides
+          whether you play it, and how many people are already on it is
+          context for that decision, not a rival to it.
+        */}
+        <div className="mt-4 flex justify-center sm:justify-start">
           <DifficultyBadge difficulty={box.difficulty} />
+        </div>
+
+        <div className="mt-2 flex items-stretch justify-center gap-2 sm:justify-start">
           {/*
             Stacked tiles rather than a "37 hunters · 412 attempts" line: a
             popular box reaches six figures and an inline count wraps into

@@ -16,29 +16,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  ArrowRight,
-  Info,
-  MoveDown,
-  MoveUp,
-  Palette,
-  Sparkles,
-  Swords,
-  Target,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Info, Palette, Sparkles, Swords, Users } from "lucide-react";
 import { ScorePill } from "./score-pill";
 import { LIVES_MAX } from "@/lib/constants";
 import { plural } from "@/lib/plural";
 import { EMPTY_REVEALED } from "@/lib/game/power-ups";
 import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 import type { AttemptResult, PlayView } from "@/lib/types";
-import { Modal } from "@/components/ui/modal";
 import { usePlayer } from "@/components/player/player-context";
 import { VerifyDialog } from "@/components/player/account-dialog";
 import { BuyLivesDialog } from "@/components/player/buy-lives-dialog";
 import { countdown, useNow } from "@/components/player/lives-badge";
 import { DifficultyBadge } from "@/components/difficulty-badge";
+import { HowItWorksDialog } from "@/components/how-it-works";
 import { AttemptLog } from "./attempt-log";
 import { KnownPanel } from "./known-panel";
 import { PasswordField } from "./password-field";
@@ -247,6 +237,33 @@ export function PlaySurface({
               </p>
             )}
 
+            {/*
+              Both of these belong to a person, so neither appears until there
+              is one. Signed out, "Your attempts" was an empty log for a hunt
+              that doesn't exist and the shelf was five things you cannot buy —
+              two dead tabs where the reason to sign in should be.
+            */}
+            {!verified ? (
+              <div className="panel rounded-2xl px-4 py-6 text-center">
+                <Boxy mood="sly" className="mx-auto size-20" />
+                <p className="mt-1 font-black tracking-tight">
+                  Sign in to start hunting.
+                </p>
+                <p className="mx-auto mt-1 max-w-xs text-sm text-zinc-400">
+                  Your guesses, your score and the power-ups all live with your
+                  account. It’s free, and you get {LIVES_MAX} lives to begin
+                  with.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setDialog("verify")}
+                  style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+                  className="btn-chunky mt-4 rounded-2xl bg-brass px-6 py-3 text-ink"
+                >
+                  Sign in to play
+                </button>
+              </div>
+            ) : (
             <div className="space-y-3">
               <div
                 role="tablist"
@@ -296,6 +313,7 @@ export function PlaySurface({
                 <PowerUpShelf view={view} slug={slug} disabled={won} now={now} />
               )}
             </div>
+            )}
           </>
         )}
       </div>
@@ -315,7 +333,7 @@ export function PlaySurface({
           onClose={() => setDialog("none")}
         />
       )}
-      {dialog === "rules" && <RulesDialog onClose={() => setDialog("none")} />}
+      {dialog === "rules" && <HowItWorksDialog onClose={() => setDialog("none")} />}
     </>
   );
 }
@@ -411,7 +429,7 @@ function BoxHeader({
           className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 transition hover:border-brass/40 hover:text-brass"
         >
           <Info className="size-3.5" aria-hidden />
-          How this works
+          How it works
         </button>
       </div>
 
@@ -426,118 +444,6 @@ function BoxHeader({
         </span>
       </div>
     </header>
-  );
-}
-
-/**
- * The rules, in a dialog rather than down the page.
- *
- * They were an accordion sitting between the field and the log, which meant
- * everybody scrolled past them forever and nobody read them once. A player
- * needs this twice — the first minute, and the moment a score stops making
- * sense — and both times they go looking for it. So it lives behind a button
- * that is always in the same place.
- *
- * What it never explains is *how* a score is arrived at. The weights aren't
- * printed here or anywhere else a player can reach.
- */
-function RulesDialog({ onClose }: { onClose: () => void }) {
-  return (
-    <Modal
-      title="How this works"
-      subtitle="Guess blind. One life, one guess."
-      icon={<Info className="size-5 text-brass" aria-hidden />}
-      onClose={onClose}
-      footer={
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-          className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
-        >
-          Got it
-        </button>
-      }
-    >
-      <div className="space-y-4 pb-1">
-        <p className="text-sm leading-relaxed text-zinc-300">
-          There’s a password behind this safe. You don’t know how long
-          it is, what it’s made of, or where anything sits.{" "}
-          <strong className="text-foreground">Anything on a keyboard</strong> can be
-          in it — letters in either case, digits, and symbols like{" "}
-          <span className="font-mono">&amp; $ # ) ( ; : ! ? *</span>. Type a guess,
-          spend a life, and read what comes back.
-        </p>
-
-        <Rule
-          icon={<MoveUp className="size-4 text-sky-600" aria-hidden />}
-          title="Up arrow — add characters"
-          body="Your guess was shorter than the password."
-        />
-        <Rule
-          icon={<MoveDown className="size-4 text-sky-600" aria-hidden />}
-          title="Down arrow — remove characters"
-          body="Your guess was longer than the password."
-        />
-        <Rule
-          icon={<Target className="size-4 text-mark-green" aria-hidden />}
-          title="Target — right length"
-          body="Exactly as many characters as the password. Nothing tells you the number until you find it."
-        />
-        <Rule
-          icon={<span className="text-sm font-black text-brass">%</span>}
-          title="A score out of 100"
-          body="How close the guess is. Every position contributes something — an exact character most, the right letter in the wrong case least, a character that's in the password but somewhere else in between — and the total is measured against a perfect guess. 100% is the password itself, and nothing else reaches it."
-        />
-
-        <div className="space-y-2 border-t border-white/10 pt-3 text-sm text-zinc-500">
-          <p>
-            <strong className="text-foreground">The arithmetic isn’t
-            published.</strong>{" "}
-            Two very different guesses can score the same, and working out which
-            explanation fits is the game.
-          </p>
-          <p>
-            <strong className="text-foreground">Case counts.</strong>{" "}
-            <span className="font-mono">k</span> and{" "}
-            <span className="font-mono">K</span> are different characters.
-          </p>
-          <p>
-            <strong className="text-foreground">Lives come back on their own</strong>{" "}
-            — one an hour, up to {LIVES_MAX}. You never have to buy any.
-          </p>
-          <p>
-            <strong className="text-foreground">Power-ups are the only paid
-            part</strong>, and each one buys back exactly one of the things
-            withheld above. On someone’s box, 70% of what you spend goes to
-            them.
-          </p>
-          <p>Tap any attempt in the log to read it in full.</p>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function Rule({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="flex gap-3 border-t border-white/10 pt-3">
-      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-bold text-foreground">{title}</p>
-        <p className="mt-0.5 text-sm leading-snug text-zinc-500">{body}</p>
-      </div>
-    </div>
   );
 }
 
@@ -666,5 +572,3 @@ function Figure({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-export { LIVES_MAX };
