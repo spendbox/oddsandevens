@@ -488,17 +488,28 @@ bottom-right, and one glint that crosses the metal every nine seconds. The
 wheel has four spokes, which is the silhouette that says *safe* from across a
 room.
 
-**The x-ray** is the read-out, and the only part that is not atmosphere. Ten
-locks in a ring across the door, one per ten points of score: a guess at 20%
-opens two, 40% opens four, 100% opens all ten and the door swings. They open
+**The bolts** are the read-out, and the only part that is not atmosphere. Ten
+of them in a row across the door, one per ten points of score: a guess at 20%
+draws two, 40% draws four, 100% draws all ten and the door swings. They draw
 one at a time, ~90ms apart, because a jump from two to seven is the best thing
-that can happen in this game and deserves more than a re-render. They close
-immediately, though — a guess that goes backwards has to visibly take locks
-away, or the scene is congratulating you for getting colder.
+that can happen in this game and deserves more than a re-render. They throw
+again immediately, though — a guess that goes backwards has to visibly cost
+you something, or the scene is congratulating you for getting colder.
 
-Open and closed differ in *shape* as well as colour — the shackle lifts and
-swings clear — because colour alone is the one signal a colourblind player
-might miss, and this is the whole read-out.
+They were a ring of ten padlock icons inside a cyan circle, and that was wrong
+three ways. The circle was inscribed in the door's square, so it cut the
+corners and shared an edge with nothing. A padlock is an icon, and an icon that
+changes colour has two states rather than a mechanism. And a ring has no
+reading order, so "four of ten" meant counting.
+
+A bolt is a mechanism: thrown (down, seated in its socket, dark) or drawn (slid
+up and clear, lit, with the empty socket glowing behind it). The difference is
+a *position* as well as a colour, which is what makes it readable without
+counting and legible to somebody who cannot tell mint from slate. In a row,
+left to right, ten of them read like a progress bar made of objects.
+
+Every bolt takes the hit when a guess lands, whether or not it gives way. A
+wrong answer that moves nothing on screen feels like a dropped input.
 
 The locks follow your **latest** guess, not your best. Your best is a floating
 pill in the scene's opposite corner, where it cannot be lost.
@@ -508,15 +519,22 @@ pill in the scene's opposite corner, where it cannot be lost.
 A guess used to land silently — the number in the log changed and that was the
 whole feedback for the thing the game is about. It announces itself now: the
 score counts up rather than appearing (a number that climbs to 61 feels like a
-result; a number that is simply 61 feels like a field), Boxy reacts, the locks
-this guess opened arrive after the ones already open, and beating your own best
-is called out, because on a box that takes two thousand attempts that is the
-only progress there is.
+result; a number that is simply 61 feels like a field), Boxy reacts, and
+beating your own best is called out, because on a box that takes two thousand
+attempts that is the only progress there is.
 
-The one thing it must never become is an obstacle. A Merciless box is hundreds
-of these and Second Wind exists to let somebody make them as fast as they can
-type — so it closes on a tap anywhere, on Escape and on Enter, and it can be
-switched off from inside itself, which is remembered in `localStorage`.
+It must never become an obstacle, and the first version was: a full-screen
+dialog behind a dimmed backdrop, once per guess, on a game whose hardest box
+takes 2,400 of them. So there are two, and which one you get depends on how
+often it can possibly happen.
+
+| | When | What |
+| --- | --- | --- |
+| **The card** | every ordinary guess | Sits over the bottom of the scene, dims nothing, and takes itself away after 2.6 seconds. The bolts it is describing stay visible behind it — hiding one to show the other wastes the moment. The dock fades out for as long as it is up, so the two never fight for the corner. |
+| **The dialog** | once per box, on a win | The whole screen, a spark ring, and a button that says *Collect it*. It has earned it. |
+
+The card can be switched off from its own close button, which is remembered in
+`localStorage`.
 
 Nothing counts attempts at you. The per-attempt ordinal is gone from the log
 and from its dialog, and the dock has a dot rather than a total: "attempt 314"
@@ -528,6 +546,11 @@ corner of the scene with your attempt log, the power-up shelf and your best
 guess, each opening as a sheet. The dock floats over the *scene* rather than
 the viewport on purpose: `fixed` would put it behind a phone keyboard from the
 moment somebody starts typing, which is exactly when they reach for the shelf.
+
+The screen is one viewport tall and does not scroll: the rail and the field are
+fixed heights and the scene takes everything between them, so on a 390×844
+phone the safe is most of what you can see. Measured at 320, 360, 390 and 430:
+no horizontal overflow, and content height equal to viewport height.
 
 The rule the layout follows is that **the scene is never navigated away from**.
 Everything opens over it and closes back onto it, because a hunt is one long

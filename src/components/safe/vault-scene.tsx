@@ -44,20 +44,23 @@ export function VaultScene({
   percent,
   /** Set for one beat after a guess is refused — the scene flinches. */
   recoil,
-  /** Cracked. The door swings and the locks all stand open. */
+  /** Cracked. The door swings and the bolts all stand drawn. */
   open,
+  /** Bumped once per guess, so every bolt takes the hit even when none give. */
+  jolt = 0,
   className = "",
 }: {
   design: Design;
   percent: number;
   recoil?: boolean;
   open?: boolean;
+  jolt?: number;
   className?: string;
 }) {
   const spec = DESIGN_SPECS[design];
   const target = open ? LOCKS : locksOpen(percent);
 
-  // Locks open one after another rather than all at once. A jump from two to
+  // Bolts draw one after another rather than all at once. A jump from two to
   // seven is the best thing that can happen in this game and it deserves more
   // than a re-render.
   const shown = useStaggered(target);
@@ -68,26 +71,16 @@ export function VaultScene({
         // A framed viewport into the room, not a bleeding background. The orbs
         // are blurred well past their own edges, and without a frame to stop
         // them the scene ended in a visible rectangle halfway down the page.
-        "relative isolate overflow-hidden rounded-[2rem] border border-white/10 bg-black/20 " +
+        "relative isolate flex flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-black/20 " +
         className
       }
     >
       <Room accent={spec.body[0]} metal={spec.metal} warmth={target / LOCKS} />
 
-      <div className="vault-stage relative flex items-center justify-center px-4 pb-16 pt-8">
-        {/*
-          `--r` is the lock ring's radius and has to be an absolute length:
-          a percentage in `translate()` resolves against the *lock's* own box,
-          not the safe's, which piled all ten of them on top of the dial.
-        */}
-        <div
-          className={
-            "vault-body relative [--r:3.9rem] min-[380px]:[--r:4.6rem] sm:[--r:5.3rem] " +
-            (recoil ? "vault-recoil" : "")
-          }
-        >
+      <div className="vault-stage relative flex flex-1 items-center justify-center px-4 pb-14 pt-6">
+        <div className={"vault-body relative " + (recoil ? "vault-recoil" : "")}>
           <Vault spec={spec} open={open} />
-          <XRay open={shown} lit={target > 0} />
+          {!open && <Bolts open={shown} jolt={jolt} />}
         </div>
       </div>
     </div>
@@ -282,7 +275,7 @@ type Spec = (typeof DESIGN_SPECS)[Design];
 function Vault({ spec, open }: { spec: Spec; open?: boolean }) {
   return (
     <div
-      className="relative size-48 min-[380px]:size-56 sm:size-64"
+      className="relative size-56 min-[380px]:size-64 sm:size-72"
       style={{ transformStyle: "preserve-3d" }}
     >
       {/* The floor it stands on. Laid flat in the scene rather than painted
@@ -495,101 +488,100 @@ function Wheel({ spec }: { spec: Spec }) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. The x-ray
+// 3. The bolts
 // ---------------------------------------------------------------------------
 
 /**
- * Ten locks in a ring, and a scanning line.
+ * Ten bolts across the door, and the housing they sit in.
  *
- * The ring is the score, restated as an object: ten locks, one per ten points,
- * opening from the top clockwise. It is the same information as the percentage
- * and it is the one people will actually read — "three of ten" is a position in
- * a game, "31.25%" is a measurement.
+ * This replaced a ring of ten padlock icons floating over the door inside a
+ * cyan circle, and it is better for three reasons. The circle never lined up
+ * with anything — it was inscribed in the door's square, so it cut the corners
+ * and shared an edge with nothing. The padlocks were icons, and an icon that
+ * changes colour has two states rather than a mechanism. And a ring has no
+ * reading order, so "four of ten" meant counting.
  *
- * It floats in front of the door at `translateZ(52px)`, far enough that turning
- * the safe separates it from the metal and it reads as a projection onto the
- * door rather than paint on it.
+ * A bolt is a mechanism. It is either *thrown* — down, seated in its socket,
+ * dark — or *drawn* — slid up and clear, lit, with the empty socket glowing
+ * behind it. The difference is a position as well as a colour, which is what
+ * makes it readable without counting and legible to somebody who cannot tell
+ * mint from slate.
+ *
+ * They are in a row, left to right, so ten of them read like a progress bar
+ * made of objects.
  */
-function XRay({ open, lit }: { open: number; lit: boolean }) {
+function Bolts({
+  open,
+  /** Bumped on every guess, so all ten can take the hit whether or not they
+      give way. A wrong answer that moves nothing feels like a dropped input. */
+  jolt,
+}: {
+  open: number;
+  jolt: number;
+}) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0"
-      style={{ transform: "translateZ(52px)" }}
+      className="pointer-events-none absolute inset-x-[12%] bottom-[13%]"
+      style={{ transform: "translateZ(54px)" }}
     >
-      {/* The pane. A cool wash and a hairline ring, so there is visibly a piece
-          of equipment between you and the door. */}
-      <div
-        className="absolute inset-[10%] rounded-full border-2 border-sky/40 bg-sky/10 shadow-[0_0_40px_-6px_var(--sky)] transition-opacity duration-500"
-        style={{ opacity: lit ? 1 : 0.45, animation: lit ? "ring-charge 2.4s ease-in-out infinite alternate" : undefined }}
-      />
-
-      {/* The sweep. Clipped to the pane so it reads as scanning the door. */}
-      <div className="absolute inset-[10%] overflow-hidden rounded-full">
+      {/* The housing: a slot cut into the door with the bolts running through
+          it. Rectangular, aligned to the row, and the same width as it. */}
+      <div className="relative overflow-hidden rounded-lg border border-sky/35 bg-sky/10 px-1.5 py-1 shadow-[0_0_24px_-6px_var(--sky)]">
         <div
-          className="xray-sweep absolute inset-x-0 h-10 bg-gradient-to-b from-transparent via-sky/60 to-transparent"
-          style={{ animation: "xray-sweep 4.5s ease-in-out infinite" }}
+          className="bolt-scan pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-sky/50 to-transparent"
+          style={{ animation: "bolt-scan 4.5s ease-in-out infinite" }}
         />
-      </div>
 
-      {Array.from({ length: LOCKS }, (_, i) => {
-        // Clockwise from the top, so the first lock is where the eye lands.
-        const angle = (i / LOCKS) * 360 - 90;
-        const isOpen = i < open;
-        return (
-          <span
-            key={i}
-            className="absolute left-1/2 top-1/2 flex size-6 items-center justify-center min-[380px]:size-7 sm:size-8"
-            style={{
-              transform: `translate(-50%, -50%) rotate(${angle}deg) translate(var(--r)) rotate(${-angle}deg)`,
-            }}
-          >
-            <Lock open={isOpen} index={i} />
-          </span>
-        );
-      })}
+        <div className="relative flex items-end justify-between gap-[3px]">
+          {Array.from({ length: LOCKS }, (_, i) => (
+            <Bolt key={i} drawn={i < open} index={i} jolt={jolt} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
-/**
- * One lock.
- *
- * Open and closed differ in shape as well as colour — the shackle lifts and
- * swings clear — because a colour change alone is the one signal a
- * colourblind player might miss, and this is the entire read-out.
- */
-function Lock({ open, index }: { open: boolean; index: number }) {
+function Bolt({
+  drawn,
+  index,
+  jolt,
+}: {
+  drawn: boolean;
+  index: number;
+  jolt: number;
+}) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      className="size-full drop-shadow-lg"
-      style={
-        open
-          ? { animation: `pin-open 0.45s cubic-bezier(0.34,1.56,0.64,1) ${index * 0.05}s both` }
-          : undefined
-      }
-    >
-      {/* Shackle. Closed: a squared-off U into the body. Open: swung up and
-          out of the left side. */}
-      <path
-        d={open ? "M8 10 V7 a4 4 0 0 1 7.6-1.6" : "M8 10 V7 a4 4 0 0 1 8 0 v3"}
-        fill="none"
-        stroke={open ? "var(--mint)" : "#6b5a94"}
-        strokeWidth="2.4"
-        strokeLinecap="round"
+    <span className="relative flex h-6 flex-1 flex-col items-center justify-end sm:h-7">
+      {/* The socket. Dark while the bolt is in it; lit once it isn't. */}
+      <span
+        className={
+          "socket absolute inset-x-0 bottom-0 h-1.5 rounded-sm transition-colors duration-300 " +
+          (drawn ? "bg-mint/70 shadow-[0_0_8px_var(--mint)]" : "bg-black/60")
+        }
       />
-      <rect
-        x="5"
-        y="10"
-        width="14"
-        height="11"
-        rx="3"
-        fill={open ? "var(--mint)" : "#3a2f5c"}
-        stroke="var(--ink)"
-        strokeWidth="1.6"
-      />
-      <circle cx="12" cy="15.5" r="1.7" fill={open ? "var(--ink)" : "#6b5a94"} />
-    </svg>
+
+      {/* The bolt. `key` on the jolt count so React replaces the node and the
+          animation restarts — re-running a CSS animation on the same element
+          otherwise needs a reflow hack. */}
+      <span
+        key={`${jolt}-${drawn}`}
+        className={
+          "bolt relative w-full rounded-[3px] border transition-colors duration-300 " +
+          (drawn
+            ? "h-4 border-mint-deep bg-mint shadow-[0_0_10px_-1px_var(--mint)] sm:h-5"
+            : "h-5 border-ink bg-[#6b5a94] sm:h-6")
+        }
+        style={{
+          animation: drawn
+            ? `bolt-draw 0.45s cubic-bezier(0.34,1.5,0.5,1) ${index * 0.05}s both`
+            : `bolt-jolt 0.4s ease ${index * 0.02}s`,
+        }}
+      >
+        {/* A highlight down the shaft, so it reads as round metal. */}
+        <span className="absolute inset-y-0.5 left-1/2 w-px -translate-x-1/2 bg-white/45" />
+      </span>
+    </span>
   );
 }

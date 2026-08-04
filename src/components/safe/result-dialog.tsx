@@ -14,15 +14,21 @@
 // the ones that were already open. Beating your own best is called out, because
 // it is the only progress there is on a box that takes two thousand attempts.
 //
-// The one thing it must never become is an obstacle. A player grinding a
-// Merciless box makes hundreds of these, and Second Wind exists specifically to
-// let somebody make them as fast as they can type. So: it closes on a tap
-// anywhere, on Escape, and on Enter; it never blocks the field for longer than
-// it takes to read; and it can be switched off from inside itself, which is
-// remembered.
+// The one thing it must never become is an obstacle, and the first version was:
+// a full-screen dialog behind a dimmed backdrop, once per guess, on a game
+// whose hardest box takes two thousand of them. So there are two of these, and
+// which one you get depends on how often it can possibly happen.
+//
+//   The card   every ordinary guess. It sits above the field, dims nothing,
+//              covers nothing you were looking at, and takes itself away after
+//              a couple of seconds. Tap it to dismiss it early.
+//   The dialog exactly once per box, when you win. That one has earned the
+//              whole screen.
+//
+// Both can be switched off, which is remembered.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MoveDown, MoveUp, Target, TrendingUp } from "lucide-react";
+import { MoveDown, MoveUp, Target, TrendingUp, X } from "lucide-react";
 import { Portal } from "@/components/ui/portal";
 import { Boxy, type BoxyMood } from "@/components/art/boxy";
 import { LOCKS, locksOpen } from "./vault-scene";
@@ -77,6 +83,101 @@ function headline(percent: number, won: boolean, personalBest: boolean): string 
   return "Not this one.";
 }
 
+/**
+ * The ordinary result: a card above the field.
+ *
+ * No backdrop, no portal, no dimming — it is laid over the bottom of the scene
+ * by the caller, which means the safe and the bolts you have just moved stay
+ * visible behind it. That matters: the card and the bolts are saying the same
+ * thing, and hiding one to show the other wastes the moment.
+ */
+export function ResultCard({
+  attempt,
+  previousBest,
+  onClose,
+}: {
+  attempt: AttemptRecord;
+  previousBest: number;
+  onClose: () => void;
+}) {
+  const percent = attempt.scorePercent;
+  const personalBest = percent > previousBest;
+  const shown = useCountUp(percent);
+  const length = LENGTH[attempt.lengthHint];
+  const LengthIcon = length.icon;
+
+  // Takes itself away. Long enough to read a two-digit number and a hint,
+  // short enough that somebody firing off guesses never waits for it.
+  useEffect(() => {
+    const id = window.setTimeout(onClose, 2600);
+    return () => window.clearTimeout(id);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      role="status"
+      aria-live="polite"
+      className="animate-fade-up sheet flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left"
+    >
+      <Boxy mood={moodFor(percent, false)} still className="size-11 shrink-0" />
+
+      <div className="min-w-0 flex-1">
+        <p className="flex items-baseline gap-2">
+          <span
+            className={
+              "text-2xl font-black leading-none tracking-tight tabular-nums " +
+              (percent >= 80
+                ? "text-brass"
+                : percent >= 45
+                  ? "text-mint"
+                  : "text-sky")
+            }
+          >
+            {formatScore(shown)}
+          </span>
+          {personalBest && (
+            <span className="flex items-center gap-1 text-[11px] font-bold text-brass">
+              <TrendingUp className="size-3" aria-hidden />
+              best yet
+            </span>
+          )}
+        </p>
+        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-400">
+          <LengthIcon
+            className={
+              "size-3.5 shrink-0 " +
+              (attempt.lengthHint === "exact" ? "text-mark-green" : "text-sky")
+            }
+            aria-hidden
+          />
+          <span className="font-bold text-zinc-300">{length.title}</span>
+          <span className="truncate">{length.body}</span>
+        </p>
+      </div>
+
+      {/* The only real control on the card. Everything else about it is an
+          announcement, and an announcement you have to dismiss with a button
+          is the thing this card exists to stop being. */}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          mute();
+          onClose();
+        }}
+        aria-label="Stop showing guess results"
+        className="shrink-0 self-start rounded-lg p-1 text-zinc-500 transition hover:bg-white/10 hover:text-zinc-200"
+      >
+        <X className="size-4" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The win, which happens once per box and gets the whole screen for it.
+ */
 export function ResultDialog({
   attempt,
   /** Their best *before* this guess, so an improvement can be called out. */
@@ -204,18 +305,7 @@ export function ResultDialog({
             {won ? "Collect it" : "Keep going"}
           </button>
 
-          {!won && (
-            <button
-              type="button"
-              onClick={() => {
-                mute();
-                close();
-              }}
-              className="mt-3 text-xs font-bold text-zinc-500 underline underline-offset-2 hover:text-zinc-300"
-            >
-              Stop showing me this
-            </button>
-          )}
+
         </div>
       </div>
     </Portal>

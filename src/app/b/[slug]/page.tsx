@@ -54,7 +54,9 @@ export default async function BoxPage({
   return (
     <PlayerProvider>
       <SiteHeader />
-      <main className="flex-1">
+      {/* `flex` so the play surface can take the height rather than
+          sitting in the middle of it. */}
+      <main className="flex flex-1 flex-col">
         <PlaySurface initial={view} slug={box.slug} pendingReference={reference ?? null} />
       </main>
     </PlayerProvider>

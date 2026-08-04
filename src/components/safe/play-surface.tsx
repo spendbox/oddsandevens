@@ -46,7 +46,7 @@ import { KnownPanel } from "./known-panel";
 import { PasswordField } from "./password-field";
 import { PowerUpShelf } from "./power-up-shelf";
 import { VaultScene } from "./vault-scene";
-import { ResultDialog, resultsMuted } from "./result-dialog";
+import { ResultCard, ResultDialog, resultsMuted } from "./result-dialog";
 import { BestPill, SceneDock, SceneRail } from "./scene-hud";
 import { Boxy } from "@/components/art/boxy";
 
@@ -75,6 +75,9 @@ export function PlaySurface({
   // The guess that has just resolved, and what their best was before it — so
   // the result can say whether this one moved anything.
   const [result, setResult] = useState<{ attempt: AttemptRecord; was: number } | null>(null);
+  // Counts guesses that reached the server. Handed to the scene so all ten
+  // bolts take the hit, whether or not any of them give way.
+  const [jolt, setJolt] = useState(0);
   // Ticks while anything on screen is counting down: a life, Colour Read's 24
   // hours, or a Second Wind hour.
   const now = useNow(
@@ -202,6 +205,7 @@ export function PlaySurface({
     setView(body);
     setTyped("");
     setOutcome(body.outcome ?? "open");
+    setJolt((n) => n + 1);
     if (landed && !resultsMuted()) setResult({ attempt: landed, was });
     await refresh();
   }
@@ -216,19 +220,39 @@ export function PlaySurface({
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:py-7">
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-3 px-4 pb-4 pt-3 sm:gap-4 sm:pb-6">
         <SceneRail box={view.box} onExplain={() => setSheet("rules")} />
 
         {/* The dock floats over the scene rather than the viewport. Fixed to
             the window it would end up behind a phone keyboard the moment
             somebody starts typing, which is exactly when they want it. */}
-        <div className="relative">
+        {/*
+          The scene takes every pixel between the rail and the field. On a tall
+          phone that is most of the screen, which is the point — this is the
+          game, and it was previously a 19rem box with the page's whitespace
+          above and below it.
+        */}
+        <div className="relative flex min-h-[17rem] flex-1 flex-col">
           <VaultScene
+            className="flex-1"
             design={view.box.design}
             percent={latest}
             recoil={recoil}
             open={won}
+            jolt={jolt}
           />
+
+          {/* The result, laid over the bottom of the scene rather than over
+              the whole screen. The bolts it is describing stay visible. */}
+          {result && !won && (
+            <div className="absolute inset-x-3 bottom-3 z-30">
+              <ResultCard
+                attempt={result.attempt}
+                previousBest={result.was}
+                onClose={() => setResult(null)}
+              />
+            </div>
+          )}
           {verified && (
             <>
               {best !== null && (
@@ -239,7 +263,10 @@ export function PlaySurface({
                 />
               )}
               <SceneDock
-                className="absolute bottom-3 right-3"
+                className={
+                  "absolute bottom-3 right-3 transition-opacity duration-200 " +
+                  (result && !won ? "pointer-events-none opacity-0" : "opacity-100")
+                }
                 powerUps={view.powerUps.filter((p) => p.available).length}
                 onAttempts={() => setSheet("attempts")}
                 onPowerUps={() => setSheet("power-ups")}
@@ -382,11 +409,11 @@ export function PlaySurface({
         <AttemptDialog attempt={bestAttempt} onClose={() => setSheet("none")} />
       )}
 
-      {result && (
+      {result && won && (
         <ResultDialog
           attempt={result.attempt}
           previousBest={result.was}
-          won={won}
+          won
           onClose={() => setResult(null)}
         />
       )}

@@ -775,3 +775,50 @@ summary,
     animation: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * The bolts
+ *
+ * Ten of them across the door, and they are the entire read-out. A bolt is
+ * either thrown (down, in its socket, dark) or drawn (up, clear of it, lit),
+ * and the difference is a *position* as well as a colour — which is the whole
+ * reason they replaced the ring of padlocks. A padlock that changes colour is
+ * an icon with two states; a bolt that slides out of its socket is a mechanism.
+ * ------------------------------------------------------------------------- */
+
+/* A bolt letting go: down, a hard jolt, then up and clear. */
+@keyframes bolt-draw {
+  0%   { transform: translateY(0); }
+  30%  { transform: translateY(3px); }
+  100% { transform: translateY(-38%); }
+}
+
+/* Every bolt takes the hit when a guess lands, whether or not it gives way.
+   This is what makes a wrong answer feel like it did something. */
+@keyframes bolt-jolt {
+  0%, 100% { transform: translateY(var(--rest, 0)); }
+  25%      { transform: translateY(calc(var(--rest, 0px) + 4px)); }
+  60%      { transform: translateY(calc(var(--rest, 0px) - 2px)); }
+}
+
+/* The socket a drawn bolt has left, lighting up behind it. */
+@keyframes socket-lit {
+  from { opacity: 0; transform: scaleY(0.4); }
+  to   { opacity: 1; transform: scaleY(1); }
+}
+
+/* The scan running along the bolt housing. */
+@keyframes bolt-scan {
+  0%   { transform: translateX(-110%); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(110%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bolt,
+  .bolt-scan,
+  .socket {
+    animation: none !important;
+  }
+}
