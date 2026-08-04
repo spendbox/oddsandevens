@@ -17,13 +17,13 @@
 //   Colour Read  berry    the colours behind a score
 //   X-Ray        gold     seeing inside, the most valuable of them
 //
-// The four scans share one drawing — a card with a beam across it — and differ
+// The two scans share one drawing — a card with a beam under it — and differ
 // only by the glyph on the card and the colour of the badge. That is on
-// purpose: they are one idea sold four times, and four unrelated pictures for
-// four identical products is how a shelf becomes unreadable.
+// purpose: they are one idea sold twice, and two unrelated pictures for two
+// identical products is how a shelf becomes unreadable.
 //
 // All of them are drawn in one 64-unit box so they line up at any size, and
-// every gradient id is prefixed with the kind so nine on one page don't
+// every gradient id is prefixed with the kind so seven on one page don't
 // collide.
 
 import type { PowerUpKind } from "@/lib/game/power-ups";
@@ -35,18 +35,14 @@ export const POWER_UP_COLOURS: Record<PowerUpKind, { from: string; to: string }>
   second_wind: { from: "#7ff0bb", to: "#11855a" },
   breakdown: { from: "#ff9ab8", to: "#b8214c" },
   x_ray: { from: "#ffe08a", to: "#b8750f" },
-  symbol_scan: { from: "#ffc082", to: "#c05a12" },
   vowel_scan: { from: "#ffa8d8", to: "#a81d6d" },
   consonant_scan: { from: "#aebcff", to: "#3843b5" },
-  number_scan: { from: "#9df0a6", to: "#1a8a40" },
 };
 
 /** The glyph on each scan's card — the class it counts, in two characters. */
 const SCAN_GLYPHS: Record<string, string> = {
-  symbol_scan: "#$",
   vowel_scan: "AE",
   consonant_scan: "BC",
-  number_scan: "42",
 };
 
 export function PowerUpArt({

@@ -34,28 +34,40 @@ export const POWER_UP_KINDS = [
   "second_wind",
   "breakdown",
   "x_ray",
-  "symbol_scan",
   "vowel_scan",
   "consonant_scan",
-  "number_scan",
 ] as const;
 export type PowerUpKind = (typeof POWER_UP_KINDS)[number];
 
 /**
- * The four scans, and the class of character each one counts.
+ * The scans, and the class of character each one counts.
  *
  * Keyed by the field they write into `Revealed.scans`, so there is exactly one
  * place that says what a "vowel" is and the shelf copy, the counting and the
  * panel all read it from there.
+ *
+ * There were four. Symbol Scan and Number Scan have gone, because Case Map
+ * gives both of those counts outright — they were the same answer sold twice,
+ * and hiding them behind "unavailable once Case Map is bought" was a rule
+ * explaining a product that shouldn't have existed. The two that remain answer
+ * a question nothing else on the shelf does: Case Map splits letters by *case*,
+ * which says nothing at all about sound.
  */
 export const SCANS = {
-  symbol_scan: { field: "symbols", noun: "symbols" },
   vowel_scan: { field: "vowels", noun: "vowels" },
   consonant_scan: { field: "consonants", noun: "consonants" },
-  number_scan: { field: "numbers", noun: "digits" },
 } as const satisfies Record<string, { field: ScanField; noun: string }>;
 
 export type ScanKind = keyof typeof SCANS;
+
+/**
+ * The character classes a password is sorted into.
+ *
+ * Wider than the scans on sale on purpose: `symbols` and `numbers` are still
+ * the vocabulary `Revealed.scans` is written in, so a hunt that bought Symbol
+ * Scan before it was withdrawn keeps showing its answer rather than losing
+ * something that was paid for.
+ */
 export type ScanField = "symbols" | "vowels" | "consonants" | "numbers";
 
 export function isScanKind(kind: PowerUpKind): kind is ScanKind {
@@ -132,11 +144,10 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     detail:
       "Reveals the composition of the password: how many uppercase letters, lowercase letters, digits, and symbols it contains. This dramatically narrows the search space. In a 94-character alphabet, learning that a password contains no digits immediately eliminates 10 possible characters from every remaining position. Every detail reduces uncertainty, turning a seemingly impossible challenge into a solvable puzzle.",
     caveat:
-      "It gives you counts, not characters, and never a position. It covers the digit and symbol counts outright, so Number Scan and Symbol Scan come off the shelf once you own it.",
-    // The second most expensive thing on the shelf, and it should be. It is
-    // four answers in one — how many capitals, lowercase, digits and symbols —
-    // and it retires two of the scans on purchase. At 0.5% it was priced the
-    // same as a single scan, which made every scan on the shelf pointless.
+      "It gives you counts, not characters, and never a position. It says nothing about which letters are vowels — that is a different question and a different purchase.",
+    // The second most expensive thing on the shelf, and it should be: four
+    // answers in one, and the only source of any of them. At 0.5% it was
+    // priced the same as a single scan, which made every scan pointless.
     share: 0.05,
     floorKobo: 800 * KOBO,
     repeat: "once",
@@ -175,18 +186,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
   },
 
   // The scans. One number each, and the number is the whole product — which is
-  // why every one of them sells once and says so on the shelf.
-  symbol_scan: {
-    kind: "symbol_scan",
-    name: "Symbol Scan",
-    blurb: "Counts the symbols — anything that isn't a letter or a digit.",
-    detail:
-      "Tells you how many characters in the password are symbols: punctuation, brackets, currency marks, anything off the top row. It is the cheapest question worth asking, because the answer is often zero — and a zero here removes about thirty characters from every position at once.",
-    caveat: "A count, and only of symbols. Never which ones, never where.",
-    share: 0.005,
-    floorKobo: 200 * KOBO,
-    repeat: "once",
-  },
+  // why both of them sell once and say so on the shelf.
   vowel_scan: {
     kind: "vowel_scan",
     name: "Vowel Scan",
@@ -205,17 +205,6 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     detail:
       "Tells you how many of the characters are consonants. On its own it narrows the alphabet; next to a Vowel Scan it does considerably more than that, because the two together tell you how many characters are letters at all, and therefore how many are not.",
     caveat: "A count of the letters that aren't vowels. Y counts as one.",
-    share: 0.005,
-    floorKobo: 200 * KOBO,
-    repeat: "once",
-  },
-  number_scan: {
-    kind: "number_scan",
-    name: "Number Scan",
-    blurb: "Counts the digits, 0 through 9.",
-    detail:
-      "Tells you how many of the characters are digits. Most passwords people write have one, two or none, and knowing which of those three you are in changes where every remaining guess should go.",
-    caveat: "A count of digits. Never which ones, never where they sit.",
     share: 0.005,
     floorKobo: 200 * KOBO,
     repeat: "once",
@@ -359,18 +348,9 @@ export function secondWindActive(revealed: Revealed, now = Date.now()): boolean 
  * password to decide stays on sale.
  */
 export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
-  // The scans, first: each sells once, and two of them stop selling early.
-  //
-  // Case Map already gives the digit and symbol counts, so continuing to offer
-  // Number Scan and Symbol Scan afterwards would be taking money for a
-  // sentence the player has been shown. Vowel and Consonant Scan survive it —
-  // Case Map splits letters by case, which says nothing about sound.
-  if (isScanKind(kind)) {
-    const { field } = SCANS[kind];
-    if (revealed.scans[field] !== undefined) return false;
-    if (revealed.caseMap && (field === "numbers" || field === "symbols")) return false;
-    return true;
-  }
+  // The scans, first. Each sells once, and neither of them overlaps anything
+  // else on the shelf — the two that did were withdrawn rather than gated.
+  if (isScanKind(kind)) return revealed.scans[SCANS[kind].field] === undefined;
 
   switch (kind) {
     case "length_lock":

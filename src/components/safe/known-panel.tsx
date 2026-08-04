@@ -27,7 +27,14 @@ import {
 import { countdown } from "@/components/player/lives-badge";
 import { plural } from "@/lib/plural";
 
-/** The scans, in the order they read best as a sentence about a password. */
+/**
+ * The scans, in the order they read best as a sentence about a password.
+ *
+ * Digits and symbols are still listed although neither is on sale any more:
+ * Case Map gives those two counts, and a hunt that bought the withdrawn scans
+ * before they went should keep seeing what it paid for. A field with nothing
+ * in it renders nothing, so the two dead rows cost exactly nothing.
+ */
 const SCAN_ROWS: { field: ScanField; noun: string }[] = [
   { field: "vowels", noun: "vowel" },
   { field: "consonants", noun: "consonant" },

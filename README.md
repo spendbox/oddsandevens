@@ -187,10 +187,8 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
 | X-Ray | 5% | Names half the distinct characters it hasn't named yet, unordered |
-| Symbol Scan | 0.5% | Counts the symbols — anything that isn't a letter or a digit |
 | Vowel Scan | 0.5% | Counts the vowels, A E I O U, either case |
 | Consonant Scan | 0.5% | Counts the consonants — every letter that isn't a vowel |
-| Number Scan | 0.5% | Counts the digits |
 
 **Prices are a share of the box's reward**, floored so that a challenge box
 with nothing behind it still has a shelf to sell. A hint that saves you a
@@ -205,23 +203,27 @@ password. A paragraph asks a player to imagine the result at exactly the moment
 they are deciding whether to spend real money on it, and the sample is fixed
 and fictional so the demo can never be a hint.
 
-### The scans, and what they overlap
+### The scans, and the two that went
 
-The four scans are the cheap end of the shelf: one number each. Two of them
-answer questions nothing else on the shelf will — Case Map splits letters by
-*case*, which says nothing about sound, so Vowel Scan and Consonant Scan are
-new information whatever else you own.
+The scans are the cheap end of the shelf: one number each, sold once. There
+were four, and two of them were the same answer sold twice — Case Map already
+gives the digit and symbol counts, so Symbol Scan and Number Scan had nothing
+of their own to sell.
 
-The other two are not. Case Map already gives the digit and symbol counts, so
-Number Scan and Symbol Scan come off the shelf the moment it is bought, rather
-than continuing to sell a sentence the player has already been shown. Case
-Map's own caveat says so before you pay for it. In the other order they stay
-worth buying: Case Map still adds the case split.
+They were briefly *gated* instead, coming off the shelf once Case Map was
+bought. That is a rule explaining a product that shouldn't exist, so they are
+simply gone. The two that remain answer a question nothing else here does: Case
+Map splits letters by **case**, which says nothing at all about sound.
 
-Case Map is ten times a scan and should be: it is four answers in one and it
-retires two of the scans on purchase. At 0.5% — the price it shipped at — it
-cost the same as a single scan, which made every scan on the shelf pointless.
-A scan is for the player already deep in with exactly one question left.
+`Revealed.scans` still speaks in all four fields, and the Known sheet still
+renders whichever are present, so a hunt that bought a withdrawn scan keeps
+seeing what it paid for. A field with nothing in it renders nothing, so the two
+dead rows cost nothing either.
+
+Case Map is ten times a scan and should be: it is four answers in one and the
+only source of any of them. At 0.5% — the price it shipped at — it cost the
+same as a single scan, which made every scan pointless. A scan is for the
+player already deep in with exactly one question left.
 
 The *share* is server-side only. A player is shown what something costs on the
 box in front of them and nothing about how that number was reached — and
@@ -477,10 +479,10 @@ four sorted tiles, a winged stopwatch, a prism splitting one beam into the
 three colours the attempt log uses, and a pair of goggles. The colour is how
 you tell them apart on a shelf you visit forty times.
 
-The four scans share one drawing — a card with two characters on it and a beam
+The two scans share one drawing — a card with two characters on it and a beam
 passing beneath — and differ only by the glyph and the badge colour. That is
-deliberate: they are one idea sold four times, and four unrelated pictures for
-four identical products is how a shelf becomes unreadable. The beam sits *under*
+deliberate: they are one idea sold twice, and two unrelated pictures for two
+identical products is how a shelf becomes unreadable. The beam sits *under*
 the glyph rather than across it, because a scan line through the middle of two
 characters turns both to mush at the size this is actually looked at, which is
 twelve pixels.
