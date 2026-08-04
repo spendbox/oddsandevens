@@ -1,43 +1,56 @@
 "use client";
 
-// One box, hunted.
+// One box, hunted — as a scene rather than a form.
 //
-// The server is the only thing that knows the password — it never leaves
-// Postgres — so this component decides nothing about a guess. It collects
-// characters, spends a life, and re-renders whatever comes back. Every
-// mutation returns a whole fresh view for exactly that reason: there is no
-// local model of the game to drift out of step.
+// The server is the only thing that knows the password. It never leaves
+// Postgres, so this component decides nothing about a guess: it collects
+// characters, spends a life, and re-renders whatever comes back. Every mutation
+// returns a whole fresh view for exactly that reason — there is no local model
+// of the game to drift out of step.
 //
-// The screen is a safe, the field under it, and then two tabs. Attempts and
-// power-ups were stacked before and the shelf was three screens down, which is
-// a strange place to put the only thing that costs money and the only thing
-// that helps. They're peers now: the log is where you work, the shelf is where
-// you get unstuck, and you flip between them.
+// What changed is everything around that. The screen used to be a stack of
+// prose: the safe, the rules, the field, a tab bar, a log, a shelf, and enough
+// explanation between them that on a phone the safe was off the top of the
+// screen before you had made a single guess. A password game reads as a form
+// unless something makes it a place.
+//
+// So the middle of the screen is the vault scene and nothing else, and every
+// other thing the old page showed inline is now either a chip on the rail above
+// it or a sheet behind a floating button:
+//
+//   the rail   difficulty, the prize, hunters, attempts, the score to beat
+//   the scene  the safe, and ten locks that open as the score climbs
+//   the field  one input and one button, docked under it
+//   the dock   your attempts, the power-up shelf, your best guess
+//
+// The rule the whole layout follows is that the scene is never navigated away
+// from. Everything opens over it and closes back onto it, because a hunt is one
+// long session on one box and losing your place in it is the whole cost.
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Info, Palette, Sparkles, Swords, Users } from "lucide-react";
-import { ScorePill } from "./score-pill";
+import { ArrowRight, Palette, Sparkles } from "lucide-react";
 import { LIVES_MAX } from "@/lib/constants";
-import { plural } from "@/lib/plural";
 import { EMPTY_REVEALED } from "@/lib/game/power-ups";
-import { formatNaira, rewardLabel } from "@/lib/game/rewards";
-import type { AttemptResult, PlayView } from "@/lib/types";
+import { formatNaira } from "@/lib/game/rewards";
+import type { AttemptRecord, AttemptResult, PlayView } from "@/lib/types";
+import { Modal } from "@/components/ui/modal";
 import { usePlayer } from "@/components/player/player-context";
 import { VerifyDialog } from "@/components/player/account-dialog";
 import { BuyLivesDialog } from "@/components/player/buy-lives-dialog";
 import { countdown, useNow } from "@/components/player/lives-badge";
-import { DifficultyBadge } from "@/components/difficulty-badge";
 import { HowItWorksDialog } from "@/components/how-it-works";
 import { AttemptLog } from "./attempt-log";
+import { AttemptDialog } from "./attempt-dialog";
 import { KnownPanel } from "./known-panel";
 import { PasswordField } from "./password-field";
 import { PowerUpShelf } from "./power-up-shelf";
-import { SafeArt } from "./safe-art";
+import { VaultScene } from "./vault-scene";
+import { SceneDock, SceneRail } from "./scene-hud";
 import { Boxy } from "@/components/art/boxy";
 
 type Outcome = "open" | "won" | "pipped";
-type Tab = "attempts" | "power-ups";
+type Sheet = "none" | "verify" | "lives" | "rules" | "attempts" | "power-ups" | "best";
 
 export function PlaySurface({
   initial,
@@ -54,9 +67,10 @@ export function PlaySurface({
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>("open");
-  const [dialog, setDialog] = useState<"none" | "verify" | "lives" | "rules">("none");
-  const [tab, setTab] = useState<Tab>("attempts");
+  const [sheet, setSheet] = useState<Sheet>("none");
   const [message, setMessage] = useState<string | null>(null);
+  // True for one beat when a guess is refused, so the scene can flinch.
+  const [recoil, setRecoil] = useState(false);
   // Ticks while anything on screen is counting down: a life, Colour Read's 24
   // hours, or a Second Wind hour.
   const now = useNow(
@@ -72,6 +86,19 @@ export function PlaySurface({
   const freeRun =
     !!view.hunt?.secondWindUntil &&
     new Date(view.hunt.secondWindUntil).getTime() > now;
+
+  const attempts = view.hunt?.attempts ?? [];
+  /**
+   * The score the locks are showing: the most recent guess.
+   *
+   * The *latest* rather than the best, deliberately. The locks are feedback on
+   * what you just did — a guess that goes backwards should visibly take locks
+   * away, or the scene is congratulating you for getting colder. Your best is
+   * on the dock, where it can't be lost.
+   */
+  const latest = attempts[0]?.scorePercent ?? 0;
+  const best = view.hunt && attempts.length > 0 ? view.hunt.bestPercent : null;
+  const bestAttempt = bestOf(attempts);
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/boxes/${slug}`, { cache: "no-store" });
@@ -108,9 +135,22 @@ export function PlaySurface({
     };
   }, [pendingReference, reload, slug]);
 
+  function refuse(note: string) {
+    setMessage(note);
+    setRecoil(true);
+  }
+
+  // Clears itself once the animation has run, so the class comes off and the
+  // next refusal re-triggers it. 550ms is the keyframe plus a frame.
+  useEffect(() => {
+    if (!recoil) return;
+    const id = window.setTimeout(() => setRecoil(false), 550);
+    return () => window.clearTimeout(id);
+  }, [recoil]);
+
   async function submit() {
     if (!verified) {
-      setDialog("verify");
+      setSheet("verify");
       return;
     }
     if (busy || typed.length === 0) return;
@@ -130,19 +170,19 @@ export function PlaySurface({
 
     if (!res.ok) {
       if (body.error === "no_lives") {
-        setMessage(
+        refuse(
           body.nextLifeAt
             ? `Out of lives. The next one lands in ${countdown(body.nextLifeAt, Date.now())}.`
             : "Out of lives for now."
         );
-        setDialog("lives");
+        setSheet("lives");
         return;
       }
       if (body.error === "not_verified") {
-        setDialog("verify");
+        setSheet("verify");
         return;
       }
-      setMessage(
+      refuse(
         body.error === "box_unlocked"
           ? "Somebody opened this one while you were typing."
           : "That guess didn't go through."
@@ -156,294 +196,206 @@ export function PlaySurface({
     await refresh();
   }
 
+  if (!open) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-4 py-6">
+        <Cracked view={view} />
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className="mx-auto w-full max-w-2xl space-y-5 px-4 py-6">
-        <BoxHeader
-          view={view}
-          mood={won || !open ? "open" : busy ? "working" : "idle"}
-          onRules={() => setDialog("rules")}
-        />
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 py-4">
+        <SceneRail box={view.box} onExplain={() => setSheet("rules")} />
 
-        {!open ? (
-          <Cracked view={view} />
-        ) : (
-          <>
-            {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
+        {/* The dock floats over the scene rather than the viewport. Fixed to
+            the window it would end up behind a phone keyboard the moment
+            somebody starts typing, which is exactly when they want it. */}
+        <div className="relative">
+          <VaultScene
+            design={view.box.design}
+            percent={latest}
+            recoil={recoil}
+            open={won}
+          />
+          {verified && (
+            <SceneDock
+              className="absolute bottom-0 right-0"
+              attempts={view.hunt?.attemptsCount ?? 0}
+              powerUps={view.powerUps.filter((p) => p.available).length}
+              best={best}
+              onAttempts={() => setSheet("attempts")}
+              onPowerUps={() => setSheet("power-ups")}
+              onBest={() => setSheet("best")}
+            />
+          )}
+        </div>
 
+        {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
+
+        {/*
+          Three things can need saying at once — a refused guess, a Second Wind
+          hour, a Colour Read window — and each used to be its own bordered
+          paragraph stacked down the page. They are one row of chips now, and
+          they wrap.
+        */}
+        {(message || freeRun || view.hunt?.hasBreakdown) && (
+          <div className="flex flex-wrap justify-center gap-2">
             {message && (
-              <p className="animate-fade-up rounded-2xl border-2 border-brass/50 bg-brass/15 px-3 py-2.5 text-center text-sm font-bold text-brass">
-                {message}
-              </p>
+              <Chip tone="brass">{message}</Chip>
             )}
-
             {freeRun && view.hunt?.secondWindUntil && (
-              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-2xl border-2 border-mint/50 bg-mint/15 px-3 py-2.5 text-center text-xs font-bold text-mint">
+              <Chip tone="mint">
                 <Sparkles className="size-3.5" aria-hidden />
-                Second Wind — guesses cost no lives for another{" "}
-                <span className="font-mono">
-                  {countdown(view.hunt.secondWindUntil, now)}
-                </span>
-              </p>
+                Free guesses · {countdown(view.hunt.secondWindUntil, now)}
+              </Chip>
             )}
-
             {view.hunt?.hasBreakdown && view.hunt.breakdownUntil && (
-              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-2xl border-2 border-brass/50 bg-brass/15 px-3 py-2.5 text-center text-xs font-bold text-brass">
+              <Chip tone="brass">
                 <Palette className="size-3.5" aria-hidden />
-                Colour Read is on — every score is split into its parts for another{" "}
-                <span className="font-mono">
-                  {countdown(view.hunt.breakdownUntil, now)}
-                </span>
-              </p>
+                Colour Read · {countdown(view.hunt.breakdownUntil, now)}
+              </Chip>
             )}
+          </div>
+        )}
 
-            <KnownPanel revealed={revealed} now={now} />
+        {/* Whatever the power-ups have bought, when there is any. Renders
+            nothing at all until something has been revealed. */}
+        <KnownPanel revealed={revealed} now={now} />
 
-            {outcome === "open" && (
-              <PasswordField
-                value={typed}
-                onChange={setTyped}
-                onSubmit={() => void submit()}
-                disabled={won}
-                busy={busy}
-                revealed={revealed}
-                livesLeft={view.player.lives}
-                freeRun={freeRun}
-              />
-            )}
+        {outcome === "open" && (
+          <PasswordField
+            value={typed}
+            onChange={setTyped}
+            onSubmit={() => void submit()}
+            disabled={won}
+            busy={busy}
+            revealed={revealed}
+            livesLeft={view.player.lives}
+            freeRun={freeRun}
+          />
+        )}
 
-            {!freeRun && view.player.lives === 0 && view.player.nextLifeAt && (
-              <p className="text-center text-sm text-zinc-400">
-                Next life in{" "}
-                <span className="font-mono text-brass">
-                  {countdown(view.player.nextLifeAt, now)}
-                </span>
-                {" · "}
-                <button
-                  type="button"
-                  onClick={() => setDialog("lives")}
-                  className="underline hover:text-zinc-200"
-                >
-                  or buy some
-                </button>
-                {" · "}
-                <button
-                  type="button"
-                  onClick={() => setTab("power-ups")}
-                  className="underline hover:text-zinc-200"
-                >
-                  or take an hour with no limit
-                </button>
-              </p>
-            )}
+        {!freeRun && view.player.lives === 0 && view.player.nextLifeAt && (
+          <p className="text-center text-sm text-zinc-400">
+            Next life in{" "}
+            <span className="font-mono text-brass">
+              {countdown(view.player.nextLifeAt, now)}
+            </span>
+            {" · "}
+            <button
+              type="button"
+              onClick={() => setSheet("lives")}
+              className="underline hover:text-foreground"
+            >
+              buy some
+            </button>
+          </p>
+        )}
 
-            {/*
-              Both of these belong to a person, so neither appears until there
-              is one. Signed out, "Your attempts" was an empty log for a hunt
-              that doesn't exist and the shelf was five things you cannot buy —
-              two dead tabs where the reason to sign in should be.
-            */}
-            {!verified ? (
-              <div className="panel rounded-2xl px-4 py-6 text-center">
-                <Boxy mood="sly" className="mx-auto size-20" />
-                <p className="mt-1 font-black tracking-tight">
-                  Sign in to start hunting.
-                </p>
-                <p className="mx-auto mt-1 max-w-xs text-sm text-zinc-400">
-                  Your guesses, your score and the power-ups all live with your
-                  account. It’s free, and you get {LIVES_MAX} lives to begin
-                  with.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setDialog("verify")}
-                  style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-                  className="btn-chunky mt-4 rounded-2xl bg-brass px-6 py-3 text-ink"
-                >
-                  Sign in to play
-                </button>
-              </div>
-            ) : (
-            <div className="space-y-3">
-              <div
-                role="tablist"
-                aria-label="Attempts and power-ups"
-                className="panel flex gap-1 rounded-2xl p-1.5"
-              >
-                <TabButton
-                  id="attempts"
-                  active={tab}
-                  onPick={setTab}
-                  icon={<Swords className="size-4" aria-hidden />}
-                  label="Your attempts"
-                  badge={
-                    view.hunt && view.hunt.attemptsCount > 0
-                      ? String(view.hunt.attemptsCount)
-                      : null
-                  }
-                />
-                <TabButton
-                  id="power-ups"
-                  active={tab}
-                  onPick={setTab}
-                  icon={<Sparkles className="size-4" aria-hidden />}
-                  label="Power-ups"
-                  badge={String(view.powerUps.filter((p) => p.available).length)}
-                />
-              </div>
-
-              {tab === "attempts" ? (
-                <section className="space-y-2">
-                  {view.hunt && view.hunt.attemptsCount > 0 && (
-                    <div className="flex items-center justify-end gap-2 text-xs text-zinc-500">
-                      <span>best so far</span>
-                      <ScorePill percent={view.hunt.bestPercent} />
-                    </div>
-                  )}
-                  <AttemptLog attempts={view.hunt?.attempts ?? []} />
-                  {view.hunt &&
-                    view.hunt.attemptsCount > (view.hunt.attempts.length ?? 0) && (
-                      <p className="text-center text-xs text-zinc-600">
-                        Showing your last {view.hunt.attempts.length} of{" "}
-                        {view.hunt.attemptsCount}.
-                      </p>
-                    )}
-                </section>
-              ) : (
-                <PowerUpShelf view={view} slug={slug} disabled={won} now={now} />
-              )}
-            </div>
-            )}
-          </>
+        {/*
+          Signed out, the dock would be an empty log and a shelf you cannot buy
+          from. It's the reason to sign in instead.
+        */}
+        {!verified && (
+          <div className="panel rounded-2xl px-4 py-5 text-center">
+            <Boxy mood="sly" className="mx-auto size-16" />
+            <p className="mt-1 font-black tracking-tight">Sign in to start hunting.</p>
+            <p className="mx-auto mt-1 max-w-xs text-sm text-zinc-400">
+              Your guesses and your power-ups live with your account. It’s free,
+              and you get {LIVES_MAX} lives to begin with.
+            </p>
+            <button
+              type="button"
+              onClick={() => setSheet("verify")}
+              style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+              className="btn-chunky mt-4 rounded-2xl bg-brass px-6 py-3 text-ink"
+            >
+              Sign in to play
+            </button>
+          </div>
         )}
       </div>
 
-      {dialog === "verify" && (
+      {sheet === "verify" && (
         <VerifyDialog
           onClose={() => {
-            setDialog("none");
+            setSheet("none");
             void reload();
           }}
         />
       )}
-      {dialog === "lives" && (
+      {sheet === "lives" && (
         <BuyLivesDialog
           slug={slug}
           contributor={view.box.contributor}
-          onClose={() => setDialog("none")}
+          onClose={() => setSheet("none")}
         />
       )}
-      {dialog === "rules" && <HowItWorksDialog onClose={() => setDialog("none")} />}
+      {sheet === "rules" && <HowItWorksDialog onClose={() => setSheet("none")} />}
+
+      {sheet === "attempts" && (
+        <Modal
+          title="Your attempts"
+          subtitle={`${view.hunt?.attemptsCount ?? 0} so far on this safe`}
+          width="lg"
+          onClose={() => setSheet("none")}
+        >
+          <AttemptLog attempts={attempts} />
+          {view.hunt && view.hunt.attemptsCount > attempts.length && (
+            <p className="mt-2 text-center text-xs text-zinc-500">
+              Showing your last {attempts.length} of {view.hunt.attemptsCount}.
+            </p>
+          )}
+        </Modal>
+      )}
+
+      {sheet === "power-ups" && (
+        <Modal
+          title="Power-ups"
+          subtitle="Each one buys back something the game is keeping from you."
+          width="lg"
+          onClose={() => setSheet("none")}
+        >
+          <PowerUpShelf view={view} slug={slug} disabled={won} now={now} />
+        </Modal>
+      )}
+
+      {sheet === "best" && bestAttempt && (
+        <AttemptDialog attempt={bestAttempt} onClose={() => setSheet("none")} />
+      )}
     </>
   );
 }
 
-function TabButton({
-  id,
-  active,
-  onPick,
-  icon,
-  label,
-  badge,
-}: {
-  id: Tab;
-  active: Tab;
-  onPick: (tab: Tab) => void;
-  icon: React.ReactNode;
-  label: string;
-  badge: string | null;
-}) {
-  const on = active === id;
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={on}
-      onClick={() => onPick(id)}
-      className={
-        "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-[13px] font-bold transition sm:gap-2 sm:px-3 sm:text-sm " +
-        (on
-          ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.45),0_3px_0_var(--brass-deep)]"
-          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100")
-      }
-    >
-      {icon}
-      {label}
-      {badge && (
-        <span
-          className={
-            "rounded-md px-1.5 py-0.5 font-mono text-[10px] font-black " +
-            (on ? "bg-ink/20 text-ink" : "bg-white/8 text-zinc-400")
-          }
-        >
-          {badge}
-        </span>
-      )}
-    </button>
-  );
+/** The highest-scoring attempt on the page, or null before there is one. */
+function bestOf(attempts: AttemptRecord[]): AttemptRecord | null {
+  if (attempts.length === 0) return null;
+  return attempts.reduce((top, a) => (a.scorePercent > top.scorePercent ? a : top));
 }
 
-function BoxHeader({
-  view,
-  mood,
-  onRules,
+const CHIP_TONES = {
+  brass: "border-brass/50 bg-brass/15 text-brass",
+  mint: "border-mint/50 bg-mint/15 text-mint",
+} as const;
+
+function Chip({
+  tone,
+  children,
 }: {
-  view: PlayView;
-  mood: "idle" | "working" | "open";
-  onRules: () => void;
+  tone: keyof typeof CHIP_TONES;
+  children: React.ReactNode;
 }) {
-  const { box } = view;
   return (
-    <header className="space-y-2 text-center">
-      {/* Boxy is doing the reacting so the safe doesn't have to. A dial that
-          spins is a nice touch; a face that looks worried while you wait is
-          the thing people actually notice. */}
-      <div className="flex items-end justify-center gap-1">
-        <SafeArt design={box.design} mood={mood} className="size-28 sm:size-36" />
-        <Boxy
-          mood={mood === "open" ? "cheer" : mood === "working" ? "thinking" : "sly"}
-          className="size-24 sm:size-28"
-        />
-      </div>
-
-      <p className="text-xs uppercase tracking-widest text-zinc-500">
-        {box.kind === "general" ? "Created by Spendbox" : `Created by ${box.contributor}`}
-      </p>
-      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{box.title}</h1>
-      {box.blurb && <p className="text-sm text-zinc-400">{box.blurb}</p>}
-
-      <p
-        className={
-          "font-black tabular-nums " +
-          (box.isChallenge ? "text-2xl text-zinc-300" : "brass-text text-4xl sm:text-5xl")
-        }
-      >
-        {rewardLabel(box.rewardKobo)}
-      </p>
-
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <DifficultyBadge difficulty={box.difficulty} />
-        <button
-          type="button"
-          onClick={onRules}
-          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 transition hover:border-brass/40 hover:text-brass"
-        >
-          <Info className="size-3.5" aria-hidden />
-          How it works
-        </button>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-zinc-500">
-        <span className="flex items-center gap-1.5">
-          <Users className="size-3.5" aria-hidden />
-          {plural(box.playersCount, "hunter")}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Swords className="size-3.5" aria-hidden />
-          {plural(box.attemptsCount, "attempt")} so far
-        </span>
-      </div>
-    </header>
+    <span
+      className={
+        "animate-fade-up flex items-center gap-1.5 rounded-full border-2 px-3 py-1.5 text-center text-xs font-bold " +
+        CHIP_TONES[tone]
+      }
+    >
+      {children}
+    </span>
   );
 }
 

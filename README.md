@@ -16,10 +16,12 @@ Playing is free: seven lives, one back every hour, forever.
 There is one game. It comes in two versions, and the only difference is whose
 money is behind the reward.
 
-**The public box** is authored by the platform in `/admin` and funded by the
-platform. Free, nothing to collect, no split. Exactly one is playable at a time — a
-unique partial index enforces it — because the public game is *the* public
-game, not a catalogue of them.
+**A platform box** is authored in `/admin` and funded by the platform. Free,
+nothing to collect, no split. There used to be exactly one, enforced by a
+unique partial index, on the reasoning that the public game is *the* public
+game. 0032 dropped that: what leads the front page is now whichever boxes an
+admin has *featured*, from either side, so there is no longer any reason for
+ours to be singular.
 
 **A contributor box** is anyone else's. A contributor writes a password, puts
 money behind it, and shares the link. There is no business here: no trading name,
@@ -322,8 +324,8 @@ money twice.
 
 | Route | Who | What |
 | --- | --- | --- |
-| `/` | anyone | The lobby: the public box, every funded box, and the safes already opened |
-| `/b/[slug]` | anyone | A box, played. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
+| `/` | anyone | Featured safes, swipeable; the locked and cracked boards behind a session |
+| `/b/[slug]` | anyone | A box, played — the vault scene. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
 | `/me` | a verified player | Lives, invites, attempts, and where a reward has got to. Not an account — there's no password here |
 | `/faq` | anyone | Every explanation the game screens deliberately don't give, searchable |
 | `/terms`, `/privacy` | anyone | The rules and what's collected, with the figures computed from the same constants the code uses |
@@ -455,6 +457,73 @@ stripped it is still a picture of a safe.
 
 ---
 
+## The play screen
+
+A password game is, mechanically, a text field and a number. That is an
+accurate description of the rules and a terrible screen: nothing in it says
+there is money behind this, that other people are working on it, or that you
+are getting closer. The play screen used to be that field with the explanation
+stacked around it — the safe, the rules, a tab bar, a log, a shelf — and on a
+phone the safe was off the top of the screen before anyone had made a guess.
+
+It is a scene now, in three layers.
+
+**The room** is drifting orbs in the box's own colours with password characters
+rising through them. It is the only decoration on the screen and it is there to
+stop the safe floating in a void.
+
+**The vault** is planes at different depths inside one `preserve-3d` container,
+so the idle lean gives real parallax — the wheel travels further than the door,
+the door further than the cabinet. Depth is drawn as well as transformed,
+because a 9° lean is not enough on its own: a bright bevel top-left, a dark one
+bottom-right, and a wheel with four spokes, which is the silhouette that says
+*safe* from across a room.
+
+**The x-ray** is the read-out, and the only part that is not atmosphere. Ten
+locks in a ring across the door, one per ten points of score: a guess at 20%
+opens two, 40% opens four, 100% opens all ten and the door swings. They open
+one at a time, ~90ms apart, because a jump from two to seven is the best thing
+that can happen in this game and deserves more than a re-render. They close
+immediately, though — a guess that goes backwards has to visibly take locks
+away, or the scene is congratulating you for getting colder.
+
+Open and closed differ in *shape* as well as colour — the shackle lifts and
+swings clear — because colour alone is the one signal a colourblind player
+might miss, and this is the whole read-out.
+
+The locks follow your **latest** guess, not your best. Your best is a floating
+pill on the dock, where it cannot be lost.
+
+Around that, nothing is prose. The rail across the top carries difficulty, the
+prize, the crowd and the score to beat as chips; the dock floats over the
+corner of the scene with your attempt log, the power-up shelf and your best
+guess, each opening as a sheet. The dock floats over the *scene* rather than
+the viewport on purpose: `fixed` would put it behind a phone keyboard from the
+moment somebody starts typing, which is exactly when they reach for the shelf.
+
+The rule the layout follows is that **the scene is never navigated away from**.
+Everything opens over it and closes back onto it, because a hunt is one long
+session on one box and losing your place in it is the whole cost.
+
+All of the motion is CSS, moving only `transform` and `opacity`, and all of it
+stops under `prefers-reduced-motion` — which on a screen built from drifting
+orbs, rising characters and a safe that never holds still is not a nicety.
+
+### The number to beat
+
+`boxes.best_percent` is the highest score anybody has reached on a box. It
+could have been a query — `attempts` joined through `hunts`, ordered by score —
+but that is two hops and a sort over every guess ever made against a popular
+safe, for one number, on a screen that reloads after every attempt. So it is a
+column, moved forward by `spend_attempt` with `greatest`, which makes it
+monotonic: it can only go up, which is what "the best so far" means and what
+stops a concurrent guess lowering it.
+
+It is not personal data. It says a stranger once reached 62% on this password;
+it does not say who, when, or with what.
+
+---
+
 ## Security model
 
 - **`boxes.secret` is service-role only.** No RLS policy anywhere grants a
@@ -514,13 +583,15 @@ src/app/api/player/…        lives, verification, history, reward claims
 src/app/api/contributor/…   profile, boxes, funding, attempts, earnings, payout
 src/app/api/admin/…         the public box, reward claims, revenue
 src/components/art/         the house style, Boxy, and the power-up objects
-src/components/safe/        the play screen, and the safe itself in SVG
+src/components/safe/        the play screen: the vault scene, the ten locks,
+                            the field and the sheets behind the dock
 supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0027 made a score a percentage, 0028 added
                             Second Wind, the life split and box designs,
                             0029–0030 added invites, 0031 gave players
                             passwords and bank details, 0032 made featuring
-                            possible and merged the two identities into one
+                            possible and merged the two identities into one,
+                            0033 keeps each box's high-water score
 ```
 
 ---

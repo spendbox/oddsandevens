@@ -611,3 +611,119 @@ summary,
     transition-duration: 0.01ms !important;
   }
 }
+/* ---------------------------------------------------------------------------
+ * The vault scene
+ *
+ * The play screen is the one place in Spendbox that has to feel like a game
+ * rather than a form, and everything below exists to make a static SVG safe
+ * behave like an object in a room: it floats, it is lit from a moving source,
+ * it recoils when a guess is refused and it swings when one lands.
+ *
+ * All of it is CSS. A play session is minutes of staring at one screen on a
+ * phone, so nothing here runs JavaScript per frame and nothing composites off
+ * the main thread's critical path — every animation below moves only `transform`
+ * and `opacity`, which the compositor can do without a repaint.
+ * ------------------------------------------------------------------------- */
+
+/* The room the safe stands in: three slow orbs on different periods, so the
+   light never repeats in a way you can catch. */
+@keyframes orb-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(6%, -8%, 0) scale(1.12); }
+}
+
+@keyframes orb-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.08); }
+  50%      { transform: translate3d(-8%, 6%, 0) scale(0.94); }
+}
+
+@keyframes orb-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(0.96); }
+  50%      { transform: translate3d(5%, 7%, 0) scale(1.1); }
+}
+
+/* Password characters drifting up through the room. Thematic rather than
+   decorative — the thing you are looking for, floating past. */
+@keyframes cipher-rise {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) rotate(0deg); }
+  12%  { opacity: 0.5; }
+  80%  { opacity: 0.28; }
+  100% { opacity: 0; transform: translate3d(var(--drift, 12px), -160px, 0) rotate(var(--turn, 12deg)); }
+}
+
+/* The safe's idle: a slow breath, plus a lean that keeps the 3D readable. */
+@keyframes vault-idle {
+  0%, 100% { transform: translateY(0) rotateX(6deg) rotateY(-9deg); }
+  50%      { transform: translateY(-10px) rotateX(3deg) rotateY(9deg); }
+}
+
+/* A refused guess. The whole scene flinches rather than just the field, which
+   is the difference between an error message and a reaction. */
+@keyframes vault-recoil {
+  0%, 100% { transform: translateX(0) rotateY(0deg); }
+  20%      { transform: translateX(-9px) rotateY(-7deg); }
+  55%      { transform: translateX(7px) rotateY(6deg); }
+  80%      { transform: translateX(-3px) rotateY(-2deg); }
+}
+
+/* A lock giving way. Overshoots, because a thing that snaps open has weight. */
+@keyframes pin-open {
+  0%   { transform: scale(0.6) rotate(-25deg); }
+  55%  { transform: scale(1.25) rotate(8deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* The x-ray sweep. One pass, top to bottom, on a long period so it reads as
+   equipment doing its job rather than a loading spinner. */
+@keyframes xray-sweep {
+  0%   { transform: translateY(-120%); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateY(120%); opacity: 0; }
+}
+
+/* The ring that closes as the score climbs. */
+@keyframes ring-charge {
+  from { opacity: 0.35; }
+  to   { opacity: 0.85; }
+}
+
+.scene-orb {
+  will-change: transform;
+}
+
+.vault-stage {
+  perspective: 1100px;
+  perspective-origin: 50% 45%;
+}
+
+.vault-body {
+  transform-style: preserve-3d;
+  animation: vault-idle 9s ease-in-out infinite;
+  will-change: transform;
+}
+
+.vault-recoil {
+  animation: vault-recoil 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/*
+ * Everything in the scene holds still for anybody who has asked it to.
+ *
+ * This is not a nicety on a screen built out of drifting orbs, rising
+ * characters and a safe that never stops moving: for a vestibular disorder
+ * that is not decoration, it is a reason to close the tab. The scene keeps its
+ * depth and its colour; it simply stops.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .scene-orb,
+  .vault-body,
+  .vault-recoil,
+  .cipher,
+  .xray-sweep {
+    animation: none !important;
+  }
+  .vault-body {
+    transform: rotateX(4deg) rotateY(-6deg);
+  }
+}

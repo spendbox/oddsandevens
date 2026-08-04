@@ -1,13 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!--
+    Boxy, at 16 pixels.
+
+    The old icon was four teal squares from a palette this game no longer uses.
+    This is the mascot instead, reduced until only the parts that survive a
+    favicon are left: the gold body, the violet face plate, the dial, and the
+    ink outline everything in the art set is drawn with.
+
+    Deliberately not a smaller copy of the full character. Feet, arms, gloss and
+    eyebrows all turn to grey mush below about 24px, so they are gone; what is
+    left is a shape you can still recognise in a crowded tab strip. The two eyes
+    are kept because without them it is a safe rather than a face, and the face
+    is the point.
+  -->
   <defs>
-    <linearGradient id="sb" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#10b981"/>
-      <stop offset="1" stop-color="#14b8a6"/>
+    <linearGradient id="room" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b1f57"/>
+      <stop offset="1" stop-color="#17102e"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#ffd76e"/>
+      <stop offset="1" stop-color="#e59a1c"/>
+    </linearGradient>
+    <linearGradient id="plate" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#3a2b70"/>
+      <stop offset="1" stop-color="#211741"/>
+    </linearGradient>
+    <linearGradient id="dial" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#fff3d1"/>
+      <stop offset="1" stop-color="#e0a83c"/>
     </linearGradient>
   </defs>
-  <rect width="32" height="32" rx="8" fill="url(#sb)"/>
-  <rect x="7" y="7" width="7.5" height="7.5" rx="2" fill="#ffffff" opacity="0.95"/>
-  <rect x="17.5" y="7" width="7.5" height="7.5" rx="2" fill="#ffffff" opacity="0.55"/>
-  <rect x="7" y="17.5" width="7.5" height="7.5" rx="2" fill="#ffffff" opacity="0.55"/>
-  <rect x="17.5" y="17.5" width="7.5" height="7.5" rx="2" fill="#ffffff" opacity="0.95"/>
+
+  <rect width="64" height="64" rx="15" fill="url(#room)"/>
+
+  <!-- The body, inset far enough that the ink outline is never clipped by the
+       rounded mask a platform may apply on top of this. -->
+  <rect x="9" y="9" width="46" height="46" rx="13"
+        fill="url(#body)" stroke="#150e2b" stroke-width="3"/>
+
+  <!-- Face plate. -->
+  <rect x="16" y="16" width="32" height="26" rx="9"
+        fill="url(#plate)" stroke="#150e2b" stroke-width="2.5"/>
+
+  <circle cx="26" cy="28" r="3.1" fill="#fdf7ff"/>
+  <circle cx="38" cy="28" r="3.1" fill="#fdf7ff"/>
+
+  <!-- The dial, which is also his chin. -->
+  <circle cx="32" cy="48" r="6" fill="url(#dial)" stroke="#150e2b" stroke-width="2.5"/>
+  <rect x="31" y="43.5" width="2" height="4.5" rx="1" fill="#150e2b"/>
 </svg>

@@ -19,7 +19,7 @@ import type { PlayerState, PublicBox } from "@/lib/types";
  * travel any further.
  */
 export const PUBLIC_BOX_COLUMNS =
-  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, published_at, unlocked_at, unlocked_by, contributor_id, featured_at";
+  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, best_percent, published_at, unlocked_at, unlocked_by, contributor_id, featured_at";
 
 export interface BoxRow {
   id: string;
@@ -33,6 +33,7 @@ export interface BoxRow {
   status: PublicBox["status"];
   attempts_count: number;
   players_count: number;
+  best_percent: string | number;
   published_at: string | null;
   unlocked_at: string | null;
   unlocked_by: string | null;
@@ -64,6 +65,9 @@ export function toPublicBox(
     status: row.status,
     attemptsCount: row.attempts_count,
     playersCount: row.players_count,
+    // `numeric` arrives as a string from PostgREST, and a string here would
+    // reach the scene as a width in percent that silently never animates.
+    bestPercent: Number(row.best_percent ?? 0),
     contributor: extras.contributor ?? null,
     publishedAt: row.published_at,
     unlockedAt: row.unlocked_at,

@@ -34,6 +34,15 @@ export interface PublicBox {
   status: BoxStatus;
   attemptsCount: number;
   playersCount: number;
+  /**
+   * The best score anybody has reached on this box, 0–100.
+   *
+   * The number to beat, and the only thing on the play screen that is about
+   * somebody other than you. It names nobody and dates nothing — it says a
+   * stranger once got this close, which is the whole of what a leaderboard is
+   * for on a game with exactly one winner.
+   */
+  bestPercent: number;
   contributor: string | null;
   publishedAt: string | null;
   unlockedAt: string | null;
