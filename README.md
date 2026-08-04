@@ -487,6 +487,41 @@ Five terrains — dunes, forest, tundra, coast, downtown — cycled **in order**
 reads as a bug. The hour of the day is one tint over everything, because a
 top-down view has no sky to put a sun in.
 
+### The field
+
+The top ten hunters on a box are ten cars, arranged as the standing: the leader
+in the middle of the front row, everybody else filling outward and backward
+across six lanes and four rows. Nobody overlaps anybody — a standing you can
+read at a glance only works if you can see all of it — and **your car is in it
+wherever you are**, painted gold. Tapping one shows a masked address and a
+percentage, which is the whole of what one stranger should learn about another
+on a screen whose only shared fact is a password neither of them has.
+
+`hunts.best_percent` (0034) is what makes this one query instead of a sort over
+every guess ever made against a popular safe, ten times a page load.
+
+The screen also polls for other people's guesses. When the box's attempt count
+rises somebody else has taken a shot at the same safe, and the scene fires one —
+a chase where only your car ever shoots is not a chase.
+
+### Drops
+
+The two places a player quits a hard box are the same two every time: out of
+lives, and a run of guesses that went nowhere. So a crate floats in at exactly
+those moments — five cold guesses, or two lives left — carrying either free
+lives or a share off one power-up, and it is gone in ten minutes.
+
+Rate is a function of trouble rather than a timer: eight minutes apart when a
+hunt is going fine, two when it isn't, never closer than ninety seconds.
+Discounts cycle through the power-ups, so a long session sees each in turn.
+
+The terms are the server's. The browser notices the moment and asks;
+`mint_offer` decides what it gets, caps it at five lives or half price, and
+refuses to make a second while the first is unclaimed — a browser that can ask
+twice will. A discount is a row that `discount_for` reads at checkout and
+`spend_discount` burns afterwards, because a discount the client names is a
+discount the client can name itself.
+
 ### Damage
 
 Ten crack paths are drawn into the lid, revealed one per ten points of **best**
@@ -609,7 +644,8 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0029–0030 added invites, 0031 gave players
                             passwords and bank details, 0032 made featuring
                             possible and merged the two identities into one,
-                            0033 keeps each box's high-water score
+                            0033 keeps each box's high-water score, 0034 each
+                            hunt's, and adds drops
 ```
 
 ---
