@@ -6,7 +6,7 @@ import { usePlayer } from "@/components/player/player-context";
 import { Boxy } from "@/components/art/boxy";
 import { LivesBadge } from "@/components/player/lives-badge";
 import { BuyLivesDialog } from "@/components/player/buy-lives-dialog";
-import { VerifyDialog } from "@/components/player/verify-dialog";
+import { VerifyDialog } from "@/components/player/account-dialog";
 
 /**
  * The header, with the mascot in the lockup.

@@ -299,6 +299,70 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
+ * Everything reacts
+ * ------------------------------------------------------------------------- */
+
+/*
+ * A game where things move when you touch them, and an app where they don't,
+ * feel different before you have read a word. So *everything* tappable gets a
+ * press: a 1px sink and a moment of dimming, applied globally rather than
+ * remembered class by class.
+ *
+ * The selector covers the four things a browser considers activatable plus
+ * anything carrying an explicit `role`, which is what a div-as-tab has. The
+ * `:not()` is the important half — components that define a richer press of
+ * their own (the chunky slab, a lifting card) opt out here so the two don't
+ * fight, and a disabled control must not pretend to respond.
+ */
+button,
+a,
+summary,
+label,
+[role="tab"],
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled):not(.btn-chunky):not(.panel-lift):active,
+a:not(.btn-chunky):not(.panel-lift):active,
+summary:active,
+[role="tab"]:not(.btn-chunky):active,
+[role="button"]:not(:disabled):not(.btn-chunky):not(.panel-lift):active {
+  transform: translateY(1px) scale(0.985);
+  filter: brightness(0.94);
+}
+
+button:not(.btn-chunky):not(.panel-lift),
+a:not(.btn-chunky):not(.panel-lift),
+summary,
+[role="tab"]:not(.btn-chunky),
+[role="button"]:not(.btn-chunky):not(.panel-lift) {
+  transition:
+    transform 0.08s ease,
+    filter 0.12s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* Hovering a control lifts it very slightly. Pointer devices only — on a
+   touchscreen `:hover` sticks after a tap and leaves things looking pressed. */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):not(.btn-chunky):not(.panel-lift):hover,
+  a:not(.btn-chunky):not(.panel-lift):hover,
+  [role="button"]:not(:disabled):not(.btn-chunky):not(.panel-lift):hover {
+    filter: brightness(1.08);
+  }
+}
+
+/* Anything focused by keyboard gets the same ring, in the game's own gold. */
+:focus-visible {
+  outline: 3px solid var(--brass);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------------
  * The cast
  * ------------------------------------------------------------------------- */
 

@@ -1,6 +1,12 @@
 "use client";
 
-// One email-first door for contributors.
+// One email-first door for *creators* — people putting a box up.
+//
+// It is not the door for playing. Playing needs an account too now, but that
+// one is a dialog you meet at the moment you need it, on the box you were
+// already looking at, rather than a page you have to find first. Sending a
+// player here would be asking them to sign up for a dashboard they have no use
+// for, so the footer says so plainly.
 //
 // Enter an address: if it already has an account we ask for the password
 // (login); if it's new we email a 6-digit code and ask for a code plus a
@@ -10,7 +16,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock } from "lucide-react";
+import { Boxy } from "@/components/art/boxy";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { PasswordInput } from "@/components/password-input";
 
@@ -139,18 +145,18 @@ export default function AuthPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
-        <Link href="/" className="flex items-center justify-center gap-2 font-semibold">
-          <Lock className="size-5 text-brass" aria-hidden />
-          Spendbox
+        <Link href="/" className="flex items-center justify-center gap-2">
+          <Boxy mood="happy" still className="size-9" />
+          <span className="text-lg font-black tracking-tight">Spendbox</span>
         </Link>
 
-        <div className="panel mt-6 rounded-2xl p-6">
-          <h1 className="text-xl font-bold tracking-tight">
-            {step === "login" ? "Welcome back" : "Put a box up"}
+        <div className="panel mt-6 rounded-3xl p-6">
+          <h1 className="text-2xl font-black tracking-tight">
+            {step === "login" ? "Welcome back" : "Create a Spendbox"}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-zinc-400">
             {step === "email"
-              ? "Stake a prize behind a password of your own, and earn from every power-up bought trying to crack it."
+              ? "A creator account: put a reward behind a password of your own, and keep 70% of everything hunters spend trying to crack it."
               : step === "login"
                 ? addr()
                 : `We emailed a 6-digit code to ${addr()}.`}
@@ -232,10 +238,11 @@ export default function AuthPage() {
           {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
         </div>
 
-        <p className="mt-4 text-center text-sm text-zinc-600">
-          Just want to play?{" "}
-          <Link href="/" className="text-brass hover:underline">
-            No account needed
+        <p className="mt-4 text-center text-sm text-zinc-400">
+          Only want to play? You need an account for that too — but you can make
+          it on any box, in one step.{" "}
+          <Link href="/" className="font-bold text-brass hover:underline">
+            Find a safe
           </Link>
           .
         </p>
@@ -249,7 +256,8 @@ function Submit({ busy, label }: { busy: boolean; label: string }) {
     <button
       type="submit"
       disabled={busy}
-      className="w-full rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright disabled:opacity-50"
+      style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+      className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
     >
       {busy ? "Working…" : label}
     </button>

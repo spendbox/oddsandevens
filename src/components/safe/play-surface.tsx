@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  ArrowRight,
   Info,
   MoveDown,
   MoveUp,
@@ -34,7 +35,7 @@ import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 import type { AttemptResult, PlayView } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
 import { usePlayer } from "@/components/player/player-context";
-import { VerifyDialog } from "@/components/player/verify-dialog";
+import { VerifyDialog } from "@/components/player/account-dialog";
 import { BuyLivesDialog } from "@/components/player/buy-lives-dialog";
 import { countdown, useNow } from "@/components/player/lives-badge";
 import { DifficultyBadge } from "@/components/difficulty-badge";
@@ -388,7 +389,7 @@ function BoxHeader({
       </div>
 
       <p className="text-xs uppercase tracking-widest text-zinc-500">
-        {box.kind === "general" ? "The public box" : `Put up by ${box.contributor}`}
+        {box.kind === "general" ? "Created by Spendbox" : `Created by ${box.contributor}`}
       </p>
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{box.title}</h1>
       {box.blurb && <p className="text-sm text-zinc-400">{box.blurb}</p>}
@@ -574,34 +575,94 @@ function Verdict({ outcome, view }: { outcome: Outcome; view: PlayView }) {
   );
 }
 
+/**
+ * A box that's over.
+ *
+ * This was four lines of grey text and a link, which is a strange way to end a
+ * story somebody may have spent a fortnight inside. It's a result screen now:
+ * the safe hanging open, the money that came out of it, who took it and how
+ * long it took everybody — and then, because the only useful thing left to do
+ * is find another one, a button that does that.
+ */
 function Cracked({ view }: { view: PlayView }) {
+  const { box } = view;
+  const taken = box.status === "unlocked";
+
   return (
-    <div className="panel rounded-3xl p-6 text-center">
-      <Boxy mood={view.box.status === "unlocked" ? "cheer" : "sad"} className="mx-auto size-24" />
-      <p className="mt-1 text-xl font-black tracking-tight">
-        {view.box.status === "unlocked" ? "This one's been opened." : "This one's closed."}
-      </p>
-      <p className="mt-1 text-sm text-zinc-400">
-        {view.box.status === "unlocked" ? (
+    <div className="space-y-4">
+      <div className="panel relative overflow-hidden rounded-3xl p-6 text-center">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-0 size-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brass/15 blur-3xl"
+        />
+
+        <Boxy mood={taken ? "cheer" : "sad"} className="mx-auto size-28" />
+
+        <p className="mt-1 text-2xl font-black tracking-tight">
+          {taken ? "This one's been cracked." : "This one's closed."}
+        </p>
+
+        {taken ? (
           <>
-            {view.box.unlockedBy ?? "A player"} guessed the password
-            {view.box.isChallenge ? "" : ` and took ${formatNaira(view.box.rewardKobo)}`}
-            {view.box.attemptsCount > 0 && (
-              <> after {plural(view.box.attemptsCount, "attempt")} across everyone</>
+            {!box.isChallenge && (
+              <p className="brass-text mt-3 text-5xl font-black tabular-nums">
+                {formatNaira(box.rewardKobo)}
+              </p>
             )}
-            . An opened box can&apos;t be played again.
+            <p className="mt-1 text-sm text-zinc-300">
+              {box.isChallenge ? "Cracked by" : "went to"}{" "}
+              <span className="font-mono font-bold text-brass">
+                {box.unlockedBy ?? "a player"}
+              </span>
+            </p>
+
+            <dl className="mt-5 grid grid-cols-3 gap-2">
+              <Figure label="Hunters" value={String(box.playersCount)} />
+              <Figure label="Attempts" value={box.attemptsCount.toLocaleString("en-NG")} />
+              <Figure
+                label="Cracked"
+                value={
+                  box.unlockedAt
+                    ? new Date(box.unlockedAt).toLocaleDateString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                      })
+                    : "—"
+                }
+              />
+            </dl>
+
+            <p className="mt-4 text-sm text-zinc-400">
+              An opened safe can never be played again. Every reward on Spendbox
+              is real money and goes to whoever opens the box.
+            </p>
           </>
         ) : (
-          <>It was withdrawn from play.</>
+          <p className="mt-2 text-sm text-zinc-400">
+            It was withdrawn from play, so nothing more can be won here.
+          </p>
         )}
-      </p>
+      </div>
+
       <Link
         href="/"
         style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-        className="btn-chunky mt-5 inline-block rounded-2xl bg-brass px-6 py-3 text-ink"
+        className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-brass px-6 py-4 text-lg text-ink"
       >
         Find another safe
+        <ArrowRight className="size-5" aria-hidden />
       </Link>
+    </div>
+  );
+}
+
+function Figure({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-black/25 px-2 py-3">
+      <dt className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+        {label}
+      </dt>
+      <dd className="mt-0.5 font-mono text-lg font-black">{value}</dd>
     </div>
   );
 }

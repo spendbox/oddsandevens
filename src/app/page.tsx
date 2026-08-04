@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { LIVES_MAX, MIN_LENGTH } from "@/lib/constants";
+import { MIN_LENGTH } from "@/lib/constants";
 import { PUBLIC_BOX_COLUMNS, toPublicBox, type BoxRow } from "@/lib/game/boxes";
 import { formatNaira, minFundingKobo, rewardLabel } from "@/lib/game/rewards";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { plural } from "@/lib/plural";
 import { PlayerProvider } from "@/components/player/player-context";
 import { SiteHeader } from "@/components/site-header";
-import { BoxCard } from "@/components/box-card";
+import { Lobby } from "@/components/lobby";
 import { HowItWorksButton } from "@/components/how-it-works";
 import { SiteFooter } from "@/components/site-footer";
 import { SafeArt } from "@/components/safe/safe-art";
@@ -84,49 +84,40 @@ export default async function Home() {
               <Boxy mood="sly" className="size-32 drop-shadow-2xl sm:size-40" />
               <SafeArt design="emerald" className="size-20 opacity-90 sm:size-24" />
             </div>
-            <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-6xl">
-              Guess the password.
-              <br />
-              <span className="brass-text">Open the safe.</span>
-            </h1>
-            <p className="mx-auto mt-4 max-w-xl text-zinc-400">
-              Every Spendbox protects real money behind a unique password.
-              Playing is free: you start with {LIVES_MAX} lives and regain 1 life
-              every hour. With each guess, you&apos;ll receive a single score
-              from 0 to 100, showing exactly how close you are to cracking the
-              code.
-            </p>
 
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              {featured && (
-                <Link
-                  href={`/b/${featured.slug}`}
-                  style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-                  className="btn-chunky inline-flex items-center gap-2 rounded-2xl bg-brass px-7 py-3.5 text-lg text-ink"
-                >
-                  Take a crack at it
-                  <ArrowRight className="size-4" aria-hidden />
-                </Link>
-              )}
-              <HowItWorksButton />
-            </div>
+            {/*
+              Three lines and nothing else. The paragraph that used to live here
+              — seven lives, one an hour, a score out of a hundred — was true,
+              useful, and four sentences of onboarding standing between somebody
+              and the board. It is in the explainer now, one tap away, where a
+              person who wants it will go looking.
+            */}
+            <h1 className="mt-2 text-4xl font-black leading-[1.05] tracking-tight sm:text-6xl">
+              Crack the password.
+              <br />
+              Open the safe.
+              <br />
+              <span className="brass-text">Win money.</span>
+            </h1>
           </div>
 
           {featured && (
             <Link
               href={`/b/${featured.slug}`}
-              className="animate-fade-up panel panel-lift group mx-auto mt-10 flex max-w-2xl flex-col items-center gap-4 rounded-3xl p-6 text-center sm:flex-row sm:p-8 sm:text-left"
+              className="animate-fade-up panel panel-lift group mx-auto mt-8 flex max-w-2xl flex-col items-center gap-4 rounded-3xl p-6 text-center sm:flex-row sm:p-8 sm:text-left"
             >
               <SafeArt
                 design={featured.design}
                 className="size-24 shrink-0 transition group-hover:scale-105 sm:size-28"
               />
               <div className="min-w-0 flex-1">
-                <p className="flex items-center justify-center gap-1.5 text-xs uppercase tracking-widest text-brass sm:justify-start">
+                <p className="flex items-center justify-center gap-1.5 text-xs font-black uppercase tracking-widest text-brass sm:justify-start">
                   <Sparkles className="size-3.5" aria-hidden />
-                  Open to everyone
+                  Created by Spendbox
                 </p>
-                <h2 className="mt-1 text-xl font-bold sm:text-2xl">{featured.title}</h2>
+                <h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">
+                  {featured.title}
+                </h2>
                 {featured.blurb && (
                   <p className="mt-1 text-sm text-zinc-400">{featured.blurb}</p>
                 )}
@@ -134,7 +125,7 @@ export default async function Home() {
                   className={
                     "mt-3 font-black tabular-nums " +
                     (featured.isChallenge
-                      ? "text-2xl text-zinc-300"
+                      ? "text-2xl text-grape"
                       : "brass-text text-4xl sm:text-5xl")
                   }
                 >
@@ -150,35 +141,23 @@ export default async function Home() {
               </div>
             </Link>
           )}
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            {featured && (
+              <Link
+                href={`/b/${featured.slug}`}
+                style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+                className="btn-chunky inline-flex items-center gap-2 rounded-2xl bg-brass px-7 py-3.5 text-lg text-ink"
+              >
+                Take a crack at it
+                <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            )}
+            <HowItWorksButton />
+          </div>
         </section>
 
-        {staked.length > 0 && (
-          <section className="mx-auto w-full max-w-5xl px-4 pb-12">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-black tracking-tight">
-              <Boxy mood="happy" still className="size-8" />
-              Put up by players
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {staked.map((box, i) => (
-                <BoxCard key={box.slug} box={box} index={i} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {opened.length > 0 && (
-          <section className="mx-auto w-full max-w-5xl px-4 pb-12">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-black tracking-tight">
-              <Boxy mood="cheer" still className="size-8" />
-              Already cracked
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {opened.map((box, i) => (
-                <BoxCard key={box.slug} box={box} index={i} />
-              ))}
-            </div>
-          </section>
-        )}
+        <Lobby open={staked} cracked={opened} />
 
         <PutOneUp />
       </main>

@@ -107,9 +107,9 @@ export function BuyLivesDialog({
               type="button"
               onClick={() => setQuantity(n)}
               className={
-                "rounded-xl border px-4 py-2 text-sm font-medium transition " +
+                "rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition " +
                 (quantity === n
-                  ? "border-brass bg-brass/10 text-zinc-900"
+                  ? "border-brass bg-brass/15 text-zinc-900"
                   : "border-zinc-200 text-zinc-600 hover:border-zinc-300")
               }
             >
@@ -130,7 +130,7 @@ export function BuyLivesDialog({
                 Math.min(Math.max(Math.trunc(Number(e.target.value) || 1), 1), LIFE_PURCHASE_MAX)
               )
             }
-            className="mt-1 w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-zinc-900 outline-none focus:border-brass"
+            className="mt-1 w-full rounded-xl border-2 border-zinc-200 px-4 py-3 text-zinc-900 outline-none transition focus:border-brass"
           />
         </label>
 

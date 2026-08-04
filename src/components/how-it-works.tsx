@@ -2,22 +2,24 @@
 
 // The explainer, behind a button.
 //
-// It used to be three cards at the bottom of the landing page, and it had the
+// It used to be three cards at the bottom of the landing page, which is the
 // problem every three-card explainer has: it is the most important text on the
-// site and it is where nobody looks. Worse, it was the *only* place the rules
-// were written, so a player who scrolled past it once never saw them again.
+// site and it is where nobody looks. It is a dialog now, reachable from the
+// landing page and from inside any box, and it is the *only* place that
+// explains the game at length — every screen is terse precisely because this
+// exists.
 //
-// Now it is a dialog, reachable from the landing page and from any box, and it
-// is written as the answer to the four questions people actually ask in order:
-// what is this, what does it cost, how do I win, and can I put one up.
+// What it never does is explain how a score is calculated. It says that
+// characters, positions and case all contribute and that the formula is
+// deliberately hidden, which is true, useful, and stops well short of anything
+// a spreadsheet could use.
 
 import { useState } from "react";
-import { ArrowRight, HelpCircle } from "lucide-react";
+import { ArrowRight, HelpCircle, MoveDown, MoveUp, Target } from "lucide-react";
 import Link from "next/link";
 import { Modal } from "@/components/ui/modal";
 import { Boxy } from "@/components/art/boxy";
 import { PowerUpArt } from "@/components/art/power-up-art";
-import { SafeArt } from "@/components/safe/safe-art";
 import { HeartArt } from "@/components/player/lives-badge";
 import { LIVES_MAX, MIN_LENGTH } from "@/lib/constants";
 import { formatNaira, minFundingKobo, splitFunding } from "@/lib/game/rewards";
@@ -37,7 +39,7 @@ export function HowItWorksButton({
         onClick={() => setOpen(true)}
         className={
           className ||
-          "inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold transition hover:border-brass/40"
+          "inline-flex items-center gap-2 rounded-2xl border-2 border-white/15 bg-white/6 px-5 py-3.5 font-bold transition hover:border-brass/50 hover:bg-white/10 active:translate-y-0.5"
         }
       >
         <HelpCircle className="size-4" aria-hidden />
@@ -53,9 +55,9 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="How Spendbox works"
-      subtitle="A password, real money, and no clues you haven't earned."
-      icon={<Boxy mood="sly" still className="size-8" />}
+      title="Guess blind. One life = one guess."
+      subtitle="Everything the game screens deliberately don't say."
+      icon={<Boxy mood="sly" still className="size-9" />}
       onClose={onClose}
       footer={
         <Link
@@ -68,45 +70,149 @@ function HowItWorksDialog({ onClose }: { onClose: () => void }) {
         </Link>
       }
     >
-      <div className="space-y-4 pb-1">
-        <Step
-          icon={<SafeArt design="brass" className="size-8" />}
-          title="Guess blind"
-          body="Somebody has hidden a password and put money behind it. You aren't told how long it is or what it's made of. Anything on a keyboard can be in it — letters in either case, digits, and symbols like & $ # ) ( ; : ! ? *."
-        />
-        <Step
-          icon={<HeartArt className="size-7" />}
-          title="One life, one guess"
-          body={`Every attempt costs one life, win or lose. You hold ${LIVES_MAX}, shared across every box, and one comes back every hour — twenty-four a day, free, forever. Nobody has to buy anything: paying only buys speed.`}
-        />
-        <Step
-          icon={<Boxy mood="cheer" still className="size-9" />}
-          title="A number, not a colour"
-          body="A guess comes back with two things: whether it was too short, too long or exactly right, and a single score out of 100. What that score is made of is never published, so two very different guesses can score the same and working out which explanation fits is the whole game. 100% is the password, and nothing else reaches it."
-        />
-        <Step
-          icon={<PowerUpArt kind="x_ray" className="size-8" />}
-          title="Power-ups are the only paid part"
-          body="Each one buys back exactly one thing the game withholds — the length, what it's made of, the parts behind a score, half its characters, or an hour with no life limit at all. On someone's box, 70% of what you spend goes to them."
-        />
-
-        <div className="border-t border-zinc-100 pt-3">
-          <p className="text-sm font-semibold text-zinc-900">Or put one up yourself</p>
-          <p className="mt-1 text-sm leading-relaxed text-zinc-500">
-            Anyone can, and it isn&apos;t a business account or an application — a
-            name and a password is the whole of it. A three-character box starts
-            at {formatNaira(floor)} to fund; longer ones cost more, because they
-            take longer to crack. 70% of what you put in becomes the reward —{" "}
-            {formatNaira(splitFunding(floor).rewardKobo)} at the floor — and you
-            keep 70% of everything hunters spend attacking it.
+      <div className="space-y-5 pb-1 text-sm leading-relaxed text-zinc-600">
+        <div className="rounded-2xl bg-zinc-100 px-4 py-3">
+          <p className="font-semibold text-zinc-900">
+            Every Spendbox protects real money behind a unique password.
+          </p>
+          <p className="mt-1">
+            Playing is free: you start with {LIVES_MAX} lives and regain 1 life
+            every hour. With each guess, you&apos;ll receive a single score from
+            0 to 100, showing exactly how close you are to cracking the code.
           </p>
         </div>
+
+        <Section title="Guess blind">
+          <p>
+            A password locks every Spendbox and your goal is to crack it.
+          </p>
+          <p>
+            You don&apos;t know its length, the types of characters it contains,
+            or where anything belongs. It could contain uppercase and lowercase
+            letters, numbers, symbols — or any combination of them.
+          </p>
+          <p>
+            Every guess costs one life. In return, you receive only a few clues.
+          </p>
+        </Section>
+
+        <Section title="Length indicators">
+          <Clue
+            icon={<MoveUp className="size-4 text-sky-600" aria-hidden />}
+            title="Too short"
+            body="Your guess contains fewer characters than the password."
+          />
+          <Clue
+            icon={<MoveDown className="size-4 text-sky-600" aria-hidden />}
+            title="Too long"
+            body="Your guess contains more characters than the password."
+          />
+          <Clue
+            icon={<Target className="size-4 text-mark-green" aria-hidden />}
+            title="Exact length"
+            body="Your guess is the same length as the password. The actual length remains hidden — you only know when you've matched it."
+          />
+        </Section>
+
+        <Section title="Your score">
+          <p>
+            Every guess receives a score from 0 to 100, showing how close you
+            are to the correct password. A score of 100 means you&apos;ve
+            cracked the Spendbox.
+          </p>
+          <p>
+            The score is calculated from how closely your guess matches the
+            password. Correct characters, character positions, and case all
+            contribute to the result — but the exact formula is deliberately
+            hidden.
+          </p>
+          <p>
+            That means two completely different guesses can receive the same
+            score. Figuring out why a score increased or decreased is part of
+            the challenge.
+          </p>
+        </Section>
+
+        <Section title="Case matters">
+          <p>
+            Uppercase and lowercase characters are treated as different
+            characters.
+          </p>
+          <p className="text-center font-mono text-lg font-black text-zinc-900">
+            K is not k
+          </p>
+        </Section>
+
+        <Section title="Lives" icon={<HeartArt className="size-6" />}>
+          <p>You begin with {LIVES_MAX} lives.</p>
+          <p>
+            One life is restored automatically every hour, up to the maximum.
+            You can always keep playing over time, even if you never spend
+            money.
+          </p>
+        </Section>
+
+        <Section
+          title="Power-ups"
+          icon={<PowerUpArt kind="x_ray" className="size-7" />}
+        >
+          <p>
+            Power-ups reveal information that the game intentionally keeps
+            hidden. Each one unlocks a different piece of the puzzle, helping
+            you narrow down the password more quickly.
+          </p>
+          <p>
+            When you purchase a power-up on someone&apos;s Spendbox, 70% of what
+            you spend goes directly to the creator of that box.
+          </p>
+        </Section>
+
+        <Section title="Attempt history">
+          <p>Every guess is saved in your attempt log.</p>
+          <p>
+            Tap any previous attempt to view it in full and compare it against
+            your newer guesses as you work toward the solution.
+          </p>
+        </Section>
+
+        <Section title="Or put one up yourself" icon={<Boxy mood="cheer" still className="size-8" />}>
+          <p>
+            Anyone can create a Spendbox — no application, no approval process.
+            Choose a name, set a password, and decide on a reward. From{" "}
+            {formatNaira(floor)}, of which 70% becomes the reward —{" "}
+            {formatNaira(splitFunding(floor).rewardKobo)} at the floor.
+          </p>
+          <p>
+            You keep 70% of everything hunters spend trying to crack it, and the
+            person who unlocks it wins the reward inside.
+          </p>
+        </Section>
       </div>
     </Modal>
   );
 }
 
-function Step({
+function Section({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-2 border-t border-zinc-100 pt-4">
+      <h3 className="flex items-center gap-2 text-base font-black tracking-tight text-zinc-900">
+        {icon}
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function Clue({
   icon,
   title,
   body,
@@ -116,11 +222,11 @@ function Step({
   body: string;
 }) {
   return (
-    <div className="flex gap-3 border-t border-zinc-100 pt-3 first:border-0 first:pt-0">
-      <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center">{icon}</span>
+    <div className="flex gap-3 rounded-xl bg-zinc-50 px-3 py-2.5">
+      <span className="mt-0.5 shrink-0">{icon}</span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-zinc-900">{title}</p>
-        <p className="mt-0.5 text-sm leading-relaxed text-zinc-500">{body}</p>
+        <p className="font-semibold text-zinc-900">{title}</p>
+        <p className="mt-0.5">{body}</p>
       </div>
     </div>
   );

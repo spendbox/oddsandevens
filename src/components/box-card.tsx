@@ -23,7 +23,7 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
         <div className="min-w-0">
           <p className="truncate font-black tracking-tight">{box.title}</p>
           <p className="mt-0.5 truncate text-xs text-zinc-400">
-            {box.kind === "general" ? "The public box" : `by ${box.contributor}`}
+            {box.kind === "general" ? "by Spendbox" : `by ${box.contributor}`}
           </p>
         </div>
         {/* The contributor's own safe. An opened box shows it swung — the card

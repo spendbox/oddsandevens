@@ -44,11 +44,15 @@ const WRAP = 'style="font-family:sans-serif;max-width:480px"';
 const CODE_STYLE =
   "font-size:32px;letter-spacing:8px;font-weight:bold;background:#f4f4f5;padding:14px 16px;border-radius:8px;text-align:center";
 
-/** One-time 6-digit code for signup, password reset, or player verification. */
+/** One-time 6-digit code for signup, a reset, verification, or a deletion. */
 export async function sendVerificationCodeEmail(params: {
   to: string;
   code: string;
-  purpose: "contributor_signup" | "password_reset" | "player_verify";
+  purpose:
+    | "contributor_signup"
+    | "password_reset"
+    | "player_verify"
+    | "admin_delete_box";
 }) {
   const { to, code, purpose } = params;
   const heading =
@@ -56,13 +60,17 @@ export async function sendVerificationCodeEmail(params: {
       ? "Reset your Spendbox password"
       : purpose === "player_verify"
         ? "Confirm your email to play"
-        : "Confirm your email";
+        : purpose === "admin_delete_box"
+          ? "Confirm a box deletion"
+          : "Confirm your email";
   const intro =
     purpose === "password_reset"
       ? "Use this code to reset your password:"
       : purpose === "player_verify"
-        ? "Enter this code so we know where to send the prize if you crack a safe:"
-        : "Enter this code to finish creating your Spendbox account:";
+        ? "Enter this code so we know where to send the reward if you crack a safe:"
+        : purpose === "admin_delete_box"
+          ? "Somebody signed in to Spendbox admin is deleting a box permanently. If that wasn't you, ignore this and change the admin password immediately."
+          : "Enter this code to finish creating your Spendbox account:";
   await send(
     to,
     `${code} is your Spendbox code`,
