@@ -87,7 +87,19 @@ export function Featured({ boxes }: { boxes: PublicBox[] }) {
         className="-mx-3 -my-3 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {boxes.map((box) => (
-          <div key={box.slug} className="w-full shrink-0 snap-center">
+          <div
+            key={box.slug}
+            /*
+              Not quite the full width, so the card either side shows through.
+              A full-bleed slide is indistinguishable from a static hero until
+              somebody happens to drag it — the peek is the only thing on the
+              page that says there is more than one of these. A lone featured
+              box takes the whole width, because there is nothing to peek at.
+            */
+            className={
+              "shrink-0 snap-center " + (boxes.length > 1 ? "w-[88%] sm:w-[92%]" : "w-full")
+            }
+          >
             <FeaturedCard box={box} />
           </div>
         ))}

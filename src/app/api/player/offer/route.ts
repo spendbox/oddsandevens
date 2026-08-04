@@ -13,16 +13,26 @@ import type { Drop } from "@/lib/types";
  * because the browser is the only thing watching. `claim` takes it.
  *
  * What the browser explicitly does *not* get to do is say what the offer is.
- * It asks; the server decides. Free lives are capped at five and discounts at
- * half price, here, on the server, and `mint_offer` refuses to make a second
- * one while the first is unclaimed — a browser that can ask twice will.
+ * It asks; the server decides. Every generous kind is capped in SQL — one
+ * free-lives popup an hour and five taken a day, one free Second Wind a week —
+ * and `mint_offer` returns nothing at all when a cap says no.
+ *
+ * Which is why this asks down a *ladder* rather than once. A player who has
+ * had their free lives for the hour should still see the occasional discount;
+ * silence is the correct answer only when nothing at all may be given.
  */
 
-/** The most generous a drop is ever allowed to be. */
-const MAX_FREE_LIVES = 5;
+/** The most lives one drop ever gives. The daily ceiling is in the migration. */
+const MAX_FREE_LIVES = 3;
 const MAX_DISCOUNT = 50;
-/** How long one hangs around before it is gone. */
+/** How long an *unclaimed* one hangs around. A claimed discount restarts it. */
 const MINUTES = 10;
+
+type Ask = {
+  kind: Drop["kind"];
+  amount: number;
+  powerUp: string | null;
+};
 
 export async function POST(req: Request) {
   const email = await playerEmail();
@@ -57,48 +67,78 @@ export async function POST(req: Request) {
   }
 
   const box = body.slug ? await findBox(db, body.slug) : null;
+  const boxId = box?.id ?? null;
 
-  // Which of the two, and on what terms. A discount needs a power-up to be
-  // about, so an unrecognised one becomes free lives rather than an error —
-  // there is no version of this worth showing a player a failure for.
-  const wantsDiscount =
-    body.kind === "power_up_discount" &&
-    !!box &&
-    POWER_UP_KINDS.includes(body.powerUp as (typeof POWER_UP_KINDS)[number]);
+  // A discount needs a power-up to be about — an offer that applies to
+  // whatever you happen to buy next is a coupon, and a coupon gets spent on
+  // the most expensive thing on the shelf.
+  const named = POWER_UP_KINDS.includes(body.powerUp as (typeof POWER_UP_KINDS)[number]);
 
-  const kind = wantsDiscount ? "power_up_discount" : "free_lives";
-  const amount = wantsDiscount
-    ? pick([20, 25, 30, 40, MAX_DISCOUNT])
-    : pick([1, 2, 3, MAX_FREE_LIVES]);
+  const discount: Ask | null =
+    box && named
+      ? {
+          kind: "power_up_discount",
+          amount: pick([20, 25, 30, 40, MAX_DISCOUNT]),
+          powerUp: body.powerUp!,
+        }
+      : null;
+  const lives: Ask = {
+    kind: "free_lives",
+    amount: pick([1, 2, MAX_FREE_LIVES]),
+    powerUp: null,
+  };
+  const wind: Ask | null = box
+    ? { kind: "free_second_wind", amount: 1, powerUp: null }
+    : null;
 
-  const { data } = await db.rpc("mint_offer", {
-    p_email: email,
-    p_kind: kind,
-    p_amount: amount,
-    p_power_up: wantsDiscount ? body.powerUp : null,
-    p_box_id: box?.id ?? null,
-    p_minutes: MINUTES,
-  });
+  // What was asked for first, then whatever else is still allowed.
+  const ladder: Ask[] = [];
+  if (body.kind === "free_second_wind" && wind) ladder.push(wind);
+  if (body.kind === "power_up_discount" && discount) ladder.push(discount);
+  if (body.kind === "free_lives") ladder.push(lives);
+  if (discount) ladder.push(discount);
+  ladder.push(lives);
 
-  const row = (Array.isArray(data) ? data[0] : data) as {
-    id: string;
-    kind: Drop["kind"];
-    amount: number;
-    power_up: string | null;
-    expires_at: string;
-  } | null;
+  const seen = new Set<string>();
+  for (const ask of ladder) {
+    if (seen.has(ask.kind)) continue;
+    seen.add(ask.kind);
 
-  if (!row) return NextResponse.json({ error: "mint_failed" }, { status: 500 });
+    const { data } = await db.rpc("mint_offer", {
+      p_email: email,
+      p_kind: ask.kind,
+      p_amount: ask.amount,
+      p_power_up: ask.powerUp,
+      p_box_id: boxId,
+      p_minutes: MINUTES,
+    });
 
-  return NextResponse.json({
-    offer: {
-      id: row.id,
-      kind: row.kind,
-      amount: row.amount,
-      powerUp: row.power_up,
-      expiresAt: row.expires_at,
-    } satisfies Drop,
-  });
+    const row = (Array.isArray(data) ? data[0] : data) as {
+      id: string | null;
+      kind: Drop["kind"];
+      amount: number;
+      power_up: string | null;
+      expires_at: string;
+    } | null;
+
+    // A capped kind comes back as SQL NULL, which PostgREST renders as a row
+    // of nulls rather than as nothing at all — so the id is what says whether
+    // an offer was actually made.
+    if (!row?.id) continue;
+
+    return NextResponse.json({
+      offer: {
+        id: row.id,
+        kind: row.kind,
+        amount: row.amount,
+        powerUp: row.power_up,
+        expiresAt: row.expires_at,
+      } satisfies Drop,
+    });
+  }
+
+  // Nothing may be given right now, which is a normal answer and not an error.
+  return NextResponse.json({ offer: null });
 }
 
 function pick<T>(from: T[]): T {

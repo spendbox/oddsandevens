@@ -40,18 +40,28 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
         />
       </div>
 
-      <p
-        className={
-          "font-black tabular-nums " +
-          (open
-            ? "text-2xl text-zinc-500"
-            : box.isChallenge
-              ? "text-2xl text-grape"
-              : "brass-text text-3xl")
-        }
-      >
-        {rewardLabel(box.rewardKobo)}
-      </p>
+      {/*
+        A cracked box keeps its figure in gold, captioned as *won*.
+        Greying it out was reading as "there was nothing here" when the
+        opposite is true: somebody was paid this, which is the single most
+        persuasive thing on the whole wall and the reason the wall exists.
+      */}
+      <div>
+        <p
+          className={
+            "font-black tabular-nums " +
+            (box.isChallenge && !open ? "text-2xl text-grape" : "brass-text text-3xl")
+          }
+        >
+          {rewardLabel(box.rewardKobo)}
+        </p>
+        {open && (
+          <p className="mt-0.5 text-xs font-bold text-brass/80">
+            {box.isChallenge ? "cracked" : "won"}
+            {box.unlockedBy && <> by <span className="font-mono">{box.unlockedBy}</span></>}
+          </p>
+        )}
+      </div>
 
       <DifficultyBadge difficulty={box.difficulty} />
 
@@ -61,9 +71,6 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
           {plural(box.playersCount, "hunter")}
         </span>
         <span>{plural(box.attemptsCount, "attempt")}</span>
-        {open && box.unlockedBy && (
-          <span className="text-brass/70">opened by {box.unlockedBy}</span>
-        )}
       </div>
     </Link>
   );

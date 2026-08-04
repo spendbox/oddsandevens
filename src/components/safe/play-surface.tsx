@@ -24,10 +24,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, KeyRound, Palette, Sparkles } from "lucide-react";
+import { ArrowRight, KeyRound, Palette, Sparkles, Tag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { LIVES_MAX } from "@/lib/constants";
-import { EMPTY_REVEALED } from "@/lib/game/power-ups";
+import { EMPTY_REVEALED, POWER_UPS } from "@/lib/game/power-ups";
 import { formatNaira } from "@/lib/game/rewards";
 import type { AttemptRecord, AttemptResult, PlayView } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
@@ -42,7 +42,7 @@ import { KnownPanel } from "./known-panel";
 import { PowerUpShelf } from "./power-up-shelf";
 import { ChaseScene } from "./chase-scene";
 import type { Shot } from "@/lib/game/chase";
-import { BestPill, SceneDock, SceneRail, type StatKind } from "./scene-hud";
+import { SceneDock, SceneRail, type StatKind } from "./scene-hud";
 import { GuessDialog } from "./guess-dialog";
 import { PotDialog } from "./pot-dialog";
 import { StatDialog } from "./stat-dialog";
@@ -107,10 +107,24 @@ export function PlaySurface({
 
   const now = useNow(
     view.player.nextLifeAt ??
+      view.discount?.expiresAt ??
       view.hunt?.secondWindUntil ??
       view.hunt?.breakdownUntil ??
       null
   );
+
+  /**
+   * A discount the player is holding, while it is still worth anything.
+   *
+   * Checked against the ticking clock rather than trusted from the payload, so
+   * it disappears from the screen at the same second the checkout stops
+   * honouring it — a chip promising 40% off that the till then refuses is
+   * worse than never having offered it.
+   */
+  const discount =
+    view.discount && new Date(view.discount.expiresAt).getTime() > now
+      ? view.discount
+      : null;
 
   const open = view.box.status === "live";
   const revealed = view.hunt?.revealed ?? EMPTY_REVEALED;
@@ -295,7 +309,24 @@ export function PlaySurface({
 
           <div className="flex items-center justify-between gap-2">
             <LivesBadge onBuy={() => setSheet("lives")} />
-            {best !== null && <BestPill best={best} onClick={() => setSheet("best")} />}
+
+            {/* What you're holding, and how long you have to spend it. It goes
+                to the shelf on a tap, because a discount you have to go and
+                find is a discount that expires unused. */}
+            {discount && (
+              <button
+                type="button"
+                onClick={() => setSheet("power-ups")}
+                className="flex items-center gap-1.5 rounded-full border-2 border-grape/60 bg-background/85 py-1 pl-2.5 pr-3 text-xs font-black text-grape shadow-lg backdrop-blur transition hover:border-grape"
+              >
+                <Tag className="size-3.5" aria-hidden />
+                {discount.amount}% off{" "}
+                {POWER_UPS[discount.powerUp as keyof typeof POWER_UPS]?.name ?? "a power-up"}
+                <span className="font-mono tabular-nums text-zinc-300">
+                  {countdown(discount.expiresAt, now)}
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Whatever the power-ups have bought, and whatever is running.
@@ -330,6 +361,8 @@ export function PlaySurface({
                 void drops.claim().then((got) => {
                   if (got?.kind === "free_lives") {
                     setMessage(`+${got.amount} free ${got.amount === 1 ? "life" : "lives"}`);
+                  } else if (got?.kind === "free_second_wind") {
+                    setMessage("Free run — guesses cost nothing for an hour");
                   } else if (got) {
                     setMessage(`${got.amount}% off — it's on the shelf`);
                   }
@@ -404,6 +437,7 @@ export function PlaySurface({
           rewardKobo={view.box.rewardKobo}
           isChallenge={view.box.isChallenge}
           contributor={view.box.contributor}
+          difficulty={view.box.difficulty}
           onClose={() => setSheet("none")}
         />
       )}
@@ -460,12 +494,7 @@ export function PlaySurface({
       )}
 
       {stat && (
-        <StatDialog
-          stat={stat}
-          box={view.box}
-          yourBest={best}
-          onClose={() => setStat(null)}
-        />
+        <StatDialog stat={stat} box={view.box} onClose={() => setStat(null)} />
       )}
 
       {result && won && (

@@ -15,17 +15,22 @@
 
 import { Coins } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { DifficultyBadge } from "@/components/difficulty-badge";
 import { formatNaira } from "@/lib/game/rewards";
+import type { Difficulty } from "@/lib/game/difficulty";
 
 export function PotDialog({
   rewardKobo,
   isChallenge,
   contributor,
+  difficulty,
   onClose,
 }: {
   rewardKobo: number;
   isChallenge: boolean;
   contributor: string | null;
+  /** How hard this one is. It lives here rather than on the rail now. */
+  difficulty: Difficulty;
   onClose: () => void;
 }) {
   return (
@@ -62,6 +67,12 @@ export function PotDialog({
             </p>
           </>
         )}
+
+        {/* The other half of "is this worth my month": what it pays, and what
+            it will take. They belong on the same sheet. */}
+        <div className="flex justify-center border-t border-white/10 pt-3">
+          <DifficultyBadge difficulty={difficulty} />
+        </div>
       </div>
     </Modal>
   );

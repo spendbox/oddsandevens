@@ -11,8 +11,16 @@
 // this only lays it out.
 
 import { Clock, Lightbulb } from "lucide-react";
-import { SECOND_WIND_HOURS, type Revealed } from "@/lib/game/power-ups";
+import { SECOND_WIND_HOURS, type Revealed, type ScanField } from "@/lib/game/power-ups";
 import { countdown } from "@/components/player/lives-badge";
+
+/** The scans, in the order they read best as a sentence about a password. */
+const SCAN_ROWS: { field: ScanField; noun: string }[] = [
+  { field: "vowels", noun: "vowels" },
+  { field: "consonants", noun: "consonants" },
+  { field: "numbers", noun: "digits" },
+  { field: "symbols", noun: "symbols" },
+];
 
 export function KnownPanel({
   revealed,
@@ -25,10 +33,13 @@ export function KnownPanel({
   const windRunning =
     !!revealed.secondWindUntil && new Date(revealed.secondWindUntil).getTime() > now;
 
+  const scanned = SCAN_ROWS.filter((row) => revealed.scans[row.field] !== undefined);
+
   const hasAnything =
     revealed.length !== null ||
     revealed.charset !== null ||
     revealed.caseMap !== null ||
+    scanned.length > 0 ||
     windRunning;
 
   if (!hasAnything) return null;
@@ -51,6 +62,21 @@ export function KnownPanel({
           <span className="font-mono text-xs text-zinc-300">
             {revealed.caseMap.upper} upper · {revealed.caseMap.lower} lower ·{" "}
             {revealed.caseMap.digits} digits · {revealed.caseMap.specials} symbols
+          </span>
+        </Row>
+      )}
+
+      {scanned.length > 0 && (
+        <Row label="Scanned">
+          <span className="flex flex-wrap gap-1.5">
+            {scanned.map((row) => (
+              <span
+                key={row.field}
+                className="rounded-md bg-white/6 px-1.5 py-0.5 font-mono text-xs text-zinc-200"
+              >
+                {revealed.scans[row.field]} {row.noun}
+              </span>
+            ))}
           </span>
         </Row>
       )}

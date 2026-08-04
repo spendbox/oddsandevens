@@ -187,12 +187,35 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
 | X-Ray | 5% | Names half the distinct characters it hasn't named yet, unordered |
+| Symbol Scan | 0.5% | Counts the symbols — anything that isn't a letter or a digit |
+| Vowel Scan | 0.5% | Counts the vowels, A E I O U, either case |
+| Consonant Scan | 0.5% | Counts the consonants — every letter that isn't a vowel |
+| Number Scan | 0.5% | Counts the digits |
 
 **Prices are a share of the box's reward**, floored so that a challenge box
 with nothing behind it still has a shelf to sell. A hint that saves you a
 fortnight of grinding on a ₦7,000,000 safe is not worth what the same hint is
 worth on a ₦7,000 one, and a flat price got that wrong in both directions. The
-floors are ₦200 / ₦300 / ₦300 / ₦500 / ₦1,000 in the order above.
+floors are ₦200 / ₦300 / ₦300 / ₦500 / ₦1,000 for the first five, and ₦200 for
+each of the scans.
+
+### The scans, and what they overlap
+
+The four scans are the cheap end of the shelf: one number each. Two of them
+answer questions nothing else on the shelf will — Case Map splits letters by
+*case*, which says nothing about sound, so Vowel Scan and Consonant Scan are
+new information whatever else you own.
+
+The other two are not. Case Map already gives the digit and symbol counts, so
+Number Scan and Symbol Scan come off the shelf the moment it is bought, rather
+than continuing to sell a sentence the player has already been shown. Case
+Map's own caveat says so before you pay for it. In the other order they stay
+worth buying: Case Map still adds the case split.
+
+At equal share, Case Map is four numbers for the price of one scan and will
+always be the better deal for somebody opening a box cold. A scan is for the
+player who is already deep in and has exactly one question left — and on a
+small box the lower floor makes it genuinely cheaper, which is where it matters.
 
 The *share* is server-side only. A player is shown what something costs on the
 box in front of them and nothing about how that number was reached — and
@@ -324,7 +347,7 @@ money twice.
 
 | Route | Who | What |
 | --- | --- | --- |
-| `/` | anyone | Featured safes, swipeable; the locked and cracked boards behind a session |
+| `/` | anyone | Featured safes, swipeable; the safes you have open; the locked and cracked boards behind a session |
 | `/b/[slug]` | anyone | A box, played — the vault scene. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
 | `/me` | a verified player | Lives, invites, attempts, and where a reward has got to. Not an account — there's no password here |
 | `/faq` | anyone | Every explanation the game screens deliberately don't give, searchable |
@@ -335,6 +358,36 @@ money twice.
 
 A player never signs up. They verify an address once — because a reward has to
 be sent somewhere — and a signed cookie remembers them for six months.
+
+### Still open
+
+A signed-in player used to be shown exactly what a stranger was shown: a wall
+of boxes to choose from. But somebody four hundred guesses into a safe is not
+choosing — they are coming back, and the only thing they want is the one they
+were on.
+
+So a strip of the boxes they have open sits above the board, and it looks
+nothing like it. The board's cards are portrait, headed by a reward, and answer
+*is this worth starting*. These are landscape, headed by a progress bar, and
+answer *how far in am I* — your best score fills it and the best anybody has
+managed is a notch on it, so the gap between the two is visible without a
+number being read, and the gap is the whole reason to open it again. Same
+boxes, opposite question, and the shape is the fastest way to say which one you
+are looking at.
+
+Live boxes only, not already won, most recently touched first. A safe somebody
+else cracks drops off the list on its own, which needs no sweep: there is
+nothing to go back to.
+
+The featured carousel also **peeks** now. A full-bleed slide is
+indistinguishable from a static hero until somebody happens to drag it, so each
+card stops just short of the full width and the next one shows through — the
+only thing on the page that says there is more than one.
+
+And a cracked safe keeps its figure in gold, captioned *won by*. Greying it out
+was reading as "there was nothing here" when the opposite is true: somebody was
+paid that, which is the most persuasive thing on the wall and the reason the
+wall exists.
 
 ### The contributor dashboard
 
@@ -418,6 +471,14 @@ four sorted tiles, a winged stopwatch, a prism splitting one beam into the
 three colours the attempt log uses, and a pair of goggles. The colour is how
 you tell them apart on a shelf you visit forty times.
 
+The four scans share one drawing — a card with two characters on it and a beam
+passing beneath — and differ only by the glyph and the badge colour. That is
+deliberate: they are one idea sold four times, and four unrelated pictures for
+four identical products is how a shelf becomes unreadable. The beam sits *under*
+the glyph rather than across it, because a scan line through the middle of two
+characters turns both to mush at the size this is actually looked at, which is
+twelve pixels.
+
 ---
 
 ## The safe
@@ -487,6 +548,21 @@ Five terrains — dunes, forest, tundra, coast, downtown — cycled **in order**
 reads as a bug. The hour of the day is one tint over everything, because a
 top-down view has no sky to put a sun in.
 
+### The rail
+
+Three rows across the top, and nothing on it is captioned — every figure opens
+a sheet that says what it is, which is the only moment anybody wants the
+sentence. Row one is the prize and the two ways out; row two is your best guess
+with the score it earned pinned to the end of it; row three is the crowd.
+
+Two things moved to get there. There were **two trophies** — a percentage on
+the stat row and the same percentage on a floating pill — and a player
+reasonably read them as two different numbers and went looking for the
+difference. There is one now, and it sits on the string it describes, where it
+needs no label. And the **difficulty went into the vault sheet**: it is a fact
+about the box you read once when you arrive, not a reading you check while you
+play, and it was taking rail width from things that are.
+
 ### The field
 
 The top ten hunters on a box are ten cars, arranged as the standing: the leader
@@ -508,19 +584,51 @@ a chase where only your car ever shoots is not a chase.
 
 The two places a player quits a hard box are the same two every time: out of
 lives, and a run of guesses that went nowhere. So a crate floats in at exactly
-those moments — five cold guesses, or two lives left — carrying either free
-lives or a share off one power-up, and it is gone in ten minutes.
+those moments — five cold guesses, or two lives left — carrying free lives, a
+free Second Wind, or a share off one power-up, and it is gone in ten minutes.
 
 Rate is a function of trouble rather than a timer: eight minutes apart when a
 hunt is going fine, two when it isn't, never closer than ninety seconds.
-Discounts cycle through the power-ups, so a long session sees each in turn.
+Discounts cycle through the power-ups, so a long session sees each in turn, and
+they are what the browser asks for four times in five.
 
 The terms are the server's. The browser notices the moment and asks;
-`mint_offer` decides what it gets, caps it at five lives or half price, and
-refuses to make a second while the first is unclaimed — a browser that can ask
-twice will. A discount is a row that `discount_for` reads at checkout and
-`spend_discount` burns afterwards, because a discount the client names is a
-discount the client can name itself.
+`mint_offer` decides what it gets and refuses to make a second while the first
+is unclaimed — a browser that can ask twice will.
+
+**Every generous kind is capped, in SQL** (0035), because a limit enforced in a
+route is a limit enforced in one of the places that can mint an offer:
+
+| Kind | Cap |
+| --- | --- |
+| Free lives | one *offer* an hour, and at most five *claimed* in 24 hours |
+| Free Second Wind | one claimed a week, and never twice in an hour |
+| Discount | uncapped in frequency; never more than half price |
+
+The two clocks measure different things on purpose. The hourly one counts
+`created_at`, so a crate somebody ignored still spends the hour — the limit is
+on how often a player is *interrupted*, and an interruption they declined still
+happened. The daily one counts `claimed_at`, because that limit is on how many
+lives leave the building.
+
+A capped kind comes back as nothing at all, which is why the route asks down a
+*ladder* rather than once: somebody who has had their free lives for the hour
+should still see the occasional discount, and silence is only correct when
+nothing whatever may be given.
+
+A discount is a row that `discount_for` reads at checkout and `spend_discount`
+burns afterwards, because a discount the client names is a discount the client
+can name itself. **Its ten minutes run from the claim, not from the mint** — a
+coupon taken at 12:09 out of a window that opened at 12:00 used to arrive with
+forty seconds on it, and no way to tell. The play screen carries it as a chip
+with the countdown on it, and the shelf strikes through the old price on the
+one power-up it applies to.
+
+Free lives never touch a `life_orders` row, so they are invisible to every
+payout: nothing was sold, and nobody's 70% is computed from them. Discounts
+are the reverse — the split is taken from the *discounted* price, so a
+contributor's share follows the discount down rather than being paid on a
+number the player never paid.
 
 ### Damage
 
@@ -632,12 +740,13 @@ src/lib/game/boxes.ts       reading boxes without reading passwords
 src/lib/game/view.ts        assembling what the play screen sees
 src/lib/game/settle.ts      turning a confirmed payment into the thing it bought
 src/app/api/boxes/…         play: the box, the run, the guess, the power-up
-src/app/api/player/…        lives, verification, history, reward claims
+src/app/api/player/…        lives, verification, history, drops, reward claims
+src/components/in-play.tsx  the safes you have open, above the board
 src/app/api/contributor/…   profile, boxes, funding, attempts, earnings, payout
 src/app/api/admin/…         the public box, reward claims, revenue
 src/components/art/         the house style, Boxy, and the power-up objects
-src/components/safe/        the play screen: the vault scene, the ten locks,
-                            the field and the sheets behind the dock
+src/components/safe/        the play screen: the chase, the field, the drops
+                            and the sheets behind the dock
 supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0027 made a score a percentage, 0028 added
                             Second Wind, the life split and box designs,
@@ -645,7 +754,8 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             passwords and bank details, 0032 made featuring
                             possible and merged the two identities into one,
                             0033 keeps each box's high-water score, 0034 each
-                            hunt's, and adds drops
+                            hunt's, and adds drops, 0035 caps them and starts
+                            a discount's clock when it is claimed
 ```
 
 ---

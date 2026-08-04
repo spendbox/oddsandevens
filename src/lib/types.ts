@@ -59,6 +59,31 @@ export interface PublicBox {
   featured: boolean;
 }
 
+/**
+ * A box this player has open, for the strip above the board.
+ *
+ * Not a `PublicBox`: a box on the board is an invitation and is described by
+ * what it's worth, while one of these is a thing already in progress and is
+ * described by how far in you are. Different question, different shape, and
+ * folding them together is what made the signed-in front page look exactly
+ * like the signed-out one.
+ */
+export interface InPlayHunt {
+  slug: string;
+  title: string;
+  design: Design;
+  difficulty: Difficulty;
+  rewardKobo: number;
+  isChallenge: boolean;
+  /** Guesses you have made at it. */
+  attempts: number;
+  /** Your best score on it, 0–100. */
+  bestPercent: number;
+  /** The best anybody has managed, so yours has something to sit against. */
+  boxBestPercent: number;
+  lastAttemptAt: string | null;
+}
+
 /** The player's own life pool, as the header shows it. */
 export interface PlayerState {
   email: string | null;
@@ -147,11 +172,28 @@ export interface Rival {
  */
 export interface Drop {
   id: string;
-  kind: "free_lives" | "power_up_discount";
-  /** A count of lives, or a percentage off. */
+  kind: "free_lives" | "power_up_discount" | "free_second_wind";
+  /** A count of lives, a percentage off, or an hour of Second Wind. */
   amount: number;
-  /** Which power-up a discount applies to. Null for free lives. */
+  /** Which power-up a discount applies to. Null for the other two. */
   powerUp: string | null;
+  expiresAt: string;
+}
+
+/**
+ * A discount already claimed and not yet spent — the thing a player is
+ * *holding*, as opposed to the crate they were offered.
+ *
+ * It has its own ten minutes, starting from the claim, and the play screen
+ * counts them down in front of them. A discount you were given and then
+ * couldn't find is worse than no discount, and one that quietly expired while
+ * you were reading the shelf is worse still.
+ */
+export interface ClaimedDiscount {
+  /** The power-up it may be spent on, and only that one. */
+  powerUp: string;
+  /** Percent off. */
+  amount: number;
   expiresAt: string;
 }
 
@@ -163,6 +205,8 @@ export interface PlayView {
   rivals: Rival[];
   /** An unclaimed offer waiting, if there is one. */
   offer: Drop | null;
+  /** A claimed discount still in its redemption window, if there is one. */
+  discount: ClaimedDiscount | null;
   /**
    * The shelf, priced against *this* box. Every power-up costs a share of the
    * reward, so the same hint is a different price on a ₦7,000,000 safe and a

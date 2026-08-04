@@ -15,6 +15,7 @@ import { Boxy } from "@/components/art/boxy";
 import { SafeArt } from "@/components/safe/safe-art";
 import { BoxCard } from "@/components/box-card";
 import { Featured } from "@/components/featured";
+import { InPlay } from "@/components/in-play";
 import { HowItWorksButton } from "@/components/how-it-works";
 import { BuildDialog } from "@/components/build-dialog";
 import { usePlayer } from "@/components/player/player-context";
@@ -79,6 +80,10 @@ export function Landing({
           <HowItWorksButton />
         </div>
       </section>
+
+      {/* Above the board, and only for somebody who has one: the safes they
+          already have open. It renders nothing at all otherwise. */}
+      <InPlay enabled={verified} />
 
       <section className="mx-auto w-full max-w-5xl px-4 pb-12">
         {!boardOpen ? (

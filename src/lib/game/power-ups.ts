@@ -13,6 +13,12 @@
 //   Second Wind  the life pool, which is the pace of the whole game
 //   Colour Read  the components behind a score, which are withheld by default
 //   X-Ray        half the characters, unordered
+//   The scans    one count each: symbols, vowels, consonants, digits
+//
+// The scans are the cheap end of the shelf on purpose. Case Map is one price
+// for four numbers and will always be the better deal for somebody opening a
+// box cold; a scan is for the player who is already three-quarters of the way
+// through and has exactly one question left.
 //
 // Everything except the catalogue is server-only: `apply` reads the password.
 // What reaches the browser is the accumulated `Revealed` state, which is the
@@ -28,8 +34,48 @@ export const POWER_UP_KINDS = [
   "second_wind",
   "breakdown",
   "x_ray",
+  "symbol_scan",
+  "vowel_scan",
+  "consonant_scan",
+  "number_scan",
 ] as const;
 export type PowerUpKind = (typeof POWER_UP_KINDS)[number];
+
+/**
+ * The four scans, and the class of character each one counts.
+ *
+ * Keyed by the field they write into `Revealed.scans`, so there is exactly one
+ * place that says what a "vowel" is and the shelf copy, the counting and the
+ * panel all read it from there.
+ */
+export const SCANS = {
+  symbol_scan: { field: "symbols", noun: "symbols" },
+  vowel_scan: { field: "vowels", noun: "vowels" },
+  consonant_scan: { field: "consonants", noun: "consonants" },
+  number_scan: { field: "numbers", noun: "digits" },
+} as const satisfies Record<string, { field: ScanField; noun: string }>;
+
+export type ScanKind = keyof typeof SCANS;
+export type ScanField = "symbols" | "vowels" | "consonants" | "numbers";
+
+export function isScanKind(kind: PowerUpKind): kind is ScanKind {
+  return kind in SCANS;
+}
+
+/** Which class one character belongs to, or null if it counts for none. */
+function classOf(ch: string): ScanField | null {
+  if (/[0-9]/.test(ch)) return "numbers";
+  if (/[aeiou]/i.test(ch)) return "vowels";
+  if (/[a-z]/i.test(ch)) return "consonants";
+  return "symbols";
+}
+
+/** How many characters of one class the password holds. */
+function countClass(secret: string, field: ScanField): number {
+  let n = 0;
+  for (const ch of secret) if (classOf(ch) === field) n += 1;
+  return n;
+}
 
 /** Colour Read and Second Wind rent rather than sell. */
 export const BREAKDOWN_HOURS = 24;
@@ -85,7 +131,8 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
       "Counts the uppercase, lowercase, digits and symbols — without saying where any sit.",
     detail:
       "Reveals the composition of the password: how many uppercase letters, lowercase letters, digits, and symbols it contains. This dramatically narrows the search space. In a 94-character alphabet, learning that a password contains no digits immediately eliminates 10 possible characters from every remaining position. Every detail reduces uncertainty, turning a seemingly impossible challenge into a solvable puzzle.",
-    caveat: "It gives you counts, not characters, and never a position.",
+    caveat:
+      "It gives you counts, not characters, and never a position. It covers the digit and symbol counts outright, so Number Scan and Symbol Scan come off the shelf once you own it.",
     share: 0.005,
     floorKobo: 300 * KOBO,
     repeat: "once",
@@ -122,6 +169,53 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     floorKobo: 1_000 * KOBO,
     repeat: "partial",
   },
+
+  // The scans. One number each, and the number is the whole product — which is
+  // why every one of them sells once and says so on the shelf.
+  symbol_scan: {
+    kind: "symbol_scan",
+    name: "Symbol Scan",
+    blurb: "Counts the symbols — anything that isn't a letter or a digit.",
+    detail:
+      "Tells you how many characters in the password are symbols: punctuation, brackets, currency marks, anything off the top row. It is the cheapest question worth asking, because the answer is often zero — and a zero here removes about thirty characters from every position at once.",
+    caveat: "A count, and only of symbols. Never which ones, never where.",
+    share: 0.005,
+    floorKobo: 200 * KOBO,
+    repeat: "once",
+  },
+  vowel_scan: {
+    kind: "vowel_scan",
+    name: "Vowel Scan",
+    blurb: "Counts the vowels — A, E, I, O and U, either case.",
+    detail:
+      "Tells you how many of the characters are vowels. Nothing else on the shelf will: Case Map splits letters by case, not by sound. It is the single most useful number for deciding whether you are looking at words or at noise, and words and noise are attacked completely differently.",
+    caveat: "A count of A, E, I, O and U in either case. Y doesn't count.",
+    share: 0.005,
+    floorKobo: 200 * KOBO,
+    repeat: "once",
+  },
+  consonant_scan: {
+    kind: "consonant_scan",
+    name: "Consonant Scan",
+    blurb: "Counts the consonants — every letter that isn't a vowel.",
+    detail:
+      "Tells you how many of the characters are consonants. On its own it narrows the alphabet; next to a Vowel Scan it does considerably more than that, because the two together tell you how many characters are letters at all, and therefore how many are not.",
+    caveat: "A count of the letters that aren't vowels. Y counts as one.",
+    share: 0.005,
+    floorKobo: 200 * KOBO,
+    repeat: "once",
+  },
+  number_scan: {
+    kind: "number_scan",
+    name: "Number Scan",
+    blurb: "Counts the digits, 0 through 9.",
+    detail:
+      "Tells you how many of the characters are digits. Most passwords people write have one, two or none, and knowing which of those three you are in changes where every remaining guess should go.",
+    caveat: "A count of digits. Never which ones, never where they sit.",
+    share: 0.005,
+    floorKobo: 200 * KOBO,
+    repeat: "once",
+  },
 };
 
 /**
@@ -135,6 +229,19 @@ export function priceKobo(kind: PowerUpKind, rewardKobo: number): number {
   const spec = POWER_UPS[kind];
   const share = Math.round((rewardKobo * spec.share) / KOBO) * KOBO;
   return Math.max(spec.floorKobo, share);
+}
+
+/**
+ * A price with a claimed drop taken off it.
+ *
+ * Shared between the shelf, which shows the number, and the checkout route,
+ * which charges it. Two roundings of the same discount that disagreed by a
+ * naira would be a player told one price and billed another — which is the
+ * kind of thing that is technically trivial and completely unforgivable.
+ */
+export function discountedKobo(fullKobo: number, percentOff: number): number {
+  const off = Math.max(0, Math.min(100, percentOff));
+  return Math.max(1, Math.round((fullKobo * (100 - off)) / 100));
 }
 
 export function isPowerUpKind(value: string): value is PowerUpKind {
@@ -179,6 +286,14 @@ export interface Revealed {
    * first purchase produces already says "4 of the 7 characters it uses".
    */
   charsetTotal: number | null;
+  /**
+   * What the scans have counted so far.
+   *
+   * A field is absent until the scan that fills it has been paid for, and a
+   * count of zero is a real, purchased answer — so `undefined` and `0` mean
+   * genuinely different things here and nothing may collapse them.
+   */
+  scans: Partial<Record<ScanField, number>>;
   /** When Colour Read lapses, or null if it isn't running. */
   breakdownUntil: string | null;
   /** When Second Wind lapses. While it runs, guesses cost no lives. */
@@ -192,6 +307,7 @@ export const EMPTY_REVEALED: Revealed = {
   caseMap: null,
   charset: null,
   charsetTotal: null,
+  scans: {},
   breakdownUntil: null,
   secondWindUntil: null,
   used: {},
@@ -206,6 +322,8 @@ export function parseRevealed(raw: unknown): Revealed {
     charset: Array.isArray(value.charset) ? value.charset : null,
     charsetTotal:
       typeof value.charsetTotal === "number" ? value.charsetTotal : null,
+    scans:
+      value.scans && typeof value.scans === "object" ? { ...value.scans } : {},
     breakdownUntil:
       typeof value.breakdownUntil === "string" ? value.breakdownUntil : null,
     secondWindUntil:
@@ -237,6 +355,19 @@ export function secondWindActive(revealed: Revealed, now = Date.now()): boolean 
  * password to decide stays on sale.
  */
 export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
+  // The scans, first: each sells once, and two of them stop selling early.
+  //
+  // Case Map already gives the digit and symbol counts, so continuing to offer
+  // Number Scan and Symbol Scan afterwards would be taking money for a
+  // sentence the player has been shown. Vowel and Consonant Scan survive it —
+  // Case Map splits letters by case, which says nothing about sound.
+  if (isScanKind(kind)) {
+    const { field } = SCANS[kind];
+    if (revealed.scans[field] !== undefined) return false;
+    if (revealed.caseMap && (field === "numbers" || field === "symbols")) return false;
+    return true;
+  }
+
   switch (kind) {
     case "length_lock":
       return revealed.length === null;
@@ -327,6 +458,18 @@ export function apply(
   const used = { ...before.used, [kind]: (before.used[kind] ?? 0) + 1 };
   const counted = { ...before, used };
   const hours = (n: number) => new Date(Date.now() + n * 60 * 60 * 1000).toISOString();
+
+  if (isScanKind(kind)) {
+    const { field, noun } = SCANS[kind];
+    const n = countClass(secret, field);
+    return {
+      revealed: { ...counted, scans: { ...counted.scans, [field]: n } },
+      note:
+        n === 0
+          ? `No ${noun} at all.`
+          : `${n} ${n === 1 ? noun.replace(/s$/, "") : noun}.`,
+    };
+  }
 
   switch (kind) {
     case "length_lock":

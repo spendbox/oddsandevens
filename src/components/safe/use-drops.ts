@@ -8,9 +8,14 @@
 // timer — a drop that arrives on a schedule is a schedule, and a drop that
 // arrives when you are about to stop is a reason not to.
 //
-// What it asks for cycles through the power-ups, so a long session sees a
-// discount on each of them in turn rather than the same one repeatedly. What it
-// actually *gets* is the server's decision; this only ever asks.
+// What it *asks* for is mostly a discount, cycling through the power-ups so a
+// long session sees a different one each time. Free lives are the rare one and
+// the server caps them regardless — one popup an hour, five taken a day — so
+// this asks for them a fifth of the time and lets Postgres be the authority.
+//
+// A player with nothing left in the pool is asked for on different terms: a
+// free Second Wind, which is an hour of guessing that costs nothing. It is
+// once a week and the cap for that lives in SQL too.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { POWER_UP_KINDS } from "@/lib/game/power-ups";
@@ -26,6 +31,8 @@ const TROUBLE_MS = 2 * 60_000;
 const COLD_STREAK = 5;
 /** Lives at or below which it counts as trouble. */
 const LOW_LIVES = 2;
+/** How often the ask is for free lives rather than a discount. */
+const LIVES_SHARE = 0.2;
 
 export function useDrops({
   slug,
@@ -43,39 +50,44 @@ export function useDrops({
   enabled: boolean;
 }) {
   const [drop, setDrop] = useState<Drop | null>(initial);
-  /** When the last one was minted, so the floor can be enforced. */
+  /** When the last one was asked for, so the floor can be enforced. */
   const lastAt = useRef(0);
   /** Which power-up the next discount should be about. */
   const cycle = useRef(0);
+  /**
+   * Bumped after every ask, answered or not.
+   *
+   * Without it a refused ask — and the server refuses plenty now, by design —
+   * would be the end of it: nothing about the inputs changes, so the effect
+   * never re-arms and no drop ever comes again for the rest of the session.
+   */
+  const [asked, setAsked] = useState(0);
 
   const dismiss = useCallback(() => setDrop(null), []);
 
-  const mint = useCallback(async () => {
-    // A discount two times in three, free lives the other — lives are the more
-    // valuable of the two and the one that should feel like luck.
-    const wantsDiscount = Math.random() > 0.34;
-    const powerUp = POWER_UP_KINDS[cycle.current % POWER_UP_KINDS.length];
-    cycle.current += 1;
-
-    const res = await fetch("/api/player/offer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "mint",
-        slug,
-        kind: wantsDiscount ? "power_up_discount" : "free_lives",
-        powerUp,
-      }),
-    });
-    if (!res.ok) return;
-    const body = (await res.json()) as { offer?: Drop };
-    if (body.offer) {
+  const mint = useCallback(
+    async (kind: Drop["kind"]) => {
+      const powerUp = POWER_UP_KINDS[cycle.current % POWER_UP_KINDS.length];
+      cycle.current += 1;
       lastAt.current = Date.now();
-      setDrop(body.offer);
-    }
-  }, [slug]);
 
-  const claim = useCallback(async (): Promise<{ kind: string; amount: number } | null> => {
+      const res = await fetch("/api/player/offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mint", slug, kind, powerUp }),
+      });
+      setAsked((n) => n + 1);
+      if (!res.ok) return;
+      const body = (await res.json()) as { offer?: Drop | null };
+      if (body.offer) setDrop(body.offer);
+    },
+    [slug]
+  );
+
+  const claim = useCallback(async (): Promise<{
+    kind: Drop["kind"];
+    amount: number;
+  } | null> => {
     if (!drop) return null;
     setDrop(null);
     const res = await fetch("/api/player/offer", {
@@ -84,7 +96,7 @@ export function useDrops({
       body: JSON.stringify({ action: "claim", offerId: drop.id }),
     });
     if (!res.ok) return null;
-    return (await res.json()) as { kind: string; amount: number };
+    return (await res.json()) as { kind: Drop["kind"]; amount: number };
   }, [drop]);
 
   useEffect(() => {
@@ -94,9 +106,21 @@ export function useDrops({
     const gap = Math.max(FLOOR_MS, trouble ? TROUBLE_MS : CALM_MS);
     const due = lastAt.current + gap - Date.now();
 
-    const id = window.setTimeout(() => void mint(), Math.max(4_000, due));
+    const id = window.setTimeout(
+      () =>
+        void mint(
+          // Nothing left in the pool is the one moment an hour of free
+          // guesses is worth more than anything else on the shelf.
+          lives === 0
+            ? "free_second_wind"
+            : Math.random() < LIVES_SHARE
+              ? "free_lives"
+              : "power_up_discount"
+        ),
+      Math.max(4_000, due)
+    );
     return () => window.clearTimeout(id);
-  }, [enabled, drop, lives, coldStreak, mint]);
+  }, [enabled, drop, lives, coldStreak, mint, asked]);
 
   return { drop, claim, dismiss };
 }

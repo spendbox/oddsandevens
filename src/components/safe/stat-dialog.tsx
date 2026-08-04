@@ -9,11 +9,13 @@
 //
 // The numbers are an icon and a figure now, and this is what a tap gets you:
 // the name, the sentence, and — the reason it is worth a dialog rather than a
-// tooltip — what the number is *for*. "The closest anybody has come" is a fact.
-// "Somebody got within eight points of this password and it is still shut" is a
-// reason to keep going.
+// tooltip — what the number is *for*.
+//
+// There used to be a third of these, for your own best score. It has gone: the
+// score sits against the guess that earned it on the rail now, where a figure
+// pinned to the string it describes needs no explaining at all.
 
-import { Swords, Trophy, Users } from "lucide-react";
+import { Swords, Users } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import type { StatKind } from "./scene-hud";
 import type { PublicBox } from "@/lib/types";
@@ -21,15 +23,13 @@ import type { PublicBox } from "@/lib/types";
 export function StatDialog({
   stat,
   box,
-  yourBest,
   onClose,
 }: {
   stat: StatKind;
   box: PublicBox;
-  yourBest: number | null;
   onClose: () => void;
 }) {
-  const copy = COPY[stat](box, yourBest);
+  const copy = COPY[stat](box);
 
   return (
     <Modal
@@ -60,27 +60,21 @@ export function StatDialog({
 
 const COPY: Record<
   StatKind,
-  (
-    box: PublicBox,
-    yours: number | null
-  ) => { title: string; figure: string; body: string; icon: React.ReactNode }
+  (box: PublicBox) => { title: string; figure: string; body: string; icon: React.ReactNode }
 > = {
   hunters: (box) => ({
     title: "Hunters",
     figure: box.playersCount.toLocaleString("en-NG"),
     icon: <Users className="size-6 text-sky" aria-hidden />,
-    body: box.playersCount === 0 ? "Nobody has tried this one." : "Playing this safe.",
+    body:
+      box.playersCount === 0
+        ? "Nobody has tried this one."
+        : `Playing this safe. The closest anybody has come is ${box.bestPercent.toFixed(1)}%.`,
   }),
   attempts: (box) => ({
     title: "Attempts",
     figure: box.attemptsCount.toLocaleString("en-NG"),
     icon: <Swords className="size-6 text-sky" aria-hidden />,
     body: "Guesses made at it, by everyone.",
-  }),
-  best: (box, yours) => ({
-    title: "Your best",
-    figure: `${(yours ?? 0).toFixed(1)}%`,
-    icon: <Trophy className="size-6 text-brass" aria-hidden />,
-    body: `The closest anybody has come is ${box.bestPercent.toFixed(1)}%.`,
   }),
 };

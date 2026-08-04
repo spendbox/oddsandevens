@@ -17,8 +17,14 @@
 //   Colour Read  berry    the colours behind a score
 //   X-Ray        gold     seeing inside, the most valuable of them
 //
-// All five are drawn in one 64-unit box so they line up at any size, and every
-// gradient id is prefixed with the kind so five on one page don't collide.
+// The four scans share one drawing — a card with a beam across it — and differ
+// only by the glyph on the card and the colour of the badge. That is on
+// purpose: they are one idea sold four times, and four unrelated pictures for
+// four identical products is how a shelf becomes unreadable.
+//
+// All of them are drawn in one 64-unit box so they line up at any size, and
+// every gradient id is prefixed with the kind so nine on one page don't
+// collide.
 
 import type { PowerUpKind } from "@/lib/game/power-ups";
 import { Gloss, Grad, Halo, INK, Sparkle, STROKE } from "./ink";
@@ -29,6 +35,18 @@ export const POWER_UP_COLOURS: Record<PowerUpKind, { from: string; to: string }>
   second_wind: { from: "#7ff0bb", to: "#11855a" },
   breakdown: { from: "#ff9ab8", to: "#b8214c" },
   x_ray: { from: "#ffe08a", to: "#b8750f" },
+  symbol_scan: { from: "#ffc082", to: "#c05a12" },
+  vowel_scan: { from: "#ffa8d8", to: "#a81d6d" },
+  consonant_scan: { from: "#aebcff", to: "#3843b5" },
+  number_scan: { from: "#9df0a6", to: "#1a8a40" },
+};
+
+/** The glyph on each scan's card — the class it counts, in two characters. */
+const SCAN_GLYPHS: Record<string, string> = {
+  symbol_scan: "#$",
+  vowel_scan: "AE",
+  consonant_scan: "BC",
+  number_scan: "42",
 };
 
 export function PowerUpArt({
@@ -70,7 +88,55 @@ export function PowerUpArt({
       {kind === "second_wind" && <SecondWind uid={uid} />}
       {kind === "breakdown" && <ColourRead uid={uid} />}
       {kind === "x_ray" && <XRay uid={uid} />}
+      {kind in SCAN_GLYPHS && <Scan glyph={SCAN_GLYPHS[kind]} tint={c.to} />}
     </svg>
+  );
+}
+
+/**
+ * A scan: a card with two characters on it and a beam sweeping across.
+ *
+ * The counter along the bottom is the product, not decoration — what you buy
+ * is a number, and the picture should say so before the price does.
+ */
+function Scan({ glyph, tint }: { glyph: string; tint: string }) {
+  return (
+    <g>
+      <rect
+        x="9"
+        y="11"
+        width="46"
+        height="36"
+        rx="9"
+        fill="#fdf7ff"
+        stroke={INK}
+        strokeWidth={STROKE}
+      />
+      <text
+        x="32"
+        y="32"
+        textAnchor="middle"
+        fontSize="18"
+        fontWeight="900"
+        fontFamily="ui-monospace, monospace"
+        fill={INK}
+        letterSpacing="1"
+      >
+        {glyph}
+      </text>
+
+      {/* The beam, below the glyph rather than across it — a scan line through
+          the middle of two characters turns both of them to mush at the size
+          this is actually looked at, which is 12px on a shelf. */}
+      <rect x="9" y="37" width="46" height="7" fill={tint} opacity="0.24" />
+      <rect x="7" y="39" width="50" height="3" rx="1.5" fill={tint} stroke={INK} strokeWidth="1.2" />
+
+      {/* Three tallies: the answer is always a count. */}
+      {[24, 32, 40].map((x) => (
+        <rect key={x} x={x} y="50" width="3" height="8" rx="1.5" fill="#fff" opacity="0.85" />
+      ))}
+      <Gloss cx={32} cy={16} rx={15} ry={3} opacity={0.5} />
+    </g>
   );
 }
 

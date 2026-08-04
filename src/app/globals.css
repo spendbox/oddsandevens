@@ -1084,10 +1084,20 @@ summary,
 }
 
 /* A shot on its way. Fired from the car, travelling up-screen. */
+/* A round that lands.
+ *
+ * It has to end at `opacity: 0`, and that is a fix rather than a flourish. The
+ * element runs with `animation-fill-mode: both` and is never unmounted — the
+ * scene keeps the last shot mounted until the next guess — so a keyframe that
+ * finished opaque left the round *parked* at the end of its travel: a golden
+ * bar with a brass glow, frozen at the top of the screen next to the rail,
+ * one more of them after every hit. The impact burst is what says the shot
+ * landed; the round itself has no business surviving the arrival. */
 @keyframes shot-hit {
   0%   { opacity: 0; transform: translate(-50%, 0) scaleY(0.5); }
   10%  { opacity: 1; }
-  100% { opacity: 1; transform: translate(-50%, var(--reach, -220px)) scaleY(1.6); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, var(--reach, -220px)) scaleY(1.6); }
 }
 
 /* And one that doesn't land: same speed, drifting wide, gone past the safe. */

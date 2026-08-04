@@ -20,7 +20,14 @@ import {
   type BoxRow,
 } from "@/lib/game/boxes";
 import { maskEmail } from "@/lib/mask";
-import type { AttemptRecord, Drop, HuntState, PlayView, Rival } from "@/lib/types";
+import type {
+  AttemptRecord,
+  ClaimedDiscount,
+  Drop,
+  HuntState,
+  PlayView,
+  Rival,
+} from "@/lib/types";
 import type { LengthHint } from "@/lib/game/feedback";
 
 type Db = ReturnType<typeof supabaseAdmin>;
@@ -202,6 +209,41 @@ async function liveOffer(db: Db, playerId: string): Promise<Drop | null> {
 }
 
 /**
+ * A discount already claimed, still live, and not yet spent.
+ *
+ * The same row `discount_for` prices against at checkout, read here so the
+ * screen can show what the player is holding and how long they have left with
+ * it. Reading it rather than calling `discount_for` because the screen needs
+ * the expiry and the power-up's name, and that function returns a number.
+ */
+async function liveDiscount(
+  db: Db,
+  playerId: string,
+  boxId: string
+): Promise<ClaimedDiscount | null> {
+  const { data } = await db
+    .from("player_offers")
+    .select("amount, power_up, expires_at")
+    .eq("player_id", playerId)
+    .eq("kind", "power_up_discount")
+    .not("claimed_at", "is", null)
+    .is("spent_at", null)
+    .or(`box_id.is.null,box_id.eq.${boxId}`)
+    .gt("expires_at", new Date().toISOString())
+    .order("amount", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const row = data as { amount: number; power_up: string | null; expires_at: string } | null;
+  if (!row?.power_up) return null;
+  return {
+    powerUp: row.power_up,
+    amount: Number(row.amount),
+    expiresAt: row.expires_at,
+  };
+}
+
+/**
  * The whole play surface for one box and one (possibly anonymous) player.
  *
  * An unverified visitor still gets the box and the power-up prices — the game
@@ -234,6 +276,7 @@ export async function buildPlayView(
       hunt: null,
       rivals: await rivalsOn(db, box.id, null),
       offer: null,
+      discount: null,
       powerUps: offerings(parseRevealed(null), box.reward_kobo),
       claim: null,
     };
@@ -258,6 +301,7 @@ export async function buildPlayView(
     hunt: state,
     rivals: await rivalsOn(db, box.id, playerRow?.id ?? null),
     offer: playerRow ? await liveOffer(db, playerRow.id) : null,
+    discount: playerRow ? await liveDiscount(db, playerRow.id, box.id) : null,
     powerUps: offerings(state?.revealed ?? parseRevealed(null), box.reward_kobo),
     claim: claim
       ? {

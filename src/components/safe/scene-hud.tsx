@@ -22,21 +22,29 @@
 
 import type { ReactNode } from "react";
 import { ChevronLeft, Coins, HelpCircle, Sparkles, Swords, Trophy, Users } from "lucide-react";
-import { DifficultyBadge } from "@/components/difficulty-badge";
 import { compact } from "@/lib/plural";
 import { rewardLabel } from "@/lib/game/rewards";
 import type { PublicBox } from "@/lib/types";
 
 /** Which stat a player has asked about. */
-export type StatKind = "hunters" | "attempts" | "best";
+export type StatKind = "hunters" | "attempts";
 
 /**
  * The rail, across the top of the chase.
  *
  * Row one is the box: the prize, and the two ways out. Row two is your own best
- * guess, spelled out. Row three is the crowd, with the difficulty beside it.
+ * guess with the score it earned. Row three is the crowd.
  *
- * Nothing on it is captioned. Every figure opens a sheet that says what it is,
+ * There were two trophies up here — a percentage on the stat row and the same
+ * percentage on a floating pill — and a player reasonably read them as two
+ * different numbers and went looking for the difference. There is one now, and
+ * it sits on the string it describes, where it needs no label at all.
+ *
+ * The difficulty has gone the other way, into the vault sheet. It is a fact
+ * about the box you read once when you arrive, not a reading you check while
+ * you play, and it was taking rail width from things that are.
+ *
+ * Nothing here is captioned. Every figure opens a sheet that says what it is,
  * which is the only moment anybody wants the sentence.
  */
 export function SceneRail({
@@ -102,22 +110,26 @@ export function SceneRail({
       </div>
 
       {/*
-        Your best guess, in full. It is the one thing on this screen you would
-        otherwise have to open a sheet to re-read, and re-reading it is what
-        every next guess is built on — you are editing this string, not writing
-        a new one.
+        Your best guess, in full, with what it scored on the end of it. It is
+        the one thing on this screen you would otherwise have to open a sheet
+        to re-read, and re-reading it is what every next guess is built on —
+        you are editing this string, not writing a new one. The percentage
+        belongs against it for the same reason: it is that string's score.
       */}
       {bestGuess && (
         <button
           type="button"
           onClick={onBestGuess}
-          aria-label="Your best guess so far"
-          className="flex w-full items-center gap-2 rounded-full border-2 border-white/15 bg-background/85 px-3 py-1.5 text-left transition hover:border-brass/60"
+          aria-label={`Your best guess, ${(yourBest ?? 0).toFixed(1)}%`}
+          className="flex w-full items-center gap-2 rounded-full border-2 border-white/15 bg-background/85 py-1.5 pl-3 pr-1.5 text-left transition hover:border-brass/60"
         >
           <Trophy className="size-3.5 shrink-0 text-brass" aria-hidden />
           <code className="min-w-0 flex-1 truncate font-mono text-sm font-bold tracking-wide text-foreground">
             {bestGuess}
           </code>
+          <span className="shrink-0 rounded-full bg-brass/20 px-2 py-0.5 font-mono text-xs font-black tabular-nums text-brass">
+            {(yourBest ?? 0).toFixed(1)}%
+          </span>
         </button>
       )}
 
@@ -134,16 +146,6 @@ export function SceneRail({
           value={compact(box.attemptsCount)}
           label="Guesses made at this safe"
         />
-        <Stat
-          onClick={() => onStat("best")}
-          icon={<Trophy className="size-3.5 text-brass" aria-hidden />}
-          value={`${Math.round(yourBest ?? 0)}%`}
-          label="Your best score on this safe"
-          accent
-        />
-        {/* Down here with the rest of the readings, where it belongs — it is a
-            figure about the box, not a control. */}
-        <DifficultyBadge difficulty={box.difficulty} compact />
       </div>
     </div>
   );
@@ -154,62 +156,22 @@ function Stat({
   icon,
   value,
   label,
-  accent,
 }: {
   onClick: () => void;
   icon: ReactNode;
   value: string;
   /** Read out by a screen reader, and the reason the visible label is gone. */
   label: string;
-  accent?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={
-        "flex items-center gap-1.5 rounded-full border-2 px-2.5 py-1 font-mono text-sm font-black leading-none tabular-nums transition " +
-        (accent
-          ? "border-brass/45 bg-background/85 text-brass hover:border-brass"
-          : "border-white/18 bg-background/85 text-zinc-200 hover:border-white/40")
-      }
+      className="flex items-center gap-1.5 rounded-full border-2 border-white/18 bg-background/85 px-2.5 py-1 font-mono text-sm font-black leading-none tabular-nums text-zinc-200 transition hover:border-white/40"
     >
       {icon}
       {value}
-    </button>
-  );
-}
-
-/**
- * Your best score, floating in the scene's top corner.
- *
- * It used to sit directly above the two dock buttons, which stacked three
- * floating things into one corner and put all of them across the safe. Opposite
- * corners: the reading in one, the controls in the other, and the safe visible
- * between them.
- */
-export function BestPill({
-  className = "",
-  best,
-  onClick,
-}: {
-  className?: string;
-  best: number;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="Your best guess"
-      className={
-        "flex items-center gap-1.5 rounded-full border-2 border-brass/40 bg-background/85 py-1 pl-2.5 pr-3 font-mono text-xs font-black tabular-nums text-brass shadow-lg backdrop-blur transition hover:border-brass " +
-        className
-      }
-    >
-      <Trophy className="size-3.5" aria-hidden />
-      {best.toFixed(1)}%
     </button>
   );
 }

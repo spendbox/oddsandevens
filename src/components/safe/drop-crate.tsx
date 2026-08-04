@@ -13,8 +13,15 @@
 
 import { useEffect, useState } from "react";
 import { Gift, Timer, X } from "lucide-react";
-import { POWER_UPS } from "@/lib/game/power-ups";
+import { POWER_UPS, SECOND_WIND_HOURS } from "@/lib/game/power-ups";
 import type { Drop } from "@/lib/types";
+
+/** The three things a crate can hold, and how each one is said. */
+const TONES = {
+  free_lives: { face: "bg-berry", lip: "var(--berry-deep)" },
+  free_second_wind: { face: "bg-mint", lip: "var(--mint-deep)" },
+  power_up_discount: { face: "bg-grape", lip: "var(--grape-deep)" },
+} as const;
 
 export function DropCrate({
   drop,
@@ -28,8 +35,15 @@ export function DropCrate({
   className?: string;
 }) {
   const left = useCountdown(drop.expiresAt, onDismiss);
-  const lives = drop.kind === "free_lives";
   const name = drop.powerUp ? POWER_UPS[drop.powerUp as keyof typeof POWER_UPS]?.name : null;
+  const tone = TONES[drop.kind] ?? TONES.power_up_discount;
+
+  const title =
+    drop.kind === "free_lives"
+      ? `${drop.amount} free ${drop.amount === 1 ? "life" : "lives"}`
+      : drop.kind === "free_second_wind"
+        ? `Free Second Wind · ${SECOND_WIND_HOURS === 1 ? "1 hour" : `${SECOND_WIND_HOURS} hours`}`
+        : `${drop.amount}% off ${name ?? "a power-up"}`;
 
   return (
     <div
@@ -39,19 +53,15 @@ export function DropCrate({
       <button
         type="button"
         onClick={onClaim}
-        style={{ "--btn-lip": lives ? "var(--berry-deep)" : "var(--grape-deep)" } as React.CSSProperties}
+        style={{ "--btn-lip": tone.lip } as React.CSSProperties}
         className={
           "btn-chunky drop-bob flex items-center gap-2 rounded-2xl px-3 py-2 text-left text-ink " +
-          (lives ? "bg-berry" : "bg-grape")
+          tone.face
         }
       >
         <Gift className="size-5 shrink-0" aria-hidden />
         <span className="min-w-0">
-          <span className="block text-sm font-black leading-tight">
-            {lives
-              ? `${drop.amount} free ${drop.amount === 1 ? "life" : "lives"}`
-              : `${drop.amount}% off ${name ?? "a power-up"}`}
-          </span>
+          <span className="block text-sm font-black leading-tight">{title}</span>
           <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide opacity-70">
             <Timer className="size-3" aria-hidden />
             {left}

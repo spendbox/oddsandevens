@@ -5,6 +5,7 @@ import { appBaseUrl } from "@/lib/base-url";
 import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
 import { newReference } from "@/lib/game/boxes";
 import {
+  discountedKobo,
   isAvailable,
   isPowerUpKind,
   parseRevealed,
@@ -82,7 +83,7 @@ export async function POST(
     p_box_id: box.id,
   });
   const discount = Math.max(0, Math.min(100, Number(off ?? 0)));
-  const price = Math.max(1, Math.round((full * (100 - discount)) / 100));
+  const price = discountedKobo(full, discount);
   if (discount > 0) {
     await db.rpc("spend_discount", {
       p_player_id: player.id,
