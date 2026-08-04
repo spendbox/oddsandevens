@@ -33,5 +33,8 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/contributor/:path*"],
+  // Only what still has a Supabase session to refresh. `/dashboard` came off
+  // the list when creating a box stopped needing a Supabase user: it is served
+  // to a player cookie now, and the routes behind it do their own auth.
+  matcher: ["/api/contributor/:path*"],
 };

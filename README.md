@@ -518,7 +518,9 @@ src/components/safe/        the play screen, and the safe itself in SVG
 supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0027 made a score a percentage, 0028 added
                             Second Wind, the life split and box designs,
-                            0029 added invites
+                            0029–0030 added invites, 0031 gave players
+                            passwords and bank details, 0032 made featuring
+                            possible and merged the two identities into one
 ```
 
 ---
@@ -531,6 +533,13 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
    npx supabase link --project-ref YOUR_PROJECT_REF
    npx supabase db push          # applies supabase/migrations/*
    ```
+
+   End every new migration with `notify pgrst, 'reload schema';`, the way 0032
+   does. PostgREST answers from a cached picture of the schema and does
+   not notice DDL on its own: a migration that adds a column or a view lands in
+   Postgres and then the API keeps insisting it isn't there — `PGRST204` for a
+   column, `PGRST205` for a table or view. The `NOTIFY` is the whole fix, and
+   it's safe to run by hand against a database that has drifted.
 
    Local stack instead: `npx supabase start && npx supabase db reset`. That also
    runs `supabase/seed.sql`, which creates a contributor
@@ -594,8 +603,8 @@ asserts that neither can read a password or call a privileged function.
 ## Not in this version (deliberately)
 
 - **No leaderboards.** A box has one winner and then it's over.
-- **No streaks, no daily bonus, no referral loops.** Lives refill on a clock
-  and that's the whole retention model.
+- **No streaks and no daily bonus.** Lives refill on a clock, and the only
+  other way to earn them is inviting somebody who then buys their own.
 - **No automated reward transfers.** A winner's bank details are checked with
   the bank, but the transfer itself is a human pressing a button in `/admin`.
 - **No cap on attempts.** Play as fast as you can afford to.

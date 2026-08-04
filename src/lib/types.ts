@@ -39,6 +39,15 @@ export interface PublicBox {
   unlockedAt: string | null;
   /** Masked address of whoever cracked it, once someone has. */
   unlockedBy: string | null;
+  /**
+   * Picked out by an admin for the top of the landing page.
+   *
+   * Editorial rather than structural: the front page used to be "ours on top,
+   * everyone else's below", which is a strange thing to hard-code when every
+   * box plays identically. Cracking one clears the flag — a safe with nothing
+   * left in it is a poor invitation.
+   */
+  featured: boolean;
 }
 
 /** The player's own life pool, as the header shows it. */

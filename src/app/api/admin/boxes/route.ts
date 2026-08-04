@@ -119,12 +119,38 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { boxId?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    boxId?: string;
+    featured?: boolean;
+  };
   if (!body.boxId) return NextResponse.json({ error: "invalid_box" }, { status: 400 });
 
-  const { data } = await supabaseAdmin()
+  const db = supabaseAdmin();
+
+  // ---- Featuring ----------------------------------------------------------
+  // Editorial rather than structural: whichever boxes are worth the top of the
+  // landing page, however many, whoever made them. Only a *live* box can be
+  // featured — `claim_box` clears the flag the moment somebody cracks one, and
+  // this is the other half of that rule.
+  if (typeof body.featured === "boolean") {
+    const { data } = await db
+      .from("boxes")
+      .update({ featured_at: body.featured ? new Date().toISOString() : null })
+      .eq("id", body.boxId)
+      .eq("status", "live")
+      .select("id")
+      .maybeSingle();
+
+    if (!data) {
+      return NextResponse.json({ error: "not_featurable" }, { status: 409 });
+    }
+    return NextResponse.json({ result: body.featured ? "featured" : "unfeatured" });
+  }
+
+  // ---- Closing ------------------------------------------------------------
+  const { data } = await db
     .from("boxes")
-    .update({ status: "closed" })
+    .update({ status: "closed", featured_at: null })
     .eq("id", body.boxId)
     .in("status", ["draft", "funding", "live"])
     .select("id")

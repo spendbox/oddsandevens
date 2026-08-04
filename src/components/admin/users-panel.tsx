@@ -50,12 +50,14 @@ export function UsersPanel() {
   const [sort, setSort] = useState<Sort>("spent");
   const [open, setOpen] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unmigrated, setUnmigrated] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ sort });
     if (query.trim()) params.set("q", query.trim());
     const res = await fetch(`/api/admin/users?${params}`, { cache: "no-store" });
+    setUnmigrated(res.status === 503);
     if (res.ok) setUsers(((await res.json()) as { users: AdminUser[] }).users);
     setLoading(false);
   }, [query, sort]);
@@ -112,7 +114,19 @@ export function UsersPanel() {
         </div>
       </div>
 
-      {loading && users.length === 0 ? (
+      {unmigrated ? (
+        // The one failure worth naming, because the fix is a command and not a
+        // bug report: the view exists in a migration the database hasn't run.
+        <div className="panel rounded-2xl px-4 py-8 text-center">
+          <p className="font-black tracking-tight">This list needs a migration.</p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-zinc-400">
+            The database is missing <code className="font-mono">admin_players</code>, or
+            has it and the API hasn&apos;t noticed. Run{" "}
+            <code className="font-mono">npx supabase db push</code>, then{" "}
+            <code className="font-mono">notify pgrst, &apos;reload schema&apos;;</code>.
+          </p>
+        </div>
+      ) : loading && users.length === 0 ? (
         <p className="py-6 text-center text-sm text-zinc-500">Loading…</p>
       ) : users.length === 0 ? (
         <p className="panel rounded-2xl py-8 text-center text-sm text-zinc-500">

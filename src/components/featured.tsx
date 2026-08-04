@@ -1,0 +1,207 @@
+"use client";
+
+// The boxes an admin has put at the top of the page.
+//
+// Editorial, not structural. The front page used to be "ours above, everyone
+// else's below", which is a strange thing to hard-code when every box plays
+// identically and a worse thing to explain. Now somebody picks the ones worth
+// arriving to, whoever made them.
+//
+// It swipes. More than one featured box on a phone is a carousel or it is
+// nothing, and the native way to build one is `scroll-snap` — no library, no
+// drag handlers, no fighting the browser for the scroll. Arrows appear only
+// where there is a pointer to use them.
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { DifficultyBadge } from "@/components/difficulty-badge";
+import { SafeArt } from "@/components/safe/safe-art";
+import { DESIGN_SPECS } from "@/lib/game/designs";
+import { rewardLabel } from "@/lib/game/rewards";
+import { compact } from "@/lib/plural";
+import type { PublicBox } from "@/lib/types";
+
+export function Featured({ boxes }: { boxes: PublicBox[] }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+
+  // Which card is centred, worked out from the scroll position rather than
+  // tracked separately — a swipe, an arrow and a dot all move the same number.
+  const onScroll = useCallback(() => {
+    const el = track.current;
+    if (!el) return;
+    const width = el.clientWidth || 1;
+    setIndex(Math.round(el.scrollLeft / width));
+  }, []);
+
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [onScroll]);
+
+  function go(to: number) {
+    const el = track.current;
+    if (!el) return;
+    const clamped = Math.max(0, Math.min(boxes.length - 1, to));
+    el.scrollTo({ left: clamped * el.clientWidth, behavior: "smooth" });
+  }
+
+  if (boxes.length === 0) return null;
+
+  return (
+    <section className="relative">
+      <div
+        ref={track}
+        className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {boxes.map((box) => (
+          <div key={box.slug} className="w-full shrink-0 snap-center">
+            <FeaturedCard box={box} />
+          </div>
+        ))}
+      </div>
+
+      {boxes.length > 1 && (
+        <>
+          {/* Arrows, for a mouse. A touch device gets the swipe it expects. */}
+          <Arrow side="left" disabled={index === 0} onClick={() => go(index - 1)} />
+          <Arrow
+            side="right"
+            disabled={index >= boxes.length - 1}
+            onClick={() => go(index + 1)}
+          />
+
+          <div className="mt-4 flex justify-center gap-2">
+            {boxes.map((box, i) => (
+              <button
+                key={box.slug}
+                type="button"
+                aria-label={`Show ${box.title}`}
+                aria-current={i === index}
+                onClick={() => go(i)}
+                className={
+                  "h-2 rounded-full transition-all " +
+                  (i === index ? "w-7 bg-brass" : "w-2 bg-white/25 hover:bg-white/50")
+                }
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * One featured box, as big as it deserves.
+ *
+ * The reward is the headline and everything else arranges itself around it —
+ * the safe on the left at a size you can actually see, the counters stacked in
+ * their own tiles so a six-figure attempt count has somewhere to go, and the
+ * whole card a single target.
+ */
+function FeaturedCard({ box }: { box: PublicBox }) {
+  return (
+    <Link
+      href={`/b/${box.slug}`}
+      className="panel panel-lift group relative flex flex-col items-center gap-5 overflow-hidden rounded-3xl p-6 text-center sm:flex-row sm:p-8 sm:text-left"
+    >
+      {/* A wash in the safe's own colour, so swiping from one featured box to
+          the next doesn't feel like the same card twice with the words swapped.
+          Inline rather than a class because the colour comes from the design. */}
+      <div
+        aria-hidden
+        style={{ background: DESIGN_SPECS[box.design].body[0] }}
+        className="pointer-events-none absolute -left-16 -top-16 size-64 rounded-full opacity-15 blur-3xl"
+      />
+
+      <SafeArt
+        design={box.design}
+        className="size-28 shrink-0 drop-shadow-2xl transition duration-300 group-hover:scale-105 group-hover:-rotate-2 sm:size-36"
+      />
+
+      <div className="relative min-w-0 flex-1">
+        <p className="text-xs font-black uppercase tracking-widest text-brass">
+          {box.kind === "general" ? "By Spendbox" : `By ${box.contributor}`}
+        </p>
+
+        <h3 className="mt-1 truncate text-2xl font-black tracking-tight sm:text-3xl">
+          {box.title}
+        </h3>
+        {box.blurb && (
+          <p className="mt-1 line-clamp-2 text-sm text-zinc-400">{box.blurb}</p>
+        )}
+
+        <p
+          className={
+            "mt-3 font-black leading-none tabular-nums " +
+            (box.isChallenge
+              ? "text-3xl text-grape"
+              : "brass-text text-5xl sm:text-6xl")
+          }
+        >
+          {rewardLabel(box.rewardKobo)}
+        </p>
+
+        <div className="mt-4 flex items-stretch justify-center gap-2 sm:justify-start">
+          <DifficultyBadge difficulty={box.difficulty} />
+          {/*
+            Stacked tiles rather than a "37 hunters · 412 attempts" line: a
+            popular box reaches six figures and an inline count wraps into
+            nonsense at exactly the moment it's most worth reading.
+          */}
+          <Counter label="Hunters" value={box.playersCount} />
+          <Counter label="Attempts" value={box.attemptsCount} />
+        </div>
+
+        <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-brass">
+          Take a crack at it
+          <ArrowRight className="size-4 transition group-hover:translate-x-1" aria-hidden />
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+/** A count that survives being large. */
+function Counter({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="flex min-w-16 flex-col items-center rounded-xl bg-black/25 px-2.5 py-1">
+      <span className="font-mono text-sm font-black leading-tight tabular-nums">
+        {compact(value)}
+      </span>
+      <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+        {label}
+      </span>
+    </span>
+  );
+}
+
+function Arrow({
+  side,
+  disabled,
+  onClick,
+}: {
+  side: "left" | "right";
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={side === "left" ? "Previous" : "Next"}
+      className={
+        "absolute top-1/2 hidden size-11 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white/15 bg-background/85 backdrop-blur transition hover:border-brass/60 disabled:opacity-0 sm:flex " +
+        (side === "left" ? "-left-4" : "-right-4")
+      }
+    >
+      <Icon className="size-5" aria-hidden />
+    </button>
+  );
+}

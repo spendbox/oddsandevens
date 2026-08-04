@@ -107,7 +107,7 @@ export function BankPanel() {
       <p className="text-sm text-zinc-400">
         {bank?.connected
           ? "Change it below whenever you like. We check the number with your bank first."
-          : "Add an account now and any reward you win goes straight to it — no forms at the moment you win."}
+          : "Add an account now and any reward you win goes straight to it."}
       </p>
 
       <div className="space-y-3">

@@ -8,7 +8,7 @@
 // borrowed unlocked phone shouldn't be able to lock its owner out.
 
 import { useState } from "react";
-import { Eye, EyeOff, KeyRound } from "lucide-react";
+import { Eye, EyeOff, KeyRound, LogOut } from "lucide-react";
 import { MIN_PASSWORD_LENGTH } from "@/lib/player-password";
 
 const INPUT =
@@ -107,6 +107,29 @@ export function SecurityPanel() {
         <p className="text-xs text-zinc-500">
           Forgotten it instead? Sign out and use &ldquo;I&apos;ve forgotten my
           password&rdquo; — we&apos;ll email you a code.
+        </p>
+      </div>
+
+      {/*
+        Sign out lives here rather than in the header. It is the one control on
+        the site nobody wants to hit by accident, and burying it two taps deep
+        costs the person who wants it about a second.
+      */}
+      <div className="border-t border-white/10 pt-4">
+        <button
+          type="button"
+          onClick={async () => {
+            await fetch("/api/player/signout", { method: "POST" });
+            window.location.assign("/");
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-white/12 bg-white/6 px-4 py-3 text-sm font-bold text-zinc-300 transition hover:border-berry/50 hover:text-berry active:translate-y-0.5"
+        >
+          <LogOut className="size-4" aria-hidden />
+          Sign out
+        </button>
+        <p className="mt-2 text-center text-xs text-zinc-500">
+          Your lives, boxes and rewards are all kept. Signing back in picks up
+          where you left off.
         </p>
       </div>
     </section>

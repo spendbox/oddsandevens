@@ -18,6 +18,7 @@ import {
   EyeOff,
   Lock,
   ShieldCheck,
+  Star,
   Trash2,
   Users,
   Vault,
@@ -222,7 +223,10 @@ export default function AdminPage() {
             <strong className="text-zinc-300">Close</strong> takes a box off the
             board and leaves its history intact — that is the normal remedy.{" "}
             <strong className="text-zinc-300">Delete</strong> is permanent, takes
-            every attempt with it, and asks for a code by email first.
+            every attempt with it, and asks for a code by email first.{" "}
+            <strong className="text-zinc-300">Feature</strong> puts a live box at
+            the top of the landing page — as many as you like, from either side,
+            and cracking one clears it automatically.
           </p>
           <ul className="space-y-1.5">
             {boxes.map((box) => (
@@ -240,6 +244,31 @@ export default function AdminPage() {
                   {rewardLabel(box.rewardKobo)}
                 </span>
                 <span className="shrink-0 text-xs text-zinc-500">{box.status}</span>
+                {box.status === "live" && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetch("/api/admin/boxes", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ boxId: box.id, featured: !box.featured }),
+                      });
+                      void load();
+                    }}
+                    className={
+                      "flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold transition active:translate-y-px " +
+                      (box.featured
+                        ? "bg-brass text-ink"
+                        : "bg-white/6 text-zinc-300 hover:bg-white/12")
+                    }
+                  >
+                    <Star
+                      className={"size-3.5 " + (box.featured ? "fill-ink" : "")}
+                      aria-hidden
+                    />
+                    {box.featured ? "Featured" : "Feature"}
+                  </button>
+                )}
                 {["draft", "funding", "live"].includes(box.status) && (
                   <button
                     type="button"
@@ -375,9 +404,9 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         The Spendbox box
       </h2>
       <p className="mt-1 text-xs text-zinc-500">
-        Free to play and funded by us, so there&apos;s nothing to collect and no
-        split — just a reward, or none at all, which makes it a pure challenge.
-        Publishing a new one closes the current one; only one is ever live.
+        Funded by us, so there&apos;s nothing to collect and no split — just a
+        reward, or none at all, which makes it a pure challenge. You can have as
+        many live at once as you like; feature the ones worth the front page.
       </p>
 
       <div className="mt-3 space-y-2">

@@ -34,6 +34,12 @@ export async function GET(req: Request) {
   const { data, error } = await request.order(column, { ascending: false }).limit(LIMIT);
   if (error) {
     console.error("[admin] users failed:", error);
+    // PGRST205 is not "broken", it's "not migrated yet, or migrated and the
+    // API hasn't noticed". Saying so beats a 500 that reads like a bug in the
+    // page, because the fix is one migration or one NOTIFY away.
+    if (error.code === "PGRST205" || error.code === "PGRST204") {
+      return NextResponse.json({ error: "not_migrated" }, { status: 503 });
+    }
     return NextResponse.json({ error: "query_failed" }, { status: 500 });
   }
 
