@@ -81,12 +81,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_reward" }, { status: 400 });
   }
 
+  // Publishing used to close every other live platform box first, because the
+  // schema allowed exactly one and "the public game" was singular. Both halves
+  // of that are gone — 0032 dropped the index, and featuring decides what sits
+  // at the top of the page now. A new box is a new box; the old ones keep
+  // playing until somebody cracks them or an admin closes them by hand.
   const db = supabaseAdmin();
-  await db
-    .from("boxes")
-    .update({ status: "closed" })
-    .eq("kind", "general")
-    .eq("status", "live");
 
   const { data, error } = await db
     .from("boxes")
@@ -119,12 +119,38 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { boxId?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    boxId?: string;
+    featured?: boolean;
+  };
   if (!body.boxId) return NextResponse.json({ error: "invalid_box" }, { status: 400 });
 
-  const { data } = await supabaseAdmin()
+  const db = supabaseAdmin();
+
+  // ---- Featuring ----------------------------------------------------------
+  // Editorial rather than structural: whichever boxes are worth the top of the
+  // landing page, however many, whoever made them. Only a *live* box can be
+  // featured — `claim_box` clears the flag the moment somebody cracks one, and
+  // this is the other half of that rule.
+  if (typeof body.featured === "boolean") {
+    const { data } = await db
+      .from("boxes")
+      .update({ featured_at: body.featured ? new Date().toISOString() : null })
+      .eq("id", body.boxId)
+      .eq("status", "live")
+      .select("id")
+      .maybeSingle();
+
+    if (!data) {
+      return NextResponse.json({ error: "not_featurable" }, { status: 409 });
+    }
+    return NextResponse.json({ result: body.featured ? "featured" : "unfeatured" });
+  }
+
+  // ---- Closing ------------------------------------------------------------
+  const { data } = await db
     .from("boxes")
-    .update({ status: "closed" })
+    .update({ status: "closed", featured_at: null })
     .eq("id", body.boxId)
     .in("status", ["draft", "funding", "live"])
     .select("id")

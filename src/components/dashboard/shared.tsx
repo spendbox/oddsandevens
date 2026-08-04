@@ -5,14 +5,22 @@
 import { Check, Share2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-export const INPUT =
-  "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-brass";
+/**
+ * A text box.
+ *
+ * The surface itself is the `field` utility in `globals.css`, so a dialog that
+ * doesn't import from the dashboard can still get an identical box; this is
+ * only the padding, which `field` deliberately leaves alone so an input with an
+ * icon in it can inset one side without a specificity fight.
+ */
+export const INPUT = "field px-4 py-3";
 
-export const PRIMARY =
-  "rounded-xl bg-brass px-5 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright disabled:opacity-50";
+/** The one button on a screen that does the thing. Gold slab, hard lip. */
+export const PRIMARY = "btn-chunky rounded-2xl bg-brass px-5 py-3.5 text-ink";
 
+/** Everything else. Raised, but quietly. */
 export const GHOST =
-  "rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold transition hover:border-brass/40 disabled:opacity-50";
+  "rounded-xl border-2 border-white/12 bg-white/6 px-4 py-2.5 text-sm font-bold transition hover:border-brass/50 hover:bg-white/10 active:translate-y-0.5 disabled:opacity-50";
 
 export function Panel({
   title,
@@ -24,7 +32,7 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="panel rounded-2xl p-5">
+    <section className="panel rounded-3xl p-5">
       {(title || action) && (
         <header className="mb-3 flex items-center justify-between gap-3">
           {title && (
@@ -46,10 +54,10 @@ export function Empty({ children }: { children: ReactNode }) {
 
 export function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="panel rounded-xl p-4">
-      <p className="text-xs uppercase tracking-wide text-zinc-500">{label}</p>
-      <p className="mt-1 text-xl font-bold tabular-nums text-zinc-100">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>}
+    <div className="panel rounded-2xl p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-zinc-400">{label}</p>
+      <p className="mt-1 text-2xl font-black tabular-nums">{value}</p>
+      {hint && <p className="mt-0.5 text-xs text-zinc-400">{hint}</p>}
     </div>
   );
 }
@@ -100,11 +108,11 @@ export function ShareButton({ slug, title }: { slug: string; title: string }) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  live: "bg-mark-green/20 text-mark-green",
-  funding: "bg-brass/20 text-brass",
-  unlocked: "bg-white/10 text-zinc-300",
-  closed: "bg-white/5 text-zinc-500",
-  draft: "bg-white/5 text-zinc-500",
+  live: "bg-mint text-ink",
+  funding: "bg-brass text-ink",
+  unlocked: "bg-grape text-ink",
+  closed: "bg-white/10 text-zinc-400",
+  draft: "bg-white/10 text-zinc-400",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -119,7 +127,7 @@ export function StatusPill({ status }: { status: string }) {
   return (
     <span
       className={
-        "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold " +
+        "shrink-0 rounded-lg px-2.5 py-1 text-xs font-black " +
         (STATUS_STYLES[status] ?? STATUS_STYLES.closed)
       }
     >

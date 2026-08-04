@@ -13,7 +13,7 @@ import { EMAIL_REGEX } from "@/lib/constants";
 import { plural } from "@/lib/plural";
 
 const INPUT =
-  "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-brass";
+  "field px-4 py-3";
 
 interface Found {
   email: string;
@@ -111,7 +111,7 @@ export function GrantLives() {
 
         {found && found !== "missing" && (
           <p className="rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-300">
-            {found.email} holds{" "}
+            <span className="break-all">{found.email}</span> holds{" "}
             <strong className="text-brass">{plural(found.lives, "life", "lives")}</strong>
             , playing since {new Date(found.since).toLocaleDateString()}.
           </p>

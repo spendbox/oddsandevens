@@ -112,7 +112,7 @@ export function PrizeClaimForm({
 
         {banks.length === 0 && (
           <p className="text-xs text-zinc-500">
-            The bank list isn&apos;t available right now. Try again shortly — the
+            The bank list isn’t available right now. Try again shortly — the
             prize is safe either way.
           </p>
         )}

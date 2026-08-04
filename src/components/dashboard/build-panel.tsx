@@ -199,25 +199,25 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
       {card === "box" && (
         <CardDialog title="The box" onClose={() => setCard(null)}>
           <label className="block">
-            <span className="text-sm font-medium text-zinc-700">Name</span>
+            <span className="text-sm font-bold text-zinc-300">Name</span>
             <input
               value={title}
               maxLength={TITLE_MAX}
               autoFocus
               onChange={(e) => setTitle(e.target.value)}
               placeholder="The Friday Safe"
-              className={LIGHT_INPUT}
+              className={`${INPUT} mt-1.5`}
             />
           </label>
           <label className="block">
-            <span className="text-sm font-medium text-zinc-700">One line for the card</span>
+            <span className="text-sm font-bold text-zinc-300">One line for the card</span>
             <textarea
               value={blurb}
               maxLength={BLURB_MAX}
               rows={3}
               onChange={(e) => setBlurb(e.target.value)}
               placeholder="Optional. Say something that makes people want a go."
-              className={`${LIGHT_INPUT} resize-none`}
+              className={`${INPUT} mt-1.5 resize-none`}
             />
             <span className="mt-1 block text-right text-xs text-zinc-400">
               {blurb.length}/{BLURB_MAX}
@@ -246,14 +246,14 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
               value={fundingNaira}
               onChange={(e) => setFundingNaira(e.target.value.replace(/[^\d]/g, ""))}
               placeholder={String(Math.round(floor / 100))}
-              className={`${LIGHT_INPUT} pl-8 font-mono`}
+              className={`${INPUT} mt-1.5 pl-8 font-mono`}
             />
           </div>
 
           <dl className="grid grid-cols-3 gap-2 text-center">
-            <LightSplit label="You pay" value={formatNaira(split.fundingKobo)} />
-            <LightSplit label="Reward" value={formatNaira(split.rewardKobo)} accent />
-            <LightSplit label="Spendbox keeps" value={formatNaira(split.platformKobo)} />
+            <SplitTile label="You pay" value={formatNaira(split.fundingKobo)} />
+            <SplitTile label="Reward" value={formatNaira(split.rewardKobo)} accent />
+            <SplitTile label="Spendbox keeps" value={formatNaira(split.platformKobo)} />
           </dl>
 
           <p className="text-sm text-zinc-500">
@@ -267,7 +267,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
         <CardDialog title="The safe" onClose={() => setCard(null)}>
           <p className="text-sm text-zinc-500">
             Decoration, and only decoration — it changes nothing about the game.
-            It&apos;s what people see on the card, the share link and the screen
+            It’s what people see on the card, the share link and the screen
             they spend a fortnight staring at.
           </p>
           <div className="grid grid-cols-3 gap-2">
@@ -280,11 +280,11 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
                   "flex flex-col items-center gap-1 rounded-xl border-2 p-2 transition " +
                   (design === key
                     ? "border-brass bg-brass/5"
-                    : "border-zinc-200 hover:border-zinc-300")
+                    : "border-white/12 bg-white/5 hover:border-white/30")
                 }
               >
                 <SafeArt design={key} className="size-14" />
-                <span className="text-xs font-medium text-zinc-700">
+                <span className="text-xs font-bold text-zinc-300">
                   {DESIGN_SPECS[key].name}
                 </span>
               </button>
@@ -297,8 +297,6 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
   );
 }
 
-const LIGHT_INPUT =
-  "mt-1 w-full rounded-xl border border-zinc-200 px-4 py-3 text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-brass";
 
 /**
  * One decision, closed.
@@ -381,7 +379,8 @@ function CardDialog({
         <button
           type="button"
           onClick={onClose}
-          className="w-full rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright"
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
         >
           Done
         </button>
@@ -425,14 +424,14 @@ function PasswordCard({
           autoComplete="off"
           autoCapitalize="off"
           autoCorrect="off"
-          className={`${LIGHT_INPUT} pr-20 font-mono tracking-[0.15em]`}
+          className={`${INPUT} mt-1.5 pr-20 font-mono tracking-[0.15em]`}
         />
         <div className="absolute inset-y-0 right-0 top-1 flex items-center gap-1 pr-2">
           <button
             type="button"
             onClick={() => setReveal((r) => !r)}
             aria-label={reveal ? "Hide" : "Show"}
-            className="flex size-8 items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-700"
+            className="flex size-8 items-center justify-center rounded-lg text-zinc-400 hover:text-foreground"
           >
             {reveal ? (
               <EyeOff className="size-4" aria-hidden />
@@ -459,19 +458,19 @@ function PasswordCard({
           {MIN_LENGTH}–{MAX_LENGTH} characters. Letters, digits and symbols.
           Case matters.
         </span>
-        <span className="shrink-0 font-mono text-zinc-700">
+        <span className="shrink-0 font-mono text-zinc-300">
           {length > 0 ? `${length} · ${difficultyOf(length)}` : `0/${MAX_LENGTH}`}
         </span>
       </div>
 
       {rejected.length > 0 && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="rounded-lg bg-berry/15 px-3 py-2 text-sm font-bold text-berry">
           Not allowed:{" "}
           <span className="font-mono">{rejected.join(" ")}</span>. Remove them.
         </p>
       )}
 
-      <p className="rounded-lg bg-zinc-100 px-3 py-2.5 text-sm text-zinc-600">
+      <p className="rounded-lg bg-black/25 px-3 py-2.5 text-sm text-zinc-400">
         Nobody at Spendbox can read this back to you. Keep your own copy.
       </p>
     </CardDialog>
@@ -479,7 +478,7 @@ function PasswordCard({
 }
 
 
-function LightSplit({
+function SplitTile({
   label,
   value,
   accent,
@@ -489,12 +488,12 @@ function LightSplit({
   accent?: boolean;
 }) {
   return (
-    <div className="rounded-xl bg-zinc-100 px-2 py-2.5">
+    <div className="rounded-xl bg-black/25 px-2 py-2.5">
       <dt className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</dt>
       <dd
         className={
           "mt-0.5 font-mono text-sm font-bold " +
-          (accent ? "text-brass" : "text-zinc-800")
+          (accent ? "text-brass" : "text-zinc-200")
         }
       >
         {value}

@@ -14,28 +14,13 @@
 // prize up.
 
 import { useState } from "react";
-import {
-  Clock,
-  Eye,
-  Layers,
-  Palette,
-  Repeat2,
-  Ruler,
-  Wallet,
-} from "lucide-react";
+import { Repeat2, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { PowerUpArt } from "@/components/art/power-up-art";
 import { formatNaira } from "@/lib/game/rewards";
 import { countdown } from "@/components/player/lives-badge";
-import type { Offering, PowerUpKind } from "@/lib/game/power-ups";
+import type { Offering } from "@/lib/game/power-ups";
 import type { PlayView } from "@/lib/types";
-
-const ICONS: Record<PowerUpKind, typeof Eye> = {
-  length_lock: Ruler,
-  case_map: Layers,
-  second_wind: Clock,
-  breakdown: Palette,
-  x_ray: Eye,
-};
 
 export function PowerUpShelf({
   view,
@@ -64,7 +49,6 @@ export function PowerUpShelf({
 
       <div className="grid gap-2 sm:grid-cols-2">
         {view.powerUps.map((powerUp, i) => {
-          const Icon = ICONS[powerUp.kind];
           const running = !!powerUp.activeUntil && new Date(powerUp.activeUntil).getTime() > now;
           return (
             <button
@@ -77,17 +61,7 @@ export function PowerUpShelf({
                 (powerUp.available ? "" : "opacity-60")
               }
             >
-              <span
-                className={
-                  "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg " +
-                  (running ? "bg-mark-green/15" : "bg-brass/10")
-                }
-              >
-                <Icon
-                  className={"size-4 " + (running ? "text-mark-green" : "text-brass")}
-                  aria-hidden
-                />
-              </span>
+              <PowerUpArt kind={powerUp.kind} className="size-12 shrink-0 drop-shadow-lg" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="flex min-w-0 items-baseline gap-1.5">
@@ -128,7 +102,7 @@ export function PowerUpShelf({
       {view.hunt && view.hunt.notes.length > 0 && (
         <div className="panel rounded-xl p-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            What you&apos;ve bought
+            What you’ve bought
           </h3>
           <ul className="mt-2 space-y-1 text-sm text-brass">
             {view.hunt.notes.map((note: string, i: number) => (
@@ -210,8 +184,6 @@ function PowerUpDialog({
     );
   }
 
-  const Icon = ICONS[powerUp.kind];
-
   return (
     <Modal
       title={powerUp.name}
@@ -220,7 +192,7 @@ function PowerUpDialog({
           ? `Running — ${countdown(powerUp.activeUntil, now)} left`
           : `${formatNaira(powerUp.priceKobo)} on this box`
       }
-      icon={<Icon className="size-5 text-brass" aria-hidden />}
+      icon={<PowerUpArt kind={powerUp.kind} className="size-7" />}
       width="sm"
       onClose={onClose}
       footer={
@@ -229,7 +201,8 @@ function PowerUpDialog({
             type="button"
             disabled={busy}
             onClick={() => void buy()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright disabled:opacity-50"
+            style={{ "--btn-lip": "var(--grape-deep)" } as React.CSSProperties}
+            className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-grape px-4 py-3.5 text-ink"
           >
             <Wallet className="size-4" aria-hidden />
             {busy ? "Opening checkout…" : `Pay ${formatNaira(powerUp.priceKobo)}`}
@@ -238,7 +211,7 @@ function PowerUpDialog({
           <button
             type="button"
             onClick={onClose}
-            className="w-full rounded-xl bg-zinc-100 px-4 py-3 font-semibold text-zinc-700"
+            className="w-full rounded-2xl border-2 border-white/12 bg-white/8 px-4 py-3.5 font-bold text-zinc-300"
           >
             Back to the hunt
           </button>
@@ -246,13 +219,13 @@ function PowerUpDialog({
       }
     >
       <div className="space-y-4 pb-1">
-        <p className="text-sm leading-relaxed text-zinc-700">{powerUp.detail}</p>
+        <p className="text-sm leading-relaxed text-zinc-300">{powerUp.detail}</p>
 
-        <div className="rounded-xl bg-zinc-100 px-3 py-2.5">
+        <div className="rounded-xl bg-black/25 px-3 py-2.5">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            What it doesn&apos;t do
+            What it doesn’t do
           </p>
-          <p className="mt-1 text-sm text-zinc-600">{powerUp.caveat}</p>
+          <p className="mt-1 text-sm text-zinc-400">{powerUp.caveat}</p>
         </div>
 
         <p className="flex items-start gap-2 text-sm text-zinc-500">
@@ -272,9 +245,9 @@ function PowerUpDialog({
           the box — and a player who can read a percentage off five prices can
           check they agree, which is a puzzle nobody asked for.
         */}
-        <div className="flex items-baseline justify-between gap-3 border-t border-zinc-100 pt-3">
+        <div className="flex items-baseline justify-between gap-3 border-t border-white/10 pt-3">
           <span className="text-sm text-zinc-500">Price on this box</span>
-          <span className="shrink-0 font-mono text-lg font-bold text-zinc-900">
+          <span className="shrink-0 font-mono text-lg font-black text-brass">
             {formatNaira(powerUp.priceKobo)}
           </span>
         </div>
@@ -285,11 +258,13 @@ function PowerUpDialog({
 
         {!powerUp.available && !running && (
           <p className="text-sm text-zinc-500">
-            You&apos;ve already bought this one. It has nothing left to tell you.
+            You’ve already bought this one. It has nothing left to tell you.
           </p>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <p className="rounded-xl bg-berry/15 px-3 py-2 text-sm font-bold text-berry">{error}</p>
+        )}
       </div>
     </Modal>
   );

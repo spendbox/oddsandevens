@@ -67,15 +67,16 @@ export function BuyLivesDialog({
           type="button"
           disabled={busy}
           onClick={() => void checkout()}
-          className="w-full rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright disabled:opacity-50"
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
         >
           {busy ? "Opening checkout…" : `Pay ${formatNaira(total)}`}
         </button>
       }
     >
       <div className="space-y-4 pb-1">
-        <p className="rounded-xl bg-zinc-100 px-3 py-2.5 text-sm text-zinc-600">
-          You don&apos;t have to buy anything. A life comes back every hour on its
+        <p className="rounded-xl bg-black/25 px-3 py-2.5 text-sm text-zinc-400">
+          You don’t have to buy anything. A life comes back every hour on its
           own
           {player.nextLifeAt
             ? ` — the next one in ${countdown(player.nextLifeAt, now)}.`
@@ -88,7 +89,7 @@ export function BuyLivesDialog({
               +{player.bonusLivesPending} free{" "}
               {player.bonusLivesPending === 1 ? "life" : "lives"}
             </strong>{" "}
-            from your invites land with this one. You&apos;ll get{" "}
+            from your invites land with this one. You’ll get{" "}
             {quantity + player.bonusLivesPending} in total.
           </p>
         )}
@@ -106,10 +107,10 @@ export function BuyLivesDialog({
               type="button"
               onClick={() => setQuantity(n)}
               className={
-                "rounded-xl border px-4 py-2 text-sm font-medium transition " +
+                "rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition " +
                 (quantity === n
-                  ? "border-brass bg-brass/10 text-zinc-900"
-                  : "border-zinc-200 text-zinc-600 hover:border-zinc-300")
+                  ? "border-brass bg-brass/15 text-foreground"
+                  : "border-white/12 bg-white/5 text-zinc-300 hover:border-white/30")
               }
             >
               {n} {n === 1 ? "life" : "lives"}
@@ -129,11 +130,13 @@ export function BuyLivesDialog({
                 Math.min(Math.max(Math.trunc(Number(e.target.value) || 1), 1), LIFE_PURCHASE_MAX)
               )
             }
-            className="mt-1 w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-zinc-900 outline-none focus:border-brass"
+            className="field mt-1.5 px-4 py-3"
           />
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <p className="rounded-xl bg-berry/15 px-3 py-2 text-sm font-bold text-berry">{error}</p>
+        )}
       </div>
     </Modal>
   );

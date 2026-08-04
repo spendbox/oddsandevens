@@ -20,6 +20,7 @@ import { useMemo, useState } from "react";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Clock, MoveDown, MoveUp, Target } from "lucide-react";
 import { LENGTH_HINT_COPY } from "@/lib/game/feedback";
 import type { AttemptRecord } from "@/lib/types";
+import { Boxy } from "@/components/art/boxy";
 import { AttemptDialog } from "./attempt-dialog";
 import { ScorePill } from "./score-pill";
 
@@ -62,11 +63,14 @@ export function AttemptLog({ attempts }: { attempts: AttemptRecord[] }) {
 
   if (attempts.length === 0) {
     return (
-      <p className="panel rounded-2xl px-4 py-8 text-center text-sm text-zinc-500">
-        Nothing tried yet. Every guess costs one life and comes back with two
-        things: whether it&apos;s the right length, and how close it is as a
-        percentage. 100% is the password.
-      </p>
+      <div className="panel rounded-3xl px-4 py-8 text-center">
+        <Boxy mood="sly" className="mx-auto size-24" />
+        <p className="mt-1 font-black tracking-tight">Nothing tried yet.</p>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-zinc-400">
+          Every guess costs one life and comes back with two things: whether
+          it’s the right length, and how close it is out of 100.
+        </p>
+      </div>
     );
   }
 
@@ -76,7 +80,7 @@ export function AttemptLog({ attempts }: { attempts: AttemptRecord[] }) {
         <div
           role="group"
           aria-label="Sort attempts"
-          className="flex gap-1 rounded-xl bg-white/5 p-1"
+          className="flex gap-1 rounded-2xl bg-black/25 p-1.5"
         >
           {SORTS.map(({ id, label, icon: Icon }) => (
             <button
@@ -85,10 +89,10 @@ export function AttemptLog({ attempts }: { attempts: AttemptRecord[] }) {
               aria-pressed={sort === id}
               onClick={() => setSort(id)}
               className={
-                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition " +
+                "flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-bold transition " +
                 (sort === id
-                  ? "bg-brass/15 text-brass"
-                  : "text-zinc-500 hover:text-zinc-300")
+                  ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.4),0_2px_0_var(--brass-deep)]"
+                  : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100")
               }
             >
               <Icon className="size-3.5" aria-hidden />
@@ -131,8 +135,8 @@ function AttemptRow({
         onClick={onOpen}
         aria-label={`Attempt ${attempt.ordinal + 1}: ${attempt.value}, scored ${attempt.scorePercent}%`}
         className={
-          "panel flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl px-3 py-2.5 text-left transition hover:border-brass/40 " +
-          (attempt.scorePercent >= 45 ? "border-brass/30" : "")
+          "panel panel-lift flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl px-3 py-2.5 text-left " +
+          (attempt.scorePercent >= 45 ? "border-brass/40" : "")
         }
       >
         <span className="w-8 shrink-0 text-right font-mono text-xs text-zinc-600">

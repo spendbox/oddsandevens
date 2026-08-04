@@ -2,13 +2,28 @@
 
 // The platform's own back room.
 //
-// Three jobs: author the public box, send rewards to the people who cracked
-// one, and hand out lives when something goes wrong on our side. Everything
-// else runs itself — contributor payouts go through Paystack subaccounts and
-// never need a human — so this stays small on purpose.
+// It grew past one screen, so it is four: money, the people, the boxes, and
+// our own box. Everything that runs itself still does — contributor payouts go
+// through Paystack subaccounts and never need a human — and what's left here is
+// the handful of things that genuinely need one.
+//
+//   Money    revenue by stream, and rewards waiting to be sent
+//   Players  every address, what they've spent, what they've won
+//   Boxes    every box, and the two irreversible things we can do to one
+//   Ours     authoring the Spendbox-funded box
 
 import { useCallback, useEffect, useState } from "react";
-import { Lock, ShieldCheck } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  ShieldCheck,
+  Star,
+  Trash2,
+  Users,
+  Vault,
+  Wallet,
+} from "lucide-react";
 import {
   ALPHABET,
   ALPHABET_SET,
@@ -20,12 +35,22 @@ import {
 import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 import { difficultyOf } from "@/lib/game/difficulty";
 import { GrantLives } from "@/components/admin/grant-lives";
+import { UsersPanel } from "@/components/admin/users-panel";
+import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
 import type { PublicBox } from "@/lib/types";
 
 const INPUT =
-  "w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-brass";
-const PRIMARY =
-  "rounded-xl bg-brass px-5 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright disabled:opacity-50";
+  "field px-4 py-3";
+const PRIMARY = "btn-chunky rounded-2xl bg-brass px-5 py-3.5 text-ink";
+
+type Tab = "money" | "players" | "boxes" | "ours";
+
+const TABS: { id: Tab; label: string; icon: typeof Wallet }[] = [
+  { id: "money", label: "Money", icon: Wallet },
+  { id: "players", label: "Players", icon: Users },
+  { id: "boxes", label: "Boxes", icon: Vault },
+  { id: "ours", label: "Our box", icon: ShieldCheck },
+];
 
 interface AdminBox extends PublicBox {
   id: string;
@@ -64,6 +89,8 @@ export default function AdminPage() {
   const [boxes, setBoxes] = useState<AdminBox[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [tab, setTab] = useState<Tab>("money");
+  const [deleting, setDeleting] = useState<{ id: string; title: string } | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/overview", { cache: "no-store" });
@@ -97,92 +124,191 @@ export default function AdminPage() {
   const owed = claims.filter((c) => c.status === "submitted");
 
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 space-y-6 px-4 py-6">
+    <div className="mx-auto w-full max-w-3xl flex-1 space-y-5 px-4 py-6">
       <header className="flex items-center gap-2">
         <ShieldCheck className="size-5 text-brass" aria-hidden />
-        <h1 className="font-semibold">Spendbox admin</h1>
+        <h1 className="text-xl font-black tracking-tight">Spendbox admin</h1>
       </header>
 
-      {overview && (
-        <section className="grid gap-2 sm:grid-cols-4">
-          <Figure label="Platform revenue" value={formatNaira(overview.revenue.totalKobo)} />
-          <Figure
-            label="From lives"
-            value={formatNaira(overview.revenue.lifeKobo)}
-            hint={`${overview.revenue.livesSold} sold, ${formatNaira(overview.revenue.lifeGrossKobo)} gross`}
-          />
-          <Figure
-            label="From power-ups"
-            value={formatNaira(overview.revenue.powerUpPlatformKobo)}
-            hint={`${overview.revenue.powerUpsSold} sold`}
-          />
-          <Figure
-            label="From funding"
-            value={formatNaira(overview.revenue.fundingCutKobo)}
-            hint={`${overview.boxes.live} live`}
-          />
+      <div role="tablist" className="panel flex gap-1 rounded-2xl p-1.5">
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={
+              "flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-sm font-bold transition active:translate-y-px " +
+              (tab === id
+                ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.45),0_3px_0_var(--brass-deep)]"
+                : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100")
+            }
+          >
+            <Icon className="size-4" aria-hidden />
+            <span className="hidden sm:inline">{label}</span>
+            {id === "money" && owed.length > 0 && (
+              <span className="rounded-md bg-berry px-1.5 py-0.5 text-[10px] font-black text-ink">
+                {owed.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === "money" && (
+        <>
+          {overview && (
+            <section className="grid gap-2 sm:grid-cols-4">
+              <Figure label="Platform revenue" value={formatNaira(overview.revenue.totalKobo)} />
+              <Figure
+                label="From lives"
+                value={formatNaira(overview.revenue.lifeKobo)}
+                hint={`${overview.revenue.livesSold} sold, ${formatNaira(overview.revenue.lifeGrossKobo)} gross`}
+              />
+              <Figure
+                label="From power-ups"
+                value={formatNaira(overview.revenue.powerUpPlatformKobo)}
+                hint={`${overview.revenue.powerUpsSold} sold`}
+              />
+              <Figure
+                label="From funding"
+                value={formatNaira(overview.revenue.fundingCutKobo)}
+                hint={`${overview.boxes.live} live`}
+              />
+            </section>
+          )}
+
+          {overview && (
+            <section className="grid gap-2 sm:grid-cols-2">
+              <Figure
+                label="Paid through to creators"
+                value={formatNaira(overview.revenue.contributorKobo)}
+              />
+              <Figure
+                label="Rewards owed to winners"
+                value={formatNaira(overview.boxes.rewardsOwedKobo)}
+                hint={`${overview.boxes.unlocked} cracked`}
+              />
+            </section>
+          )}
+
+          <section className="panel rounded-2xl p-5">
+            <h2 className="mb-3 text-sm font-black uppercase tracking-wide text-zinc-300">
+              Rewards to send {owed.length > 0 && `(${owed.length})`}
+            </h2>
+            {claims.length === 0 ? (
+              <p className="py-4 text-center text-sm text-zinc-500">No rewards owed yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {claims.map((claim) => (
+                  <ClaimRow key={claim.id} claim={claim} onPaid={() => void load()} />
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <GrantLives />
+        </>
+      )}
+
+      {tab === "players" && <UsersPanel />}
+
+      {tab === "boxes" && (
+        <section className="panel rounded-2xl p-5">
+          <h2 className="mb-1 text-sm font-black uppercase tracking-wide text-zinc-300">
+            Every box
+          </h2>
+          <p className="mb-3 text-xs text-zinc-500">
+            <strong className="text-zinc-300">Close</strong> takes a box off the
+            board and leaves its history intact — that is the normal remedy.{" "}
+            <strong className="text-zinc-300">Delete</strong> is permanent, takes
+            every attempt with it, and asks for a code by email first.{" "}
+            <strong className="text-zinc-300">Feature</strong> puts a live box at
+            the top of the landing page — as many as you like, from either side,
+            and cracking one clears it automatically.
+          </p>
+          <ul className="space-y-1.5">
+            {boxes.map((box) => (
+              <li
+                key={box.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white/5 px-3 py-2.5 text-sm"
+              >
+                <span className="min-w-0 flex-1 truncate font-semibold">
+                  {box.title}
+                  <span className="ml-2 text-xs font-normal text-zinc-500">
+                    {box.kind === "general" ? "ours" : (box.contributor ?? "a player")}
+                  </span>
+                </span>
+                <span className="shrink-0 font-mono text-xs text-brass">
+                  {rewardLabel(box.rewardKobo)}
+                </span>
+                <span className="shrink-0 text-xs text-zinc-500">{box.status}</span>
+                {box.status === "live" && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetch("/api/admin/boxes", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ boxId: box.id, featured: !box.featured }),
+                      });
+                      void load();
+                    }}
+                    className={
+                      "flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold transition active:translate-y-px " +
+                      (box.featured
+                        ? "bg-brass text-ink"
+                        : "bg-white/6 text-zinc-300 hover:bg-white/12")
+                    }
+                  >
+                    <Star
+                      className={"size-3.5 " + (box.featured ? "fill-ink" : "")}
+                      aria-hidden
+                    />
+                    {box.featured ? "Featured" : "Feature"}
+                  </button>
+                )}
+                {["draft", "funding", "live"].includes(box.status) && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetch("/api/admin/boxes", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ boxId: box.id }),
+                      });
+                      void load();
+                    }}
+                    className="shrink-0 rounded-lg bg-white/6 px-2 py-1 text-xs font-bold text-zinc-300 transition hover:bg-white/12 active:translate-y-px"
+                  >
+                    Close
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDeleting({ id: box.id, title: box.title })}
+                  aria-label={`Delete ${box.title}`}
+                  className="shrink-0 rounded-lg bg-berry/15 px-2 py-1 text-xs font-bold text-berry transition hover:bg-berry/25 active:translate-y-px"
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
-      <section className="panel rounded-2xl p-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-400">
-          Rewards to send {owed.length > 0 && `(${owed.length})`}
-        </h2>
-        {claims.length === 0 ? (
-          <p className="py-4 text-center text-sm text-zinc-500">No rewards owed yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {claims.map((claim) => (
-              <ClaimRow key={claim.id} claim={claim} onPaid={() => void load()} />
-            ))}
-          </ul>
-        )}
-      </section>
+      {tab === "ours" && <GeneralBoxForm onCreated={() => void load()} />}
 
-      <GrantLives />
-
-      <GeneralBoxForm onCreated={() => void load()} />
-
-      <section className="panel rounded-2xl p-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-400">
-          Every box
-        </h2>
-        <ul className="space-y-1.5">
-          {boxes.map((box) => (
-            <li
-              key={box.id}
-              className="flex items-center gap-3 rounded-lg bg-white/5 px-3 py-2 text-sm"
-            >
-              <span className="min-w-0 flex-1 truncate">
-                {box.title}
-                <span className="ml-2 text-xs text-zinc-500">
-                  {box.kind === "general" ? "public" : (box.contributor ?? "contributor")}
-                </span>
-              </span>
-              <span className="shrink-0 font-mono text-xs text-brass">
-                {rewardLabel(box.rewardKobo)}
-              </span>
-              <span className="shrink-0 text-xs text-zinc-500">{box.status}</span>
-              {["draft", "funding", "live"].includes(box.status) && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await fetch("/api/admin/boxes", {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ boxId: box.id }),
-                    });
-                    void load();
-                  }}
-                  className="shrink-0 text-xs text-red-400 hover:underline"
-                >
-                  Close
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
+      {deleting && (
+        <DeleteBoxDialog
+          boxId={deleting.id}
+          boxTitle={deleting.title}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => void load()}
+        />
+      )}
     </div>
   );
 }
@@ -275,12 +401,12 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
   return (
     <section className="panel rounded-2xl p-5">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
-        The public box
+        The Spendbox box
       </h2>
       <p className="mt-1 text-xs text-zinc-500">
-        Free to play and funded by us, so there&apos;s nothing to collect and no
-        split — just a reward, or none at all, which makes it a pure challenge.
-        Publishing a new one closes the current one; only one is ever live.
+        Funded by us, so there’s nothing to collect and no split — just a
+        reward, or none at all, which makes it a pure challenge. You can have as
+        many live at once as you like; feature the ones worth the front page.
       </p>
 
       <div className="mt-3 space-y-2">
@@ -340,6 +466,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
           type="button"
           disabled={busy || !valid || !title.trim()}
           onClick={() => void create()}
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
           className={PRIMARY}
         >
           {busy ? "Publishing…" : "Publish it"}
@@ -352,6 +479,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
 function AdminLogin({ onIn }: { onIn: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [reveal, setReveal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -379,8 +507,8 @@ function AdminLogin({ onIn }: { onIn: () => void }) {
 
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-12">
-      <form onSubmit={signIn} className="panel w-full max-w-sm space-y-3 rounded-2xl p-6">
-        <h1 className="flex items-center gap-2 font-semibold">
+      <form onSubmit={signIn} className="panel w-full max-w-sm space-y-3 rounded-3xl p-6">
+        <h1 className="flex items-center gap-2 text-lg font-black tracking-tight">
           <Lock className="size-5 text-brass" aria-hidden />
           Admin
         </h1>
@@ -393,16 +521,31 @@ function AdminLogin({ onIn }: { onIn: () => void }) {
           placeholder="Email"
           className={INPUT}
         />
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          className={INPUT}
-        />
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <button type="submit" disabled={busy} className={`w-full ${PRIMARY}`}>
+        <div className="relative">
+          <input
+            type={reveal ? "text" : "password"}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className={`${INPUT} pr-12`}
+          />
+          <button
+            type="button"
+            onClick={() => setReveal((r) => !r)}
+            aria-label={reveal ? "Hide password" : "Show password"}
+            className="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100 active:translate-y-[calc(-50%+1px)]"
+          >
+            {reveal ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+          </button>
+        </div>
+        {error && <p className="text-sm font-semibold text-berry">{error}</p>}
+        <button
+          type="submit"
+          disabled={busy}
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className={`w-full ${PRIMARY}`}
+        >
           {busy ? "Checking…" : "Sign in"}
         </button>
       </form>
@@ -412,9 +555,9 @@ function AdminLogin({ onIn }: { onIn: () => void }) {
 
 function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="panel rounded-xl p-3">
-      <p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
-      <p className="mt-1 font-mono text-lg font-bold text-zinc-100">{value}</p>
+    <div className="panel rounded-2xl p-3">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-1 font-mono text-lg font-black">{value}</p>
       {hint && <p className="text-[11px] text-zinc-600">{hint}</p>}
     </div>
   );

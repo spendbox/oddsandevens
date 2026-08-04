@@ -39,7 +39,7 @@ export async function GET() {
  * only exists so their share link reads like something.
  */
 export async function POST(req: Request) {
-  const { userId, contributor } = await getAuthedContributor();
+  const { userId, playerId, contributor } = await getAuthedContributor();
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = (await req.json().catch(() => ({}))) as {
@@ -64,9 +64,16 @@ export async function POST(req: Request) {
         .eq("id", contributor.id)
         .select(CONTRIBUTOR_COLUMNS)
         .single()
-    : await db
+    : // A new creator is keyed to their *player*, which is now the only
+      // identity anybody signs up with. `owner_id` is only ever set on rows
+      // that predate that, and is never written again.
+      await db
         .from("contributors")
-        .insert({ owner_id: userId, display_name: displayName, handle })
+        .insert(
+          playerId
+            ? { player_id: playerId, display_name: displayName, handle }
+            : { owner_id: userId, display_name: displayName, handle }
+        )
         .select(CONTRIBUTOR_COLUMNS)
         .single();
 

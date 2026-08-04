@@ -19,7 +19,7 @@ import type { PlayerState, PublicBox } from "@/lib/types";
  * travel any further.
  */
 export const PUBLIC_BOX_COLUMNS =
-  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, published_at, unlocked_at, unlocked_by, contributor_id";
+  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, published_at, unlocked_at, unlocked_by, contributor_id, featured_at";
 
 export interface BoxRow {
   id: string;
@@ -37,6 +37,7 @@ export interface BoxRow {
   unlocked_at: string | null;
   unlocked_by: string | null;
   contributor_id: string | null;
+  featured_at: string | null;
 }
 
 /**
@@ -67,6 +68,7 @@ export function toPublicBox(
     publishedAt: row.published_at,
     unlockedAt: row.unlocked_at,
     unlockedBy: extras.winnerEmail ? maskEmail(extras.winnerEmail) : null,
+    featured: !!row.featured_at,
   };
 }
 

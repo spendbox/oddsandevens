@@ -52,8 +52,17 @@ export const FAQ: FaqItem[] = [
     topic: "Playing",
     question: "What is a Spendbox?",
     answer: [
-      "A Spendbox is a password with real money behind it. Somebody — the platform, or any player who wants to — hides a password, funds a reward, and shares the link. Anyone who guesses the password takes the reward.",
-      "There is one game and two versions of it: the public box, which we fund ourselves, and contributor boxes, which anyone can put up. They play identically.",
+      "A Spendbox is a password with real money behind it. Somebody — us, or any player who wants to — hides a password, funds a reward, and shares the link. Anyone who guesses the password takes the reward.",
+      "Some are created by Spendbox and funded by us; the rest are created by players. Every one of them is open to anybody, and they play identically — the only difference is whose money is behind the reward.",
+    ],
+  },
+  {
+    topic: "Playing",
+    question: "Is the money real?",
+    answer: [
+      "Yes. Every reward on Spendbox is real money, paid in naira to the bank account of whoever cracks the box.",
+      "It is collected up front, in full, before a box ever goes on the board — from us on the boxes we create, and from the player who put it up on everyone else's. Nobody is waiting on somebody to be good for it at the moment they win.",
+      "You can see it for yourself: the Already cracked tab on the front page lists every box that has been opened and what came out of it.",
     ],
   },
   {
@@ -289,7 +298,7 @@ export const FAQ: FaqItem[] = [
     topic: "Money",
     question: "How does a contributor earn?",
     answer: [
-      `${share}% of everything hunters spend on your box — power-ups, and lives bought while playing it. Spendbox keeps ${PLATFORM_SHARE_PERCENT}%.`,
+      `${share}% of everything hunters spend on your box — power-ups, and lives bought while playing it. Spendbox keeps ${PLATFORM_SHARE_PERCENT}%, and it is settled to your bank account automatically as each sale happens.`,
       "What you funded isn't income. That's the reward, and it goes to whoever cracks the box.",
     ],
   },
@@ -311,7 +320,7 @@ export const FAQ: FaqItem[] = [
     topic: "Money",
     question: "How do I get a reward I've won?",
     answer: [
-      "Opening a box creates a claim. Add your bank account on your own page — we check the number against the bank and show you the name on it before saving — and an admin sends the transfer.",
+      "Opening a box creates a claim. If you've already saved your bank details, it goes there; if not, add them in your safe house under Account and the transfer follows. We check the number with your bank and show you the name on it before saving.",
     ],
   },
   {
@@ -327,8 +336,25 @@ export const FAQ: FaqItem[] = [
     topic: "Account",
     question: "Do I need an account to play?",
     answer: [
-      "No. You verify an email address once — because a reward has to be sent somewhere — and that's it. There's no password to remember and no profile to fill in.",
-      "Putting up a box of your own does need a proper account, since money is going in and out.",
+      "Yes, and it takes one screen. An email address, a code to prove it's yours, and a password — that's the whole of it. There's no profile to fill in.",
+      "The account exists for one reason: there is real money involved. A reward has to reach somebody, lives you paid for have to survive a new phone, and a bank account on file has to be protected by more than a cookie.",
+      "You'll never be asked for it before you need it — the sign-up appears on the box you were already looking at, at the moment you make your first guess.",
+    ],
+  },
+  {
+    topic: "Account",
+    question: "I've forgotten my password.",
+    answer: [
+      "Sign in, and choose \u201cI've forgotten my password\u201d. We'll email a six-digit code, and the same screen lets you set a new one.",
+      "If you're already signed in somewhere, Account in your safe house changes it without any email at all.",
+    ],
+  },
+  {
+    topic: "Account",
+    question: "How do I change my bank details?",
+    answer: [
+      "Your safe house, under Account. They're saved against you rather than against a single reward, so every future win goes to the current details without you typing anything.",
+      "We check the number with your bank and show you the name on it before saving. A reward that has already been sent isn't affected — that's a payment record and doesn't move.",
     ],
   },
   {

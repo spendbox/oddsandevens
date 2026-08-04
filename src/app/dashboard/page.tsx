@@ -8,10 +8,11 @@
 // reward behind a password and shares a link.
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Hammer, Lock, LogOut, Swords, Vault, Wallet } from "lucide-react";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { Hammer, Swords, Vault, Wallet } from "lucide-react";
+import { Boxy } from "@/components/art/boxy";
+import { usePlayer } from "@/components/player/player-context";
+import { VerifyDialog } from "@/components/player/account-dialog";
 import type {
   HuntRow,
   ContributorEarnings,
@@ -47,8 +48,8 @@ const NO_EARNINGS: ContributorEarnings = {
 };
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [session, setSession] = useState<"checking" | "in" | "out">("checking");
+  const { player, ready, verified } = usePlayer();
+  const [signIn, setSignIn] = useState(false);
   const [profile, setProfile] = useState<ContributorProfile | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<Tab>("boxes");
@@ -58,16 +59,6 @@ export default function DashboardPage() {
   const [earnings, setEarnings] = useState<ContributorEarnings>(NO_EARNINGS);
   const [winners, setWinners] = useState<WinnerRow[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabaseBrowser()
-      .auth.getSession()
-      .then(({ data }) => setSession(data.session ? "in" : "out"));
-  }, []);
-
-  useEffect(() => {
-    if (session === "out") router.replace("/signup");
-  }, [session, router]);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/contributor", { cache: "no-store" });
@@ -96,19 +87,19 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (session !== "in") return;
+    if (!verified) return;
     async function run() {
       await load();
     }
     void run();
-  }, [session, load]);
+  }, [verified, load]);
 
   /**
    * Coming back from funding a box. The webhook will settle it too, but the
    * contributor is standing right here waiting to see the box go live.
    */
   useEffect(() => {
-    if (session !== "in") return;
+    if (!verified) return;
     const reference = new URLSearchParams(window.location.search).get("reference");
     if (!reference) return;
     (async () => {
@@ -126,50 +117,73 @@ export default function DashboardPage() {
       await load();
       window.history.replaceState({}, "", "/dashboard");
     })();
-  }, [session, load]);
+  }, [verified, load]);
 
-  if (session === "checking" || !loaded) {
+  if (!ready) {
+    return <p className="p-10 text-center text-sm text-zinc-500">Loading…</p>;
+  }
+
+  // One account for both halves of the product, so this is the same sign-in a
+  // player meets on a box — not a second one with its own password.
+  if (!verified) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-14 text-center">
+        <Boxy mood="cheer" className="mx-auto size-32" />
+        <h1 className="mt-2 text-2xl font-black tracking-tight">Build a Spendbox</h1>
+        <p className="mt-1 text-zinc-400">
+          Same account you play with. Sign in and put a reward behind a password
+          of your own.
+        </p>
+        <button
+          type="button"
+          onClick={() => setSignIn(true)}
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className="btn-chunky mt-5 rounded-2xl bg-brass px-6 py-3.5 text-ink"
+        >
+          Sign in
+        </button>
+        {signIn && <VerifyDialog onClose={() => setSignIn(false)} />}
+      </div>
+    );
+  }
+
+  if (!loaded) {
     return <p className="p-10 text-center text-sm text-zinc-500">Loading…</p>;
   }
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16">
       <header className="flex items-center gap-3 py-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Lock className="size-5 text-brass" aria-hidden />
-          Spendbox
+        <Link href="/" className="flex items-center gap-2">
+          <Boxy mood="happy" still className="size-8" />
+          <span className="font-black tracking-tight">Spendbox</span>
         </Link>
         {profile && (
-          <span className="truncate text-sm text-zinc-500">{profile.displayName}</span>
+          <span className="hidden min-w-0 truncate text-sm text-zinc-400 sm:block">{profile.displayName}</span>
         )}
-        <button
-          type="button"
-          onClick={async () => {
-            await supabaseBrowser().auth.signOut();
-            router.replace("/");
-          }}
-          className="ml-auto flex items-center gap-1.5 text-sm text-zinc-500 transition hover:text-zinc-300"
+        <Link
+          href="/me"
+          className="ml-auto min-w-0 max-w-[45%] truncate rounded-xl border-2 border-white/12 bg-white/6 px-3 py-1.5 text-xs font-bold text-zinc-300 transition hover:border-brass/50"
         >
-          <LogOut className="size-4" aria-hidden />
-          Sign out
-        </button>
+          {player.email}
+        </Link>
       </header>
 
       {!profile ? (
         <ProfileSetup onDone={() => void load()} />
       ) : (
         <>
-          <nav className="mb-4 flex gap-1 overflow-x-auto rounded-xl bg-white/5 p-1">
+          <nav className="panel mb-4 flex gap-1 overflow-x-auto rounded-2xl p-1.5">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
                 className={
-                  "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition " +
+                  "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-bold transition active:translate-y-px " +
                   (tab === id
-                    ? "bg-brass text-zinc-950"
-                    : "text-zinc-400 hover:text-zinc-200")
+                    ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.45),0_3px_0_var(--brass-deep)]"
+                    : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100")
                 }
               >
                 <Icon className="size-4" aria-hidden />

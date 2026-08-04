@@ -5,7 +5,9 @@ import { sendVerificationCodeEmail } from "@/lib/email";
 export type CodePurpose =
   | "contributor_signup"
   | "password_reset"
-  | "player_verify";
+  | "player_verify"
+  /** Confirming an irreversible admin action, out of band from the session. */
+  | "admin_delete_box";
 
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS = 5;

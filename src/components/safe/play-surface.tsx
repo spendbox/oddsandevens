@@ -16,35 +16,25 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  Info,
-  LockOpen,
-  MoveDown,
-  MoveUp,
-  Palette,
-  Sparkles,
-  Swords,
-  Target,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Info, Palette, Sparkles, Swords, Users } from "lucide-react";
 import { ScorePill } from "./score-pill";
 import { LIVES_MAX } from "@/lib/constants";
 import { plural } from "@/lib/plural";
 import { EMPTY_REVEALED } from "@/lib/game/power-ups";
 import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 import type { AttemptResult, PlayView } from "@/lib/types";
-import { Modal } from "@/components/ui/modal";
 import { usePlayer } from "@/components/player/player-context";
-import { VerifyDialog } from "@/components/player/verify-dialog";
+import { VerifyDialog } from "@/components/player/account-dialog";
 import { BuyLivesDialog } from "@/components/player/buy-lives-dialog";
 import { countdown, useNow } from "@/components/player/lives-badge";
 import { DifficultyBadge } from "@/components/difficulty-badge";
+import { HowItWorksDialog } from "@/components/how-it-works";
 import { AttemptLog } from "./attempt-log";
 import { KnownPanel } from "./known-panel";
 import { PasswordField } from "./password-field";
 import { PowerUpShelf } from "./power-up-shelf";
 import { SafeArt } from "./safe-art";
+import { Boxy } from "@/components/art/boxy";
 
 type Outcome = "open" | "won" | "pipped";
 type Tab = "attempts" | "power-ups";
@@ -182,13 +172,13 @@ export function PlaySurface({
             {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
 
             {message && (
-              <p className="animate-fade-up rounded-xl border border-brass/30 bg-brass/10 px-3 py-2.5 text-center text-sm text-brass">
+              <p className="animate-fade-up rounded-2xl border-2 border-brass/50 bg-brass/15 px-3 py-2.5 text-center text-sm font-bold text-brass">
                 {message}
               </p>
             )}
 
             {freeRun && view.hunt?.secondWindUntil && (
-              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-xl border border-mark-green/40 bg-mark-green/10 px-3 py-2 text-center text-xs text-mark-green">
+              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-2xl border-2 border-mint/50 bg-mint/15 px-3 py-2.5 text-center text-xs font-bold text-mint">
                 <Sparkles className="size-3.5" aria-hidden />
                 Second Wind — guesses cost no lives for another{" "}
                 <span className="font-mono">
@@ -198,7 +188,7 @@ export function PlaySurface({
             )}
 
             {view.hunt?.hasBreakdown && view.hunt.breakdownUntil && (
-              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-xl border border-brass/30 bg-brass/10 px-3 py-2 text-center text-xs text-brass">
+              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-2xl border-2 border-brass/50 bg-brass/15 px-3 py-2.5 text-center text-xs font-bold text-brass">
                 <Palette className="size-3.5" aria-hidden />
                 Colour Read is on — every score is split into its parts for another{" "}
                 <span className="font-mono">
@@ -247,11 +237,38 @@ export function PlaySurface({
               </p>
             )}
 
+            {/*
+              Both of these belong to a person, so neither appears until there
+              is one. Signed out, "Your attempts" was an empty log for a hunt
+              that doesn't exist and the shelf was five things you cannot buy —
+              two dead tabs where the reason to sign in should be.
+            */}
+            {!verified ? (
+              <div className="panel rounded-2xl px-4 py-6 text-center">
+                <Boxy mood="sly" className="mx-auto size-20" />
+                <p className="mt-1 font-black tracking-tight">
+                  Sign in to start hunting.
+                </p>
+                <p className="mx-auto mt-1 max-w-xs text-sm text-zinc-400">
+                  Your guesses, your score and the power-ups all live with your
+                  account. It’s free, and you get {LIVES_MAX} lives to begin
+                  with.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setDialog("verify")}
+                  style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+                  className="btn-chunky mt-4 rounded-2xl bg-brass px-6 py-3 text-ink"
+                >
+                  Sign in to play
+                </button>
+              </div>
+            ) : (
             <div className="space-y-3">
               <div
                 role="tablist"
                 aria-label="Attempts and power-ups"
-                className="panel flex gap-1 rounded-2xl p-1"
+                className="panel flex gap-1 rounded-2xl p-1.5"
               >
                 <TabButton
                   id="attempts"
@@ -296,6 +313,7 @@ export function PlaySurface({
                 <PowerUpShelf view={view} slug={slug} disabled={won} now={now} />
               )}
             </div>
+            )}
           </>
         )}
       </div>
@@ -315,7 +333,7 @@ export function PlaySurface({
           onClose={() => setDialog("none")}
         />
       )}
-      {dialog === "rules" && <RulesDialog onClose={() => setDialog("none")} />}
+      {dialog === "rules" && <HowItWorksDialog onClose={() => setDialog("none")} />}
     </>
   );
 }
@@ -343,8 +361,10 @@ function TabButton({
       aria-selected={on}
       onClick={() => onPick(id)}
       className={
-        "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition " +
-        (on ? "bg-brass/15 text-brass" : "text-zinc-400 hover:text-zinc-200")
+        "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-[13px] font-bold transition sm:gap-2 sm:px-3 sm:text-sm " +
+        (on
+          ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.45),0_3px_0_var(--brass-deep)]"
+          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100")
       }
     >
       {icon}
@@ -352,8 +372,8 @@ function TabButton({
       {badge && (
         <span
           className={
-            "rounded-full px-1.5 py-0.5 font-mono text-[10px] " +
-            (on ? "bg-brass/20" : "bg-white/5 text-zinc-500")
+            "rounded-md px-1.5 py-0.5 font-mono text-[10px] font-black " +
+            (on ? "bg-ink/20 text-ink" : "bg-white/8 text-zinc-400")
           }
         >
           {badge}
@@ -375,10 +395,19 @@ function BoxHeader({
   const { box } = view;
   return (
     <header className="space-y-2 text-center">
-      <SafeArt design={box.design} mood={mood} className="mx-auto size-28 sm:size-36" />
+      {/* Boxy is doing the reacting so the safe doesn't have to. A dial that
+          spins is a nice touch; a face that looks worried while you wait is
+          the thing people actually notice. */}
+      <div className="flex items-end justify-center gap-1">
+        <SafeArt design={box.design} mood={mood} className="size-28 sm:size-36" />
+        <Boxy
+          mood={mood === "open" ? "cheer" : mood === "working" ? "thinking" : "sly"}
+          className="size-24 sm:size-28"
+        />
+      </div>
 
       <p className="text-xs uppercase tracking-widest text-zinc-500">
-        {box.kind === "general" ? "The public box" : `Put up by ${box.contributor}`}
+        {box.kind === "general" ? "Created by Spendbox" : `Created by ${box.contributor}`}
       </p>
       <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{box.title}</h1>
       {box.blurb && <p className="text-sm text-zinc-400">{box.blurb}</p>}
@@ -400,7 +429,7 @@ function BoxHeader({
           className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 transition hover:border-brass/40 hover:text-brass"
         >
           <Info className="size-3.5" aria-hidden />
-          How this works
+          How it works
         </button>
       </div>
 
@@ -418,133 +447,22 @@ function BoxHeader({
   );
 }
 
-/**
- * The rules, in a dialog rather than down the page.
- *
- * They were an accordion sitting between the field and the log, which meant
- * everybody scrolled past them forever and nobody read them once. A player
- * needs this twice — the first minute, and the moment a score stops making
- * sense — and both times they go looking for it. So it lives behind a button
- * that is always in the same place.
- *
- * What it never explains is *how* a score is arrived at. The weights aren't
- * printed here or anywhere else a player can reach.
- */
-function RulesDialog({ onClose }: { onClose: () => void }) {
-  return (
-    <Modal
-      title="How this works"
-      subtitle="Guess blind. One life, one guess."
-      icon={<Info className="size-5 text-brass" aria-hidden />}
-      onClose={onClose}
-      footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full rounded-xl bg-brass px-4 py-3 font-semibold text-zinc-950 transition hover:bg-brass-bright"
-        >
-          Got it
-        </button>
-      }
-    >
-      <div className="space-y-4 pb-1">
-        <p className="text-sm leading-relaxed text-zinc-700">
-          There&apos;s a password behind this safe. You don&apos;t know how long
-          it is, what it&apos;s made of, or where anything sits.{" "}
-          <strong className="text-zinc-900">Anything on a keyboard</strong> can be
-          in it — letters in either case, digits, and symbols like{" "}
-          <span className="font-mono">&amp; $ # ) ( ; : ! ? *</span>. Type a guess,
-          spend a life, and read what comes back.
-        </p>
-
-        <Rule
-          icon={<MoveUp className="size-4 text-sky-600" aria-hidden />}
-          title="Up arrow — add characters"
-          body="Your guess was shorter than the password."
-        />
-        <Rule
-          icon={<MoveDown className="size-4 text-sky-600" aria-hidden />}
-          title="Down arrow — remove characters"
-          body="Your guess was longer than the password."
-        />
-        <Rule
-          icon={<Target className="size-4 text-mark-green" aria-hidden />}
-          title="Target — right length"
-          body="Exactly as many characters as the password. Nothing tells you the number until you find it."
-        />
-        <Rule
-          icon={<span className="text-sm font-bold text-zinc-900">%</span>}
-          title="A score out of 100"
-          body="How close the guess is. Every position contributes something — an exact character most, the right letter in the wrong case least, a character that's in the password but somewhere else in between — and the total is measured against a perfect guess. 100% is the password itself, and nothing else reaches it."
-        />
-
-        <div className="space-y-2 border-t border-zinc-100 pt-3 text-sm text-zinc-500">
-          <p>
-            <strong className="text-zinc-700">The arithmetic isn&apos;t
-            published.</strong>{" "}
-            Two very different guesses can score the same, and working out which
-            explanation fits is the game.
-          </p>
-          <p>
-            <strong className="text-zinc-700">Case counts.</strong>{" "}
-            <span className="font-mono">k</span> and{" "}
-            <span className="font-mono">K</span> are different characters.
-          </p>
-          <p>
-            <strong className="text-zinc-700">Lives come back on their own</strong>{" "}
-            — one an hour, up to {LIVES_MAX}. You never have to buy any.
-          </p>
-          <p>
-            <strong className="text-zinc-700">Power-ups are the only paid
-            part</strong>, and each one buys back exactly one of the things
-            withheld above. On someone&apos;s box, 70% of what you spend goes to
-            them.
-          </p>
-          <p>Tap any attempt in the log to read it in full.</p>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function Rule({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="flex gap-3 border-t border-zinc-100 pt-3">
-      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-zinc-900">{title}</p>
-        <p className="mt-0.5 text-sm leading-snug text-zinc-500">{body}</p>
-      </div>
-    </div>
-  );
-}
-
 function Verdict({ outcome, view }: { outcome: Outcome; view: PlayView }) {
   if (outcome === "won") {
     return (
-      <div className="panel animate-unlock rounded-2xl border-brass/40 p-5 text-center">
-        <Trophy className="mx-auto size-10 text-brass" aria-hidden />
-        <p className="mt-2 text-lg font-bold">The safe is open.</p>
-        <p className="mt-1 text-sm text-zinc-400">
+      <div className="panel animate-unlock rounded-3xl border-brass/50 p-5 text-center">
+        <Boxy mood="cheer" className="mx-auto size-24" />
+        <p className="mt-1 text-2xl font-black tracking-tight">The safe is open!</p>
+        <p className="mt-1 text-sm text-zinc-300">
           {view.box.isChallenge ? (
             <>You cracked it. No money behind this one — just the fact that you did it.</>
           ) : (
             <>
-              {formatNaira(view.box.rewardKobo)} is yours. We&apos;ve emailed you —{" "}
+              {formatNaira(view.box.rewardKobo)} is yours. We’ve emailed you —{" "}
               <Link href="/me" className="text-brass underline">
                 add your bank account
               </Link>{" "}
-              and we&apos;ll send it.
+              and we’ll send it.
             </>
           )}
         </p>
@@ -553,42 +471,104 @@ function Verdict({ outcome, view }: { outcome: Outcome; view: PlayView }) {
   }
 
   return (
-    <div className="panel rounded-2xl p-4 text-center text-sm text-zinc-300">
-      You got the password — but somebody else submitted it first, seconds ago.
-      The box is closed.
+    <div className="panel rounded-3xl p-5 text-center">
+      <Boxy mood="sad" className="mx-auto size-20" />
+      <p className="mt-1 text-sm text-zinc-300">
+        You got the password — but somebody else submitted it first, seconds
+        ago. The box is closed.
+      </p>
     </div>
   );
 }
 
+/**
+ * A box that's over.
+ *
+ * This was four lines of grey text and a link, which is a strange way to end a
+ * story somebody may have spent a fortnight inside. It's a result screen now:
+ * the safe hanging open, the money that came out of it, who took it and how
+ * long it took everybody — and then, because the only useful thing left to do
+ * is find another one, a button that does that.
+ */
 function Cracked({ view }: { view: PlayView }) {
+  const { box } = view;
+  const taken = box.status === "unlocked";
+
   return (
-    <div className="panel rounded-2xl p-6 text-center">
-      <LockOpen className="mx-auto size-10 text-brass" aria-hidden />
-      <p className="mt-3 text-lg font-bold">
-        {view.box.status === "unlocked" ? "This one's been opened." : "This one's closed."}
-      </p>
-      <p className="mt-1 text-sm text-zinc-400">
-        {view.box.status === "unlocked" ? (
+    <div className="space-y-4">
+      <div className="panel relative overflow-hidden rounded-3xl p-6 text-center">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-0 size-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brass/15 blur-3xl"
+        />
+
+        <Boxy mood={taken ? "cheer" : "sad"} className="mx-auto size-28" />
+
+        <p className="mt-1 text-2xl font-black tracking-tight">
+          {taken ? "This one's been cracked." : "This one's closed."}
+        </p>
+
+        {taken ? (
           <>
-            {view.box.unlockedBy ?? "A player"} guessed the password
-            {view.box.isChallenge ? "" : ` and took ${formatNaira(view.box.rewardKobo)}`}
-            {view.box.attemptsCount > 0 && (
-              <> after {plural(view.box.attemptsCount, "attempt")} across everyone</>
+            {!box.isChallenge && (
+              <p className="brass-text mt-3 text-5xl font-black tabular-nums">
+                {formatNaira(box.rewardKobo)}
+              </p>
             )}
-            . An opened box can&apos;t be played again.
+            <p className="mt-1 text-sm text-zinc-300">
+              {box.isChallenge ? "Cracked by" : "went to"}{" "}
+              <span className="font-mono font-bold text-brass">
+                {box.unlockedBy ?? "a player"}
+              </span>
+            </p>
+
+            <dl className="mt-5 grid grid-cols-3 gap-2">
+              <Figure label="Hunters" value={String(box.playersCount)} />
+              <Figure label="Attempts" value={box.attemptsCount.toLocaleString("en-NG")} />
+              <Figure
+                label="Cracked"
+                value={
+                  box.unlockedAt
+                    ? new Date(box.unlockedAt).toLocaleDateString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                      })
+                    : "—"
+                }
+              />
+            </dl>
+
+            <p className="mt-4 text-sm text-zinc-400">
+              An opened safe can never be played again. Every reward on Spendbox
+              is real money and goes to whoever opens the box.
+            </p>
           </>
         ) : (
-          <>It was withdrawn from play.</>
+          <p className="mt-2 text-sm text-zinc-400">
+            It was withdrawn from play, so nothing more can be won here.
+          </p>
         )}
-      </p>
+      </div>
+
       <Link
         href="/"
-        className="mt-4 inline-block rounded-xl bg-brass px-5 py-2.5 font-semibold text-zinc-950 transition hover:bg-brass-bright"
+        style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+        className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-brass px-6 py-4 text-lg text-ink"
       >
         Find another safe
+        <ArrowRight className="size-5" aria-hidden />
       </Link>
     </div>
   );
 }
 
-export { LIVES_MAX };
+function Figure({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-black/25 px-2 py-3">
+      <dt className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+        {label}
+      </dt>
+      <dd className="mt-0.5 font-mono text-lg font-black">{value}</dd>
+    </div>
+  );
+}

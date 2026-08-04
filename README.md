@@ -359,6 +359,65 @@ upwards only.
 
 ---
 
+## How it looks
+
+Spendbox used to look like a bank: near-black, one metal accent, thin strokes,
+everything whispering. That is a fine look for a dashboard and the wrong one
+for a thing you play.
+
+The palette is now a violet night lit from above. Gold is still the money
+colour and still the loudest thing on screen; four candy accents carry
+everything else, and each **owns a meaning** rather than being decorative —
+grape for power-ups and anything you pay for, mint for success, berry for lives
+and running out, sky for length hints and cool scores. All of it is in
+`globals.css` and nothing hard-codes a hex.
+
+Everything physical is chunky: big radii, a bright top highlight on anything
+raised, and a hard bottom lip on anything you can press. `btn-chunky` is the
+signature control — a slab that compresses by exactly the height of its lip, so
+it looks like it meets the surface. The lip is a `box-shadow` rather than a
+border so the button's own box never changes size.
+
+### Drawn, not downloaded
+
+Every illustration is SVG built from the primitives in
+`src/components/art/ink.tsx`, which exist so the whole set looks like it came
+from one hand. Four rules, and breaking any one is what makes an icon set look
+like three people made it:
+
+1. **Everything is outlined**, in one ink colour, at a weight that scales with
+   the shape rather than staying hairline.
+2. **Light comes from above** — a top-left highlight and a bottom shadow on
+   every solid, always the same way round.
+3. **A gloss on top**: one soft ellipse across the upper third. It is most of
+   what makes a flat colour look like an object.
+4. **No pure black and no pure white.** The ink is violet-black, so nothing
+   punches a hole in the page.
+
+### Boxy
+
+The mascot is a safe with a face, and that choice is the whole character
+design: the thing standing between you and the money is also the thing keeping
+you company while you try to get it. Not a burglar and not a detective —
+everybody here is on the same side of the door, and he is delighted when you
+finally beat him.
+
+Six moods, each doing a job on a specific screen: `happy` at rest, `thinking`
+while a guess is in flight, `cheer` when a box is cracked, `sad` for an empty
+state, `sly` where he knows something you don't, and `dizzy` when something has
+gone wrong on our side.
+
+### The power-ups
+
+They were line icons, and they were fine in the way a settings screen is fine —
+which is a problem, because they are the only things anybody pays for. Each is
+now an object with weight sitting on a coloured badge: a clamped tape measure,
+four sorted tiles, a winged stopwatch, a prism splitting one beam into the
+three colours the attempt log uses, and a pair of goggles. The colour is how
+you tell them apart on a shelf you visit forty times.
+
+---
+
 ## The safe
 
 Every box wears one of six safes — Brass, Vault, Midnight, Emerald, Crimson,
@@ -370,6 +429,11 @@ size, so the thumbnail on a lobby card and the hero filling a play screen are
 the same component. A set of GIFs would have been six fixed-size, fixed-palette
 files of a few hundred kilobytes each, and none of them could react to
 anything.
+
+The six are bright. They started dark and tasteful, and on a lobby of thirty
+cards they were thirty dark squares; a player picking a safe is picking a toy,
+so the bodies carry the colour and the ink outline does the work the darkness
+used to.
 
 It is drawn in layers — cabinet, cavity, contents, door — so opening one is a
 matter of moving a single group. The door swings to 108°, past edge-on: at
@@ -449,11 +513,14 @@ src/app/api/boxes/…         play: the box, the run, the guess, the power-up
 src/app/api/player/…        lives, verification, history, reward claims
 src/app/api/contributor/…   profile, boxes, funding, attempts, earnings, payout
 src/app/api/admin/…         the public box, reward claims, revenue
+src/components/art/         the house style, Boxy, and the power-up objects
 src/components/safe/        the play screen, and the safe itself in SVG
 supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0027 made a score a percentage, 0028 added
                             Second Wind, the life split and box designs,
-                            0029 added invites
+                            0029–0030 added invites, 0031 gave players
+                            passwords and bank details, 0032 made featuring
+                            possible and merged the two identities into one
 ```
 
 ---
@@ -466,6 +533,13 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
    npx supabase link --project-ref YOUR_PROJECT_REF
    npx supabase db push          # applies supabase/migrations/*
    ```
+
+   End every new migration with `notify pgrst, 'reload schema';`, the way 0032
+   does. PostgREST answers from a cached picture of the schema and does
+   not notice DDL on its own: a migration that adds a column or a view lands in
+   Postgres and then the API keeps insisting it isn't there — `PGRST204` for a
+   column, `PGRST205` for a table or view. The `NOTIFY` is the whole fix, and
+   it's safe to run by hand against a database that has drifted.
 
    Local stack instead: `npx supabase start && npx supabase db reset`. That also
    runs `supabase/seed.sql`, which creates a contributor
@@ -529,8 +603,8 @@ asserts that neither can read a password or call a privileged function.
 ## Not in this version (deliberately)
 
 - **No leaderboards.** A box has one winner and then it's over.
-- **No streaks, no daily bonus, no referral loops.** Lives refill on a clock
-  and that's the whole retention model.
+- **No streaks and no daily bonus.** Lives refill on a clock, and the only
+  other way to earn them is inviting somebody who then buys their own.
 - **No automated reward transfers.** A winner's bank details are checked with
   the bank, but the transfer itself is a human pressing a button in `/admin`.
 - **No cap on attempts.** Play as fast as you can afford to.

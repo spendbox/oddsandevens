@@ -1,49 +1,85 @@
 @import "tailwindcss";
 
 /*
- * Spendbox is a safe in a dark room.
+ * Spendbox is a game, and it should look like one.
  *
- * The palette is deliberately narrow: near-black steel for everything
- * structural, and brass for the one thing that matters — the prize, the
- * keypad, the button that opens a run. Three feedback colours sit on top of
- * that and are the only other saturated things on screen, so a row of results
- * reads at a glance without competing with the furniture.
+ * It used to look like a bank: near-black, one metal accent, thin strokes,
+ * everything whispering. That is a fine look for a dashboard and the wrong one
+ * for a thing you play — a safe with money in it is *fun*, and the interface
+ * was busy being tasteful about it.
+ *
+ * So the palette is a night sky rather than a switched-off screen: deep violet,
+ * lit from above. Gold is still the money colour and still the loudest thing on
+ * screen, and four candy accents carry everything else — each one owns a
+ * meaning and is never used decoratively.
+ *
+ * Everything physical is *chunky*: big radii, thick outlines, a hard bottom lip
+ * on anything you can press, and a highlight along the top of anything raised.
+ * The rule of thumb is that a control should look like an object you could pick
+ * up, not a rectangle somebody remembered to round off.
  */
 
 :root {
-  /*
-   * The base is a *warm* near-black rather than a neutral one. At this
-   * lightness the difference is barely nameable and completely legible: a
-   * neutral #0a0a0b under a brass accent reads as switched-off, and every
-   * panel cut from it reads as a hole. A few points of red and green in the
-   * base make the same page look lit from somewhere.
-   */
-  --background: #0b0a0c;
-  --foreground: #f4f4f5;
+  /* The room: a violet night, not a black one. */
+  --background: #17102e;
+  --background-deep: #100a20;
+  --foreground: #fdf7ff;
 
-  /* The two surfaces every panel is cut from. */
-  --surface: #17161a;
-  --surface-high: #1f1e24;
+  /* Surfaces, lightest to deepest. Panels are cut from these. */
+  --surface: #2b1f57;
+  --surface-high: #3a2b70;
+  --surface-low: #211741;
 
-  /* Brass: prizes, primary actions, the lock itself. */
-  --brass: #d4a145;
-  --brass-bright: #f0c46a;
+  /* Gold: prizes, primary actions, the lock. The loudest thing on screen. */
+  --brass: #ffc247;
+  --brass-bright: #ffe08a;
+  --brass-deep: #b8750f;
 
-  /* The three verdicts. Green and orange are pulled apart in lightness as
-     well as hue so they stay distinguishable to a red-green colourblind
-     player, and every tile is captioned in the legend regardless. */
-  --mark-green: #3f9e5a;
-  --mark-orange: #d98324;
-  --mark-red: #3f3f46;
+  /* Four candy accents. Each owns a meaning:
+       grape  power-ups and anything you pay for
+       mint   success, an open safe, a hot score
+       berry  lives, warnings, running out
+       sky    length hints and cool scores */
+  --grape: #b57bff;
+  --grape-deep: #6b2fc4;
+  --mint: #4ade9b;
+  --mint-deep: #11855a;
+  --berry: #ff5c8a;
+  --berry-deep: #b8214c;
+  --sky: #4cc9f0;
+  --sky-deep: #16759f;
+
+  /* The three verdicts, restated in the new palette. Green and orange stay
+     pulled apart in lightness as well as hue for red-green colourblindness,
+     and every mark is captioned regardless. */
+  --mark-green: #4ade9b;
+  --mark-orange: #ffa23d;
+  --mark-red: #4a3a6b;
+
+  /* The outline every illustrated thing is drawn with. One value, so the
+     whole art set looks like it came from one hand. */
+  --ink: #150e2b;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-background-deep: var(--background-deep);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-high: var(--surface-high);
+  --color-surface-low: var(--surface-low);
   --color-brass: var(--brass);
   --color-brass-bright: var(--brass-bright);
+  --color-brass-deep: var(--brass-deep);
+  --color-grape: var(--grape);
+  --color-grape-deep: var(--grape-deep);
+  --color-mint: var(--mint);
+  --color-mint-deep: var(--mint-deep);
+  --color-berry: var(--berry);
+  --color-berry-deep: var(--berry-deep);
+  --color-sky: var(--sky);
+  --color-sky-deep: var(--sky-deep);
+  --color-ink: var(--ink);
   --color-mark-green: var(--mark-green);
   --color-mark-orange: var(--mark-orange);
   --color-mark-red: var(--mark-red);
@@ -53,9 +89,9 @@
 
   --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-pop-in: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  --animate-flip: flip 0.5s ease both;
   --animate-shake: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
   --animate-unlock: unlock 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-tick: tick 0.4s ease both;
 
   @keyframes fade-up {
     from {
@@ -76,23 +112,6 @@
     to {
       opacity: 1;
       transform: scale(1);
-    }
-  }
-
-  /*
-   * A scored tile turns over rather than recolouring. The half-way point is
-   * where the colour changes, so the face you were looking at never becomes
-   * the answer — you watch it arrive.
-   */
-  @keyframes flip {
-    0% {
-      transform: rotateX(0deg);
-    }
-    50% {
-      transform: rotateX(90deg);
-    }
-    100% {
-      transform: rotateX(0deg);
     }
   }
 
@@ -132,23 +151,7 @@
     }
   }
 
-  /* A dialog, and the sheet it sits on. */
-  --animate-rise: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-
-  @keyframes rise {
-    from {
-      opacity: 0;
-      transform: translateY(16px) scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-
   /* A figure that has just changed pulses once rather than snapping. */
-  --animate-tick: tick 0.4s ease both;
-
   @keyframes tick {
     0% {
       transform: scale(1);
@@ -159,6 +162,357 @@
     100% {
       transform: scale(1);
     }
+  }
+}
+
+/*
+ * The room.
+ *
+ * Four fixed layers that never scroll, so content moves through the light
+ * rather than dragging it along: a gold wash where the header and hero sit, a
+ * grape counterweight bottom-left, a cool glint on the right, and a vignette
+ * pulling the corners down so the middle of the page reads as lit.
+ *
+ * `fixed` matters — repeating any of this per-scroll would band visibly.
+ */
+/*
+ * Nothing scrolls sideways.
+ *
+ * The decoration on this site is built out of very large soft circles — a
+ * 34rem glow behind the hero, a wash behind each featured safe — and a circle
+ * wider than the screen it is centred on pushes the document out past the
+ * viewport. On a desktop nobody notices; on a 320px phone it was 122px of
+ * horizontal scroll on the front page, which reads as the page being broken.
+ *
+ * `clip` rather than `hidden` on purpose: `hidden` turns the element into a
+ * scroll container, which silently breaks `position: sticky` for everything
+ * inside it. `clip` just clips.
+ */
+html,
+body {
+  overflow-x: clip;
+}
+
+body {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(70rem 38rem at 50% -8rem, rgb(255 194 71 / 0.16), transparent 68%),
+    radial-gradient(52rem 38rem at 4% 96%, rgb(181 123 255 / 0.16), transparent 70%),
+    radial-gradient(44rem 30rem at 96% 30%, rgb(76 201 240 / 0.08), transparent 70%),
+    radial-gradient(120% 90% at 50% 50%, transparent 45%, var(--background-deep) 100%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--foreground);
+}
+
+/* ---------------------------------------------------------------------------
+ * Chunky things
+ * ------------------------------------------------------------------------- */
+
+/*
+ * The face every panel is cut from.
+ *
+ * Four things do the work and dropping any one flattens it: a gradient so the
+ * surface has a direction, a bright top highlight so it looks lit from where
+ * the page is lit, a dark bottom lip so it has thickness, and a shadow deep
+ * enough to lift it off a background of nearly the same hue.
+ */
+@utility panel {
+  background: linear-gradient(165deg, var(--surface-high) 0%, var(--surface) 58%, var(--surface-low) 100%);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  box-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.16),
+    inset 0 -3px 0 rgb(0 0 0 / 0.28),
+    0 14px 34px -16px rgb(0 0 0 / 0.75);
+}
+
+/*
+ * The face a dialog is cut from.
+ *
+ * Dialogs used to be white cards, on the theory that a form wants a clean sheet
+ * of paper under it. In a violet-night game they read as a different
+ * application opening on top of this one — and every one of them had to
+ * re-state its own text colours to survive the switch. This is the same
+ * material as `panel`, one step lighter so a sheet still separates from the
+ * page behind it, and it means a dialog inherits the site's colours instead of
+ * fighting them.
+ */
+@utility sheet {
+  background: linear-gradient(168deg, #40307a 0%, var(--surface-high) 40%, var(--surface) 100%);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  box-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.2),
+    0 -8px 60px -12px rgb(0 0 0 / 0.9),
+    0 30px 60px -20px rgb(0 0 0 / 0.85);
+}
+
+/*
+ * Every text box in the game.
+ *
+ * Inputs were being styled inline at a dozen call sites, which is how three of
+ * them ended up light-on-light after the theme changed. One utility, so a field
+ * looks like a slot cut into the surface wherever it appears.
+ */
+/* Padding is deliberately *not* set here — a field with an icon in it needs a
+   different inset on one side, and a utility that owns padding turns every
+   such case into a specificity argument. */
+@utility field {
+  width: 100%;
+  border-radius: 0.875rem;
+  border: 2px solid rgb(255 255 255 / 0.12);
+  background: rgb(0 0 0 / 0.28);
+  color: var(--foreground);
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+
+  &::placeholder {
+    color: rgb(255 255 255 / 0.35);
+  }
+
+  &:focus {
+    border-color: var(--brass);
+    background: rgb(0 0 0 / 0.4);
+  }
+
+  /* The global gold ring is right for a button and too much for a field that
+     already lights its own border. */
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+/*
+ * A panel that is also a target. Small lift, quick spring — a card that jumps
+ * is a card you stop trusting, but a card that doesn't move at all is a card
+ * you don't realise you can press.
+ */
+@utility panel-lift {
+  transition:
+    transform 0.18s cubic-bezier(0.34, 1.4, 0.64, 1),
+    border-color 0.18s,
+    box-shadow 0.18s;
+
+  &:hover {
+    transform: translateY(-3px);
+    border-color: rgb(255 194 71 / 0.45);
+    box-shadow:
+      inset 0 1.5px 0 rgb(255 255 255 / 0.22),
+      inset 0 -3px 0 rgb(0 0 0 / 0.28),
+      0 22px 44px -18px rgb(0 0 0 / 0.85),
+      0 0 30px -6px rgb(255 194 71 / 0.25);
+  }
+
+  &:active {
+    transform: translateY(-1px);
+  }
+}
+
+/*
+ * The signature casual-game button: a solid slab with a hard bottom lip that
+ * compresses when you press it. The lip is a box-shadow rather than a border so
+ * the button's own box never changes size, and the press translates by exactly
+ * the lip's height, so the slab looks like it meets the surface.
+ *
+ * Set `--btn-lip` to the darker shade of whatever colour the face is.
+ */
+@utility btn-chunky {
+  position: relative;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  transition:
+    transform 0.09s ease,
+    box-shadow 0.09s ease,
+    filter 0.15s ease;
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.35),
+    0 5px 0 var(--btn-lip, var(--brass-deep)),
+    0 10px 20px -6px rgb(0 0 0 / 0.55);
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(5px);
+    box-shadow:
+      inset 0 2px 0 rgb(255 255 255 / 0.25),
+      0 0 0 var(--btn-lip, var(--brass-deep)),
+      0 3px 8px -4px rgb(0 0 0 / 0.5);
+  }
+
+  &:disabled {
+    filter: saturate(0.3) brightness(0.65);
+    box-shadow:
+      0 5px 0 rgb(0 0 0 / 0.35),
+      0 10px 20px -6px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* Gold text with a lit top edge — the money figure, and nothing else. */
+@utility brass-text {
+  background: linear-gradient(180deg, var(--brass-bright) 12%, var(--brass) 55%, var(--brass-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.35));
+}
+
+/* Soft coloured halos, for the one thing on a screen that matters most. */
+@utility glow-brass {
+  filter: drop-shadow(0 0 18px rgb(255 194 71 / 0.45));
+}
+
+@utility glow-grape {
+  filter: drop-shadow(0 0 18px rgb(181 123 255 / 0.5));
+}
+
+/* Staggers a run of tiles or cards so they arrive in sequence. */
+@utility stagger {
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* ---------------------------------------------------------------------------
+ * Everything reacts
+ * ------------------------------------------------------------------------- */
+
+/*
+ * A game where things move when you touch them, and an app where they don't,
+ * feel different before you have read a word. So *everything* tappable gets a
+ * press: a 1px sink and a moment of dimming, applied globally rather than
+ * remembered class by class.
+ *
+ * The selector covers the four things a browser considers activatable plus
+ * anything carrying an explicit `role`, which is what a div-as-tab has. The
+ * `:not()` is the important half — components that define a richer press of
+ * their own (the chunky slab, a lifting card) opt out here so the two don't
+ * fight, and a disabled control must not pretend to respond.
+ */
+button,
+a,
+summary,
+label,
+[role="tab"],
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled):not(.btn-chunky):not(.panel-lift):active,
+a:not(.btn-chunky):not(.panel-lift):active,
+summary:active,
+[role="tab"]:not(.btn-chunky):active,
+[role="button"]:not(:disabled):not(.btn-chunky):not(.panel-lift):active {
+  transform: translateY(1px) scale(0.985);
+  filter: brightness(0.94);
+}
+
+button:not(.btn-chunky):not(.panel-lift),
+a:not(.btn-chunky):not(.panel-lift),
+summary,
+[role="tab"]:not(.btn-chunky),
+[role="button"]:not(.btn-chunky):not(.panel-lift) {
+  transition:
+    transform 0.08s ease,
+    filter 0.12s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* Hovering a control lifts it very slightly. Pointer devices only — on a
+   touchscreen `:hover` sticks after a tap and leaves things looking pressed. */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):not(.btn-chunky):not(.panel-lift):hover,
+  a:not(.btn-chunky):not(.panel-lift):hover,
+  [role="button"]:not(:disabled):not(.btn-chunky):not(.panel-lift):hover {
+    filter: brightness(1.08);
+  }
+}
+
+/* Anything focused by keyboard gets the same ring, in the game's own gold —
+   except a text box, which lights its own border and would otherwise wear a
+   second gold outline 2px outside the first. */
+:focus-visible:not(.field) {
+  outline: 3px solid var(--brass);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * The cast
+ * ------------------------------------------------------------------------- */
+
+/* Boxy breathing. Everything alive on this page does a version of this. */
+.bob {
+  animation: bob 3.4s ease-in-out infinite;
+  transform-origin: 50% 85%;
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(1.5deg);
+  }
+}
+
+/* A blink is two frames of a very short eyelid. */
+.blink {
+  animation: blink 5.5s infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+@keyframes blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.08);
+  }
+}
+
+/* Something that has just landed, arriving with weight. */
+.drop-in {
+  animation: drop-in 0.55s cubic-bezier(0.34, 1.6, 0.5, 1) both;
+}
+
+@keyframes drop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-22px) scale(0.86);
+  }
+  60% {
+    transform: translateY(3px) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* A star that twinkles out of phase with its neighbours. */
+.twinkle {
+  animation: twinkle 2.6s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 420ms);
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
   }
 }
 
@@ -178,10 +532,10 @@
 @keyframes safe-rock {
   0%,
   100% {
-    transform: rotate(-6deg);
+    transform: rotate(-8deg);
   }
   50% {
-    transform: rotate(6deg);
+    transform: rotate(8deg);
   }
 }
 
@@ -205,17 +559,15 @@
  * It goes to 108°, not 72°: at 72° the door is still a wide slab sitting over
  * the opening, which reads as a rendering fault rather than a door. Past 90°
  * you are looking at its back, it is narrow, and the interior is clear.
+ *
+ * The perspective is deliberately weak. At 340px the far edge swings towards
+ * the viewer hard enough to grow taller than the cabinet it belongs to, and a
+ * door that overflows its own safe looks broken rather than three-dimensional.
  */
 .safe-door-open {
   animation: safe-swing 1s cubic-bezier(0.34, 1.2, 0.5, 1) 0.15s both;
 }
 
-/*
- * The perspective is deliberately weak. At 340px the far edge of the door
- * swings towards the viewer hard enough to grow taller than the cabinet it
- * belongs to, and a door that overflows its own safe looks broken rather than
- * three-dimensional. 900px keeps the depth cue and loses the ballooning.
- */
 @keyframes safe-swing {
   from {
     transform: perspective(900px) rotateY(0deg);
@@ -227,7 +579,7 @@
 
 /* What's inside arrives after the door has cleared it, not with it. */
 .safe-inside {
-  animation: fade-up 0.7s ease 0.55s both;
+  animation: drop-in 0.7s cubic-bezier(0.34, 1.5, 0.5, 1) 0.55s both;
 }
 
 /* The light that travels across a door face. */
@@ -244,89 +596,6 @@
   35% {
     transform: translateX(190px) skewX(-18deg);
   }
-}
-
-/*
- * The room the safe is in.
- *
- * A single flat near-black was the problem: every panel on it was a slightly
- * different flat near-black, and the whole page read as switched off. This is
- * three fixed layers that never scroll, so content moves through the light
- * rather than dragging it along:
- *
- *   1. a warm brass wash at the top, where the header and the hero sit;
- *   2. a cold blue counterweight at the bottom-left, so the warmth reads as
- *      warm rather than as the only colour there is;
- *   3. a 32px grid at 2.5% opacity — invisible as a grid, and the thing that
- *      stops a large dark expanse from looking like an empty div.
- *
- * `fixed` matters: repeating any of this per-scroll would band visibly.
- */
-body {
-  background-color: var(--background);
-  background-image:
-    radial-gradient(80rem 40rem at 50% -10rem, rgb(212 161 69 / 0.11), transparent 70%),
-    radial-gradient(56rem 40rem at 0% 100%, rgb(88 110 190 / 0.09), transparent 70%),
-    linear-gradient(rgb(255 255 255 / 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px);
-  background-size:
-    100% 100%,
-    100% 100%,
-    32px 32px,
-    32px 32px;
-  background-attachment: fixed;
-  background-repeat: no-repeat, no-repeat, repeat, repeat;
-  color: var(--foreground);
-}
-
-/*
- * The brushed-steel face every panel is cut from.
- *
- * Three things do the work, and dropping any one of them flattens it: a
- * gradient so the surface has a direction, a *warm* top highlight rather than
- * a white one so it looks lit by the same brass light as everything else, and
- * a shadow deep enough to lift the panel off a background that is nearly the
- * same colour.
- */
-@utility panel {
-  background: linear-gradient(160deg, var(--surface-high) 0%, var(--surface) 55%, #131217 100%);
-  border: 1px solid rgb(255 255 255 / 0.08);
-  box-shadow:
-    inset 0 1px 0 rgb(240 196 106 / 0.09),
-    inset 0 -1px 0 rgb(0 0 0 / 0.4),
-    0 18px 40px -20px rgb(0 0 0 / 0.9);
-}
-
-/*
- * A panel that is also a target. The lift is small on purpose — a card that
- * jumps is a card you stop trusting.
- */
-@utility panel-lift {
-  transition:
-    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.2s,
-    box-shadow 0.2s;
-
-  &:hover {
-    transform: translateY(-2px);
-    border-color: rgb(212 161 69 / 0.4);
-    box-shadow:
-      inset 0 1px 0 rgb(240 196 106 / 0.14),
-      0 24px 50px -22px rgb(0 0 0 / 0.95),
-      0 0 0 1px rgb(212 161 69 / 0.08);
-  }
-}
-
-@utility brass-text {
-  background: linear-gradient(180deg, var(--brass-bright), var(--brass));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/* Staggers a run of tiles or cards so they arrive in sequence. */
-@utility stagger {
-  animation-delay: calc(var(--i, 0) * 60ms);
 }
 
 /*

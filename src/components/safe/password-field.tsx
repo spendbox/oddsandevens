@@ -50,8 +50,8 @@ export function PasswordField({
     <div className="space-y-2">
       <div
         className={
-          "panel relative rounded-2xl transition " +
-          (disabled ? "opacity-60" : "focus-within:border-brass/60")
+          "panel relative rounded-2xl border-2 transition " +
+          (disabled ? "opacity-60" : "focus-within:border-brass focus-within:shadow-[0_0_0_4px_rgba(255,194,71,0.18)]")
         }
       >
         <KeyRound
@@ -77,7 +77,7 @@ export function PasswordField({
               onSubmit();
             }
           }}
-          className="w-full rounded-2xl bg-transparent py-4 pl-12 pr-12 font-mono text-lg tracking-wide text-zinc-100 outline-none placeholder:font-sans placeholder:text-base placeholder:tracking-normal placeholder:text-zinc-600 sm:text-xl"
+          className="w-full rounded-2xl bg-transparent py-4 pl-12 pr-12 font-mono text-lg font-bold tracking-wide text-foreground outline-none placeholder:font-sans placeholder:font-normal placeholder:text-base placeholder:tracking-normal placeholder:text-zinc-500 sm:text-xl"
         />
 
         {value.length > 0 && !disabled && (
@@ -118,9 +118,10 @@ export function PasswordField({
         type="button"
         disabled={disabled || busy || value.length === 0}
         onClick={onSubmit}
-        className="w-full rounded-xl bg-brass px-4 py-3.5 font-bold text-zinc-950 transition hover:bg-brass-bright disabled:opacity-40"
+        style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+        className="btn-chunky w-full rounded-2xl bg-brass px-4 py-4 text-lg text-ink"
       >
-        {busy ? "Checking…" : "Check it"}
+        {busy ? "Checking…" : "Crack it"}
       </button>
     </div>
   );
