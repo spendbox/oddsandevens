@@ -41,9 +41,10 @@ import { AttemptDialog } from "./attempt-dialog";
 import { KnownPanel } from "./known-panel";
 import { PowerUpShelf } from "./power-up-shelf";
 import { VaultScene, type CrackerState } from "./vault-scene";
-import { BestPill, SceneDock, SceneRail } from "./scene-hud";
+import { BestPill, SceneDock, SceneRail, type StatKind } from "./scene-hud";
 import { GuessDialog } from "./guess-dialog";
 import { PotDialog } from "./pot-dialog";
+import { StatDialog } from "./stat-dialog";
 import { ResultCard, ResultDialog, resultsMuted } from "./result-dialog";
 import { Boxy } from "@/components/art/boxy";
 
@@ -88,6 +89,8 @@ export function PlaySurface({
    * anything else on the screen has changed.
    */
   const [cracker, setCracker] = useState<CrackerState>("idle");
+  /** Which rail figure somebody has asked about. */
+  const [stat, setStat] = useState<StatKind | null>(null);
 
   const now = useNow(
     view.player.nextLifeAt ??
@@ -234,13 +237,13 @@ export function PlaySurface({
           tappable through the gaps. */}
       <div className="pointer-events-none relative z-10 flex flex-1 flex-col justify-between gap-3 p-3">
         <div className="pointer-events-auto mx-auto w-full max-w-2xl space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <SceneRail
-              box={view.box}
-              onExplain={() => setSheet("rules")}
-              onBack={() => router.push("/")}
-            />
-          </div>
+          <SceneRail
+            box={view.box}
+            onExplain={() => setSheet("rules")}
+            onBack={() => router.push("/")}
+            onReward={() => setSheet("pot")}
+            onStat={setStat}
+          />
 
           <div className="flex items-center justify-between gap-2">
             <LivesBadge onBuy={() => setSheet("lives")} />
@@ -387,6 +390,10 @@ export function PlaySurface({
 
       {sheet === "best" && bestAttempt && (
         <AttemptDialog attempt={bestAttempt} onClose={() => setSheet("none")} />
+      )}
+
+      {stat && (
+        <StatDialog stat={stat} box={view.box} onClose={() => setStat(null)} />
       )}
 
       {result && won && (

@@ -21,106 +21,147 @@
 // are typing into is a worse arrangement than no floating button.
 
 import type { ReactNode } from "react";
-import { ChevronLeft, HelpCircle, Sparkles, Swords, Trophy, Users } from "lucide-react";
+import { ChevronLeft, Coins, HelpCircle, Sparkles, Swords, Trophy, Users } from "lucide-react";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { compact } from "@/lib/plural";
+import { rewardLabel } from "@/lib/game/rewards";
 import type { PublicBox } from "@/lib/types";
+
+/** Which stat a player has asked about. */
+export type StatKind = "hunters" | "attempts" | "best";
 
 /**
  * The rail, across the top of the scene.
  *
- * Three numbers and two controls, over the sky. What is *not* here is the
- * prize: it used to be the biggest thing on the screen and it is now the pile
- * of gold in the chamber, which you tap. A figure at the top of a screen is a
- * label; a pile you have to look into is a thing you can want.
+ * Two rows, and the division is by what the thing *is*. The top row is the box:
+ * how much is in it, how hard it is, and the two ways out — back, and help.
+ * The row under it is the crowd: three figures, and nothing but figures.
+ *
+ * The labels are gone from those three. "HUNTERS" / "ATTEMPTS" / "BEST YET" in
+ * 9px capitals under each number was three words of chrome explaining three
+ * numbers nobody had asked about yet, on the screen with the least room for
+ * words on the site. An icon and a figure is enough to glance at; tapping one
+ * says what it is, which is the only time anybody wants the sentence.
  */
 export function SceneRail({
   box,
   onExplain,
   onBack,
+  onReward,
+  onStat,
 }: {
   box: PublicBox;
   onExplain: () => void;
   onBack?: () => void;
+  /** Tapping the prize. Opens the same sheet as tapping the gold. */
+  onReward: () => void;
+  onStat: (stat: StatKind) => void;
 }) {
   return (
-    <div className="flex items-start gap-2">
-      {onBack && (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back to the board"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/15 bg-background/85 text-zinc-200 transition hover:border-brass/60 hover:text-brass"
+          >
+            <ChevronLeft className="size-5" aria-hidden />
+          </button>
+        )}
+
+        {/*
+          The prize, back at the top and tappable. It went away when the gold
+          became the way to read it, and it should not have gone entirely: the
+          gold says *how much* relative to a full vault, which is the comparison,
+          and this says the figure, which is the fact.
+        */}
         <button
           type="button"
-          onClick={onBack}
-          aria-label="Back to the board"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/15 bg-black/40 text-zinc-200 backdrop-blur transition hover:border-brass/60 hover:text-brass"
+          onClick={onReward}
+          aria-label="What is in this vault"
+          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border-2 border-brass/45 bg-background/85 px-3 py-1.5 transition hover:border-brass"
         >
-          <ChevronLeft className="size-5" aria-hidden />
+          <Coins className="hidden size-4 shrink-0 text-brass min-[360px]:block" aria-hidden />
+          <span
+            className={
+              "truncate font-black leading-none tracking-tight tabular-nums " +
+              (box.isChallenge ? "text-sm text-grape" : "brass-text text-base min-[360px]:text-lg")
+            }
+          >
+            {rewardLabel(box.rewardKobo)}
+          </span>
         </button>
-      )}
 
-      <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
-        <div className="flex w-full items-center justify-center gap-1.5">
-          <Stat
-            icon={<Users className="size-3.5" aria-hidden />}
-            value={compact(box.playersCount)}
-            label="hunters"
-          />
-          <Stat
-            icon={<Swords className="size-3.5" aria-hidden />}
-            value={compact(box.attemptsCount)}
-            label="attempts"
-          />
-          {/*
-            The number to beat. Nobody's name is on it and no date — one
-            stranger got this close, which is all a leaderboard can honestly be
-            on a game with exactly one winner.
-          */}
-          <Stat
-            icon={<Trophy className="size-3.5 text-brass" aria-hidden />}
-            value={`${Math.round(box.bestPercent)}%`}
-            label="best yet"
-            accent
-          />
-        </div>
-        <DifficultyBadge difficulty={box.difficulty} />
+        {/* Top right, where it was asked for — and where it belongs, because it
+            is the one thing on this rail you decide *before* playing. */}
+        <DifficultyBadge difficulty={box.difficulty} compact />
+
+        <button
+          type="button"
+          onClick={onExplain}
+          aria-label="How it works"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/15 bg-background/85 text-zinc-200 transition hover:border-brass/60 hover:text-brass"
+        >
+          <HelpCircle className="size-4" aria-hidden />
+        </button>
       </div>
 
-      <button
-        type="button"
-        onClick={onExplain}
-        aria-label="How it works"
-        className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/15 bg-black/40 text-zinc-200 backdrop-blur transition hover:border-brass/60 hover:text-brass"
-      >
-        <HelpCircle className="size-4" aria-hidden />
-      </button>
+      <div className="flex items-center justify-center gap-1.5">
+        <Stat
+          onClick={() => onStat("hunters")}
+          icon={<Users className="size-3.5" aria-hidden />}
+          value={compact(box.playersCount)}
+          label="Hunters on this safe"
+        />
+        <Stat
+          onClick={() => onStat("attempts")}
+          icon={<Swords className="size-3.5" aria-hidden />}
+          value={compact(box.attemptsCount)}
+          label="Guesses made at this safe"
+        />
+        <Stat
+          onClick={() => onStat("best")}
+          icon={<Trophy className="size-3.5 text-brass" aria-hidden />}
+          value={`${Math.round(box.bestPercent)}%`}
+          label="The closest anybody has come"
+          accent
+        />
+      </div>
     </div>
   );
 }
 
 function Stat({
+  onClick,
   icon,
   value,
   label,
   accent,
 }: {
+  onClick: () => void;
   icon: ReactNode;
   value: string;
+  /** Read out by a screen reader, and the reason the visible label is gone. */
   label: string;
   accent?: boolean;
 }) {
   return (
-    <span
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
       className={
-        "flex min-w-0 flex-1 flex-col items-center rounded-xl border px-1.5 py-1 backdrop-blur " +
-        (accent ? "border-brass/40 bg-brass/15" : "border-white/15 bg-black/40")
+        "flex items-center gap-1.5 rounded-full border-2 px-3 py-1 font-mono text-sm font-black leading-none tabular-nums transition " +
+        (accent
+          ? "border-brass/45 bg-background/85 text-brass hover:border-brass"
+          : "border-white/18 bg-background/85 text-zinc-200 hover:border-white/40")
       }
     >
-      <span className="flex items-center gap-1 font-mono text-sm font-black leading-tight tabular-nums">
-        {icon}
-        {value}
-      </span>
-      <span className="text-[9px] font-bold uppercase tracking-wide text-zinc-400">
-        {label}
-      </span>
-    </span>
+      {icon}
+      {value}
+    </button>
   );
 }
 
@@ -147,7 +188,7 @@ export function BestPill({
       onClick={onClick}
       aria-label="Your best guess"
       className={
-        "flex items-center gap-1.5 rounded-full border-2 border-brass/40 bg-background/80 py-1 pl-2.5 pr-3 font-mono text-xs font-black tabular-nums text-brass shadow-lg backdrop-blur transition hover:border-brass " +
+        "flex items-center gap-1.5 rounded-full border-2 border-brass/40 bg-background/85 py-1 pl-2.5 pr-3 font-mono text-xs font-black tabular-nums text-brass shadow-lg backdrop-blur transition hover:border-brass " +
         className
       }
     >

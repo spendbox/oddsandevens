@@ -485,7 +485,31 @@ The sky and floor fill the viewport; the chamber, door and character live in one
 stage anchored to the floor, so they keep their arrangement to each other from a
 320px phone to a desktop.
 
+### The rail
+
+Two rows, divided by what the thing *is*. The top row is the box: the prize, the
+difficulty, and the two ways out — back and help. The row under it is the crowd:
+three figures and nothing but figures.
+
+The captions are gone from those three. "HUNTERS" / "ATTEMPTS" / "BEST YET" in
+9px capitals was three words of chrome explaining three numbers nobody had asked
+about yet, on the screen with the least room for words on the site. An icon and
+a figure is enough to glance at; **tapping one says what it is**, which is the
+only moment anybody wants the sentence — and the sentence can then be worth
+reading. "The closest anybody has come" is a fact; "somebody got within eight
+points of this password and it is still shut" is a reason to keep going.
+
+The difficulty badge drops its word below `sm` and keeps its pips. On a 320px
+screen "Merciless" was taking enough of the row to crush ₦7,000,000 down to
+"₦7,0…"; the pips carry the comparison on their own and the word is a label
+for it.
+
 ### The gold is the prize
+
+The figure is on the rail *and* in the room, and they are not the same
+statement: the pile says how much relative to a full vault, which is the
+comparison; the figure says the number, which is the fact. Tapping either opens
+the same sheet.
 
 `VAULT_CAPACITY_KOBO` is ₦10,000,000 — the largest reward the funding ladder can
 produce — and a full vault is forty-two bars. A ₦7,000,000 box is thirty of
@@ -525,6 +549,16 @@ moment the page loads.
 The price tag went with it. "Costs 1 life · 4 left" under the only button in the
 game was a reason to hesitate over something free; the life pool is in the rail
 where it belongs.
+
+**The keyboard problem is solved twice**, because no single fix covers both
+platforms. A phone keyboard is drawn *over* the page rather than shrinking it,
+so `svh` and `dvh` both still describe the whole screen and a footer pinned to
+the bottom of a sheet is pinned underneath the keys. `interactive-widget=
+resizes-content` in the viewport meta fixes it outright on Chrome for Android.
+Safari ignores it, so `Modal` also reads `visualViewport` — its height is what
+you can actually see — and pads the backdrop by the difference. Padding rather
+than a transform, so the sheet's own max-height shrinks with it and a long
+dialog scrolls instead of being pushed off the top.
 
 ### The bolts
 

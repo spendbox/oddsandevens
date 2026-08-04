@@ -50,7 +50,7 @@ export function GuessDialog({
   return (
     <Modal
       title="Crack the safe"
-      subtitle="Case matters. Anything on a keyboard is fair game."
+      subtitle="Case matters."
       icon={<KeyRound className="size-5 text-brass" aria-hidden />}
       width="sm"
       onClose={onClose}

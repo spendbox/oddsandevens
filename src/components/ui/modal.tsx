@@ -23,7 +23,7 @@
 // screens, so the *content* is what fills a sheet rather than the frame
 // around it.
 
-import { useCallback, useEffect, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Portal } from "./portal";
 
@@ -34,6 +34,43 @@ const WIDTHS: Record<ModalWidth, string> = {
   md: "sm:max-w-lg",
   lg: "sm:max-w-2xl",
 };
+
+/**
+ * How much of the viewport an on-screen keyboard is covering.
+ *
+ * The reason a dialog's action button ends up behind the keys: on a phone the
+ * keyboard is drawn *over* the page rather than shrinking it, so `svh` and
+ * `dvh` both still describe the whole screen and a footer pinned to the bottom
+ * of a 90svh sheet is pinned underneath the keyboard. `visualViewport` is the
+ * only thing that knows the difference — its height is what you can actually
+ * see — and the gap between that and the layout viewport is the inset.
+ *
+ * Zero on a desktop, and zero on Android once `interactive-widget=
+ * resizes-content` has done the job, so applying it is always safe.
+ */
+function useKeyboardInset(): number {
+  const [inset, setInset] = useState(0);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const read = () => {
+      // `offsetTop` matters: iOS scrolls the visual viewport as well as
+      // shrinking it, and without it the sheet jumps by however far it slid.
+      const covered = window.innerHeight - vv.height - vv.offsetTop;
+      setInset(covered > 24 ? covered : 0);
+    };
+    read();
+    vv.addEventListener("resize", read);
+    vv.addEventListener("scroll", read);
+    return () => {
+      vv.removeEventListener("resize", read);
+      vv.removeEventListener("scroll", read);
+    };
+  }, []);
+
+  return inset;
+}
 
 export function Modal({
   title,
@@ -79,11 +116,17 @@ export function Modal({
     };
   }, [onClose]);
 
+  const keyboard = useKeyboardInset();
+
   return (
     <Portal>
       <div
         onClick={close}
-        className="fixed inset-0 z-50 flex items-end justify-center bg-background-deep/75 backdrop-blur-sm sm:items-center sm:p-4"
+        // The keyboard's height is padding on the backdrop rather than a
+        // transform on the sheet, so the sheet's own max-height shrinks with it
+        // and a long dialog scrolls instead of being pushed off the top.
+        style={keyboard > 0 ? { paddingBottom: keyboard } : undefined}
+        className="fixed inset-0 z-50 flex max-h-[100svh] items-end justify-center bg-background-deep/75 backdrop-blur-sm transition-[padding] duration-150 sm:items-center sm:p-4"
       >
         <div
           role="dialog"
@@ -92,7 +135,7 @@ export function Modal({
           className={
             // The panel is capped at the visible viewport and never taller, so
             // there is nothing to scroll the *page* for.
-            "sheet animate-pop-in flex max-h-[90svh] w-full flex-col overflow-hidden rounded-t-3xl sm:max-h-[calc(100svh-2rem)] sm:rounded-3xl " +
+            "sheet animate-pop-in flex max-h-full w-full flex-col overflow-hidden rounded-t-3xl sm:max-h-[calc(100svh-2rem)] sm:rounded-3xl " +
             WIDTHS[width]
           }
         >

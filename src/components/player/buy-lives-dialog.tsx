@@ -173,7 +173,7 @@ export function BuyLivesDialog({
               onPick={() => setBuying("wind")}
               icon={<PowerUpArt kind="second_wind" className="size-7" />}
               title="Second Wind"
-              body={`${SECOND_WIND_HOURS} hour on this box. No lives spent, no limit.`}
+              body={SECOND_WIND_HOURS === 1 ? "Immortal for one hour." : `Immortal for ${SECOND_WIND_HOURS} hours.`}
               price={formatNaira(secondWind.priceKobo)}
             />
           </div>
