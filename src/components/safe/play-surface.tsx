@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, KeyRound, Palette, Sparkles, Tag } from "lucide-react";
+import { ArrowRight, KeyRound, Tag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { LIVES_MAX } from "@/lib/constants";
 import { EMPTY_REVEALED, POWER_UPS } from "@/lib/game/power-ups";
@@ -38,7 +38,7 @@ import { LivesBadge, countdown, useNow } from "@/components/player/lives-badge";
 import { HowItWorksDialog } from "@/components/how-it-works";
 import { AttemptLog } from "./attempt-log";
 import { AttemptDialog } from "./attempt-dialog";
-import { KnownPanel } from "./known-panel";
+import { KnownDialog, knowsAnything } from "./known-panel";
 import { PowerUpShelf } from "./power-up-shelf";
 import { ChaseScene } from "./chase-scene";
 import type { Shot } from "@/lib/game/chase";
@@ -62,6 +62,7 @@ type Sheet =
   | "power-ups"
   | "best"
   | "guess"
+  | "known"
   | "pot";
 
 export function PlaySurface({
@@ -129,9 +130,6 @@ export function PlaySurface({
   const open = view.box.status === "live";
   const revealed = view.hunt?.revealed ?? EMPTY_REVEALED;
   const won = view.hunt?.won ?? false;
-  const freeRun =
-    !!view.hunt?.secondWindUntil &&
-    new Date(view.hunt.secondWindUntil).getTime() > now;
 
   const attempts = view.hunt?.attempts ?? [];
   const best = view.hunt && attempts.length > 0 ? view.hunt.bestPercent : null;
@@ -142,6 +140,9 @@ export function PlaySurface({
     slug,
     lives: view.player.lives,
     coldStreak,
+    // Only what's still on sale here: a discount on something already bought
+    // is a gift of nothing, and it would take a slot in the rotation.
+    powerUps: view.powerUps.filter((p) => p.available).map((p) => p.kind),
     initial: view.offer,
     enabled: verified && open && !won,
   });
@@ -216,6 +217,14 @@ export function PlaySurface({
     setBusy(true);
     setMessage(null);
     setSheet("none");
+    // Put the keyboard away *before* anything else can open.
+    //
+    // Unmounting the field is not enough on iOS — Safari will happily keep the
+    // keyboard up after its input has gone — and the sheet that most often
+    // follows a guess is the out-of-lives one, which then arrives behind the
+    // keys with its buttons unreachable. An explicit blur is the only thing
+    // that reliably retracts it.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 
     const res = await fetch(`/api/boxes/${slug}/attempt`, {
       method: "POST",
@@ -329,25 +338,18 @@ export function PlaySurface({
             )}
           </div>
 
-          {/* Whatever the power-ups have bought, and whatever is running.
-              Renders nothing at all until there is something to say. */}
-          <KnownPanel revealed={revealed} now={now} />
-
-          <div className="flex flex-wrap gap-2">
-            {freeRun && view.hunt?.secondWindUntil && (
-              <Chip tone="mint">
-                <Sparkles className="size-3.5" aria-hidden />
-                Free guesses · {countdown(view.hunt.secondWindUntil, now)}
-              </Chip>
-            )}
-            {view.hunt?.hasBreakdown && view.hunt.breakdownUntil && (
-              <Chip tone="brass">
-                <Palette className="size-3.5" aria-hidden />
-                Colour Read · {countdown(view.hunt.breakdownUntil, now)}
-              </Chip>
-            )}
-            {message && <Chip tone="brass">{message}</Chip>}
-          </div>
+          {/*
+            What used to be here: a standing "what you know" panel and a row of
+            chips for whatever was running. Both were the pre-scene layout, and
+            both appeared the moment anybody bought anything — so spending money
+            was rewarded with the old UI stacked over the game. They live in the
+            Known sheet now, behind the dock, with the countdowns in it.
+          */}
+          {message && (
+            <div className="flex flex-wrap gap-2">
+              <Chip tone="brass">{message}</Chip>
+            </div>
+          )}
         </div>
 
         <div className="pointer-events-auto mx-auto w-full max-w-md space-y-3">
@@ -383,13 +385,17 @@ export function PlaySurface({
           )}
 
           {verified ? (
-            <div className="flex items-end gap-3">
+            /* The action on top at full width, its three subtabs underneath.
+               They used to share a row, which made the one thing you press
+               forty times an hour compete for width with three you press
+               occasionally. */
+            <div className="space-y-2">
               <button
                 type="button"
                 disabled={busy || won}
                 onClick={() => setSheet("guess")}
                 style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-                className="btn-chunky flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-brass px-3 py-4 text-base text-ink sm:text-lg"
+                className="btn-chunky flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-brass px-3 py-4 text-base text-ink sm:text-lg"
               >
                 <KeyRound className="size-5" aria-hidden />
                 {busy ? "Trying it…" : "Crack the safe"}
@@ -397,8 +403,10 @@ export function PlaySurface({
 
               <SceneDock
                 powerUps={view.powerUps.filter((p) => p.available).length}
+                known={knowsAnything(revealed, now)}
                 onAttempts={() => setSheet("attempts")}
                 onPowerUps={() => setSheet("power-ups")}
+                onKnown={() => setSheet("known")}
               />
             </div>
           ) : (
@@ -457,6 +465,10 @@ export function PlaySurface({
           secondWind={secondWind}
           onClose={() => setSheet("none")}
         />
+      )}
+
+      {sheet === "known" && (
+        <KnownDialog revealed={revealed} now={now} onClose={() => setSheet("none")} />
       )}
       {sheet === "rules" && <HowItWorksDialog onClose={() => setSheet("none")} />}
 

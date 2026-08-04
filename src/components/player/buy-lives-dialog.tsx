@@ -12,11 +12,11 @@
 // just asked.
 
 import { useState } from "react";
-import { Heart, Infinity as InfinityIcon } from "lucide-react";
+import { Heart, Infinity as InfinityIcon, Tag } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { LIFE_PURCHASE_MAX } from "@/lib/constants";
 import { PowerUpArt } from "@/components/art/power-up-art";
-import { SECOND_WIND_HOURS, type Offering } from "@/lib/game/power-ups";
+import { discountedKobo, SECOND_WIND_HOURS, type Offering } from "@/lib/game/power-ups";
 import { formatNaira } from "@/lib/game/rewards";
 import { usePlayer } from "./player-context";
 import { countdown, useNow } from "./lives-badge";
@@ -42,7 +42,12 @@ export function BuyLivesDialog({
   secondWind?: Offering | null;
 }) {
   const { player } = usePlayer();
-  const now = useNow(player.nextLifeAt);
+  // Off the player rather than a prop: this dialog opens from the game, the
+  // header and the profile, and only one of those has a box in front of it.
+  const lifeDiscount = player.lifeDiscount;
+  // The discount's clock first: it is the shorter of the two and the only one
+  // that costs the player money to miss.
+  const now = useNow(lifeDiscount?.expiresAt ?? player.nextLifeAt);
   const [quantity, setQuantity] = useState(3);
   const [buying, setBuying] = useState<Buying>("lives");
   const [busy, setBusy] = useState(false);
@@ -103,7 +108,16 @@ export function BuyLivesDialog({
     );
   }
 
-  const total = wind && secondWind ? secondWind.priceKobo : quantity * player.lifePriceKobo;
+  // The discount applies to lives and not to Second Wind — that one is a
+  // power-up and settles through the power-up till, where the other kind of
+  // drop lives.
+  const off =
+    lifeDiscount && new Date(lifeDiscount.expiresAt).getTime() > now
+      ? lifeDiscount.amount
+      : 0;
+  const livesFull = quantity * player.lifePriceKobo;
+  const livesTotal = discountedKobo(livesFull, off);
+  const total = wind && secondWind ? secondWind.priceKobo : livesTotal;
 
   return (
     <Modal
@@ -124,11 +138,21 @@ export function BuyLivesDialog({
           style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
           className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
         >
-          {busy
-            ? "Opening checkout…"
-            : wind
-              ? `Take the hour · ${formatNaira(total)}`
-              : `Pay ${formatNaira(total)}`}
+          {busy ? (
+            "Opening checkout…"
+          ) : wind ? (
+            `Take the hour · ${formatNaira(total)}`
+          ) : (
+            <>
+              Pay{" "}
+              {off > 0 && (
+                <span className="text-sm font-bold text-ink/50 line-through">
+                  {formatNaira(livesFull)}
+                </span>
+              )}{" "}
+              {formatNaira(total)}
+            </>
+          )}
         </button>
       }
     >
@@ -140,6 +164,13 @@ export function BuyLivesDialog({
             ? ` — the next one in ${countdown(player.nextLifeAt, now)}.`
             : ", and your pool is full right now."}
         </p>
+
+        {off > 0 && !wind && (
+          <p className="flex items-center gap-2 rounded-xl border-2 border-sky/40 bg-sky/15 px-3 py-2.5 text-sm font-bold text-sky">
+            <Tag className="size-4 shrink-0" aria-hidden />
+            {off}% off this order — {countdown(lifeDiscount!.expiresAt, now)} to use it.
+          </p>
+        )}
 
         {player.bonusLivesPending > 0 && (
           <p className="rounded-xl bg-brass/10 px-3 py-2.5 text-sm text-brass">

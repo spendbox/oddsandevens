@@ -1,44 +1,50 @@
 "use client";
 
-// When to send something down.
+// When to ask whether anything is due.
 //
 // The two places a player quits a hard box are the same two every time: out of
-// lives, and a run of guesses that went nowhere. So those are the two triggers,
-// and the rate is a function of how much trouble somebody is in rather than a
-// timer — a drop that arrives on a schedule is a schedule, and a drop that
-// arrives when you are about to stop is a reason not to.
+// lives, and a run of guesses that went nowhere. So those are still the two
+// moments this watches for — but they now decide *when to ask*, not what to
+// ask for and not whether anything arrives.
 //
-// What it *asks* for is mostly a discount, cycling through the power-ups so a
-// long session sees a different one each time. Free lives are the rare one and
-// the server caps them regardless — one popup an hour, five taken a day — so
-// this asks for them a fifth of the time and lets Postgres be the authority.
+// The rate used to live here, and it was far too generous: a floor of ninety
+// seconds and eight minutes between crates on a calm hunt, which over an
+// evening is a gift every few minutes. That is not a gift, it is weather. The
+// floor is ninety *minutes* now and it is enforced in SQL as well, so a second
+// tab, a reload, or a browser with its own ideas cannot beat it.
 //
-// A player with nothing left in the pool is asked for on different terms: a
-// free Second Wind, which is an hour of guessing that costs nothing. It is
-// once a week and the cap for that lives in SQL too.
+// What arrives is entirely the server's decision — kind, terms and rotation.
+// All this sends is the shortlist of power-ups still worth discounting, which
+// only the browser knows, and which can only ever narrow what is offered.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { POWER_UP_KINDS } from "@/lib/game/power-ups";
 import type { Drop } from "@/lib/types";
 
-/** Never more often than this, whatever else is going on. */
-const FLOOR_MS = 90_000;
+/** Never more often than this, and Postgres agrees. */
+const FLOOR_MS = 90 * 60_000;
+/** The gap when somebody is in trouble — the floor, and not a second less. */
+const TROUBLE_MS = FLOOR_MS;
 /** The ordinary gap when a hunt is going fine. */
-const CALM_MS = 8 * 60_000;
-/** The gap when somebody is in trouble. */
-const TROUBLE_MS = 2 * 60_000;
+const CALM_MS = 3 * 60 * 60_000;
 /** Guesses that failed to beat your best before it counts as trouble. */
 const COLD_STREAK = 5;
 /** Lives at or below which it counts as trouble. */
 const LOW_LIVES = 2;
-/** How often the ask is for free lives rather than a discount. */
-const LIVES_SHARE = 0.2;
+/**
+ * How long after arriving on a box the first ask happens.
+ *
+ * Long enough that it never lands on top of somebody still reading the screen,
+ * short enough that a player who *is* in trouble gets it in the same session.
+ */
+const SETTLE_MS = 45_000;
 
 export function useDrops({
   slug,
   lives,
   /** How many guesses in a row have failed to beat their own best. */
   coldStreak,
+  /** Power-ups still on sale here. The rotation draws discounts from these. */
+  powerUps,
   /** An offer the server already had waiting when the page loaded. */
   initial,
   enabled,
@@ -46,43 +52,44 @@ export function useDrops({
   slug: string;
   lives: number;
   coldStreak: number;
+  powerUps: string[];
   initial: Drop | null;
   enabled: boolean;
 }) {
   const [drop, setDrop] = useState<Drop | null>(initial);
-  /** When the last one was asked for, so the floor can be enforced. */
+  /** When we last asked, so the floor isn't hammered from this tab either. */
   const lastAt = useRef(0);
-  /** Which power-up the next discount should be about. */
-  const cycle = useRef(0);
   /**
    * Bumped after every ask, answered or not.
    *
-   * Without it a refused ask — and the server refuses plenty now, by design —
-   * would be the end of it: nothing about the inputs changes, so the effect
-   * never re-arms and no drop ever comes again for the rest of the session.
+   * Without it a refused ask — and at one gift per ninety minutes almost every
+   * ask is refused — would be the end of it: nothing about the inputs changes,
+   * so the effect never re-arms and no drop ever comes again this session.
    */
   const [asked, setAsked] = useState(0);
 
   const dismiss = useCallback(() => setDrop(null), []);
 
-  const mint = useCallback(
-    async (kind: Drop["kind"]) => {
-      const powerUp = POWER_UP_KINDS[cycle.current % POWER_UP_KINDS.length];
-      cycle.current += 1;
-      lastAt.current = Date.now();
+  // Joined here rather than passed as an array, so the effect below doesn't
+  // re-arm on every render just because a fresh array has a fresh identity.
+  const shortlist = powerUps.join(",");
 
-      const res = await fetch("/api/player/offer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "mint", slug, kind, powerUp }),
-      });
-      setAsked((n) => n + 1);
-      if (!res.ok) return;
-      const body = (await res.json()) as { offer?: Drop | null };
-      if (body.offer) setDrop(body.offer);
-    },
-    [slug]
-  );
+  const mint = useCallback(async () => {
+    lastAt.current = Date.now();
+    const res = await fetch("/api/player/offer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "mint",
+        slug,
+        powerUps: shortlist ? shortlist.split(",") : [],
+      }),
+    });
+    setAsked((n) => n + 1);
+    if (!res.ok) return;
+    const body = (await res.json()) as { offer?: Drop | null };
+    if (body.offer) setDrop(body.offer);
+  }, [slug, shortlist]);
 
   const claim = useCallback(async (): Promise<{
     kind: Drop["kind"];
@@ -106,19 +113,7 @@ export function useDrops({
     const gap = Math.max(FLOOR_MS, trouble ? TROUBLE_MS : CALM_MS);
     const due = lastAt.current + gap - Date.now();
 
-    const id = window.setTimeout(
-      () =>
-        void mint(
-          // Nothing left in the pool is the one moment an hour of free
-          // guesses is worth more than anything else on the shelf.
-          lives === 0
-            ? "free_second_wind"
-            : Math.random() < LIVES_SHARE
-              ? "free_lives"
-              : "power_up_discount"
-        ),
-      Math.max(4_000, due)
-    );
+    const id = window.setTimeout(() => void mint(), Math.max(SETTLE_MS, due));
     return () => window.clearTimeout(id);
   }, [enabled, drop, lives, coldStreak, mint, asked]);
 

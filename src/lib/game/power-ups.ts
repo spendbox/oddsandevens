@@ -133,8 +133,12 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
       "Reveals the composition of the password: how many uppercase letters, lowercase letters, digits, and symbols it contains. This dramatically narrows the search space. In a 94-character alphabet, learning that a password contains no digits immediately eliminates 10 possible characters from every remaining position. Every detail reduces uncertainty, turning a seemingly impossible challenge into a solvable puzzle.",
     caveat:
       "It gives you counts, not characters, and never a position. It covers the digit and symbol counts outright, so Number Scan and Symbol Scan come off the shelf once you own it.",
-    share: 0.005,
-    floorKobo: 300 * KOBO,
+    // The second most expensive thing on the shelf, and it should be. It is
+    // four answers in one — how many capitals, lowercase, digits and symbols —
+    // and it retires two of the scans on purchase. At 0.5% it was priced the
+    // same as a single scan, which made every scan on the shelf pointless.
+    share: 0.05,
+    floorKobo: 800 * KOBO,
     repeat: "once",
   },
   second_wind: {

@@ -244,6 +244,33 @@ async function liveDiscount(
 }
 
 /**
+ * Money off the next lives order, claimed and unspent.
+ *
+ * Read into `PlayerState` rather than into the play view, because the lives
+ * dialog opens from three places — the game, the header and the profile — and
+ * only one of those has a box in front of it.
+ */
+export async function liveLifeDiscount(
+  db: Db,
+  playerId: string
+): Promise<{ amount: number; expiresAt: string } | null> {
+  const { data } = await db
+    .from("player_offers")
+    .select("amount, expires_at")
+    .eq("player_id", playerId)
+    .eq("kind", "life_discount")
+    .not("claimed_at", "is", null)
+    .is("spent_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .order("amount", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const row = data as { amount: number; expires_at: string } | null;
+  return row ? { amount: Number(row.amount), expiresAt: row.expires_at } : null;
+}
+
+/**
  * The whole play surface for one box and one (possibly anonymous) player.
  *
  * An unverified visitor still gets the box and the power-up prices — the game
@@ -297,7 +324,9 @@ export async function buildPlayView(
 
   return {
     box: publicBox,
-    player: toPlayerState(playerRow, email),
+    player: toPlayerState(playerRow, email, {
+      lifeDiscount: playerRow ? await liveLifeDiscount(db, playerRow.id) : null,
+    }),
     hunt: state,
     rivals: await rivalsOn(db, box.id, playerRow?.id ?? null),
     offer: playerRow ? await liveOffer(db, playerRow.id) : null,

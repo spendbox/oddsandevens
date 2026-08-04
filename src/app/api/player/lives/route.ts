@@ -6,6 +6,7 @@ import { appBaseUrl } from "@/lib/base-url";
 import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
 import { ensurePlayer, newReference } from "@/lib/game/boxes";
 import { splitSale } from "@/lib/game/rewards";
+import { discountedKobo } from "@/lib/game/power-ups";
 import { findBox } from "@/lib/game/view";
 
 /**
@@ -49,7 +50,21 @@ export async function POST(req: Request) {
   const box = body.slug ? await findBox(db, body.slug) : null;
   const contributorId = box?.contributor_id ?? null;
 
-  const priceKobo = quantity * LIFE_PRICE_KOBO;
+  // A claimed drop can take a share off, and that share is read from the
+  // database rather than the request: a discount the client names is a discount
+  // the client can name itself. It is burned immediately, against this order —
+  // the checkout may still be abandoned, and a one-use coupon that survives an
+  // abandoned checkout is a coupon that can be spent twice by abandoning once.
+  const full = quantity * LIFE_PRICE_KOBO;
+  const { data: off } = await db.rpc("life_discount_for", { p_player_id: player.id });
+  const discount = Math.max(0, Math.min(100, Number(off ?? 0)));
+  const priceKobo = discountedKobo(full, discount);
+  if (discount > 0) {
+    await db.rpc("spend_life_discount", { p_player_id: player.id });
+  }
+
+  // The split follows the discounted price, so a contributor's 70% is 70% of
+  // what the player actually paid rather than of a number nobody paid.
   const split = contributorId
     ? splitSale(priceKobo)
     : { contributorKobo: 0, platformKobo: priceKobo };

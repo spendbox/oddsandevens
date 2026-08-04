@@ -28,6 +28,7 @@ const ANONYMOUS: PlayerState = {
   lifePriceKobo: LIFE_PRICE_KOBO,
   inviteCode: null,
   bonusLivesPending: 0,
+  lifeDiscount: null,
 };
 
 /** Where a `?ref=` code waits between arriving and being claimable. */

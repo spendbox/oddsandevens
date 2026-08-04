@@ -21,7 +21,16 @@
 // are typing into is a worse arrangement than no floating button.
 
 import type { ReactNode } from "react";
-import { ChevronLeft, Coins, HelpCircle, Sparkles, Swords, Trophy, Users } from "lucide-react";
+import {
+  ChevronLeft,
+  Coins,
+  HelpCircle,
+  Lightbulb,
+  Sparkles,
+  Swords,
+  Trophy,
+  Users,
+} from "lucide-react";
 import { compact } from "@/lib/plural";
 import { rewardLabel } from "@/lib/game/rewards";
 import type { PublicBox } from "@/lib/types";
@@ -177,45 +186,59 @@ function Stat({
 }
 
 /**
- * The dock: the two floating buttons over the corner of the scene.
+ * The dock: the three subtabs under the Crack the safe button.
+ *
+ * They were two unlabelled squares floating beside the button, which put three
+ * things in one corner and made the primary action share its row with them.
+ * They sit under it now, full width, three across, and they are *labelled* —
+ * an icon alone is a rebus, and this is the shelf where the money is.
  *
  * Positioned by the caller against the scene rather than the window. `fixed`
- * would be the obvious choice and is the wrong one on a phone — a phone
- * keyboard covers the bottom of the viewport, so a window-fixed dock is behind
- * it from the moment somebody starts typing, which is exactly when they reach
- * for the shelf. Floating over the scene, it scrolls with the safe and is
- * always where it was left.
+ * would be the obvious choice and is the wrong one on a phone: a keyboard
+ * covers the bottom of the viewport, so a window-fixed dock is behind it from
+ * the moment somebody starts typing.
  */
 export function SceneDock({
   className = "",
   powerUps,
+  known,
   onAttempts,
   onPowerUps,
+  onKnown,
 }: {
+  /** How many power-ups are still buyable. Drives the dot. */
   powerUps: number;
+  /** Whether anything has been learned or is running. Drives the other dot. */
+  known: boolean;
   onAttempts: () => void;
   onPowerUps: () => void;
+  onKnown: () => void;
   className?: string;
 }) {
   return (
-    <div className={`z-20 flex flex-col items-end gap-2 ${className}`}>
-      <div className="flex gap-2">
-        <DockButton
-          onClick={onAttempts}
-          label="Your attempts"
-          tone="sky"
-          icon={<Swords className="size-5" aria-hidden />}
-        />
-        {/* The shelf keeps its dot — "there is something here you can buy" is
-            news. A running total of your own guesses is not. */}
-        <DockButton
-          onClick={onPowerUps}
-          label="Power-ups"
-          dot={powerUps > 0}
-          tone="grape"
-          icon={<Sparkles className="size-5" aria-hidden />}
-        />
-      </div>
+    <div className={`z-20 grid grid-cols-3 gap-2 ${className}`}>
+      <DockButton
+        onClick={onAttempts}
+        label="Attempts"
+        tone="sky"
+        icon={<Swords className="size-5" aria-hidden />}
+      />
+      {/* The shelf keeps its dot — "there is something here you can buy" is
+          news. A running total of your own guesses is not. */}
+      <DockButton
+        onClick={onPowerUps}
+        label="Power-ups"
+        dot={powerUps > 0}
+        tone="grape"
+        icon={<Sparkles className="size-5" aria-hidden />}
+      />
+      <DockButton
+        onClick={onKnown}
+        label="Known"
+        dot={known}
+        tone="mint"
+        icon={<Lightbulb className="size-5" aria-hidden />}
+      />
     </div>
   );
 }
@@ -223,6 +246,7 @@ export function SceneDock({
 const TONES = {
   sky: { face: "bg-sky", lip: "var(--sky-deep)" },
   grape: { face: "bg-grape", lip: "var(--grape-deep)" },
+  mint: { face: "bg-mint", lip: "var(--mint-deep)" },
 } as const;
 
 function DockButton({
@@ -243,11 +267,13 @@ function DockButton({
     <button
       type="button"
       onClick={onClick}
-      aria-label={label}
       style={{ "--btn-lip": lip } as React.CSSProperties}
-      className={`btn-chunky relative flex size-[3.25rem] shrink-0 items-center justify-center rounded-2xl text-ink sm:size-14 ${face}`}
+      className={`btn-chunky relative flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-2 text-ink ${face}`}
     >
       {icon}
+      <span className="w-full truncate text-center text-[11px] font-black leading-none">
+        {label}
+      </span>
       {dot && (
         <span className="absolute -right-1 -top-1 size-3.5 rounded-full border-2 border-background bg-foreground" />
       )}

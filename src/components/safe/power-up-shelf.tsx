@@ -14,9 +14,10 @@
 // prize up.
 
 import { useState } from "react";
-import { Repeat2, Tag, Wallet } from "lucide-react";
+import { Check, Repeat2, Tag, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { PowerUpArt } from "@/components/art/power-up-art";
+import { PowerUpDemo } from "./power-up-demo";
 import { formatNaira } from "@/lib/game/rewards";
 import { countdown } from "@/components/player/lives-badge";
 import { discountedKobo, type Offering } from "@/lib/game/power-ups";
@@ -92,32 +93,56 @@ export function PowerUpShelf({
               type="button"
               onClick={() => setOpen(powerUp)}
               style={{ "--i": i } as React.CSSProperties}
+              /*
+                A spent power-up is *out*, and it should look it. Sixty percent
+                opacity was not enough — the art still had its colour, the price
+                was still gold, and it read as available-but-dim. It is
+                desaturated, dropped to a third, and captioned "bought" now.
+                Still tappable, because what it told you is still worth
+                re-reading.
+              */
               className={
                 "panel animate-fade-up stagger flex items-start gap-3 rounded-xl p-3 text-left transition hover:-translate-y-0.5 hover:border-brass/40 " +
-                (powerUp.available ? "" : "opacity-60")
+                (powerUp.available || running ? "" : "opacity-55 grayscale")
               }
             >
               <PowerUpArt kind={powerUp.kind} className="size-12 shrink-0 drop-shadow-lg" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="truncate font-semibold text-zinc-100">
+                    <span
+                      className={
+                        "truncate font-semibold " +
+                        (powerUp.available || running ? "text-zinc-100" : "text-zinc-400")
+                      }
+                    >
                       {powerUp.name}
                     </span>
-                    {powerUp.repeat === "once" && (
-                      <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500">
-                        Once
+                    {!powerUp.available && !running ? (
+                      <span className="flex shrink-0 items-center gap-0.5 rounded bg-white/8 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                        <Check className="size-2.5" aria-hidden />
+                        Bought
                       </span>
+                    ) : (
+                      powerUp.repeat === "once" && (
+                        <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500">
+                          Once
+                        </span>
+                      )
                     )}
                   </span>
-                  <span className="shrink-0 text-right font-mono text-sm text-brass">
-                    {price.wasKobo !== null && (
-                      <span className="mr-1.5 text-xs text-zinc-500 line-through">
-                        {formatNaira(price.wasKobo)}
-                      </span>
-                    )}
-                    {formatNaira(price.payKobo)}
-                  </span>
+                  {/* No price on something that can't be bought. A struck-out
+                      figure on a spent power-up is an invitation to try. */}
+                  {(powerUp.available || running) && (
+                    <span className="shrink-0 text-right font-mono text-sm text-brass">
+                      {price.wasKobo !== null && (
+                        <span className="mr-1.5 text-xs text-zinc-500 line-through">
+                          {formatNaira(price.wasKobo)}
+                        </span>
+                      )}
+                      {formatNaira(price.payKobo)}
+                    </span>
+                  )}
                 </span>
 
                 {/* Not uppercased: `countdown` returns "6m", and "6M" on a
@@ -272,6 +297,11 @@ function PowerUpDialog({
       }
     >
       <div className="space-y-4 pb-1">
+        {/* The effect, happening, before a word of it is described. Four
+            seconds on a loop, on a password that isn't the one behind this
+            box. */}
+        <PowerUpDemo kind={powerUp.kind} />
+
         <p className="text-sm leading-relaxed text-zinc-300">{powerUp.detail}</p>
 
         <div className="rounded-xl bg-black/25 px-3 py-2.5">

@@ -61,9 +61,20 @@ function useKeyboardInset(): number {
       setInset(covered > 24 ? covered : 0);
     };
     read();
+    // And again shortly after, twice.
+    //
+    // A sheet that opens *while* a keyboard is retracting — the out-of-lives
+    // one, arriving on the guess that failed — mounts into a viewport that is
+    // mid-animation, and the `resize` events that describe the rest of that
+    // animation may already have fired before this listener existed. Without
+    // these the dialog keeps whichever inset it happened to catch, which is
+    // either a gap under it or the whole sheet still tucked behind the keys.
+    const settles = [250, 700].map((ms) => window.setTimeout(read, ms));
+
     vv.addEventListener("resize", read);
     vv.addEventListener("scroll", read);
     return () => {
+      settles.forEach(window.clearTimeout);
       vv.removeEventListener("resize", read);
       vv.removeEventListener("scroll", read);
     };

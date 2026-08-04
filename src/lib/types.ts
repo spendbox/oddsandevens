@@ -96,6 +96,15 @@ export interface PlayerState {
   inviteCode: string | null;
   /** Bonus lives banked, which land free on their next paid top-up. */
   bonusLivesPending: number;
+  /**
+   * Money off the next lives order, claimed from a drop and unspent.
+   *
+   * It lives on the player rather than on a box, because lives bought anywhere
+   * work everywhere — and so that the lives dialog shows the same price
+   * wherever it is opened from. A discount visible in the game and invisible
+   * in the header would be a discount somebody is charged without being told.
+   */
+  lifeDiscount: { amount: number; expiresAt: string } | null;
 }
 
 /** What the invite screen shows: the link, and what it has earned so far. */
@@ -170,12 +179,18 @@ export interface Rival {
  * browser-side coupon for the obvious reason — a discount the client names is
  * a discount the client can name itself.
  */
+export type DropKind =
+  | "free_lives"
+  | "power_up_discount"
+  | "free_second_wind"
+  | "life_discount";
+
 export interface Drop {
   id: string;
-  kind: "free_lives" | "power_up_discount" | "free_second_wind";
+  kind: DropKind;
   /** A count of lives, a percentage off, or an hour of Second Wind. */
   amount: number;
-  /** Which power-up a discount applies to. Null for the other two. */
+  /** Which power-up a discount applies to. Null for every other kind. */
   powerUp: string | null;
   expiresAt: string;
 }

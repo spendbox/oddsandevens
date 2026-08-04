@@ -105,7 +105,12 @@ export async function ensurePlayer(
   return (row as PlayerRow | null) ?? null;
 }
 
-export function toPlayerState(player: PlayerRow | null, email: string | null): PlayerState {
+export function toPlayerState(
+  player: PlayerRow | null,
+  email: string | null,
+  /** Things that need their own query, so the callers that can, pass them. */
+  extras: { lifeDiscount?: PlayerState["lifeDiscount"] } = {}
+): PlayerState {
   if (!player) {
     return {
       email,
@@ -115,6 +120,7 @@ export function toPlayerState(player: PlayerRow | null, email: string | null): P
       lifePriceKobo: LIFE_PRICE_KOBO,
       inviteCode: null,
       bonusLivesPending: 0,
+      lifeDiscount: null,
     };
   }
   const full = player.lives >= LIVES_MAX;
@@ -130,6 +136,7 @@ export function toPlayerState(player: PlayerRow | null, email: string | null): P
     lifePriceKobo: LIFE_PRICE_KOBO,
     inviteCode: player.invite_code ?? null,
     bonusLivesPending: player.bonus_lives_pending ?? 0,
+    lifeDiscount: extras.lifeDiscount ?? null,
   };
 }
 

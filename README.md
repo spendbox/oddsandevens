@@ -183,7 +183,7 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Power-up | Price | What it does |
 | --- | --- | --- |
 | Length Lock | 0.25% | Tells you exactly how many characters the password has |
-| Case Map | 0.5% | Counts the uppercase, lowercase, digits and symbols — without positions |
+| Case Map | 5% | Counts the uppercase, lowercase, digits and symbols — without positions |
 | Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
 | X-Ray | 5% | Names half the distinct characters it hasn't named yet, unordered |
@@ -196,8 +196,14 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 with nothing behind it still has a shelf to sell. A hint that saves you a
 fortnight of grinding on a ₦7,000,000 safe is not worth what the same hint is
 worth on a ₦7,000 one, and a flat price got that wrong in both directions. The
-floors are ₦200 / ₦300 / ₦300 / ₦500 / ₦1,000 for the first five, and ₦200 for
+floors are ₦200 / ₦800 / ₦300 / ₦500 / ₦1,000 for the first five, and ₦200 for
 each of the scans.
+
+Every dialog on the shelf **runs the effect** before it describes it: a
+four-second CSS loop of the power-up happening to a made-up nine-character
+password. A paragraph asks a player to imagine the result at exactly the moment
+they are deciding whether to spend real money on it, and the sample is fixed
+and fictional so the demo can never be a hint.
 
 ### The scans, and what they overlap
 
@@ -212,10 +218,10 @@ than continuing to sell a sentence the player has already been shown. Case
 Map's own caveat says so before you pay for it. In the other order they stay
 worth buying: Case Map still adds the case split.
 
-At equal share, Case Map is four numbers for the price of one scan and will
-always be the better deal for somebody opening a box cold. A scan is for the
-player who is already deep in and has exactly one question left — and on a
-small box the lower floor makes it genuinely cheaper, which is where it matters.
+Case Map is ten times a scan and should be: it is four answers in one and it
+retires two of the scans on purchase. At 0.5% — the price it shipped at — it
+cost the same as a single scan, which made every scan on the shelf pointless.
+A scan is for the player already deep in with exactly one question left.
 
 The *share* is server-side only. A player is shown what something costs on the
 box in front of them and nothing about how that number was reached — and
@@ -548,6 +554,22 @@ Five terrains — dunes, forest, tundra, coast, downtown — cycled **in order**
 reads as a bug. The hour of the day is one tint over everything, because a
 top-down view has no sky to put a sun in.
 
+### Under the button
+
+One thing you press forty times an hour, and three you press occasionally. The
+Crack the safe button is full width with the three subtabs — **Attempts**,
+**Power-ups**, **Known** — in a row beneath it; they used to be two unlabelled
+squares sharing the button's row, which made the primary action compete for
+width with them and made an icon alone stand for the shelf where the money is.
+
+**Known** is the one that fixed a real problem. Everything a player had paid to
+learn used to sit in a standing panel in the middle of the scene, with chips
+beside it for whatever was running — so the moment anybody bought anything, the
+game screen grew a stack of prose boxes over the chase. Spending money was
+rewarded with the old, pre-scene layout arriving on top of the new one. It is a
+sheet now, and the running power-ups are in it with their countdowns, which is
+also the only place a clock belongs.
+
 ### The rail
 
 Three rows across the top, and nothing on it is captioned — every figure opens
@@ -583,46 +605,59 @@ a chase where only your car ever shoots is not a chase.
 ### Drops
 
 The two places a player quits a hard box are the same two every time: out of
-lives, and a run of guesses that went nowhere. So a crate floats in at exactly
-those moments — five cold guesses, or two lives left — carrying free lives, a
-free Second Wind, or a share off one power-up, and it is gone in ten minutes.
+lives, and a run of guesses that went nowhere. So a crate floats in at those
+moments — five cold guesses, or two lives left — carrying one of four things,
+and it is gone in ten minutes.
 
-Rate is a function of trouble rather than a timer: eight minutes apart when a
-hunt is going fine, two when it isn't, never closer than ninety seconds.
-Discounts cycle through the power-ups, so a long session sees each in turn, and
-they are what the browser asks for four times in five.
+| Gift | What it is |
+| --- | --- |
+| Free lives | One to three, credited on the spot |
+| Free Second Wind | An hour on this box with no lives spent |
+| Power-up discount | 20–50% off one named power-up |
+| Life discount | 20–50% off your next lives, anywhere |
 
-The terms are the server's. The browser notices the moment and asks;
-`mint_offer` decides what it gets and refuses to make a second while the first
-is unclaimed — a browser that can ask twice will.
+**One gift every ninety minutes**, of any kind, and the floor is in SQL. It
+started at ninety *seconds*, with eight minutes between crates on a calm hunt,
+which over an evening is a gift every few minutes — not a gift, weather.
 
-**Every generous kind is capped, in SQL** (0035), because a limit enforced in a
-route is a limit enforced in one of the places that can mint an offer:
+**The rotation is server-side too, and that is the other half of the fix.** The
+browser used to name the kind it wanted and cycle the power-ups with a counter
+that reset on every page load, so two reloads produced a discount on Length
+Lock three times running. `mint_gift` (0036) ranks every candidate — the three
+fixed kinds plus one per power-up still worth discounting — by when it was last
+put in front of *this player*, oldest first, never-offered first of all, with
+`random()` breaking ties only among the ones they have genuinely never seen. A
+new player's first gifts are varied; a long-running player's are a strict
+cycle. Twelve asks in a row produce twelve different gifts.
+
+The browser's only remaining influence is the shortlist of power-ups still on
+sale here, which only it knows and which can only ever narrow what is offered.
+
+**The per-kind caps** survive underneath, and a capped kind simply isn't a
+candidate:
 
 | Kind | Cap |
 | --- | --- |
-| Free lives | one *offer* an hour, and at most five *claimed* in 24 hours |
-| Free Second Wind | one claimed a week, and never twice in an hour |
-| Discount | uncapped in frequency; never more than half price |
+| Free lives | at most five *claimed* in 24 hours |
+| Free Second Wind | one claimed a week |
 
-The two clocks measure different things on purpose. The hourly one counts
-`created_at`, so a crate somebody ignored still spends the hour — the limit is
+The two clocks measure different things on purpose. The ninety-minute floor
+counts `created_at`, so a crate somebody ignored still spends it — the limit is
 on how often a player is *interrupted*, and an interruption they declined still
-happened. The daily one counts `claimed_at`, because that limit is on how many
+happened. The daily cap counts `claimed_at`, because that limit is on how many
 lives leave the building.
 
-A capped kind comes back as nothing at all, which is why the route asks down a
-*ladder* rather than once: somebody who has had their free lives for the hour
-should still see the occasional discount, and silence is only correct when
-nothing whatever may be given.
-
-A discount is a row that `discount_for` reads at checkout and `spend_discount`
-burns afterwards, because a discount the client names is a discount the client
-can name itself. **Its ten minutes run from the claim, not from the mint** — a
-coupon taken at 12:09 out of a window that opened at 12:00 used to arrive with
-forty seconds on it, and no way to tell. The play screen carries it as a chip
-with the countdown on it, and the shelf strikes through the old price on the
-one power-up it applies to.
+A discount is a row that the checkout reads (`discount_for` for a power-up,
+`life_discount_for` for lives) and burns afterwards, because a discount the
+client names is a discount the client can name itself. **Its ten minutes run
+from the claim, not from the mint** — a coupon taken at 12:09 out of a window
+that opened at 12:00 used to arrive with forty seconds on it, and no way to
+tell. The play screen carries it as a chip with the countdown on it, the shelf
+strikes through the old price on the one power-up it applies to, and a life
+discount rides on `PlayerState` so the lives dialog shows the same price
+whether it opens from the game, the header or the profile. A discount visible
+in one place and invisible in another is somebody being charged without being
+told.
 
 Free lives never touch a `life_orders` row, so they are invisible to every
 payout: nothing was sold, and nobody's 70% is computed from them. Discounts
@@ -755,7 +790,8 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             possible and merged the two identities into one,
                             0033 keeps each box's high-water score, 0034 each
                             hunt's, and adds drops, 0035 caps them and starts
-                            a discount's clock when it is claimed
+                            a discount's clock when it is claimed, 0036 moves
+                            the whole gift rotation into Postgres
 ```
 
 ---
