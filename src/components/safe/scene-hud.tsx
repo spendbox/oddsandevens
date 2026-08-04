@@ -21,64 +21,76 @@
 // are typing into is a worse arrangement than no floating button.
 
 import type { ReactNode } from "react";
-import { HelpCircle, Sparkles, Swords, Trophy, Users } from "lucide-react";
+import { ChevronLeft, HelpCircle, Sparkles, Swords, Trophy, Users } from "lucide-react";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { compact } from "@/lib/plural";
-import { rewardLabel } from "@/lib/game/rewards";
 import type { PublicBox } from "@/lib/types";
 
+/**
+ * The rail, across the top of the scene.
+ *
+ * Three numbers and two controls, over the sky. What is *not* here is the
+ * prize: it used to be the biggest thing on the screen and it is now the pile
+ * of gold in the chamber, which you tap. A figure at the top of a screen is a
+ * label; a pile you have to look into is a thing you can want.
+ */
 export function SceneRail({
   box,
   onExplain,
+  onBack,
 }: {
   box: PublicBox;
   onExplain: () => void;
+  onBack?: () => void;
 }) {
   return (
-    <div className="space-y-3.5">
-      <div className="flex items-center justify-between gap-2">
-        <DifficultyBadge difficulty={box.difficulty} />
+    <div className="flex items-start gap-2">
+      {onBack && (
         <button
           type="button"
-          onClick={onExplain}
-          aria-label="How it works"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/12 bg-white/6 text-zinc-300 transition hover:border-brass/50 hover:text-brass"
+          onClick={onBack}
+          aria-label="Back to the board"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/15 bg-black/40 text-zinc-200 backdrop-blur transition hover:border-brass/60 hover:text-brass"
         >
-          <HelpCircle className="size-4" aria-hidden />
+          <ChevronLeft className="size-5" aria-hidden />
         </button>
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+        <div className="flex w-full items-center justify-center gap-1.5">
+          <Stat
+            icon={<Users className="size-3.5" aria-hidden />}
+            value={compact(box.playersCount)}
+            label="hunters"
+          />
+          <Stat
+            icon={<Swords className="size-3.5" aria-hidden />}
+            value={compact(box.attemptsCount)}
+            label="attempts"
+          />
+          {/*
+            The number to beat. Nobody's name is on it and no date — one
+            stranger got this close, which is all a leaderboard can honestly be
+            on a game with exactly one winner.
+          */}
+          <Stat
+            icon={<Trophy className="size-3.5 text-brass" aria-hidden />}
+            value={`${Math.round(box.bestPercent)}%`}
+            label="best yet"
+            accent
+          />
+        </div>
+        <DifficultyBadge difficulty={box.difficulty} />
       </div>
 
-      <div className="text-center">
-        <h1 className="truncate text-sm font-bold tracking-tight text-zinc-400">
-          {box.title}
-        </h1>
-        <p
-          className={
-            "mt-1.5 font-black leading-none tabular-nums " +
-            (box.isChallenge
-              ? "text-2xl text-grape"
-              : "brass-text text-4xl min-[360px]:text-5xl")
-          }
-        >
-          {rewardLabel(box.rewardKobo)}
-        </p>
-      </div>
-
-      <div className="flex items-stretch justify-center gap-2 pt-0.5">
-        <Stat icon={<Users className="size-3.5" aria-hidden />} value={compact(box.playersCount)} label="hunters" />
-        <Stat icon={<Swords className="size-3.5" aria-hidden />} value={compact(box.attemptsCount)} label="attempts" />
-        {/*
-          The number to beat. Nobody's name is on it and no date — one stranger
-          got this close, which is all a leaderboard can honestly be on a game
-          with exactly one winner.
-        */}
-        <Stat
-          icon={<Trophy className="size-3.5 text-brass" aria-hidden />}
-          value={`${Math.round(box.bestPercent)}%`}
-          label="best yet"
-          accent
-        />
-      </div>
+      <button
+        type="button"
+        onClick={onExplain}
+        aria-label="How it works"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/15 bg-black/40 text-zinc-200 backdrop-blur transition hover:border-brass/60 hover:text-brass"
+      >
+        <HelpCircle className="size-4" aria-hidden />
+      </button>
     </div>
   );
 }
@@ -97,15 +109,15 @@ function Stat({
   return (
     <span
       className={
-        "flex min-w-[4.75rem] flex-col items-center rounded-xl border px-2.5 py-1.5 " +
-        (accent ? "border-brass/35 bg-brass/10" : "border-white/10 bg-black/25")
+        "flex min-w-0 flex-1 flex-col items-center rounded-xl border px-1.5 py-1 backdrop-blur " +
+        (accent ? "border-brass/40 bg-brass/15" : "border-white/15 bg-black/40")
       }
     >
       <span className="flex items-center gap-1 font-mono text-sm font-black leading-tight tabular-nums">
         {icon}
         {value}
       </span>
-      <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+      <span className="text-[9px] font-bold uppercase tracking-wide text-zinc-400">
         {label}
       </span>
     </span>
@@ -214,7 +226,7 @@ function DockButton({
       onClick={onClick}
       aria-label={label}
       style={{ "--btn-lip": lip } as React.CSSProperties}
-      className={`btn-chunky relative flex size-14 items-center justify-center rounded-2xl text-ink ${face}`}
+      className={`btn-chunky relative flex size-[3.25rem] shrink-0 items-center justify-center rounded-2xl text-ink sm:size-14 ${face}`}
     >
       {icon}
       {dot && (

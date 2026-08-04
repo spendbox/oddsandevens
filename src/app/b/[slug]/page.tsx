@@ -6,7 +6,6 @@ import { buildPlayView, findBox } from "@/lib/game/view";
 import { rewardLabel } from "@/lib/game/rewards";
 import { difficultyOf } from "@/lib/game/difficulty";
 import { PlayerProvider } from "@/components/player/player-context";
-import { SiteHeader } from "@/components/site-header";
 import { PlaySurface } from "@/components/safe/play-surface";
 
 export async function generateMetadata({
@@ -53,10 +52,14 @@ export default async function BoxPage({
 
   return (
     <PlayerProvider>
-      <SiteHeader />
-      {/* `flex` so the play surface can take the height rather than
-          sitting in the middle of it. */}
-      <main className="flex flex-1 flex-col">
+      {/*
+        No site header on this one, and that is the point. The scene is the
+        whole surface — sky to floor, edge to edge — and a chrome bar across
+        the top of it would put the game back in a box. What the header carried
+        is carried by the scene's own rail instead: the way out, the life pool,
+        and the help.
+      */}
+      <main className="relative flex flex-1 flex-col overflow-hidden">
         <PlaySurface initial={view} slug={box.slug} pendingReference={reference ?? null} />
       </main>
     </PlayerProvider>

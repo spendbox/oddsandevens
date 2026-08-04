@@ -460,105 +460,102 @@ stripped it is still a picture of a safe.
 ## The play screen
 
 A password game is, mechanically, a text field and a number. That is an
-accurate description of the rules and a terrible screen: nothing in it says
-there is money behind this, that other people are working on it, or that you
-are getting closer. The play screen used to be that field with the explanation
-stacked around it — the safe, the rules, a tab bar, a log, a shelf — and on a
-phone the safe was off the top of the screen before anyone had made a guess.
+accurate description of the rules and a terrible screen. The play screen has
+been rebuilt around one idea: **you are not looking at the game, you are in the
+room with it.**
 
-It is a scene now, in three layers.
+It is a **side-on cutaway**, full-bleed, sky to floor and edge to edge. There is
+no header and no container — every control floats on top of the scene.
 
-**The room** is a place rather than a backdrop: a horizon the safe is
-silhouetted against, a perspective grid running away underneath it — the single
-cheapest thing that turns a flat panel into a space — one key light from
-above-left where everything else on this site is lit from, and weather (orbs,
-hanging dust, and the password characters drifting up through it). Its colour
-temperature answers to the score: cold and blue with nothing found, warm and
-gold as the locks give way, so you can tell from across a room how a hunt is
-going before reading a digit.
+Side-on is the decision everything else follows from. It means there is a near
+side and a far side, so there is somewhere for Boxy to stand and something for
+him to stand in front of. Cutaway means the chamber is open to you while the
+door is shut, so **the gold is visible the whole time** — which matters,
+because the gold is the reason anybody is here and it used to be a line of text
+at the top of the page.
 
-**The vault** is planes at different depths inside one `preserve-3d` container,
-so the idle lean gives real parallax — the wheel travels further than the door,
-the door further than the cabinet. What makes it look heavy is *material*
-rather than the transform: a machined band around the cabinet with eight
-countable rivets, a fine brushed grain across the door so light behaves the way
-it does on steel instead of on plastic, the door's own thickness drawn as a
-plate behind its face, a bright bevel top-left against a dark one
-bottom-right, and one glint that crosses the metal every nine seconds. The
-wheel has four spokes, which is the silhouette that says *safe* from across a
-room.
+| Layer | What |
+| --- | --- |
+| **The sky** | A gradient that follows the player's own clock — dawn, day, dusk, night — with the sun or the moon in it, stars that fade in as it darkens, clouds by day, and a skyline with lit windows after dark. Read after mount, never on the server, which has no idea what time it is where you are. |
+| **The chamber** | Drawn in section: shell, lit interior, and the gold stacked on the floor of it. |
+| **The door** | On the near face, with the wheel Boxy is hauling on and ten bolts down its leading edge. It slides clear before it swings, because a door rotated about its own hinge projects back over the opening and hides the thing you just won. |
+| **Boxy** | Standing on the floor, hands on the wheel. |
 
-**The bolts** are the read-out, and the only part that is not atmosphere. Ten
-of them in a row across the door, one per ten points of score: a guess at 20%
-draws two, 40% draws four, 100% draws all ten and the door swings. They draw
-one at a time, ~90ms apart, because a jump from two to seven is the best thing
-that can happen in this game and deserves more than a re-render. They throw
-again immediately, though — a guess that goes backwards has to visibly cost
-you something, or the scene is congratulating you for getting colder.
+The sky and floor fill the viewport; the chamber, door and character live in one
+stage anchored to the floor, so they keep their arrangement to each other from a
+320px phone to a desktop.
 
-They were a ring of ten padlock icons inside a cyan circle, and that was wrong
-three ways. The circle was inscribed in the door's square, so it cut the
-corners and shared an edge with nothing. A padlock is an icon, and an icon that
-changes colour has two states rather than a mechanism. And a ring has no
-reading order, so "four of ten" meant counting.
+### The gold is the prize
 
-A bolt is a mechanism: thrown (down, seated in its socket, dark) or drawn (slid
-up and clear, lit, with the empty socket glowing behind it). The difference is
-a *position* as well as a colour, which is what makes it readable without
-counting and legible to somebody who cannot tell mint from slate. In a row,
-left to right, ten of them read like a progress bar made of objects.
+`VAULT_CAPACITY_KOBO` is ₦10,000,000 — the largest reward the funding ladder can
+produce — and a full vault is forty-two bars. A ₦7,000,000 box is thirty of
+them; a ₦12,000 box is one. **Tapping the pile is how you find out the figure**,
+and it is the only place on the screen the figure appears.
+
+The scale is fixed rather than per-box on purpose. Scaling each vault to its own
+reward would make every box look identically stuffed and the comparison would
+say nothing; against one fixed maximum, a half-full room is half-full of the
+same thing wherever you see it.
+
+### Boxy is rigged, not bounced
+
+Body, head, two arms and two legs are separate SVG groups with their own pivots,
+and four states move them against each other:
+
+- **idle** — breathing, hands resting on the wheel
+- **working** — hauling, arms pumping *out of phase* (which is what makes it
+  read as turning something rather than pushing it), body leaning in, back leg
+  driving, brow down
+- **fail** — the hands come off, a stamp, a shake of the head, steam off the
+  top of him. This is the state that had to be worth watching, because a hard
+  box means seeing it hundreds of times.
+- **won** — off the ground, arms up
+
+Every pivot sets `transform-box: fill-box`, without which an SVG group rotates
+about the origin of the whole canvas and the arms leave the screen.
+
+### One button
+
+There is no input on the scene. There is a **Crack the safe** button, and it
+opens a dialog with the field in it. The trade is one tap per guess; what it
+buys is a screen that is the game rather than a page with the game on it, and a
+phone keyboard that appears when there is something to type into instead of the
+moment the page loads.
+
+The price tag went with it. "Costs 1 life · 4 left" under the only button in the
+game was a reason to hesitate over something free; the life pool is in the rail
+where it belongs.
+
+### The bolts
+
+Ten of them down the door's leading edge — the edge they would actually shoot
+out of — one per ten points of score. A guess at 20% draws two, 40% four, 100%
+all ten and the door swings. Thrown is out and seated in the jamb, dark; drawn
+is pulled back into the door, lit, with the empty socket glowing. The difference
+is a *position* as well as a colour, so it survives being read by somebody who
+cannot tell mint from slate.
 
 Every bolt takes the hit when a guess lands, whether or not it gives way. A
-wrong answer that moves nothing on screen feels like a dropped input.
-
-The locks follow your **latest** guess, not your best. Your best is a floating
-pill in the scene's opposite corner, where it cannot be lost.
+wrong answer that changes nothing on screen feels like a dropped input.
 
 ### The result
 
-A guess used to land silently — the number in the log changed and that was the
-whole feedback for the thing the game is about. It announces itself now: the
-score counts up rather than appearing (a number that climbs to 61 feels like a
-result; a number that is simply 61 feels like a field), Boxy reacts, and
-beating your own best is called out, because on a box that takes two thousand
-attempts that is the only progress there is.
-
-It must never become an obstacle, and the first version was: a full-screen
-dialog behind a dimmed backdrop, once per guess, on a game whose hardest box
-takes 2,400 of them. So there are two, and which one you get depends on how
-often it can possibly happen.
+The score counts up rather than appearing (a number that climbs to 61 feels like
+a result; a number that is simply 61 feels like a field), Boxy reacts, and
+beating your own best is called out — on a box that takes two thousand attempts
+that is the only progress there is.
 
 | | When | What |
 | --- | --- | --- |
-| **The card** | every ordinary guess | Sits over the bottom of the scene, dims nothing, and takes itself away after 2.6 seconds. The bolts it is describing stay visible behind it — hiding one to show the other wastes the moment. The dock fades out for as long as it is up, so the two never fight for the corner. |
-| **The dialog** | once per box, on a win | The whole screen, a spark ring, and a button that says *Collect it*. It has earned it. |
+| **The card** | every ordinary guess | Sits over the bottom of the scene, dims nothing, takes itself away after 2.6 seconds. The dock fades while it is up so the two never fight for the corner. |
+| **The dialog** | once per box, on a win | The whole screen, a spark ring, and a button that says *Collect it*. |
 
-The card can be switched off from its own close button, which is remembered in
+The card can be switched off from its own close button, remembered in
 `localStorage`.
 
-Nothing counts attempts at you. The per-attempt ordinal is gone from the log
-and from its dialog, and the dock has a dot rather than a total: "attempt 314"
-measures how long you have been stuck, not anything you can act on.
-
-Around that, nothing is prose. The rail across the top carries difficulty, the
-prize, the crowd and the score to beat as chips; the dock floats over the
-corner of the scene with your attempt log, the power-up shelf and your best
-guess, each opening as a sheet. The dock floats over the *scene* rather than
-the viewport on purpose: `fixed` would put it behind a phone keyboard from the
-moment somebody starts typing, which is exactly when they reach for the shelf.
-
-The screen is one viewport tall and does not scroll: the rail and the field are
-fixed heights and the scene takes everything between them, so on a 390×844
-phone the safe is most of what you can see. Measured at 320, 360, 390 and 430:
-no horizontal overflow, and content height equal to viewport height.
-
-The rule the layout follows is that **the scene is never navigated away from**.
-Everything opens over it and closes back onto it, because a hunt is one long
-session on one box and losing your place in it is the whole cost.
-
-All of the motion is CSS, moving only `transform` and `opacity`, and all of it
-stops under `prefers-reduced-motion` — which on a screen built from drifting
-orbs, rising characters and a safe that never holds still is not a nicety.
+Nothing counts attempts at you. The per-attempt ordinal is gone from the log and
+its dialog, and the dock has a dot rather than a total: "attempt 314" measures
+how long you have been stuck, not anything you can act on.
 
 ### The number to beat
 

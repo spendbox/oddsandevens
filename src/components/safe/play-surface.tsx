@@ -1,6 +1,6 @@
 "use client";
 
-// One box, hunted — as a scene rather than a form.
+// One box, hunted — and the screen is the room it happens in.
 //
 // The server is the only thing that knows the password. It never leaves
 // Postgres, so this component decides nothing about a guess: it collects
@@ -8,28 +8,24 @@
 // returns a whole fresh view for exactly that reason — there is no local model
 // of the game to drift out of step.
 //
-// What changed is everything around that. The screen used to be a stack of
-// prose: the safe, the rules, the field, a tab bar, a log, a shelf, and enough
-// explanation between them that on a phone the safe was off the top of the
-// screen before you had made a single guess. A password game reads as a form
-// unless something makes it a place.
+// Everything else about the screen is arrangement, and the arrangement is:
 //
-// So the middle of the screen is the vault scene and nothing else, and every
-// other thing the old page showed inline is now either a chip on the rail above
-// it or a sheet behind a floating button:
+//   the scene   fills the viewport, behind everything. Sky, floor, chamber,
+//               door, and Boxy hauling on the wheel.
+//   the rail    floats over the top of it: hunters, attempts, the score to
+//               beat, the difficulty, and the way out.
+//   the button  floats over the bottom. One of them, and it says "Crack the
+//               safe". The field it used to be lives in a dialog now.
+//   the dock    floats in the corner: your attempts, the shelf, your best.
 //
-//   the rail   difficulty, the prize, hunters, attempts, the score to beat
-//   the scene  the safe, and ten locks that open as the score climbs
-//   the field  one input and one button, docked under it
-//   the dock   your attempts, the power-up shelf, your best guess
-//
-// The rule the whole layout follows is that the scene is never navigated away
-// from. Everything opens over it and closes back onto it, because a hunt is one
-// long session on one box and losing your place in it is the whole cost.
+// Nothing is stacked down a page any more, because there is no page — the
+// scene is the whole surface and every control sits on top of it. That is the
+// difference between a game and a form with a picture at the top of it.
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Palette, Sparkles } from "lucide-react";
+import { ArrowRight, KeyRound, Palette, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { LIVES_MAX } from "@/lib/constants";
 import { EMPTY_REVEALED } from "@/lib/game/power-ups";
 import { formatNaira } from "@/lib/game/rewards";
@@ -38,20 +34,30 @@ import { Modal } from "@/components/ui/modal";
 import { usePlayer } from "@/components/player/player-context";
 import { VerifyDialog } from "@/components/player/account-dialog";
 import { BuyLivesDialog } from "@/components/player/buy-lives-dialog";
-import { countdown, useNow } from "@/components/player/lives-badge";
+import { LivesBadge, countdown, useNow } from "@/components/player/lives-badge";
 import { HowItWorksDialog } from "@/components/how-it-works";
 import { AttemptLog } from "./attempt-log";
 import { AttemptDialog } from "./attempt-dialog";
 import { KnownPanel } from "./known-panel";
-import { PasswordField } from "./password-field";
 import { PowerUpShelf } from "./power-up-shelf";
-import { VaultScene } from "./vault-scene";
-import { ResultCard, ResultDialog, resultsMuted } from "./result-dialog";
+import { VaultScene, type CrackerState } from "./vault-scene";
 import { BestPill, SceneDock, SceneRail } from "./scene-hud";
+import { GuessDialog } from "./guess-dialog";
+import { PotDialog } from "./pot-dialog";
+import { ResultCard, ResultDialog, resultsMuted } from "./result-dialog";
 import { Boxy } from "@/components/art/boxy";
 
 type Outcome = "open" | "won" | "pipped";
-type Sheet = "none" | "verify" | "lives" | "rules" | "attempts" | "power-ups" | "best";
+type Sheet =
+  | "none"
+  | "verify"
+  | "lives"
+  | "rules"
+  | "attempts"
+  | "power-ups"
+  | "best"
+  | "guess"
+  | "pot";
 
 export function PlaySurface({
   initial,
@@ -64,22 +70,25 @@ export function PlaySurface({
   pendingReference: string | null;
 }) {
   const { refresh, verified } = usePlayer();
+  const router = useRouter();
   const [view, setView] = useState(initial);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>("open");
   const [sheet, setSheet] = useState<Sheet>("none");
   const [message, setMessage] = useState<string | null>(null);
-  // True for one beat when a guess is refused, so the scene can flinch.
-  const [recoil, setRecoil] = useState(false);
-  // The guess that has just resolved, and what their best was before it — so
-  // the result can say whether this one moved anything.
   const [result, setResult] = useState<{ attempt: AttemptRecord; was: number } | null>(null);
-  // Counts guesses that reached the server. Handed to the scene so all ten
-  // bolts take the hit, whether or not any of them give way.
   const [jolt, setJolt] = useState(0);
-  // Ticks while anything on screen is counting down: a life, Colour Read's 24
-  // hours, or a Second Wind hour.
+  /**
+   * What Boxy is doing, which is not simply a function of the state.
+   *
+   * `working` while a guess is in flight, then `fail` for the length of the
+   * animation, then back to `idle`. It has to be its own piece of state
+   * because the interesting part — the moment it did not work — is over before
+   * anything else on the screen has changed.
+   */
+  const [cracker, setCracker] = useState<CrackerState>("idle");
+
   const now = useNow(
     view.player.nextLifeAt ??
       view.hunt?.secondWindUntil ??
@@ -95,17 +104,10 @@ export function PlaySurface({
     new Date(view.hunt.secondWindUntil).getTime() > now;
 
   const attempts = view.hunt?.attempts ?? [];
-  /**
-   * The score the locks are showing: the most recent guess.
-   *
-   * The *latest* rather than the best, deliberately. The locks are feedback on
-   * what you just did — a guess that goes backwards should visibly take locks
-   * away, or the scene is congratulating you for getting colder. Your best is
-   * on the dock, where it can't be lost.
-   */
   const latest = attempts[0]?.scorePercent ?? 0;
   const best = view.hunt && attempts.length > 0 ? view.hunt.bestPercent : null;
   const bestAttempt = bestOf(attempts);
+  const secondWind = view.powerUps.find((p) => p.kind === "second_wind") ?? null;
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/boxes/${slug}`, { cache: "no-store" });
@@ -113,13 +115,6 @@ export function PlaySurface({
     await refresh();
   }, [slug, refresh]);
 
-  /**
-   * Settle the payment we've just been redirected back from.
-   *
-   * Paystack's webhook will settle it too, but it can land after the browser
-   * does, and a player who has just paid for a hint should not be looking at
-   * the state they left. Whichever gets there first wins; both are idempotent.
-   */
   useEffect(() => {
     if (!pendingReference) return;
     let cancelled = false;
@@ -133,7 +128,6 @@ export function PlaySurface({
       if (cancelled) return;
       if (body.note) setMessage(body.note);
       await reload();
-      // Drop the reference from the URL so a refresh doesn't re-verify it.
       window.history.replaceState({}, "", `/b/${slug}`);
     }
     void settle();
@@ -142,18 +136,18 @@ export function PlaySurface({
     };
   }, [pendingReference, reload, slug]);
 
+  // Frustration lasts as long as the animation and then he goes back to the
+  // wheel, because he has not given up and neither, presumably, have you.
+  useEffect(() => {
+    if (cracker !== "fail") return;
+    const id = window.setTimeout(() => setCracker("idle"), 1100);
+    return () => window.clearTimeout(id);
+  }, [cracker]);
+
   function refuse(note: string) {
     setMessage(note);
-    setRecoil(true);
+    setCracker("fail");
   }
-
-  // Clears itself once the animation has run, so the class comes off and the
-  // next refusal re-triggers it. 550ms is the keyframe plus a frame.
-  useEffect(() => {
-    if (!recoil) return;
-    const id = window.setTimeout(() => setRecoil(false), 550);
-    return () => window.clearTimeout(id);
-  }, [recoil]);
 
   async function submit() {
     if (!verified) {
@@ -164,6 +158,9 @@ export function PlaySurface({
 
     setBusy(true);
     setMessage(null);
+    setCracker("working");
+    setSheet("none");
+
     const res = await fetch(`/api/boxes/${slug}/attempt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -186,6 +183,7 @@ export function PlaySurface({
         return;
       }
       if (body.error === "not_verified") {
+        setCracker("idle");
         setSheet("verify");
         return;
       }
@@ -197,15 +195,15 @@ export function PlaySurface({
       return;
     }
 
-    // Captured before the new view lands, because the point of the result is
-    // the comparison and the new view already contains the answer.
     const was = view.hunt?.bestPercent ?? 0;
     const landed = body.hunt?.attempts?.[0] ?? null;
+    const winning = body.outcome === "won";
 
     setView(body);
     setTyped("");
     setOutcome(body.outcome ?? "open");
     setJolt((n) => n + 1);
+    setCracker(winning ? "won" : "fail");
     if (landed && !resultsMuted()) setResult({ attempt: landed, was });
     await refresh();
   }
@@ -220,74 +218,42 @@ export function PlaySurface({
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-3 px-4 pb-4 pt-3 sm:gap-4 sm:pb-6">
-        <SceneRail box={view.box} onExplain={() => setSheet("rules")} />
+      {/* The scene, behind everything. */}
+      <VaultScene
+        design={view.box.design}
+        percent={latest}
+        rewardKobo={view.box.rewardKobo}
+        open={won}
+        jolt={jolt}
+        cracker={won ? "won" : cracker}
+        onGold={() => setSheet("pot")}
+      />
 
-        {/* The dock floats over the scene rather than the viewport. Fixed to
-            the window it would end up behind a phone keyboard the moment
-            somebody starts typing, which is exactly when they want it. */}
-        {/*
-          The scene takes every pixel between the rail and the field. On a tall
-          phone that is most of the screen, which is the point — this is the
-          game, and it was previously a 19rem box with the page's whitespace
-          above and below it.
-        */}
-        <div className="relative flex min-h-[17rem] flex-1 flex-col">
-          <VaultScene
-            className="flex-1"
-            design={view.box.design}
-            percent={latest}
-            recoil={recoil}
-            open={won}
-            jolt={jolt}
-          />
+      {/* Everything else floats on top of it. `pointer-events-none` on the
+          column and back on for each control, so the gold underneath stays
+          tappable through the gaps. */}
+      <div className="pointer-events-none relative z-10 flex flex-1 flex-col justify-between gap-3 p-3">
+        <div className="pointer-events-auto mx-auto w-full max-w-2xl space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <SceneRail
+              box={view.box}
+              onExplain={() => setSheet("rules")}
+              onBack={() => router.push("/")}
+            />
+          </div>
 
-          {/* The result, laid over the bottom of the scene rather than over
-              the whole screen. The bolts it is describing stay visible. */}
-          {result && !won && (
-            <div className="absolute inset-x-3 bottom-3 z-30">
-              <ResultCard
-                attempt={result.attempt}
-                previousBest={result.was}
-                onClose={() => setResult(null)}
-              />
-            </div>
-          )}
-          {verified && (
-            <>
-              {best !== null && (
-                <BestPill
-                  className="absolute right-3 top-3"
-                  best={best}
-                  onClick={() => setSheet("best")}
-                />
-              )}
-              <SceneDock
-                className={
-                  "absolute bottom-3 right-3 transition-opacity duration-200 " +
-                  (result && !won ? "pointer-events-none opacity-0" : "opacity-100")
-                }
-                powerUps={view.powerUps.filter((p) => p.available).length}
-                onAttempts={() => setSheet("attempts")}
-                onPowerUps={() => setSheet("power-ups")}
-              />
-            </>
-          )}
-        </div>
-
-        {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
-
-        {/*
-          Three things can need saying at once — a refused guess, a Second Wind
-          hour, a Colour Read window — and each used to be its own bordered
-          paragraph stacked down the page. They are one row of chips now, and
-          they wrap.
-        */}
-        {(message || freeRun || view.hunt?.hasBreakdown) && (
-          <div className="flex flex-wrap justify-center gap-2">
-            {message && (
-              <Chip tone="brass">{message}</Chip>
+          <div className="flex items-center justify-between gap-2">
+            <LivesBadge onBuy={() => setSheet("lives")} />
+            {best !== null && (
+              <BestPill best={best} onClick={() => setSheet("best")} />
             )}
+          </div>
+
+          {/* Whatever the power-ups have bought, and whatever is running.
+              Renders nothing at all until there is something to say. */}
+          <KnownPanel revealed={revealed} now={now} />
+
+          <div className="flex flex-wrap gap-2">
             {freeRun && view.hunt?.secondWindUntil && (
               <Chip tone="mint">
                 <Sparkles className="size-3.5" aria-hidden />
@@ -300,66 +266,79 @@ export function PlaySurface({
                 Colour Read · {countdown(view.hunt.breakdownUntil, now)}
               </Chip>
             )}
+            {message && <Chip tone="brass">{message}</Chip>}
           </div>
-        )}
+        </div>
 
-        {/* Whatever the power-ups have bought, when there is any. Renders
-            nothing at all until something has been revealed. */}
-        <KnownPanel revealed={revealed} now={now} />
+        <div className="pointer-events-auto mx-auto w-full max-w-md space-y-3">
+          {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
 
-        {outcome === "open" && (
-          <PasswordField
-            value={typed}
-            onChange={setTyped}
-            onSubmit={() => void submit()}
-            disabled={won}
-            busy={busy}
-            revealed={revealed}
-            livesLeft={view.player.lives}
-            freeRun={freeRun}
-          />
-        )}
+          {result && !won && (
+            <ResultCard
+              attempt={result.attempt}
+              previousBest={result.was}
+              onClose={() => setResult(null)}
+            />
+          )}
 
-        {!freeRun && view.player.lives === 0 && view.player.nextLifeAt && (
-          <p className="text-center text-sm text-zinc-400">
-            Next life in{" "}
-            <span className="font-mono text-brass">
-              {countdown(view.player.nextLifeAt, now)}
-            </span>
-            {" · "}
-            <button
-              type="button"
-              onClick={() => setSheet("lives")}
-              className="underline hover:text-foreground"
-            >
-              buy some
-            </button>
-          </p>
-        )}
+          {verified ? (
+            <div className="flex items-end gap-3">
+              <button
+                type="button"
+                disabled={busy || won}
+                onClick={() => setSheet("guess")}
+                style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+                className="btn-chunky flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-brass px-3 py-4 text-base text-ink sm:text-lg"
+              >
+                <KeyRound className="size-5" aria-hidden />
+                {busy ? "Trying it…" : "Crack the safe"}
+              </button>
 
-        {/*
-          Signed out, the dock would be an empty log and a shelf you cannot buy
-          from. It's the reason to sign in instead.
-        */}
-        {!verified && (
-          <div className="panel rounded-2xl px-4 py-5 text-center">
-            <Boxy mood="sly" className="mx-auto size-16" />
-            <p className="mt-1 font-black tracking-tight">Sign in to start hunting.</p>
-            <p className="mx-auto mt-1 max-w-xs text-sm text-zinc-400">
-              Your guesses and your power-ups live with your account. It’s free,
-              and you get {LIVES_MAX} lives to begin with.
-            </p>
-            <button
-              type="button"
-              onClick={() => setSheet("verify")}
-              style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-              className="btn-chunky mt-4 rounded-2xl bg-brass px-6 py-3 text-ink"
-            >
-              Sign in to play
-            </button>
-          </div>
-        )}
+              <SceneDock
+                powerUps={view.powerUps.filter((p) => p.available).length}
+                onAttempts={() => setSheet("attempts")}
+                onPowerUps={() => setSheet("power-ups")}
+              />
+            </div>
+          ) : (
+            <div className="sheet rounded-2xl px-4 py-4 text-center">
+              <Boxy mood="sly" className="mx-auto size-14" />
+              <p className="mt-1 font-black tracking-tight">Sign in to start hunting.</p>
+              <p className="mx-auto mt-1 max-w-xs text-sm text-zinc-400">
+                It’s free, and you get {LIVES_MAX} lives to begin with.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSheet("verify")}
+                style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+                className="btn-chunky mt-3 w-full rounded-2xl bg-brass px-6 py-3 text-ink"
+              >
+                Sign in to play
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {sheet === "guess" && (
+        <GuessDialog
+          value={typed}
+          onChange={setTyped}
+          onSubmit={() => void submit()}
+          busy={busy}
+          revealed={revealed}
+          onClose={() => setSheet("none")}
+        />
+      )}
+
+      {sheet === "pot" && (
+        <PotDialog
+          rewardKobo={view.box.rewardKobo}
+          isChallenge={view.box.isChallenge}
+          contributor={view.box.contributor}
+          onClose={() => setSheet("none")}
+        />
+      )}
 
       {sheet === "verify" && (
         <VerifyDialog
@@ -373,6 +352,7 @@ export function PlaySurface({
         <BuyLivesDialog
           slug={slug}
           contributor={view.box.contributor}
+          secondWind={secondWind}
           onClose={() => setSheet("none")}
         />
       )}
@@ -428,8 +408,8 @@ function bestOf(attempts: AttemptRecord[]): AttemptRecord | null {
 }
 
 const CHIP_TONES = {
-  brass: "border-brass/50 bg-brass/15 text-brass",
-  mint: "border-mint/50 bg-mint/15 text-mint",
+  brass: "border-brass/50 bg-brass/20 text-brass",
+  mint: "border-mint/50 bg-mint/20 text-mint",
 } as const;
 
 function Chip({
@@ -442,7 +422,7 @@ function Chip({
   return (
     <span
       className={
-        "animate-fade-up flex items-center gap-1.5 rounded-full border-2 px-3 py-1.5 text-center text-xs font-bold " +
+        "animate-fade-up flex items-center gap-1.5 rounded-full border-2 px-3 py-1.5 text-xs font-bold backdrop-blur " +
         CHIP_TONES[tone]
       }
     >

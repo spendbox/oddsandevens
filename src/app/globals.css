@@ -786,7 +786,14 @@ summary,
  * an icon with two states; a bolt that slides out of its socket is a mechanism.
  * ------------------------------------------------------------------------- */
 
-/* A bolt letting go: down, a hard jolt, then up and clear. */
+/* A bolt letting go: a shove outward, then it pulls back clear of the jamb. */
+@keyframes bolt-draw-x {
+  0%   { transform: translateX(0); }
+  30%  { transform: translateX(4px); }
+  100% { transform: translateX(-32%); }
+}
+
+/* Kept for the small ten-dot restatement inside the result card. */
 @keyframes bolt-draw {
   0%   { transform: translateY(0); }
   30%  { transform: translateY(3px); }
@@ -795,10 +802,10 @@ summary,
 
 /* Every bolt takes the hit when a guess lands, whether or not it gives way.
    This is what makes a wrong answer feel like it did something. */
-@keyframes bolt-jolt {
-  0%, 100% { transform: translateY(var(--rest, 0)); }
-  25%      { transform: translateY(calc(var(--rest, 0px) + 4px)); }
-  60%      { transform: translateY(calc(var(--rest, 0px) - 2px)); }
+@keyframes bolt-jolt-x {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(5px); }
+  60%      { transform: translateX(-2px); }
 }
 
 /* The socket a drawn bolt has left, lighting up behind it. */
@@ -819,6 +826,214 @@ summary,
   .bolt,
   .bolt-scan,
   .socket {
+    animation: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * The rig
+ *
+ * Boxy's limbs, animated against each other rather than the whole drawing
+ * being bounced. Every group below has its own pivot, and `transform-box:
+ * fill-box` is not optional: without it an SVG group rotates about the origin
+ * of the entire canvas and the arms leave the screen.
+ *
+ * Four states, and the one that matters is `fail`. A player sees it hundreds
+ * of times on a hard box, so it is the one that had to be worth watching: the
+ * hands come off the wheel, he stamps, the head shakes, and steam comes off
+ * the top of him.
+ * ------------------------------------------------------------------------- */
+
+.cracker g,
+.cracker ellipse {
+  transform-box: fill-box;
+}
+
+.cr-arm-back  { transform-origin: 6% 40%; }
+.cr-arm-front { transform-origin: 4% 45%; }
+.cr-leg-back  { transform-origin: 50% 0%; }
+.cr-leg-front { transform-origin: 50% 0%; }
+.cr-body      { transform-origin: 50% 95%; }
+.cr-head      { transform-origin: 20% 80%; }
+.cr-hop       { transform-origin: 50% 100%; }
+
+/* Hidden unless their state asks for them. */
+.cr-steam,
+.cr-spark {
+  opacity: 0;
+}
+
+/* --- idle: breathing, and a small sway on the wheel ---------------------- */
+
+.cracker-idle .cr-body  { animation: cr-breathe 3.6s ease-in-out infinite; }
+.cracker-idle .cr-arm-front { animation: cr-rest-front 3.6s ease-in-out infinite; }
+.cracker-idle .cr-arm-back  { animation: cr-rest-back 3.6s ease-in-out infinite; }
+
+@keyframes cr-breathe {
+  0%, 100% { transform: scaleY(1) rotate(0deg); }
+  50%      { transform: scaleY(1.02) rotate(-0.8deg); }
+}
+@keyframes cr-rest-front {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(-2.5deg); }
+}
+@keyframes cr-rest-back {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(2deg); }
+}
+
+/* --- working: hauling the wheel round ------------------------------------ */
+
+.cracker-working .cr-arm-front { animation: cr-haul-front 0.5s ease-in-out infinite; }
+.cracker-working .cr-arm-back  { animation: cr-haul-back 0.5s ease-in-out infinite; }
+.cracker-working .cr-body      { animation: cr-strain 0.5s ease-in-out infinite; }
+.cracker-working .cr-head      { animation: cr-duck 0.5s ease-in-out infinite; }
+.cracker-working .cr-leg-back  { animation: cr-drive 0.5s ease-in-out infinite; }
+.cracker-working .cr-brow      { animation: cr-brow-down 0.5s ease-in-out infinite; }
+
+/* The arms are out of phase, which is what makes it read as turning something
+   rather than pushing it. */
+@keyframes cr-haul-front {
+  0%, 100% { transform: rotate(-16deg) translateX(-2px); }
+  50%      { transform: rotate(14deg) translateX(2px); }
+}
+@keyframes cr-haul-back {
+  0%, 100% { transform: rotate(15deg) translateX(2px); }
+  50%      { transform: rotate(-14deg) translateX(-2px); }
+}
+@keyframes cr-strain {
+  0%, 100% { transform: translateX(0) rotate(0deg) scaleY(1); }
+  50%      { transform: translateX(4px) rotate(3deg) scaleY(0.97); }
+}
+@keyframes cr-duck {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(4deg) translateY(2px); }
+}
+@keyframes cr-drive {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(-7deg); }
+}
+@keyframes cr-brow-down {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(3px) rotate(-9deg); }
+}
+
+/* --- fail: it would not turn --------------------------------------------- */
+
+.cracker-fail .cr-arm-front { animation: cr-fling-front 1s cubic-bezier(0.34, 1.4, 0.5, 1) both; }
+.cracker-fail .cr-arm-back  { animation: cr-fling-back 1s cubic-bezier(0.34, 1.4, 0.5, 1) both; }
+.cracker-fail .cr-body      { animation: cr-stamp 1s ease-out both; }
+.cracker-fail .cr-head      { animation: cr-headshake 0.85s ease-in-out 0.15s both; }
+.cracker-fail .cr-leg-front { animation: cr-stomp-leg 1s ease-out both; }
+.cracker-fail .cr-brow      { animation: cr-brow-cross 1s ease-out both; }
+.cracker-fail .cr-mouth     { animation: cr-mouth-flat 1s ease-out both; }
+.cracker-fail .cr-steam     { animation: cr-steam-up 1.1s ease-out 0.2s both; }
+
+/* Hands come off the wheel, then drop. */
+@keyframes cr-fling-front {
+  0%   { transform: rotate(0deg); }
+  22%  { transform: rotate(-42deg) translateX(-10px); }
+  60%  { transform: rotate(-30deg) translateX(-12px); }
+  100% { transform: rotate(-8deg) translateX(-3px); }
+}
+@keyframes cr-fling-back {
+  0%   { transform: rotate(0deg); }
+  22%  { transform: rotate(-34deg) translateX(-8px); }
+  60%  { transform: rotate(-24deg) translateX(-10px); }
+  100% { transform: rotate(-5deg) translateX(-2px); }
+}
+/* A stamp is a drop and a hard stop, not a bounce. */
+@keyframes cr-stamp {
+  0%   { transform: translateY(0) rotate(0deg); }
+  18%  { transform: translateY(-7px) rotate(-3deg); }
+  34%  { transform: translateY(3px) rotate(1deg) scaleY(0.94); }
+  46%  { transform: translateY(0) scaleY(1.02); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+@keyframes cr-stomp-leg {
+  0%, 12%  { transform: rotate(0deg); }
+  24%      { transform: rotate(18deg) translateY(-5px); }
+  36%      { transform: rotate(0deg) translateY(0); }
+  100%     { transform: rotate(0deg); }
+}
+@keyframes cr-headshake {
+  0%, 100% { transform: rotate(0deg); }
+  20%      { transform: rotate(-8deg); }
+  45%      { transform: rotate(7deg); }
+  70%      { transform: rotate(-5deg); }
+}
+@keyframes cr-brow-cross {
+  0%   { transform: translateY(0) rotate(0deg); }
+  30%  { transform: translateY(4px) rotate(-16deg); }
+  100% { transform: translateY(3px) rotate(-12deg); }
+}
+@keyframes cr-mouth-flat {
+  0%   { transform: scaleX(1) translateY(0); }
+  30%  { transform: scaleX(0.55) translateY(2px); }
+  100% { transform: scaleX(0.7) translateY(1px); }
+}
+@keyframes cr-steam-up {
+  0%   { opacity: 0; transform: translate(6px, 10px) scale(0.4); }
+  35%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-10px, -22px) scale(1.3); }
+}
+
+/* --- won: it opened ------------------------------------------------------ */
+
+.cracker-won .cr-hop        { animation: cr-jump 0.9s cubic-bezier(0.34, 1.5, 0.5, 1) infinite; }
+.cracker-won .cr-arm-front  { animation: cr-cheer-front 0.9s ease-in-out infinite; }
+.cracker-won .cr-arm-back   { animation: cr-cheer-back 0.9s ease-in-out infinite; }
+.cracker-won .cr-shadow     { animation: cr-shadow-pump 0.9s ease-in-out infinite; }
+.cracker-won .cr-spark      { animation: cr-sparkle 0.9s ease-in-out infinite; }
+
+@keyframes cr-jump {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  20%      { transform: translateY(4px) scaleY(0.92); }
+  55%      { transform: translateY(-22px) scaleY(1.05); }
+}
+@keyframes cr-cheer-front {
+  0%, 100% { transform: rotate(-58deg); }
+  50%      { transform: rotate(-78deg); }
+}
+@keyframes cr-cheer-back {
+  0%, 100% { transform: rotate(-70deg); }
+  50%      { transform: rotate(-50deg); }
+}
+@keyframes cr-shadow-pump {
+  0%, 100% { transform: scale(1); opacity: 0.45; }
+  55%      { transform: scale(0.72); opacity: 0.22; }
+}
+@keyframes cr-sparkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.8) rotate(0deg); }
+  50%      { opacity: 1; transform: scale(1.15) rotate(18deg); }
+}
+
+/*
+ * Stillness, on request.
+ *
+ * The character keeps his pose in every state — a braced stance, hands off the
+ * wheel, arms up — so somebody who has asked for no motion still sees what
+ * happened. It just stops moving.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .cracker * {
+    animation: none !important;
+  }
+  .cracker-fail .cr-steam,
+  .cracker-won .cr-spark {
+    opacity: 1;
+  }
+}
+
+/* Light travelling across a pile of gold. Bars are offset from each other, so
+   the shimmer crosses the stack instead of the whole thing blinking. */
+@keyframes gold-shimmer {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.28); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [style*="gold-shimmer"] {
     animation: none !important;
   }
 }
