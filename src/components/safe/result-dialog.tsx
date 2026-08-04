@@ -31,7 +31,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MoveDown, MoveUp, Target, TrendingUp, X } from "lucide-react";
 import { Portal } from "@/components/ui/portal";
 import { Boxy, type BoxyMood } from "@/components/art/boxy";
-import { LOCKS, locksOpen } from "./vault-scene";
+import { CRACKS, cracksFor } from "@/lib/game/chase";
 import { formatScore, scoreBand } from "@/lib/game/feedback";
 import type { AttemptRecord } from "@/lib/types";
 
@@ -192,8 +192,8 @@ export function ResultDialog({
 }) {
   const percent = attempt.scorePercent;
   const personalBest = percent > previousBest;
-  const opened = won ? LOCKS : locksOpen(percent);
-  const previouslyOpen = locksOpen(previousBest);
+  const opened = won ? CRACKS : cracksFor(percent);
+  const previouslyOpen = cracksFor(previousBest);
   const shown = useCountUp(percent);
   const length = LENGTH[attempt.lengthHint];
   const LengthIcon = length.icon;
@@ -257,10 +257,10 @@ export function ResultDialog({
             </p>
           )}
 
-          {/* The locks, restated small: the same ten as on the safe, so the
-              number above has a shape as well as a value. */}
+          {/* The damage, restated small: the same ten cracks that are on the
+              safe, so the number above has a shape as well as a value. */}
           <div className="mt-4 flex justify-center gap-1.5">
-            {Array.from({ length: LOCKS }, (_, i) => (
+            {Array.from({ length: CRACKS }, (_, i) => (
               <span
                 key={i}
                 className={

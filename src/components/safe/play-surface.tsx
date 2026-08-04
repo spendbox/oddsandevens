@@ -40,7 +40,8 @@ import { AttemptLog } from "./attempt-log";
 import { AttemptDialog } from "./attempt-dialog";
 import { KnownPanel } from "./known-panel";
 import { PowerUpShelf } from "./power-up-shelf";
-import { VaultScene, type CrackerState } from "./vault-scene";
+import { ChaseScene } from "./chase-scene";
+import type { Shot } from "@/lib/game/chase";
 import { BestPill, SceneDock, SceneRail, type StatKind } from "./scene-hud";
 import { GuessDialog } from "./guess-dialog";
 import { PotDialog } from "./pot-dialog";
@@ -81,14 +82,12 @@ export function PlaySurface({
   const [result, setResult] = useState<{ attempt: AttemptRecord; was: number } | null>(null);
   const [jolt, setJolt] = useState(0);
   /**
-   * What Boxy is doing, which is not simply a function of the state.
+   * What the last shot did.
    *
-   * `working` while a guess is in flight, then `fail` for the length of the
-   * animation, then back to `idle`. It has to be its own piece of state
-   * because the interesting part — the moment it did not work — is over before
-   * anything else on the screen has changed.
+   * A hit is a guess that beat your own best, because that is the only thing
+   * that adds damage — so it is the only thing the gun is allowed to land.
    */
-  const [cracker, setCracker] = useState<CrackerState>("idle");
+  const [shot, setShot] = useState<Shot>("miss");
   /** Which rail figure somebody has asked about. */
   const [stat, setStat] = useState<StatKind | null>(null);
 
@@ -107,7 +106,6 @@ export function PlaySurface({
     new Date(view.hunt.secondWindUntil).getTime() > now;
 
   const attempts = view.hunt?.attempts ?? [];
-  const latest = attempts[0]?.scorePercent ?? 0;
   const best = view.hunt && attempts.length > 0 ? view.hunt.bestPercent : null;
   const bestAttempt = bestOf(attempts);
   const secondWind = view.powerUps.find((p) => p.kind === "second_wind") ?? null;
@@ -139,17 +137,10 @@ export function PlaySurface({
     };
   }, [pendingReference, reload, slug]);
 
-  // Frustration lasts as long as the animation and then he goes back to the
-  // wheel, because he has not given up and neither, presumably, have you.
-  useEffect(() => {
-    if (cracker !== "fail") return;
-    const id = window.setTimeout(() => setCracker("idle"), 1100);
-    return () => window.clearTimeout(id);
-  }, [cracker]);
-
   function refuse(note: string) {
     setMessage(note);
-    setCracker("fail");
+    setShot("miss");
+    setJolt((n) => n + 1);
   }
 
   async function submit() {
@@ -161,7 +152,6 @@ export function PlaySurface({
 
     setBusy(true);
     setMessage(null);
-    setCracker("working");
     setSheet("none");
 
     const res = await fetch(`/api/boxes/${slug}/attempt`, {
@@ -186,7 +176,6 @@ export function PlaySurface({
         return;
       }
       if (body.error === "not_verified") {
-        setCracker("idle");
         setSheet("verify");
         return;
       }
@@ -202,11 +191,13 @@ export function PlaySurface({
     const landed = body.hunt?.attempts?.[0] ?? null;
     const winning = body.outcome === "won";
 
+    // The shot and the sheet go up together. Nothing about the animation gates
+    // the answer — a player firing off guesses should never wait for a bullet.
     setView(body);
     setTyped("");
     setOutcome(body.outcome ?? "open");
+    setShot(winning || (landed && landed.scorePercent > was) ? "hit" : "miss");
     setJolt((n) => n + 1);
-    setCracker(winning ? "won" : "fail");
     if (landed && !resultsMuted()) setResult({ attempt: landed, was });
     await refresh();
   }
@@ -221,15 +212,15 @@ export function PlaySurface({
 
   return (
     <>
-      {/* The scene, behind everything. */}
-      <VaultScene
+      {/* The chase, behind everything. Damage tracks your *best*, not your
+          last — the safe does not heal because you tried something worse. */}
+      <ChaseScene
         design={view.box.design}
-        percent={latest}
-        rewardKobo={view.box.rewardKobo}
-        open={won}
+        percent={best ?? 0}
         jolt={jolt}
-        cracker={won ? "won" : cracker}
-        onGold={() => setSheet("pot")}
+        shot={shot}
+        open={won}
+        onSafe={() => setSheet("pot")}
       />
 
       {/* Everything else floats on top of it. `pointer-events-none` on the
@@ -239,17 +230,17 @@ export function PlaySurface({
         <div className="pointer-events-auto mx-auto w-full max-w-2xl space-y-2">
           <SceneRail
             box={view.box}
+            bestGuess={bestAttempt?.value ?? null}
             onExplain={() => setSheet("rules")}
             onBack={() => router.push("/")}
             onReward={() => setSheet("pot")}
             onStat={setStat}
+            onBestGuess={() => setSheet("best")}
           />
 
           <div className="flex items-center justify-between gap-2">
             <LivesBadge onBuy={() => setSheet("lives")} />
-            {best !== null && (
-              <BestPill best={best} onClick={() => setSheet("best")} />
-            )}
+            {best !== null && <BestPill best={best} onClick={() => setSheet("best")} />}
           </div>
 
           {/* Whatever the power-ups have bought, and whatever is running.

@@ -31,31 +31,31 @@ import type { PublicBox } from "@/lib/types";
 export type StatKind = "hunters" | "attempts" | "best";
 
 /**
- * The rail, across the top of the scene.
+ * The rail, across the top of the chase.
  *
- * Two rows, and the division is by what the thing *is*. The top row is the box:
- * how much is in it, how hard it is, and the two ways out — back, and help.
- * The row under it is the crowd: three figures, and nothing but figures.
+ * Row one is the box: the prize, and the two ways out. Row two is your own best
+ * guess, spelled out. Row three is the crowd, with the difficulty beside it.
  *
- * The labels are gone from those three. "HUNTERS" / "ATTEMPTS" / "BEST YET" in
- * 9px capitals under each number was three words of chrome explaining three
- * numbers nobody had asked about yet, on the screen with the least room for
- * words on the site. An icon and a figure is enough to glance at; tapping one
- * says what it is, which is the only time anybody wants the sentence.
+ * Nothing on it is captioned. Every figure opens a sheet that says what it is,
+ * which is the only moment anybody wants the sentence.
  */
 export function SceneRail({
   box,
+  bestGuess,
   onExplain,
   onBack,
   onReward,
   onStat,
+  onBestGuess,
 }: {
   box: PublicBox;
+  /** The player's own best guess so far, or null before there is one. */
+  bestGuess: string | null;
   onExplain: () => void;
   onBack?: () => void;
-  /** Tapping the prize. Opens the same sheet as tapping the gold. */
   onReward: () => void;
   onStat: (stat: StatKind) => void;
+  onBestGuess: () => void;
 }) {
   return (
     <div className="space-y-1.5">
@@ -71,32 +71,22 @@ export function SceneRail({
           </button>
         )}
 
-        {/*
-          The prize, back at the top and tappable. It went away when the gold
-          became the way to read it, and it should not have gone entirely: the
-          gold says *how much* relative to a full vault, which is the comparison,
-          and this says the figure, which is the fact.
-        */}
         <button
           type="button"
           onClick={onReward}
-          aria-label="What is in this vault"
+          aria-label="What is in this safe"
           className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border-2 border-brass/45 bg-background/85 px-3 py-1.5 transition hover:border-brass"
         >
-          <Coins className="hidden size-4 shrink-0 text-brass min-[360px]:block" aria-hidden />
+          <Coins className="size-4 shrink-0 text-brass" aria-hidden />
           <span
             className={
               "truncate font-black leading-none tracking-tight tabular-nums " +
-              (box.isChallenge ? "text-sm text-grape" : "brass-text text-base min-[360px]:text-lg")
+              (box.isChallenge ? "text-sm text-grape" : "brass-text text-lg")
             }
           >
             {rewardLabel(box.rewardKobo)}
           </span>
         </button>
-
-        {/* Top right, where it was asked for — and where it belongs, because it
-            is the one thing on this rail you decide *before* playing. */}
-        <DifficultyBadge difficulty={box.difficulty} compact />
 
         <button
           type="button"
@@ -107,6 +97,26 @@ export function SceneRail({
           <HelpCircle className="size-4" aria-hidden />
         </button>
       </div>
+
+      {/*
+        Your best guess, in full. It is the one thing on this screen you would
+        otherwise have to open a sheet to re-read, and re-reading it is what
+        every next guess is built on — you are editing this string, not writing
+        a new one.
+      */}
+      {bestGuess && (
+        <button
+          type="button"
+          onClick={onBestGuess}
+          aria-label="Your best guess so far"
+          className="flex w-full items-center gap-2 rounded-full border-2 border-white/15 bg-background/85 px-3 py-1.5 text-left transition hover:border-brass/60"
+        >
+          <Trophy className="size-3.5 shrink-0 text-brass" aria-hidden />
+          <code className="min-w-0 flex-1 truncate font-mono text-sm font-bold tracking-wide text-foreground">
+            {bestGuess}
+          </code>
+        </button>
+      )}
 
       <div className="flex items-center justify-center gap-1.5">
         <Stat
@@ -128,6 +138,9 @@ export function SceneRail({
           label="The closest anybody has come"
           accent
         />
+        {/* Down here with the rest of the readings, where it belongs — it is a
+            figure about the box, not a control. */}
+        <DifficultyBadge difficulty={box.difficulty} compact />
       </div>
     </div>
   );
@@ -153,7 +166,7 @@ function Stat({
       onClick={onClick}
       aria-label={label}
       className={
-        "flex items-center gap-1.5 rounded-full border-2 px-3 py-1 font-mono text-sm font-black leading-none tabular-nums transition " +
+        "flex items-center gap-1.5 rounded-full border-2 px-2.5 py-1 font-mono text-sm font-black leading-none tabular-nums transition " +
         (accent
           ? "border-brass/45 bg-background/85 text-brass hover:border-brass"
           : "border-white/18 bg-background/85 text-zinc-200 hover:border-white/40")

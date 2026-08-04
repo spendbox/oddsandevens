@@ -16,7 +16,6 @@
 import { Coins } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { formatNaira } from "@/lib/game/rewards";
-import { barsFor, fullness, VAULT_BARS, VAULT_CAPACITY_KOBO } from "@/lib/game/vault";
 
 export function PotDialog({
   rewardKobo,
@@ -29,9 +28,6 @@ export function PotDialog({
   contributor: string | null;
   onClose: () => void;
 }) {
-  const share = fullness(rewardKobo);
-  const bars = barsFor(rewardKobo);
-
   return (
     <Modal
       title="In the vault"
@@ -50,41 +46,19 @@ export function PotDialog({
         </button>
       }
     >
-      <div className="space-y-4 pb-1 text-center">
+      <div className="space-y-3 pb-1 text-center">
         {isChallenge ? (
           <>
             <p className="text-3xl font-black tracking-tight text-grape">No money</p>
-            <p className="text-sm text-zinc-400">
-              This one is a pure challenge. Nothing to collect but the fact that
-              you did it.
-            </p>
+            <p className="text-sm text-zinc-400">A pure challenge.</p>
           </>
         ) : (
           <>
             <p className="brass-text text-5xl font-black leading-none tracking-tight tabular-nums">
               {formatNaira(rewardKobo)}
             </p>
-
-            {/* The same measure the chamber is drawn from, said in words. A
-                vault that looks a third full is a third full of the same
-                maximum as every other vault in the game — that is the whole
-                reason the scale is fixed rather than per-box. */}
-            <div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-black/40">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-brass-deep via-brass to-brass-bright transition-all duration-700"
-                  style={{ width: `${Math.max(3, share * 100)}%` }}
-                />
-              </div>
-              <p className="mt-2 text-xs text-zinc-400">
-                {bars} of {VAULT_BARS} bars · a full vault is{" "}
-                {formatNaira(VAULT_CAPACITY_KOBO)}
-              </p>
-            </div>
-
-            <p className="rounded-2xl border border-brass/20 bg-brass/10 px-3 py-2.5 text-sm text-zinc-300">
-              It goes to whoever opens the door. All of it, in one payment, to a
-              bank account you give us afterwards.
+            <p className="text-sm text-zinc-400">
+              Paid into the bank account of whoever cracks the code first.
             </p>
           </>
         )}

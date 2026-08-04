@@ -1037,3 +1037,156 @@ summary,
     animation: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * The chase
+ *
+ * A pursuit seen from above, running forever. The road, the verge and the
+ * scenery are separate layers on separate periods, which is what makes it read
+ * as depth rather than as one image sliding: the road surface is close and
+ * fast, the scenery further out is slower, and neither ever lines up with the
+ * other twice.
+ * ------------------------------------------------------------------------- */
+
+/* Road surface and its markings, running under you. */
+@keyframes road-run {
+  from { background-position-y: 0; }
+  to   { background-position-y: 240px; }
+}
+
+/* Scenery, from beyond the top edge to past the bottom. */
+@keyframes verge-run {
+  from { transform: translateY(-30vh) scale(var(--s, 1)); }
+  to   { transform: translateY(115vh) scale(var(--s, 1)); }
+}
+
+/* Speed lines. Short, fast, and mostly transparent — the moment you can read
+   one individually it stops being speed and starts being litter. */
+@keyframes streak-run {
+  0%   { opacity: 0; transform: translateY(-12vh) scaleY(0.6); }
+  20%  { opacity: 0.55; }
+  80%  { opacity: 0.4; }
+  100% { opacity: 0; transform: translateY(112vh) scaleY(1.4); }
+}
+
+/* The car, holding station in the safe's wake. */
+@keyframes car-idle {
+  0%, 100% { transform: translate(-50%, 0) rotate(-1.2deg); }
+  50%      { transform: translate(-50%, -6px) rotate(1.2deg); }
+}
+
+/* The safe, bolting. Heavier and more erratic than the car, because it is a
+   safe and it should not be able to do this. */
+@keyframes safe-flee {
+  0%, 100% { transform: translate(-50%, 0) rotate(-2.5deg); }
+  30%      { transform: translate(calc(-50% + 10px), -4px) rotate(2deg); }
+  65%      { transform: translate(calc(-50% - 8px), 3px) rotate(-1deg); }
+}
+
+/* A shot on its way. Fired from the car, travelling up-screen. */
+@keyframes shot-hit {
+  0%   { opacity: 0; transform: translate(-50%, 0) scaleY(0.5); }
+  10%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(-50%, var(--reach, -220px)) scaleY(1.6); }
+}
+
+/* And one that doesn't land: same speed, drifting wide, gone past the safe. */
+@keyframes shot-miss {
+  0%   { opacity: 0; transform: translate(-50%, 0) scaleY(0.5); }
+  10%  { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--wide, 90px)), calc(var(--reach, -220px) * 1.5)) rotate(18deg);
+  }
+}
+
+/* Muzzle flash. One frame of it, which is all a muzzle flash ever is. */
+@keyframes muzzle {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.3); }
+  25%  { opacity: 1; transform: translate(-50%, 0) scale(1.3); }
+  100% { opacity: 0; transform: translate(-50%, 0) scale(0.8); }
+}
+
+/* Impact on the safe: a hard white flash and a ring going out. */
+@keyframes impact {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  15%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); }
+}
+
+/* The whole scene takes a hit. */
+@keyframes scene-shake {
+  0%, 100% { transform: translate(0, 0); }
+  20%      { transform: translate(-5px, 3px); }
+  45%      { transform: translate(4px, -3px); }
+  70%      { transform: translate(-2px, 2px); }
+}
+
+/* A crack drawing itself into the metal. */
+@keyframes crack-in {
+  from { stroke-dashoffset: 60; opacity: 0; }
+  to   { stroke-dashoffset: 0; opacity: 1; }
+}
+
+/* Gold leaving a safe that has finally given up. */
+@keyframes coin-burst {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  15%  { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--cx, 0px)), calc(-50% + var(--cy, 0px))) scale(1) rotate(var(--cr, 180deg));
+  }
+}
+
+.chase-road   { animation: road-run 1.1s linear infinite; }
+.chase-prop   { animation: verge-run var(--dur, 4s) linear var(--delay, 0s) infinite; }
+.chase-streak { animation: streak-run var(--dur, 0.7s) linear var(--delay, 0s) infinite; }
+.chase-car    { animation: car-idle 2.4s ease-in-out infinite; }
+.chase-safe   { animation: safe-flee 1.7s ease-in-out infinite; }
+.chase-shake  { animation: scene-shake 0.4s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chase-road,
+  .chase-prop,
+  .chase-streak,
+  .chase-car,
+  .chase-safe,
+  .chase-shake {
+    animation: none !important;
+  }
+  .chase-prop { opacity: 0.6; }
+}
+
+/* ---------------------------------------------------------------------------
+ * The mascot's ten turns
+ *
+ * Shown above the guess dialog, one picked at random each time it opens. They
+ * are deliberately short and daft: this is the two seconds between deciding to
+ * guess and typing it, and the only job is to make that moment feel like a
+ * game rather than a form loading.
+ * ------------------------------------------------------------------------- */
+
+@keyframes turn-spin      { 0%,100% { transform: rotate(0) } 50% { transform: rotate(360deg) scale(0.9) } }
+@keyframes turn-hop       { 0%,100% { transform: translateY(0) scaleY(1) } 30% { transform: translateY(2px) scaleY(0.86) } 60% { transform: translateY(-22px) scaleY(1.08) } }
+@keyframes turn-peek      { 0%,100% { transform: translateX(0) rotate(0) } 25% { transform: translateX(-14px) rotate(-9deg) } 75% { transform: translateX(14px) rotate(9deg) } }
+@keyframes turn-wobble    { 0%,100% { transform: rotate(-9deg) } 50% { transform: rotate(9deg) } }
+@keyframes turn-pump      { 0%,100% { transform: scale(1) } 40% { transform: scale(1.14) rotate(-4deg) } 70% { transform: scale(0.94) } }
+@keyframes turn-tumble    { 0% { transform: translateX(-40px) rotate(-90deg) } 100% { transform: translateX(0) rotate(0) } }
+@keyframes turn-shiver    { 0%,100% { transform: translateX(0) } 20% { transform: translateX(-3px) } 40% { transform: translateX(3px) } 60% { transform: translateX(-2px) } 80% { transform: translateX(2px) } }
+@keyframes turn-float     { 0%,100% { transform: translateY(0) rotate(-2deg) } 50% { transform: translateY(-14px) rotate(2deg) } }
+@keyframes turn-lean      { 0%,100% { transform: rotate(0) translateY(0) } 50% { transform: rotate(-14deg) translateY(-4px) } }
+@keyframes turn-drum      { 0%,100% { transform: translateY(0) } 25% { transform: translateY(-5px) } 50% { transform: translateY(0) } 75% { transform: translateY(-3px) } }
+
+/* Props orbit, swing or bounce beside him. */
+@keyframes prop-orbit  { from { transform: rotate(0) translateX(26px) rotate(0) } to { transform: rotate(360deg) translateX(26px) rotate(-360deg) } }
+@keyframes prop-swing  { 0%,100% { transform: rotate(-28deg) } 50% { transform: rotate(28deg) } }
+@keyframes prop-bounce { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-26px) scaleY(1.1) } }
+@keyframes prop-pop    { 0%,100% { opacity: 0; transform: scale(0.4) } 40%,60% { opacity: 1; transform: scale(1.1) } }
+@keyframes prop-drift  { 0% { opacity: 0; transform: translate(0,0) scale(0.5) } 30% { opacity: 1 } 100% { opacity: 0; transform: translate(14px,-30px) scale(1.2) } }
+
+@media (prefers-reduced-motion: reduce) {
+  .turn,
+  .turn-prop {
+    animation: none !important;
+  }
+}

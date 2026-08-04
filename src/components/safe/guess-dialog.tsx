@@ -16,6 +16,7 @@
 import { useEffect, useRef } from "react";
 import { Delete, KeyRound } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { MascotShow } from "./mascot-show";
 import { ALPHABET_SET, MAX_GUESS_LENGTH } from "@/lib/constants";
 import type { Revealed } from "@/lib/game/power-ups";
 
@@ -49,6 +50,7 @@ export function GuessDialog({
 
   return (
     <Modal
+      above={<MascotShow className="mb-1" />}
       title="Crack the safe"
       subtitle="Case matters."
       icon={<KeyRound className="size-5 text-brass" aria-hidden />}

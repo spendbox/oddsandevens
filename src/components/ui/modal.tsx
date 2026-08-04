@@ -78,6 +78,14 @@ export function Modal({
   icon,
   width = "md",
   footer,
+  /**
+   * Sits *outside* the sheet, on its top edge.
+   *
+   * For things that belong to the dialog but not to its scroll — a mascot on
+   * the lip of it. Nothing here is interactive, so nothing here needs to
+   * survive the sheet scrolling away from it.
+   */
+  above,
   onClose,
   children,
 }: {
@@ -88,6 +96,7 @@ export function Modal({
   width?: ModalWidth;
   /** Pinned to the bottom, above the safe area. Actions belong here. */
   footer?: ReactNode;
+  above?: ReactNode;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -129,14 +138,18 @@ export function Modal({
         className="fixed inset-0 z-50 flex max-h-[100svh] items-end justify-center bg-background-deep/75 backdrop-blur-sm transition-[padding] duration-150 sm:items-center sm:p-4"
       >
         <div
+          onClick={(event) => event.stopPropagation()}
+          className={"flex w-full flex-col justify-end " + WIDTHS[width]}
+        >
+          {above}
+
+        <div
           role="dialog"
           aria-modal="true"
-          onClick={(event) => event.stopPropagation()}
           className={
             // The panel is capped at the visible viewport and never taller, so
             // there is nothing to scroll the *page* for.
-            "sheet animate-pop-in flex max-h-full w-full flex-col overflow-hidden rounded-t-3xl sm:max-h-[calc(100svh-2rem)] sm:rounded-3xl " +
-            WIDTHS[width]
+            "sheet animate-pop-in flex max-h-full w-full flex-col overflow-hidden rounded-t-3xl sm:max-h-[calc(100svh-2rem)] sm:rounded-3xl"
           }
         >
           {/* Grab handle — the thing that says "this sheet moves". */}
@@ -181,6 +194,7 @@ export function Modal({
               {footer}
             </div>
           )}
+        </div>
         </div>
       </div>
     </Portal>

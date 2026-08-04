@@ -459,118 +459,54 @@ stripped it is still a picture of a safe.
 
 ## The play screen
 
-A password game is, mechanically, a text field and a number. That is an
-accurate description of the rules and a terrible screen. The play screen has
-been rebuilt around one idea: **you are not looking at the game, you are in the
-room with it.**
+A password game is, mechanically, a text field and a number. The play screen is
+built on one idea: **the mechanic should be visible as an event.**
 
-It is a **side-on cutaway**, full-bleed, sky to floor and edge to edge. There is
-no header and no container — every control floats on top of the scene.
+A guess either beat your own best or it did not. That is a binary, so it is a
+shot that lands or a shot that goes wide — and the safe carries the damage from
+every one that landed. Ten hits and it bursts.
 
-Side-on is the decision everything else follows from. It means there is a near
-side and a far side, so there is somewhere for Boxy to stand and something for
-him to stand in front of. Cutaway means the chamber is open to you while the
-door is shut, so **the gold is visible the whole time** — which matters,
-because the gold is the reason anybody is here and it used to be a line of text
-at the top of the page.
+So the screen is a **chase, seen from above, running forever**: a car behind a
+runaway safe, both travelling, the ground going the other way. Full-bleed, no
+header, no container; every control floats on top of it. Top-down because a
+chase needs two things moving together and a third moving against them, and from
+above you get all three with no horizon to draw. Endless because there is no
+level to finish — you are on this safe until it opens.
 
 | Layer | What |
 | --- | --- |
-| **The sky** | A gradient that follows the player's own clock — dawn, day, dusk, night — with the sun or the moon in it, stars that fade in as it darkens, clouds by day, and a skyline with lit windows after dark. Read after mount, never on the server, which has no idea what time it is where you are. |
-| **The chamber** | Drawn in section: shell, lit interior, and the gold stacked on the floor of it. |
-| **The door** | On the near face, with the wheel Boxy is hauling on and ten bolts down its leading edge. It slides clear before it swings, because a door rotated about its own hinge projects back over the opening and hides the thing you just won. |
-| **Boxy** | Standing on the floor, hands on the wheel. |
+| **Verge** | The ground either side, in the terrain's colours. |
+| **Road** | A flat surface that does not move — a repeating band across it read as floor tiles rather than tarmac. The speed comes from the markings, the worn tyre strips and the streaks, which are the things that would actually be moving. |
+| **Scenery** | Ten props down both verges on staggered loops, so the roadside never repeats visibly. |
+| **The safe** | A strongbox on wheels, lid facing you, carrying its damage. |
+| **The car** | Behind it, gun on the roof. Headlights at night. |
+| **Gunfire** | Muzzle flash, the round, and either an impact ring or a shot drifting wide. |
 
-The sky and floor fill the viewport; the chamber, door and character live in one
-stage anchored to the floor, so they keep their arrangement to each other from a
-320px phone to a desktop.
+Five terrains — dunes, forest, tundra, coast, downtown — cycled **in order** on a
+22-second timer, crossfading. Random would teleport you between biomes, which
+reads as a bug. The hour of the day is one tint over everything, because a
+top-down view has no sky to put a sun in.
 
-### The rail
+### Damage
 
-Two rows, divided by what the thing *is*. The top row is the box: the prize, the
-difficulty, and the two ways out — back and help. The row under it is the crowd:
-three figures and nothing but figures.
+Ten crack paths are drawn into the lid, revealed one per ten points of **best**
+score — not your last, because the safe does not heal when you try something
+worse. Each draws itself in rather than fading up: a crack that fades is a
+texture, a crack that *travels* is something that just happened.
 
-The captions are gone from those three. "HUNTERS" / "ATTEMPTS" / "BEST YET" in
-9px capitals was three words of chrome explaining three numbers nobody had asked
-about yet, on the screen with the least room for words on the site. An icon and
-a figure is enough to glance at; **tapping one says what it is**, which is the
-only moment anybody wants the sentence — and the sentence can then be worth
-reading. "The closest anybody has come" is a fact; "somebody got within eight
-points of this password and it is still shut" is a reason to keep going.
+A hit shakes the scene. A miss travels the same distance at the same speed and
+drifts past — same timing on purpose, because a visibly slower miss would be
+telling you the answer before it lands.
 
-The difficulty badge drops its word below `sm` and keeps its pips. On a 320px
-screen "Merciless" was taking enough of the row to crush ₦7,000,000 down to
-"₦7,0…"; the pips carry the comparison on their own and the word is a label
-for it.
+**Nothing about the animation gates the answer.** The result sheet and the shot
+go up in the same tick; somebody firing off guesses never waits for a bullet.
 
-### The gold is the prize
+### The mascot's ten turns
 
-The figure is on the rail *and* in the room, and they are not the same
-statement: the pile says how much relative to a full vault, which is the
-comparison; the figure says the number, which is the fact. Tapping either opens
-the same sheet.
-
-`VAULT_CAPACITY_KOBO` is ₦10,000,000 — the largest reward the funding ladder can
-produce — and a full vault is forty-two bars. A ₦7,000,000 box is thirty of
-them; a ₦12,000 box is one. **Tapping the pile is how you find out the figure**,
-and it is the only place on the screen the figure appears.
-
-The scale is fixed rather than per-box on purpose. Scaling each vault to its own
-reward would make every box look identically stuffed and the comparison would
-say nothing; against one fixed maximum, a half-full room is half-full of the
-same thing wherever you see it.
-
-### Boxy is rigged, not bounced
-
-Body, head, two arms and two legs are separate SVG groups with their own pivots,
-and four states move them against each other:
-
-- **idle** — breathing, hands resting on the wheel
-- **working** — hauling, arms pumping *out of phase* (which is what makes it
-  read as turning something rather than pushing it), body leaning in, back leg
-  driving, brow down
-- **fail** — the hands come off, a stamp, a shake of the head, steam off the
-  top of him. This is the state that had to be worth watching, because a hard
-  box means seeing it hundreds of times.
-- **won** — off the ground, arms up
-
-Every pivot sets `transform-box: fill-box`, without which an SVG group rotates
-about the origin of the whole canvas and the arms leave the screen.
-
-### One button
-
-There is no input on the scene. There is a **Crack the safe** button, and it
-opens a dialog with the field in it. The trade is one tap per guess; what it
-buys is a screen that is the game rather than a page with the game on it, and a
-phone keyboard that appears when there is something to type into instead of the
-moment the page loads.
-
-The price tag went with it. "Costs 1 life · 4 left" under the only button in the
-game was a reason to hesitate over something free; the life pool is in the rail
-where it belongs.
-
-**The keyboard problem is solved twice**, because no single fix covers both
-platforms. A phone keyboard is drawn *over* the page rather than shrinking it,
-so `svh` and `dvh` both still describe the whole screen and a footer pinned to
-the bottom of a sheet is pinned underneath the keys. `interactive-widget=
-resizes-content` in the viewport meta fixes it outright on Chrome for Android.
-Safari ignores it, so `Modal` also reads `visualViewport` — its height is what
-you can actually see — and pads the backdrop by the difference. Padding rather
-than a transform, so the sheet's own max-height shrinks with it and a long
-dialog scrolls instead of being pushed off the top.
-
-### The bolts
-
-Ten of them down the door's leading edge — the edge they would actually shoot
-out of — one per ten points of score. A guess at 20% draws two, 40% four, 100%
-all ten and the door swings. Thrown is out and seated in the jamb, dark; drawn
-is pulled back into the door, lit, with the empty socket glowing. The difference
-is a *position* as well as a colour, so it survives being read by somebody who
-cannot tell mint from slate.
-
-Every bolt takes the hit when a guess lands, whether or not it gives way. A
-wrong answer that changes nothing on screen feels like a dropped input.
+The guess dialog carries Boxy on its lip, doing one of ten short turns picked at
+random each time it opens — a spin, a hop, a peek, a tumble. The two seconds
+between deciding to guess and typing it were dead. Nobody will notice which one
+they got; everybody will notice it is never the same twice.
 
 ### The result
 
