@@ -46,7 +46,8 @@ import { KnownPanel } from "./known-panel";
 import { PasswordField } from "./password-field";
 import { PowerUpShelf } from "./power-up-shelf";
 import { VaultScene } from "./vault-scene";
-import { SceneDock, SceneRail } from "./scene-hud";
+import { ResultDialog, resultsMuted } from "./result-dialog";
+import { BestPill, SceneDock, SceneRail } from "./scene-hud";
 import { Boxy } from "@/components/art/boxy";
 
 type Outcome = "open" | "won" | "pipped";
@@ -71,6 +72,9 @@ export function PlaySurface({
   const [message, setMessage] = useState<string | null>(null);
   // True for one beat when a guess is refused, so the scene can flinch.
   const [recoil, setRecoil] = useState(false);
+  // The guess that has just resolved, and what their best was before it — so
+  // the result can say whether this one moved anything.
+  const [result, setResult] = useState<{ attempt: AttemptRecord; was: number } | null>(null);
   // Ticks while anything on screen is counting down: a life, Colour Read's 24
   // hours, or a Second Wind hour.
   const now = useNow(
@@ -190,9 +194,15 @@ export function PlaySurface({
       return;
     }
 
+    // Captured before the new view lands, because the point of the result is
+    // the comparison and the new view already contains the answer.
+    const was = view.hunt?.bestPercent ?? 0;
+    const landed = body.hunt?.attempts?.[0] ?? null;
+
     setView(body);
     setTyped("");
     setOutcome(body.outcome ?? "open");
+    if (landed && !resultsMuted()) setResult({ attempt: landed, was });
     await refresh();
   }
 
@@ -206,7 +216,7 @@ export function PlaySurface({
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 py-4">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:py-7">
         <SceneRail box={view.box} onExplain={() => setSheet("rules")} />
 
         {/* The dock floats over the scene rather than the viewport. Fixed to
@@ -220,15 +230,21 @@ export function PlaySurface({
             open={won}
           />
           {verified && (
-            <SceneDock
-              className="absolute bottom-0 right-0"
-              attempts={view.hunt?.attemptsCount ?? 0}
-              powerUps={view.powerUps.filter((p) => p.available).length}
-              best={best}
-              onAttempts={() => setSheet("attempts")}
-              onPowerUps={() => setSheet("power-ups")}
-              onBest={() => setSheet("best")}
-            />
+            <>
+              {best !== null && (
+                <BestPill
+                  className="absolute right-3 top-3"
+                  best={best}
+                  onClick={() => setSheet("best")}
+                />
+              )}
+              <SceneDock
+                className="absolute bottom-3 right-3"
+                powerUps={view.powerUps.filter((p) => p.available).length}
+                onAttempts={() => setSheet("attempts")}
+                onPowerUps={() => setSheet("power-ups")}
+              />
+            </>
           )}
         </div>
 
@@ -364,6 +380,15 @@ export function PlaySurface({
 
       {sheet === "best" && bestAttempt && (
         <AttemptDialog attempt={bestAttempt} onClose={() => setSheet("none")} />
+      )}
+
+      {result && (
+        <ResultDialog
+          attempt={result.attempt}
+          previousBest={result.was}
+          won={won}
+          onClose={() => setResult(null)}
+        />
       )}
     </>
   );

@@ -72,9 +72,9 @@ export function VaultScene({
         className
       }
     >
-      <Room accent={spec.body[0]} metal={spec.metal} />
+      <Room accent={spec.body[0]} metal={spec.metal} warmth={target / LOCKS} />
 
-      <div className="vault-stage relative flex items-center justify-center py-4">
+      <div className="vault-stage relative flex items-center justify-center px-4 pb-16 pt-8">
         {/*
           `--r` is the lock ring's radius and has to be an absolute length:
           a percentage in `translate()` resolves against the *lock's* own box,
@@ -134,26 +134,101 @@ function useStaggered(target: number): number {
 /** Where the characters drifting through the room are drawn from. */
 const CIPHER = "aA9#zQ7!kX3$mB5&pR2?wS8*";
 
-function Room({ accent, metal }: { accent: string; metal: string }) {
+/**
+ * The room the safe stands in.
+ *
+ * It was three blurred circles, which is a background rather than a place —
+ * nothing in it said where the floor was or where the light came from. It has
+ * both now:
+ *
+ *   a horizon    a warm band the safe is silhouetted against
+ *   a floor      a perspective grid running away underneath it, which is the
+ *                single cheapest thing that turns a flat panel into a space
+ *   a key light  one cone from above-left, which is where every other lit
+ *                thing on this site is lit from
+ *   weather      drifting orbs, hanging dust, and the password characters
+ *
+ * The colour temperature answers to the score: cold and blue with nothing
+ * found, warm and gold as the locks give way. That is the one part of the
+ * decoration doing a job — you can tell at a glance across a room how a hunt is
+ * going, before reading a digit.
+ */
+function Room({
+  accent,
+  metal,
+  warmth,
+}: {
+  accent: string;
+  metal: string;
+  /** 0–1, how close the hunt is. Drives the temperature of the light. */
+  warmth: number;
+}) {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      {/* The far wall, and the horizon the safe stands against. */}
       <div
-        className="scene-orb absolute -left-1/4 top-0 size-[26rem] rounded-full opacity-25 blur-3xl"
-        style={{ background: accent, animation: "orb-a 14s ease-in-out infinite" }}
+        className="absolute inset-0 transition-colors duration-1000"
+        style={{
+          background: `
+            radial-gradient(120% 70% at 50% 108%, rgb(255 194 71 / ${0.05 + warmth * 0.3}) 0%, transparent 60%),
+            linear-gradient(180deg, #0a0618 0%, #150e2b 55%, #221741 100%)
+          `,
+        }}
       />
+
+      {/* The key light: one soft cone from above-left, the direction
+          everything else in the art set is lit from. */}
       <div
-        className="scene-orb absolute -right-1/4 bottom-0 size-[24rem] rounded-full opacity-20 blur-3xl"
+        className="absolute -left-1/4 -top-1/2 size-[38rem] rounded-full opacity-25 blur-3xl transition-colors duration-1000"
+        style={{ background: warmth > 0.45 ? "var(--brass)" : accent }}
+      />
+
+      {/* The floor. A perspective grid, laid flat and running to the horizon —
+          the cheapest possible depth cue and by far the most effective. */}
+      <div
+        className="scene-floor absolute inset-x-[-40%] bottom-0 h-[42%] opacity-40"
+        style={{
+          background: `
+            repeating-linear-gradient(to right, rgb(255 255 255 / 0.12) 0 1px, transparent 1px 56px),
+            repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.12) 0 1px, transparent 1px 56px)
+          `,
+          transform: "perspective(220px) rotateX(62deg)",
+          transformOrigin: "50% 100%",
+          maskImage: "linear-gradient(to bottom, transparent, black 45%)",
+          WebkitMaskImage: "linear-gradient(to bottom, transparent, black 45%)",
+        }}
+      />
+
+      {/* Weather. Two slow orbs on different periods, so the light never
+          repeats in a way you can catch. */}
+      <div
+        className="scene-orb absolute -right-1/4 top-1/4 size-[22rem] rounded-full opacity-20 blur-3xl"
         style={{ background: "var(--grape)", animation: "orb-b 18s ease-in-out infinite" }}
       />
       <div
-        className="scene-orb absolute left-1/3 top-1/4 size-[18rem] rounded-full opacity-15 blur-3xl"
+        className="scene-orb absolute left-1/4 top-0 size-[16rem] rounded-full opacity-15 blur-3xl"
         style={{ background: metal, animation: "orb-c 22s ease-in-out infinite" }}
       />
 
-      {/* Characters rising through the room. Twelve, seeded from their own
-          index rather than at random, so the server and the browser agree on
-          what they say and React has nothing to complain about. */}
-      {Array.from({ length: 12 }, (_, i) => {
+      {/* Dust hanging in the beam. */}
+      {Array.from({ length: 18 }, (_, i) => (
+        <span
+          key={`m${i}`}
+          className="mote absolute size-1 rounded-full bg-white/60"
+          style={{
+            left: `${(i * 53) % 97}%`,
+            top: `${(i * 31) % 88}%`,
+            ["--mx" as string]: `${((i * 17) % 24) - 12}px`,
+            ["--my" as string]: `${-8 - ((i * 11) % 18)}px`,
+            animation: `mote ${7 + (i % 6)}s ease-in-out ${i * 0.4}s infinite`,
+          }}
+        />
+      ))}
+
+      {/* Characters rising through the room. Seeded from their own index
+          rather than at random, so the server and the browser agree on what
+          they say and React has nothing to complain about. */}
+      {Array.from({ length: 10 }, (_, i) => {
         const char = CIPHER[(i * 7) % CIPHER.length];
         return (
           <span
@@ -184,18 +259,25 @@ type Spec = (typeof DESIGN_SPECS)[Design];
 /**
  * The safe, in planes.
  *
- * Each piece sits at its own `translateZ`, which is what makes the idle
- * rotation read as an object turning rather than an image sliding: the wheel
- * travels further across the screen than the door, and the door further than
- * the cabinet behind it.
+ * Each piece sits at its own `translateZ`, which is what makes the idle lean
+ * read as an object turning rather than an image sliding: the wheel travels
+ * further across the screen than the door, and the door further than the
+ * cabinet behind it.
  *
- * Depth is drawn as well as transformed, because a 9° lean is not enough on its
- * own. The cabinet is a full ring wider than the door on every side; the door
- * carries a bright bevel along the top-left and a dark one along the
- * bottom-right, which is the whole trick to making a flat rectangle look like
- * it protrudes; and the wheel is a real vault wheel with four spokes rather
- * than a circle with a line through it, because that silhouette is what says
- * "safe" from across a room.
+ * The first version of this was a rounded rectangle with a wheel on it, and it
+ * read as a flat icon at any size. What was missing was *material*. Five things
+ * fixed it and none of them is the 3D transform:
+ *
+ *   a rim         a metal band around the cabinet, which is the piece that
+ *                 says this is machined rather than moulded
+ *   rivets        eight of them around that band, at a size you can count
+ *   brushed metal a fine repeating gradient across the door, so light behaves
+ *                 the way it does on steel instead of on plastic
+ *   an edge       the door's own thickness, drawn as a plate behind its face
+ *   a glint       one highlight that crosses the door every nine seconds
+ *
+ * Together they are the difference between a shape the colour of a safe and a
+ * thing that looks heavy.
  */
 function Vault({ spec, open }: { spec: Spec; open?: boolean }) {
   return (
@@ -211,8 +293,15 @@ function Vault({ spec, open }: { spec: Spec; open?: boolean }) {
         style={{ transform: "translateX(-50%) translateZ(-70px) rotateX(76deg)" }}
       />
 
-      {/* Cabinet: the case the door is set into, and the only part of the safe
-          you can see the side of. */}
+      {/* A rim light in the safe's own colour, so it separates from the room
+          however dark the wall behind it goes. */}
+      <div
+        aria-hidden
+        className="absolute -inset-3 rounded-[2.4rem] opacity-50 blur-2xl"
+        style={{ background: spec.body[0], transform: "translateZ(-50px)" }}
+      />
+
+      {/* Cabinet: the case the door is set into. */}
       <div
         className="absolute inset-0 rounded-[2rem] border-2 border-ink"
         style={{
@@ -223,12 +312,32 @@ function Vault({ spec, open }: { spec: Spec; open?: boolean }) {
         }}
       />
 
+      {/* The machined band around the cabinet, and the rivets holding it on. */}
+      <div
+        className="absolute inset-[3%] rounded-[1.8rem] border-2 border-ink"
+        style={{
+          transform: "translateZ(-28px)",
+          background: `linear-gradient(160deg, ${spec.metal}, ${spec.frame})`,
+          boxShadow: "inset 0 2px 0 rgb(255 255 255 / 0.45), inset 0 -3px 6px rgb(0 0 0 / 0.4)",
+        }}
+      />
+      {RIVETS.map((at) => (
+        <span
+          key={at}
+          className={`absolute size-2 rounded-full border border-ink ${at}`}
+          style={{
+            transform: "translateZ(-26px)",
+            background: `radial-gradient(circle at 32% 30%, #fff, ${spec.frame})`,
+          }}
+        />
+      ))}
+
       {/* The cavity, and the light inside it. Dark while the safe is shut;
           when it opens this is what spills out. */}
       <div
-        className="absolute inset-[7%] rounded-[1.6rem] transition-all duration-700"
+        className="absolute inset-[8%] rounded-[1.5rem] transition-all duration-700"
         style={{
-          transform: "translateZ(-26px)",
+          transform: "translateZ(-24px)",
           background: open
             ? `radial-gradient(circle at 50% 42%, #fff8e0, ${spec.accent} 45%, ${spec.frame} 100%)`
             : "linear-gradient(160deg, #120c26, #06040f)",
@@ -238,32 +347,51 @@ function Vault({ spec, open }: { spec: Spec; open?: boolean }) {
         }}
       />
 
+      {/* The door's own thickness, sitting a little behind its face. Without
+          this the door is a decal; with it, it is a slab. */}
+      <div
+        className="absolute inset-[10%] origin-left rounded-[1.3rem] transition-transform duration-1000 ease-[cubic-bezier(0.34,1.3,0.5,1)]"
+        style={{
+          background: spec.frame,
+          transform: open ? "rotateY(-115deg) translateZ(-8px)" : "translateZ(-8px)",
+        }}
+      />
+
       {/* The door. Swings on its left edge when the box is cracked. */}
       <div
-        className="absolute inset-[9%] origin-left rounded-[1.35rem] border-2 border-ink transition-transform duration-1000 ease-[cubic-bezier(0.34,1.3,0.5,1)]"
+        className="absolute inset-[10%] origin-left overflow-hidden rounded-[1.3rem] border-2 border-ink transition-transform duration-1000 ease-[cubic-bezier(0.34,1.3,0.5,1)]"
         style={{
-          background: `linear-gradient(146deg, ${spec.body[0]} 0%, ${spec.body[1]} 62%, ${spec.frame} 100%)`,
+          background: `
+            repeating-linear-gradient(102deg, rgb(255 255 255 / 0.07) 0 2px, transparent 2px 5px),
+            linear-gradient(146deg, ${spec.body[0]} 0%, ${spec.body[1]} 62%, ${spec.frame} 100%)
+          `,
           transform: open ? "rotateY(-115deg)" : "rotateY(0deg)",
           transformStyle: "preserve-3d",
-          // Two bevels and a plate edge: lit from the top-left, shaded at the
-          // bottom-right, with a hard lip underneath so the door has thickness.
+          // Two bevels and a lip: lit from the top-left, shaded at the
+          // bottom-right, with a hard edge underneath so the door has weight.
           boxShadow:
-            "inset 2px 3px 0 rgb(255 255 255 / 0.4), inset -3px -5px 0 rgb(0 0 0 / 0.35), inset 0 -14px 26px rgb(0 0 0 / 0.35), 0 18px 40px -14px rgb(0 0 0 / 0.9)",
+            "inset 2px 3px 0 rgb(255 255 255 / 0.45), inset -3px -5px 0 rgb(0 0 0 / 0.35), inset 0 -14px 26px rgb(0 0 0 / 0.35), 0 18px 40px -14px rgb(0 0 0 / 0.9)",
         }}
       >
         {/* A gloss across the upper third — the house rule for anything with a
-            face, and the thing that stops the door reading as flat paint. */}
+            face, and what stops the door reading as flat paint. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-2 top-1.5 h-[30%] rounded-[1.1rem] bg-gradient-to-b from-white/40 to-transparent"
+          className="pointer-events-none absolute inset-x-2 top-1.5 h-[30%] rounded-[1.1rem] bg-gradient-to-b from-white/45 to-transparent"
+        />
+
+        {/* The glint: one highlight crossing the metal, on a long period. */}
+        <div
+          aria-hidden
+          className="scene-glint pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent"
         />
 
         {/* An inner panel line, the way a real door is pressed rather than
             moulded. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-[9%] rounded-[0.9rem] border border-white/15"
-          style={{ boxShadow: "inset 0 -2px 0 rgb(0 0 0 / 0.25)" }}
+          className="pointer-events-none absolute inset-[8%] rounded-[0.9rem] border border-white/20"
+          style={{ boxShadow: "inset 0 -2px 0 rgb(0 0 0 / 0.3)" }}
         />
 
         {/* Hinges, on the edge it swings from. */}
@@ -285,6 +413,18 @@ function Vault({ spec, open }: { spec: Spec; open?: boolean }) {
     </div>
   );
 }
+
+/** Eight rivets around the cabinet band, at a size you can count. */
+const RIVETS = [
+  "left-[7%] top-[7%]",
+  "left-1/2 top-[5%] -translate-x-1/2",
+  "right-[7%] top-[7%]",
+  "left-[5%] top-1/2 -translate-y-1/2",
+  "right-[5%] top-1/2 -translate-y-1/2",
+  "left-[7%] bottom-[7%]",
+  "left-1/2 bottom-[5%] -translate-x-1/2",
+  "right-[7%] bottom-[7%]",
+];
 
 /**
  * The vault wheel: rim, four spokes, hub.

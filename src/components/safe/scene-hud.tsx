@@ -35,7 +35,7 @@ export function SceneRail({
   onExplain: () => void;
 }) {
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3.5">
       <div className="flex items-center justify-between gap-2">
         <DifficultyBadge difficulty={box.difficulty} />
         <button
@@ -49,12 +49,12 @@ export function SceneRail({
       </div>
 
       <div className="text-center">
-        <h1 className="truncate text-sm font-bold tracking-tight text-zinc-300">
+        <h1 className="truncate text-sm font-bold tracking-tight text-zinc-400">
           {box.title}
         </h1>
         <p
           className={
-            "font-black leading-none tabular-nums " +
+            "mt-1.5 font-black leading-none tabular-nums " +
             (box.isChallenge
               ? "text-2xl text-grape"
               : "brass-text text-4xl min-[360px]:text-5xl")
@@ -64,7 +64,7 @@ export function SceneRail({
         </p>
       </div>
 
-      <div className="flex items-stretch justify-center gap-2">
+      <div className="flex items-stretch justify-center gap-2 pt-0.5">
         <Stat icon={<Users className="size-3.5" aria-hidden />} value={compact(box.playersCount)} label="hunters" />
         <Stat icon={<Swords className="size-3.5" aria-hidden />} value={compact(box.attemptsCount)} label="attempts" />
         {/*
@@ -97,7 +97,7 @@ function Stat({
   return (
     <span
       className={
-        "flex min-w-[4.5rem] flex-col items-center rounded-xl border px-2 py-1 " +
+        "flex min-w-[4.75rem] flex-col items-center rounded-xl border px-2.5 py-1.5 " +
         (accent ? "border-brass/35 bg-brass/10" : "border-white/10 bg-black/25")
       }
     >
@@ -113,7 +113,40 @@ function Stat({
 }
 
 /**
- * The dock: three floating buttons over the corner of the scene.
+ * Your best score, floating in the scene's top corner.
+ *
+ * It used to sit directly above the two dock buttons, which stacked three
+ * floating things into one corner and put all of them across the safe. Opposite
+ * corners: the reading in one, the controls in the other, and the safe visible
+ * between them.
+ */
+export function BestPill({
+  className = "",
+  best,
+  onClick,
+}: {
+  className?: string;
+  best: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Your best guess"
+      className={
+        "flex items-center gap-1.5 rounded-full border-2 border-brass/40 bg-background/80 py-1 pl-2.5 pr-3 font-mono text-xs font-black tabular-nums text-brass shadow-lg backdrop-blur transition hover:border-brass " +
+        className
+      }
+    >
+      <Trophy className="size-3.5" aria-hidden />
+      {best.toFixed(1)}%
+    </button>
+  );
+}
+
+/**
+ * The dock: the two floating buttons over the corner of the scene.
  *
  * Positioned by the caller against the scene rather than the window. `fixed`
  * would be the obvious choice and is the wrong one on a phone — a phone
@@ -124,48 +157,30 @@ function Stat({
  */
 export function SceneDock({
   className = "",
-  attempts,
   powerUps,
-  best,
   onAttempts,
   onPowerUps,
-  onBest,
 }: {
-  attempts: number;
   powerUps: number;
-  best: number | null;
   onAttempts: () => void;
   onPowerUps: () => void;
-  onBest: () => void;
   className?: string;
 }) {
   return (
-    <div className={`pointer-events-none z-20 flex flex-col items-end gap-2 ${className}`}>
-      {best !== null && (
-        <button
-          type="button"
-          onClick={onBest}
-          className="pointer-events-auto flex items-center gap-2 rounded-full border-2 border-brass/50 bg-background/85 py-1.5 pl-3 pr-2 font-mono text-sm font-black tabular-nums text-brass shadow-xl backdrop-blur transition hover:border-brass"
-        >
-          <span className="text-[10px] font-sans font-bold uppercase tracking-wide text-zinc-400">
-            your best
-          </span>
-          {best.toFixed(1)}%
-        </button>
-      )}
-
-      <div className="pointer-events-auto flex gap-2">
+    <div className={`z-20 flex flex-col items-end gap-2 ${className}`}>
+      <div className="flex gap-2">
         <DockButton
           onClick={onAttempts}
           label="Your attempts"
-          count={attempts}
           tone="sky"
           icon={<Swords className="size-5" aria-hidden />}
         />
+        {/* The shelf keeps its dot — "there is something here you can buy" is
+            news. A running total of your own guesses is not. */}
         <DockButton
           onClick={onPowerUps}
           label="Power-ups"
-          count={powerUps}
+          dot={powerUps > 0}
           tone="grape"
           icon={<Sparkles className="size-5" aria-hidden />}
         />
@@ -182,13 +197,13 @@ const TONES = {
 function DockButton({
   onClick,
   label,
-  count,
+  dot,
   icon,
   tone,
 }: {
   onClick: () => void;
   label: string;
-  count: number;
+  dot?: boolean;
   icon: ReactNode;
   tone: keyof typeof TONES;
 }) {
@@ -202,10 +217,8 @@ function DockButton({
       className={`btn-chunky relative flex size-14 items-center justify-center rounded-2xl text-ink ${face}`}
     >
       {icon}
-      {count > 0 && (
-        <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full border-2 border-background bg-foreground px-1 font-mono text-[10px] font-black leading-4 text-ink">
-          {compact(count)}
-        </span>
+      {dot && (
+        <span className="absolute -right-1 -top-1 size-3.5 rounded-full border-2 border-background bg-foreground" />
       )}
     </button>
   );

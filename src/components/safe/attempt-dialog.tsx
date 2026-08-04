@@ -52,7 +52,7 @@ export function AttemptDialog({
 
   return (
     <Modal
-      title={`Attempt ${attempt.ordinal + 1}`}
+      title="This guess"
       subtitle={new Date(attempt.at).toLocaleString()}
       width="sm"
       onClose={onClose}

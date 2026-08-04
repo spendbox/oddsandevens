@@ -727,3 +727,51 @@ summary,
     transform: rotateX(4deg) rotateY(-6deg);
   }
 }
+
+/* The spark ring behind a good result. */
+@keyframes spark-fly {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  25%  { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--fly-x)), calc(-50% + var(--fly-y))) scale(0.7);
+  }
+}
+
+/* The floor under the safe, sliding away towards the horizon. Slow enough that
+   it reads as depth rather than as a treadmill. */
+@keyframes floor-run {
+  from { background-position-y: 0; }
+  to   { background-position-y: 56px; }
+}
+
+/* A highlight travelling across polished metal. One pass, long gap — a sheen
+   on a loop is a barber's pole. */
+@keyframes glint {
+  0%, 72%  { transform: translateX(-160%) skewX(-18deg); opacity: 0; }
+  76%      { opacity: 0.85; }
+  92%      { opacity: 0; }
+  100%     { transform: translateX(180%) skewX(-18deg); opacity: 0; }
+}
+
+/* Dust hanging in the light. */
+@keyframes mote {
+  0%, 100% { opacity: 0.1; transform: translate3d(0, 0, 0); }
+  50%      { opacity: 0.5; transform: translate3d(var(--mx, 8px), var(--my, -14px), 0); }
+}
+
+.scene-floor {
+  animation: floor-run 7s linear infinite;
+}
+
+.scene-glint {
+  animation: glint 9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-floor,
+  .scene-glint,
+  .mote {
+    animation: none !important;
+  }
+}

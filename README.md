@@ -468,16 +468,25 @@ phone the safe was off the top of the screen before anyone had made a guess.
 
 It is a scene now, in three layers.
 
-**The room** is drifting orbs in the box's own colours with password characters
-rising through them. It is the only decoration on the screen and it is there to
-stop the safe floating in a void.
+**The room** is a place rather than a backdrop: a horizon the safe is
+silhouetted against, a perspective grid running away underneath it — the single
+cheapest thing that turns a flat panel into a space — one key light from
+above-left where everything else on this site is lit from, and weather (orbs,
+hanging dust, and the password characters drifting up through it). Its colour
+temperature answers to the score: cold and blue with nothing found, warm and
+gold as the locks give way, so you can tell from across a room how a hunt is
+going before reading a digit.
 
 **The vault** is planes at different depths inside one `preserve-3d` container,
 so the idle lean gives real parallax — the wheel travels further than the door,
-the door further than the cabinet. Depth is drawn as well as transformed,
-because a 9° lean is not enough on its own: a bright bevel top-left, a dark one
-bottom-right, and a wheel with four spokes, which is the silhouette that says
-*safe* from across a room.
+the door further than the cabinet. What makes it look heavy is *material*
+rather than the transform: a machined band around the cabinet with eight
+countable rivets, a fine brushed grain across the door so light behaves the way
+it does on steel instead of on plastic, the door's own thickness drawn as a
+plate behind its face, a bright bevel top-left against a dark one
+bottom-right, and one glint that crosses the metal every nine seconds. The
+wheel has four spokes, which is the silhouette that says *safe* from across a
+room.
 
 **The x-ray** is the read-out, and the only part that is not atmosphere. Ten
 locks in a ring across the door, one per ten points of score: a guess at 20%
@@ -492,7 +501,26 @@ swings clear — because colour alone is the one signal a colourblind player
 might miss, and this is the whole read-out.
 
 The locks follow your **latest** guess, not your best. Your best is a floating
-pill on the dock, where it cannot be lost.
+pill in the scene's opposite corner, where it cannot be lost.
+
+### The result
+
+A guess used to land silently — the number in the log changed and that was the
+whole feedback for the thing the game is about. It announces itself now: the
+score counts up rather than appearing (a number that climbs to 61 feels like a
+result; a number that is simply 61 feels like a field), Boxy reacts, the locks
+this guess opened arrive after the ones already open, and beating your own best
+is called out, because on a box that takes two thousand attempts that is the
+only progress there is.
+
+The one thing it must never become is an obstacle. A Merciless box is hundreds
+of these and Second Wind exists to let somebody make them as fast as they can
+type — so it closes on a tap anywhere, on Escape and on Enter, and it can be
+switched off from inside itself, which is remembered in `localStorage`.
+
+Nothing counts attempts at you. The per-attempt ordinal is gone from the log
+and from its dialog, and the dock has a dot rather than a total: "attempt 314"
+measures how long you have been stuck, not anything you can act on.
 
 Around that, nothing is prose. The rail across the top carries difficulty, the
 prize, the crowd and the score to beat as chips; the dock floats over the

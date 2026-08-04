@@ -133,16 +133,12 @@ function AttemptRow({
       <button
         type="button"
         onClick={onOpen}
-        aria-label={`Attempt ${attempt.ordinal + 1}: ${attempt.value}, scored ${attempt.scorePercent}%`}
+        aria-label={`${attempt.value}, scored ${attempt.scorePercent}%`}
         className={
           "panel panel-lift flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl px-3 py-2.5 text-left " +
           (attempt.scorePercent >= 45 ? "border-brass/40" : "")
         }
       >
-        <span className="w-8 shrink-0 text-right font-mono text-xs text-zinc-600">
-          {attempt.ordinal + 1}
-        </span>
-
         {/* `break-all` matters: a 40-character guess has no spaces to break on. */}
         <code className="min-w-0 flex-1 break-all font-mono text-sm text-zinc-200">
           {attempt.value}
