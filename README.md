@@ -108,6 +108,14 @@ the same question in different units: lives are *quantity*, Second Wind is
 adds to what's left rather than replacing it — a renewal that threw away the
 remainder would punish renewing early.
 
+A week is sold through `life_orders` like a top-up, but it buys no lives
+outright, so the row carries `quantity = 0` and a `bank_` reference. The prefix
+is what settlement reads — nothing infers intent from the zero — and 0046 is
+what makes a zero legal at all, on the condition that only a bank may write
+one. Until it, the column's original `between 1 and 100` rejected every Life
+Bank order at the insert and the dialog reported a payment problem for what was
+a schema one.
+
 The ceiling is a column on `players` with an expiry beside it (0037, 0039), and
 `life_cap` falls back to the platform default the moment that passes rather
 than at the next purchase or on a sweep that might never run. **A lapsed week
