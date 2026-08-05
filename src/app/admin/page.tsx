@@ -3,9 +3,9 @@
 // The platform's own back room.
 //
 // It grew past one screen, so it is four: money, the people, the boxes, and
-// our own box. Everything that runs itself still does — contributor payouts go
-// through Paystack subaccounts and never need a human — and what's left here is
-// the handful of things that genuinely need one.
+// our own box. Money moves by hand now — both halves of it, a winner's reward
+// and a contributor's share — so this screen is where that happens, and both
+// ledgers are built so that recording a transfer late or twice is harmless.
 //
 //   Money    revenue by stream, and rewards waiting to be sent
 //   Players  every address, what they've spent, what they've won
@@ -78,6 +78,8 @@ interface Claim {
   bankName: string | null;
   accountNumber: string | null;
   accountName: string | null;
+  /** There is an account to send it to. Without one there is nothing to tick. */
+  payable: boolean;
   wonAt: string;
   paidAt: string | null;
 }
@@ -133,7 +135,9 @@ export default function AdminPage() {
   }
   if (!authed) return <AdminLogin onIn={() => void load()} />;
 
-  const owed = claims.filter((c) => c.status === "submitted");
+  // Anything not yet sent that *can* be sent. A claim with no account behind
+  // it is waiting on the player, not on us, so it does not count as a job.
+  const owed = claims.filter((c) => c.status !== "paid" && c.payable);
 
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 space-y-5 px-4 py-6">
@@ -245,8 +249,8 @@ export default function AdminPage() {
           <p className="mb-3 text-xs text-zinc-500">
             <strong className="text-zinc-300">Close</strong> takes a box off the
             board and leaves its history intact — that is the normal remedy.{" "}
-            <strong className="text-zinc-300">Delete</strong> is permanent, takes
-            every attempt with it, and asks for a code by email first.{" "}
+            <strong className="text-zinc-300">Delete</strong> is permanent and takes
+            every attempt with it.{" "}
             <strong className="text-zinc-300">Feature</strong> puts a live box at
             the top of the landing page — as many as you like, from either side,
             and cracking one clears it automatically.
@@ -346,19 +350,27 @@ function ClaimRow({ claim, onPaid }: { claim: Claim; onPaid: () => void }) {
           <p className="truncate text-zinc-200">
             {claim.boxTitle} — <span className="text-zinc-400">{claim.player}</span>
           </p>
+          {/* The account comes off the player, not the claim — which is why
+              this used to be blank for everybody after bank details moved to
+              the account tab. */}
           <p className="mt-0.5 text-xs text-zinc-500">
-            {claim.status === "unclaimed"
-              ? "Waiting on their bank details"
-              : `${claim.accountName} · ${claim.bankName} · ${claim.accountNumber}`}
+            {claim.payable ? (
+              <span className="text-zinc-300">
+                {claim.accountName} · {claim.bankName} ·{" "}
+                <span className="font-mono">{claim.accountNumber}</span>
+              </span>
+            ) : (
+              "No bank account on their profile yet"
+            )}
           </p>
         </div>
         <span className="shrink-0 font-mono text-brass">{formatNaira(claim.amountKobo)}</span>
       </div>
 
-      {claim.status === "submitted" && (
+      {claim.status !== "paid" && (
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !claim.payable}
           onClick={async () => {
             setBusy(true);
             await fetch("/api/admin/claims", {
@@ -369,10 +381,14 @@ function ClaimRow({ claim, onPaid }: { claim: Claim; onPaid: () => void }) {
             setBusy(false);
             onPaid();
           }}
-          className="mt-2 flex items-center gap-1.5 rounded-lg border border-mark-green/40 bg-mark-green/10 px-3 py-1.5 text-xs font-semibold text-mark-green transition hover:border-mark-green disabled:opacity-50"
+          className="mt-2 flex items-center gap-1.5 rounded-lg border border-mark-green/40 bg-mark-green/10 px-3 py-1.5 text-xs font-semibold text-mark-green transition hover:border-mark-green disabled:opacity-40"
         >
           <Check className="size-3.5" aria-hidden />
-          {busy ? "Marking…" : "Tick when sent"}
+          {busy
+            ? "Marking…"
+            : claim.payable
+              ? "Tick when sent"
+              : "Waiting on their account"}
         </button>
       )}
       {claim.status === "paid" && (
@@ -527,7 +543,17 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
       )}
 
       {card === "password" && (
-        <CardDialog title="The password" onClose={() => setCard(null)}>
+        <CardDialog
+          title="The password"
+          onClose={() => setCard(null)}
+          blocked={
+            length < MIN_LENGTH
+              ? `At least ${MIN_LENGTH} characters`
+              : rejected.length > 0
+                ? "Remove what isn't allowed"
+                : null
+          }
+        >
           <div className="flex gap-2">
             <input
               value={secret}

@@ -20,13 +20,12 @@ import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 import type { Design } from "@/lib/game/designs";
 import { SafeArt } from "@/components/safe/safe-art";
 import { plural } from "@/lib/plural";
-import type { Bank } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
 import { usePlayer } from "./player-context";
 import { countdown, HeartArt, useNow } from "./lives-badge";
 import { BuyLivesDialog } from "./buy-lives-dialog";
 import { VerifyDialog } from "./account-dialog";
-import { PrizeClaimForm, type Prize } from "./prize-claim-form";
+import { PrizeOwed, type PayoutAccount, type Prize } from "./prize-claim-form";
 import { InvitePanel } from "./invite-panel";
 import { BankPanel } from "./bank-panel";
 import { SecurityPanel } from "./security-panel";
@@ -59,7 +58,7 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
   const { player, verified, ready, refresh } = usePlayer();
   const now = useNow(player.nextLifeAt);
   const [prizes, setPrizes] = useState<Prize[]>([]);
-  const [banks, setBanks] = useState<Bank[]>([]);
+  const [account, setAccount] = useState<PayoutAccount | null>(null);
   const [hunts, setHunts] = useState<HistoryHunt[]>([]);
   /*
    * Which tab, and the URL may ask for one.
@@ -82,9 +81,12 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
       fetch("/api/player/history", { cache: "no-store" }),
     ]);
     if (prizeRes.ok) {
-      const body = (await prizeRes.json()) as { prizes: Prize[]; banks: Bank[] };
+      const body = (await prizeRes.json()) as {
+        prizes: Prize[];
+        account: PayoutAccount | null;
+      };
       setPrizes(body.prizes);
-      setBanks(body.banks);
+      setAccount(body.account);
     }
     if (historyRes.ok) {
       setHunts(((await historyRes.json()) as { hunts: HistoryHunt[] }).hunts);
@@ -242,11 +244,11 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
           )}
 
           {unclaimed.map((prize) => (
-            <PrizeClaimForm
+            <PrizeOwed
               key={prize.id}
               prize={prize}
-              banks={banks}
-              onDone={() => void load()}
+              account={account}
+              onAddAccount={() => setTab("account")}
             />
           ))}
 

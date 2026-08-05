@@ -19,10 +19,12 @@ import { loadPricing, resolved } from "@/lib/game/pricing";
  * Buy a power-up for the hunt in progress.
  *
  * This is where the money actually is. A power-up bought against a
- * contributor's box pays them 70% and us 30%, and Paystack does that split at
- * settlement against their subaccount, so their share never sits in our
- * balance waiting for someone to move it. The public box has no contributor,
- * so there is nothing to split and it all stays here.
+ * contributor's box pays them 70% and us 30%. That split used to be made by
+ * Paystack at settlement, against a subaccount; it is recorded on the order
+ * and paid out by hand now, weekly, from the ledger the admin screen works
+ * through. The two halves of every sale are still written down at the moment
+ * of sale — `contributor_kobo` and `platform_kobo` — which is what makes the
+ * ledger add up whoever moves the money.
  *
  * Nothing is revealed at this point — the order is created `pending` and the
  * effect only fires when the payment is confirmed.
@@ -98,16 +100,6 @@ export async function POST(
     ? splitPowerUp(price, money.platformSharePercent)
     : { contributorKobo: 0, platformKobo: price };
 
-  const subaccount = box.contributor_id
-    ? ((
-        await db
-          .from("contributors")
-          .select("paystack_subaccount_code")
-          .eq("id", box.contributor_id)
-          .maybeSingle()
-      ).data?.paystack_subaccount_code as string | null) ?? null
-    : null;
-
   const reference = newReference("pu");
   const { error } = await db.from("power_up_orders").insert({
     reference,
@@ -130,7 +122,6 @@ export async function POST(
     amountKobo: price,
     reference,
     callbackUrl: `${appBaseUrl(req)}/b/${box.slug}?reference=${reference}`,
-    subaccount,
   });
   if (!init) {
     await db.from("power_up_orders").update({ status: "failed" }).eq("reference", reference);

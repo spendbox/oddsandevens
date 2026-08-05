@@ -1,16 +1,18 @@
 "use client";
 
-// Deleting a box, out of band.
+// Deleting a box.
 //
 // A box is meant to be permanent — players spend weeks against one password and
 // the record of that has to outlive anybody's change of heart. This is for the
 // times that isn't enough: a password nobody could type, something abusive in
 // a title, a duplicate from a payment that fired twice.
 //
-// Because it is irreversible and takes other people's history with it, it is
-// confirmed by a code emailed to the administrator rather than by a button. A
-// mis-click becomes an email, and a hijacked admin session on its own is not
-// enough to erase the board.
+// It used to send a six-digit code to the administrator's inbox. The step that
+// actually stops a mis-click is the one that remains: the first call reports
+// what the deletion would destroy — the hunters, the attempts — and the box's
+// own name has to be typed back before the button will do anything. A code
+// proved possession of an inbox; it did not make anybody read the number of
+// people whose fortnight they were about to erase.
 
 import { useState } from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
@@ -39,13 +41,15 @@ export function DeleteBoxDialog({
   onClose: () => void;
   onDeleted: () => void;
 }) {
-  const [step, setStep] = useState<"ask" | "code">("ask");
+  const [step, setStep] = useState<"ask" | "confirm">("ask");
   const [target, setTarget] = useState<Target | null>(null);
-  const [sentTo, setSentTo] = useState("");
   const [reason, setReason] = useState("");
-  const [code, setCode] = useState("");
+  /** The box's own name, typed back. The only key this door has. */
+  const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const matches = typed.trim().toLowerCase() === boxTitle.trim().toLowerCase();
 
   async function post(body: Record<string, unknown>) {
     const res = await fetch("/api/admin/boxes/delete", {
@@ -56,35 +60,26 @@ export function DeleteBoxDialog({
     return { res, body: (await res.json().catch(() => ({}))) as Record<string, unknown> };
   }
 
-  async function requestCode() {
+  async function look() {
     setBusy(true);
     setError(null);
     const { res, body } = await post({ reason });
     setBusy(false);
     if (!res.ok) {
-      setError(
-        body.error === "too_many_codes"
-          ? "Too many codes requested. Wait a few minutes."
-          : "Couldn't start that. Try again in a moment."
-      );
+      setError("Couldn't start that. Try again in a moment.");
       return;
     }
     setTarget(body.box as Target);
-    setSentTo(String(body.to ?? ""));
-    setStep("code");
+    setStep("confirm");
   }
 
   async function confirm() {
     setBusy(true);
     setError(null);
-    const { res, body } = await post({ code: code.trim(), reason });
+    const { res } = await post({ confirm: true, reason });
     setBusy(false);
     if (!res.ok) {
-      setError(
-        body.error === "invalid_code"
-          ? "That code is wrong or has expired."
-          : "Couldn't delete it. Try again in a moment."
-      );
+      setError("Couldn't delete it. Try again in a moment.");
       return;
     }
     onDeleted();
@@ -93,25 +88,21 @@ export function DeleteBoxDialog({
 
   return (
     <Modal
-      title={step === "ask" ? "Delete this box?" : "Confirm the deletion"}
-      subtitle={step === "ask" ? boxTitle : `We emailed a code to ${sentTo}.`}
+      title={step === "ask" ? "Delete this box?" : "Type its name to confirm"}
+      subtitle={boxTitle}
       icon={<Boxy mood="dizzy" still />}
       width="sm"
       onClose={onClose}
       footer={
         <button
           type="button"
-          disabled={busy || (step === "code" && code.trim().length !== 6)}
-          onClick={() => void (step === "ask" ? requestCode() : confirm())}
+          disabled={busy || (step === "confirm" && !matches)}
+          onClick={() => void (step === "ask" ? look() : confirm())}
           style={{ "--btn-lip": "var(--berry-deep)" } as React.CSSProperties}
           className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-berry px-4 py-3.5 text-ink"
         >
           <Trash2 className="size-4" aria-hidden />
-          {busy
-            ? "One moment…"
-            : step === "ask"
-              ? "Email me a code"
-              : "Delete it permanently"}
+          {busy ? "One moment…" : step === "ask" ? "Show me what it costs" : "Delete it permanently"}
         </button>
       }
     >
@@ -149,15 +140,16 @@ export function DeleteBoxDialog({
           </label>
         ) : (
           <label className="block">
-            <span className="text-sm font-bold text-zinc-300">The code</span>
+            <span className="text-sm font-bold text-zinc-300">
+              Type <span className="font-mono text-berry">{boxTitle}</span> to
+              confirm
+            </span>
             <input
-              inputMode="numeric"
               autoFocus
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              placeholder="000000"
-              className={`${LIGHT_INPUT} text-center font-mono text-2xl tracking-[0.4em]`}
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={boxTitle}
+              className={`${LIGHT_INPUT} font-mono`}
             />
           </label>
         )}

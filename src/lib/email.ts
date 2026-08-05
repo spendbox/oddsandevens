@@ -170,3 +170,27 @@ export async function sendRewardPaidEmail(params: {
     </div>`
   );
 }
+
+/** To a contributor, when an admin records a transfer of their share. */
+export async function sendPayoutSentEmail(params: {
+  to: string;
+  amountKobo: number;
+  accountName: string | null;
+  note?: string | null;
+}) {
+  const { to, amountKobo, accountName, note } = params;
+  await send(
+    to,
+    `${formatNaira(amountKobo)} sent to you`,
+    `<div ${WRAP}>
+      <h2>Your share is on its way</h2>
+      <p>We've transferred <strong>${formatNaira(amountKobo)}</strong>${
+        accountName ? ` to ${accountName}` : ""
+      } — your cut of everything players have spent on your safes.</p>
+      ${note ? `<p>Reference: ${note}</p>` : ""}
+      <p>Bank transfers usually land within a few minutes. Everything earned
+      and everything sent is on your dashboard.</p>
+      ${link("/dashboard", "Open your dashboard")}
+    </div>`
+  );
+}

@@ -1,16 +1,16 @@
 "use client";
 
-// Contributor money that didn't settle itself.
+// Contributor money, and the week's work of sending it.
 //
-// Most of it does: a power-up or a life bought against somebody's box is split
-// by Paystack at settlement, against their own subaccount, and never touches
-// our balance. So a healthy row here reads zero, and the panel says so rather
-// than showing an empty table that looks like a bug.
+// A power-up or a life bought against somebody's box used to split itself at
+// settlement, against their own Paystack subaccount, so this screen was for
+// the exceptions and a healthy row read zero. Payouts are made by hand now, so
+// every row here is real: whoever is doing the transfers works down this list
+// once a week, and ticking one off records it and emails the contributor.
 //
-// What accumulates is everything earned *before* a contributor connected an
-// account. That has to be transferred by hand, exactly like a prize, and the
-// only thing this screen has to do well is make it obvious who is owed what and
-// let whoever sent it tick it off.
+// The ledger is the record, not a running balance this screen keeps — owed is
+// earned minus sent, recomputed in SQL every time it is asked. That is what
+// makes recording a payout late, twice or partially harmless.
 
 import { useCallback, useEffect, useState } from "react";
 import { Banknote, Check, Landmark } from "lucide-react";
@@ -24,7 +24,6 @@ interface Payout {
   bankName: string | null;
   accountNumber: string | null;
   accountName: string | null;
-  autoSettled: boolean;
   earnedKobo: number;
   paidKobo: number;
   owedKobo: number;
@@ -65,10 +64,9 @@ export function PayoutsPanel() {
         Contributor payouts {owing.length > 0 && `(${owing.length})`}
       </h2>
       <p className="mb-3 text-xs text-zinc-500">
-        Contributors are told payouts go out <strong className="text-zinc-300">every week</strong>.
-        Anyone with a connected account is settled automatically by Paystack and
-        will show ₦0 here — what is listed is money earned before they connected
-        one, which has to be transferred by hand.
+        Contributors are told payouts go out <strong className="text-zinc-300">every week</strong>,
+        and every naira of it is transferred by hand. Ticking one off records
+        the transfer, emails them, and updates their dashboard.
         {total > 0 && (
           <>
             {" "}
@@ -135,11 +133,9 @@ function PayoutRow({ row, onPaid }: { row: Payout; onPaid: () => void }) {
             <span className="ml-2 text-xs font-normal text-zinc-500">@{row.handle}</span>
           </p>
           <p className="mt-0.5 text-xs text-zinc-500">
-            {row.autoSettled
-              ? "Settled automatically by Paystack."
-              : row.accountNumber
-                ? `${row.accountName} · ${row.bankName} · ${row.accountNumber}`
-                : "No bank details yet — they have to add them first."}
+            {row.accountNumber
+              ? `${row.accountName} · ${row.bankName} · ${row.accountNumber}`
+              : "No bank details yet — they have to add them first."}
           </p>
         </div>
         <div className="shrink-0 text-right">

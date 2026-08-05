@@ -76,15 +76,26 @@ export function LimitsPanel() {
     <section className="panel rounded-2xl p-5">
       <h2 className="mb-1 flex items-center gap-2 text-sm font-black uppercase tracking-wide text-zinc-300">
         <Fingerprint className="size-4" aria-hidden />
-        New accounts per address
+        New accounts per internet connection
       </h2>
       <p className="mb-4 text-xs leading-relaxed text-zinc-500">
-        Every account records a salted, one-way hash of where it was created —
-        never the address itself. Leave the cap blank or at zero for no limit,
-        which is the default: a mobile network can put thousands of real players
-        behind one address, and a cap set too low locks all of them out of
-        signing up. Existing accounts are never affected, wherever they sign in
-        from.
+        <strong className="text-zinc-300">What this counts.</strong> Every
+        device on the internet reaches us through an IP address — the number
+        the connection itself has, not the person. A home, an office or a café
+        is usually one address shared by everyone on it; a phone on mobile data
+        shares one with a large part of the network. So this is “how many new
+        accounts may be created from one connection in a day”, and it exists
+        because a fresh account comes with free lives, and the cheapest way to
+        attack a big safe is a few hundred throwaway inboxes from one laptop.
+      </p>
+      <p className="mb-4 text-xs leading-relaxed text-zinc-500">
+        Only a hash of the address is stored — salted and one-way, so it can
+        say “these two accounts came from the same place” and nothing else.
+        Leave the cap blank or at zero for no limit, which is the default: a
+        Nigerian mobile network can put thousands of real players behind one
+        address, and a cap set too low locks every one of them out of signing
+        up with no error anybody would ever see. Existing accounts are never
+        affected, wherever they sign in from.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">

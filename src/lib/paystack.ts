@@ -17,11 +17,6 @@ export async function initializeTransaction(params: {
   amountKobo: number;
   reference: string;
   callbackUrl: string;
-  /**
-   * The business's Paystack subaccount. When present, Paystack splits the
-   * payment at settlement and the business's share never touches our balance.
-   */
-  subaccount?: string | null;
 }): Promise<{ authorizationUrl: string } | null> {
   const key = secretKey();
   if (!key) return null;
@@ -37,7 +32,6 @@ export async function initializeTransaction(params: {
         amount: params.amountKobo,
         reference: params.reference,
         callback_url: params.callbackUrl,
-        ...(params.subaccount ? { subaccount: params.subaccount } : {}),
       }),
     });
     const body = await res.json();
@@ -91,10 +85,12 @@ export function isTerminalFailure(status: string): boolean {
 // ---------------------------------------------------------------------------
 // Payout accounts.
 //
-// A business's share of a life purchase has to reach its bank without anyone
-// moving it by hand, so each business is registered with Paystack as a
-// *subaccount* and every purchase is initialised against it. Paystack does the
-// split at settlement.
+// Every payment now lands whole in the Spendbox balance, and both shares of it
+// are written onto the order at the moment of sale. Contributors are paid out
+// of that by hand, weekly, against the ledger on the admin screen — so nothing
+// here creates a Paystack subaccount any more. What is left is the two calls
+// that make an account safe to pay: the bank list, and resolving a number to
+// the name on it before anybody sends anything to it.
 // ---------------------------------------------------------------------------
 
 export interface Bank {
@@ -156,48 +152,4 @@ export async function resolveAccount(params: {
   }
 }
 
-/**
- * Creates or updates the business's subaccount.
- *
- * `percentageCharge` is the share the *subaccount* keeps — so it is the
- * business's percentage, not ours. Passing an existing code updates in place
- * rather than leaving orphaned subaccounts behind every time a business
- * changes bank.
- */
-export async function upsertSubaccount(params: {
-  existingCode?: string | null;
-  businessName: string;
-  bankCode: string;
-  accountNumber: string;
-  percentageCharge: number;
-}): Promise<{ subaccountCode: string } | null> {
-  const key = secretKey();
-  if (!key) return null;
-  const path = params.existingCode
-    ? `${PAYSTACK_BASE}/subaccount/${encodeURIComponent(params.existingCode)}`
-    : `${PAYSTACK_BASE}/subaccount`;
-  try {
-    const res = await fetch(path, {
-      method: params.existingCode ? "PUT" : "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        business_name: params.businessName,
-        settlement_bank: params.bankCode,
-        account_number: params.accountNumber,
-        percentage_charge: params.percentageCharge,
-      }),
-    });
-    const body = await res.json();
-    if (!res.ok || !body?.status || !body?.data?.subaccount_code) {
-      console.error("[paystack] subaccount failed:", body);
-      return null;
-    }
-    return { subaccountCode: String(body.data.subaccount_code) };
-  } catch (err) {
-    console.error("[paystack] subaccount threw:", err);
-    return null;
-  }
-}
+

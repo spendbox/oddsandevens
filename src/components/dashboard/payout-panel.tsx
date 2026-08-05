@@ -1,14 +1,19 @@
 "use client";
 
-// Connecting a bank account.
+// Where a contributor's share is sent.
 //
-// This is what turns the 70% from a number on a dashboard into money in an
-// account: the details are registered with Paystack as a subaccount, and every
-// power-up sale after that is split at settlement. Nobody here moves it by
-// hand, and the contributor's share never sits in a Spendbox balance at all.
+// It used to register the account with Paystack as a subaccount so every sale
+// split itself at settlement. Payouts are made by hand now — weekly, against a
+// ledger — so this records an account and nothing more. The number is still
+// checked with the bank before it is stored, because the mistake it catches is
+// the same one either way.
+//
+// A saved account is a card rather than a form, and editing is something you
+// ask for. A confirmation sitting above two empty inputs reads as an account
+// that has not been saved.
 
 import { useEffect, useState } from "react";
-import { BadgeCheck } from "lucide-react";
+import { BadgeCheck, Pencil } from "lucide-react";
 import { ACCOUNT_NUMBER_REGEX } from "@/lib/constants";
 import type { Bank, ContributorProfile } from "@/lib/types";
 import { INPUT, Panel, PRIMARY } from "./shared";
@@ -25,6 +30,7 @@ export function PayoutPanel({
   const [accountNumber, setAccountNumber] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     fetch("/api/contributor/payout")
@@ -52,6 +58,8 @@ export function PayoutPanel({
     setBusy(false);
     if (res.ok) {
       setAccountNumber("");
+      setBankCode("");
+      setEditing(false);
       onSaved();
       return;
     }
@@ -67,20 +75,39 @@ export function PayoutPanel({
 
   return (
     <Panel title="Getting paid">
-      {profile.payout.connected && (
-        <p className="mb-4 flex items-start gap-2 rounded-xl bg-mark-green/10 px-3 py-2.5 text-sm text-mark-green">
-          <BadgeCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <span>
-            Settling to <strong>{profile.payout.accountName}</strong> at{" "}
-            {profile.payout.bankName}
-            {profile.payout.accountNumber
-              ? ` (•••• ${profile.payout.accountNumber.slice(-4)})`
-              : ""}
-            . Change it below whenever you like.
-          </span>
-        </p>
-      )}
+      {profile.payout.connected && !editing ? (
+        <>
+          <div className="rounded-2xl border-2 border-mint/40 bg-mint/10 p-4">
+            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-mint">
+              <BadgeCheck className="size-4 shrink-0" aria-hidden />
+              Account set
+            </p>
+            <p className="mt-2 truncate text-lg font-black tracking-tight">
+              {profile.payout.accountName}
+            </p>
+            <p className="mt-0.5 truncate text-sm text-zinc-300">
+              {profile.payout.bankName}
+              {profile.payout.accountNumber
+                ? ` · ···· ${profile.payout.accountNumber.slice(-4)}`
+                : ""}
+            </p>
+          </div>
 
+          <p className="mt-3 text-sm text-zinc-400">
+            Your share is transferred here weekly. Everything earned so far is
+            on the earnings tab.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-white/15 bg-white/6 px-5 py-3 font-bold transition hover:border-brass/50 hover:bg-white/10 active:translate-y-0.5"
+          >
+            <Pencil className="size-4" aria-hidden />
+            Change the account
+          </button>
+        </>
+      ) : (
       <div className="space-y-3">
         <select
           value={bankCode}
@@ -110,12 +137,26 @@ export function PayoutPanel({
           {busy ? "Checking the account…" : profile.payout.connected ? "Update" : "Connect"}
         </button>
 
+        {profile.payout.connected && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(false);
+              setError(null);
+            }}
+            className="w-full rounded-2xl px-5 py-2 text-sm font-bold text-zinc-500 transition hover:text-zinc-200"
+          >
+            Cancel
+          </button>
+        )}
+
         {banks.length === 0 && (
           <p className="text-xs text-zinc-500">
             The bank list isn’t loading right now — try again shortly.
           </p>
         )}
       </div>
+      )}
     </Panel>
   );
 }

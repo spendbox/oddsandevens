@@ -43,8 +43,12 @@ export async function GET() {
     livesSold: 0,
     platformKobo: 0,
     sharePercent: 100 - PLATFORM_SHARE_PERCENT,
+    paidKobo: 0,
+    owedKobo: 0,
   };
-  if (!contributor) return NextResponse.json({ earnings: empty, winners: [] });
+  if (!contributor) {
+    return NextResponse.json({ earnings: empty, winners: [], payouts: [] });
+  }
 
   const db = supabaseAdmin();
   const [{ data: orders }, { data: lifeOrders }, { data: unlocked }] = await Promise.all([
@@ -99,5 +103,35 @@ export async function GET() {
     claimStatus: (box.reward_claims?.[0]?.status ?? "unclaimed") as WinnerRow["claimStatus"],
   }));
 
-  return NextResponse.json({ earnings, winners });
+  /*
+   * What has actually been sent.
+   *
+   * Payouts are made by hand — weekly, by an admin working through a ledger —
+   * so "earned" and "received" are two different numbers and a dashboard that
+   * shows only the first is a dashboard that invites the email asking where
+   * the money is. Both are here, with the transfers behind them.
+   */
+  const { data: sent } = await db
+    .from("contributor_payouts")
+    .select("id, amount_kobo, paid_at, note")
+    .eq("contributor_id", contributor.id)
+    .order("paid_at", { ascending: false })
+    .limit(50);
+
+  const payouts = ((sent ?? []) as {
+    id: string;
+    amount_kobo: number;
+    paid_at: string;
+    note: string | null;
+  }[]).map((row) => ({
+    id: row.id,
+    amountKobo: Number(row.amount_kobo),
+    paidAt: row.paid_at,
+    note: row.note,
+  }));
+
+  earnings.paidKobo = payouts.reduce((total, p) => total + p.amountKobo, 0);
+  earnings.owedKobo = Math.max(0, earnings.totalKobo - earnings.paidKobo);
+
+  return NextResponse.json({ earnings, winners, payouts });
 }

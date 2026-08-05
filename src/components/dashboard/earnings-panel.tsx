@@ -5,20 +5,23 @@
 // The two belong on one screen because they are the same story: players buy
 // power-ups because a box is hard, and a hard box eventually gets cracked.
 
-import { Trophy } from "lucide-react";
+import { BadgeCheck, Trophy } from "lucide-react";
 import { formatNaira, rewardLabel } from "@/lib/game/rewards";
-import type { ContributorEarnings, WinnerRow } from "@/lib/types";
+import type { ContributorEarnings, ContributorPayout, WinnerRow } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
 import { Panel, Stat } from "./shared";
 
 export function EarningsPanel({
   earnings,
   winners,
+  payouts,
   connected,
   onConnect,
 }: {
   earnings: ContributorEarnings;
   winners: WinnerRow[];
+  /** Transfers already made. Empty until the first weekly run. */
+  payouts: ContributorPayout[];
   connected: boolean;
   onConnect: () => void;
 }) {
@@ -26,6 +29,25 @@ export function EarningsPanel({
     <div className="space-y-4">
       <div className="grid gap-2 sm:grid-cols-3">
         <Stat label="Earned" value={formatNaira(earnings.totalKobo)} hint="All time" />
+        {/*
+          Earned and received are two different numbers, because a payout is a
+          transfer somebody makes on a Friday rather than a split Paystack
+          routes at settlement. Showing only the first is what produces the
+          email asking where the money is.
+        */}
+        <Stat
+          label="Paid out"
+          value={formatNaira(earnings.paidKobo)}
+          hint={payouts.length > 0 ? `${payouts.length} transfers` : "Nothing sent yet"}
+        />
+        <Stat
+          label="Owed to you"
+          value={formatNaira(earnings.owedKobo)}
+          hint="Sent weekly"
+        />
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
         <Stat label="Last 30 days" value={formatNaira(earnings.last30dKobo)} />
         <Stat
           label="Sold to hunters"
@@ -33,6 +55,34 @@ export function EarningsPanel({
           hint={`Power-ups + lives · you keep ${earnings.sharePercent}%`}
         />
       </div>
+
+      {payouts.length > 0 && (
+        <Panel title="Transfers to you">
+          <ul className="space-y-1.5">
+            {payouts.map((payout) => (
+              <li
+                key={payout.id}
+                className="flex items-center justify-between gap-3 rounded-xl bg-white/5 px-3 py-2 text-sm"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <BadgeCheck className="size-4 shrink-0 text-mint" aria-hidden />
+                  <span className="truncate text-zinc-300">
+                    {new Date(payout.paidAt).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                    {payout.note ? ` · ${payout.note}` : ""}
+                  </span>
+                </span>
+                <span className="shrink-0 font-mono font-black text-mint">
+                  {formatNaira(payout.amountKobo)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
 
       {!connected && earnings.totalKobo > 0 && (
         <p className="rounded-xl border border-brass/30 bg-brass/10 px-4 py-3 text-sm text-brass">

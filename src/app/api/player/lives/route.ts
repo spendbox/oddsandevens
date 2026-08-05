@@ -20,8 +20,8 @@ import { findBox } from "@/lib/game/view";
  * is — somebody is three characters from cracking a particular safe and won't
  * wait an hour for the next guess. So the box they were looking at comes along
  * with the purchase, and its contributor takes 70% exactly as they would on a
- * power-up. Paystack does the split at settlement against their subaccount, so
- * their share never sits in our balance waiting for someone to move it.
+ * power-up. The split is recorded on the order and paid out by hand from the
+ * admin ledger; it is not routed by Paystack any more.
  *
  * With no box — bought from the player's own page — and on the platform's own
  * box, which has no contributor, the whole thing stays here.
@@ -80,16 +80,6 @@ export async function POST(req: Request) {
     ? splitSale(priceKobo, money.platformSharePercent)
     : { contributorKobo: 0, platformKobo: priceKobo };
 
-  const subaccount = contributorId
-    ? ((
-        await db
-          .from("contributors")
-          .select("paystack_subaccount_code")
-          .eq("id", contributorId)
-          .maybeSingle()
-      ).data?.paystack_subaccount_code as string | null) ?? null
-    : null;
-
   const reference = newReference(bank ? "bank" : "life");
   const { error } = await db.from("life_orders").insert({
     reference,
@@ -119,7 +109,6 @@ export async function POST(req: Request) {
     amountKobo: priceKobo,
     reference,
     callbackUrl,
-    subaccount,
   });
   if (!init) {
     await db.from("life_orders").update({ status: "failed" }).eq("reference", reference);

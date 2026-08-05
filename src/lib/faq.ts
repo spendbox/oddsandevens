@@ -322,7 +322,7 @@ export const FAQ: FaqItem[] = [
     topic: "Money",
     question: "How does a contributor earn?",
     answer: [
-      `${share}% of everything hunters spend on your box — power-ups, and lives bought while playing it. Spendbox keeps ${PLATFORM_SHARE_PERCENT}%, and it is settled to your bank account automatically as each sale happens.`,
+      `${share}% of everything hunters spend on your box — power-ups, and lives bought while playing it. Spendbox keeps ${PLATFORM_SHARE_PERCENT}%. Your share is recorded against every sale as it happens and transferred to your bank account weekly.`,
       "What you funded isn't income. That's the reward, and it goes to whoever cracks the box.",
     ],
   },
@@ -330,7 +330,7 @@ export const FAQ: FaqItem[] = [
     topic: "Money",
     question: "When do I get paid?",
     answer: [
-      "Automatically, as it happens. Your bank account is registered with Paystack as a subaccount and every sale is split at settlement, so your share never sits in a Spendbox balance waiting for someone to move it.",
+      "Weekly, by bank transfer to the account on your dashboard. Both halves of every sale are written down the moment it is made, so your dashboard shows what you have earned, what has been sent, and what is still owed — and those three numbers are computed from the sales themselves rather than from a balance anybody keeps by hand.",
     ],
   },
   {

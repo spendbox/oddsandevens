@@ -16,6 +16,7 @@ import { VerifyDialog } from "@/components/player/account-dialog";
 import type {
   HuntRow,
   ContributorEarnings,
+  ContributorPayout,
   ContributorProfile,
   OwnedBox,
   WinnerRow,
@@ -45,6 +46,8 @@ const NO_EARNINGS: ContributorEarnings = {
   livesSold: 0,
   platformKobo: 0,
   sharePercent: 70,
+  paidKobo: 0,
+  owedKobo: 0,
 };
 
 export default function DashboardPage() {
@@ -57,6 +60,7 @@ export default function DashboardPage() {
   const [boxes, setBoxes] = useState<OwnedBox[]>([]);
   const [attempts, setAttempts] = useState<HuntRow[]>([]);
   const [earnings, setEarnings] = useState<ContributorEarnings>(NO_EARNINGS);
+  const [payouts, setPayouts] = useState<ContributorPayout[]>([]);
   const [winners, setWinners] = useState<WinnerRow[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -80,9 +84,11 @@ export default function DashboardPage() {
       const money = (await moneyRes.json()) as {
         earnings: ContributorEarnings;
         winners: WinnerRow[];
+        payouts: ContributorPayout[];
       };
       setEarnings(money.earnings);
       setWinners(money.winners);
+      setPayouts(money.payouts ?? []);
     }
   }, []);
 
@@ -222,6 +228,7 @@ export default function DashboardPage() {
               <EarningsPanel
                 earnings={earnings}
                 winners={winners}
+                payouts={payouts}
                 connected={profile.payout.connected}
                 onConnect={() => {
                   document

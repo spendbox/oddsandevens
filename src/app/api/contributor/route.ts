@@ -10,7 +10,6 @@ function toProfile(row: {
   payout_bank_name: string | null;
   payout_account_number: string | null;
   payout_account_name: string | null;
-  paystack_subaccount_code: string | null;
 }): ContributorProfile {
   return {
     displayName: row.display_name,
@@ -19,7 +18,9 @@ function toProfile(row: {
       bankName: row.payout_bank_name,
       accountNumber: row.payout_account_number,
       accountName: row.payout_account_name,
-      connected: !!row.paystack_subaccount_code,
+      // An account on file, which is now the whole of what "connected" means:
+      // payouts are transfers somebody makes, not a split Paystack routes.
+      connected: !!row.payout_account_number,
     },
   };
 }

@@ -26,7 +26,7 @@ export default function PrivacyPage() {
             [
               "A display name and handle, which are public.",
               "The passwords you set, stored so that only the database can compare against them.",
-              "Bank details, registered with our payment provider so your share settles automatically.",
+              "Bank details, so a reward or a contributor's share can be transferred to you.",
             ],
             "And technically, in ordinary server logs: IP address, browser, and the pages requested. These are used to keep the service working and to spot abuse.",
           ],
@@ -60,7 +60,7 @@ export default function PrivacyPage() {
             "Three processors, and nothing beyond what each needs:",
             [
               "Supabase hosts the database and authentication.",
-              "Paystack processes payments and payouts. It receives the email address a payment is made from, the amount, and — for contributors — the bank account their share settles to.",
+              "Paystack processes payments. It receives the email address a payment is made from and the amount, and it is asked to confirm the name on a bank account before we store it.",
               "Resend sends the emails: verification codes, and the note telling you that you have won something.",
             ],
             "We do not sell data, and there is no fourth party. We will disclose information where the law requires it.",
