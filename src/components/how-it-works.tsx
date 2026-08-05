@@ -104,6 +104,14 @@ export function HowItWorksDialog({ onClose }: { onClose: () => void }) {
             letters, numbers, symbols — or any combination of them.
           </p>
           <p>
+            <strong className="text-zinc-100">A space counts as a character.</strong>{" "}
+            A password can be a phrase, so “open sesame” is as valid as
+            “opensesame” and the two are different passwords. Wherever a guess
+            is read back to you a space is drawn as{" "}
+            <span className="font-mono text-brass">␣</span>, so you can always
+            see whether one is there.
+          </p>
+          <p>
             Every guess costs one life. In return, you receive only a few clues.
           </p>
         </Section>
