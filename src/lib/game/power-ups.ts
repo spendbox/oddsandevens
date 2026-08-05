@@ -140,13 +140,12 @@ export interface PowerUpSpec {
    * `once` means the answer it gives is permanent and complete — a length
    * doesn't change, and neither does what the password is made of, so buying
    * it twice would pay for the same sentence. `hourly`/`daily` rent a window
-   * instead and are buyable again the moment it lapses. `partial` hands over
-   * a slice of something bigger and can be bought until there's none left.
+   * instead and are buyable again the moment it lapses.
    *
    * Worth saying out loud on the dialog: "can I buy this again?" is the first
    * thing anyone wonders.
    */
-  repeat: "once" | "partial" | "hourly" | "daily";
+  repeat: "once" | "hourly" | "daily";
 }
 
 export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
@@ -246,12 +245,12 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     name: "X-Ray",
     blurb: "Reveals half the password's distinct characters, in no order.",
     detail:
-      "Names half of the different characters the password is built from — the actual characters, with their case. It does not say where any of them go, how many times each appears, or what the other half are. On a long password this is the single biggest cut to the search: every character it names is one you can stop hunting for.",
+      "Names half of the different characters the password is built from — the actual characters, with their case. It does not say where any of them go, how many times each appears, or what the other half are. On a long password this is the single biggest cut to the search: every character it names is one you can stop hunting for. It sells once, so the half it doesn't name is a half you have to find.",
     caveat:
-      "Half of what you don't already know, rounded up, chosen at random. Unordered, and it says nothing about position.",
+      "Half the distinct characters, rounded up, chosen at random. Unordered, and it says nothing about position. One purchase — the other half stays hidden.",
     share: 0.05,
     floorKobo: 1_000 * KOBO,
-    repeat: "partial",
+    repeat: "once",
   },
 
   vowel_scan: {
@@ -474,18 +473,12 @@ export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
     case "breakdown":
       return !breakdownActive(revealed);
     case "x_ray":
-      // Buyable until there is nothing left to name. Each purchase draws from
-      // the characters it *hasn't* shown you, so a second one is never a
-      // second copy of the first — and once the whole set is out, the shelf
-      // stops selling it rather than taking money for nothing.
-      //
-      // Both facts this reads are ones the player has already paid for and
-      // been told, so a greyed-out button still leaks nothing.
-      return (
-        revealed.charset === null ||
-        revealed.charsetTotal === null ||
-        revealed.charset.length < revealed.charsetTotal
-      );
+      // Once. It used to sell repeatedly, drawing from what it hadn't named
+      // yet — which meant enough purchases eventually named the whole
+      // alphabet of the password and turned the biggest hint on the shelf
+      // into a complete answer for anybody willing to keep paying. Half, and
+      // then you work.
+      return revealed.charset === null;
   }
 }
 

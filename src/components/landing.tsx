@@ -9,13 +9,14 @@
 // That's the reason this is a client component. The board is behind a session,
 // and a session lives in the browser.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Swords, Trophy } from "lucide-react";
 import { Boxy } from "@/components/art/boxy";
 import { SafeArt } from "@/components/safe/safe-art";
 import { BoxCard } from "@/components/box-card";
 import { Featured } from "@/components/featured";
 import { InPlay } from "@/components/in-play";
+import { Tutorial, tutorialSeen } from "@/components/tutorial";
 import { HowItWorksButton } from "@/components/how-it-works";
 import { BuildDialog } from "@/components/build-dialog";
 import { usePlayer } from "@/components/player/player-context";
@@ -38,6 +39,20 @@ export function Landing({
   const [tab, setTab] = useState<Tab>("locked");
   const [signIn, setSignIn] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  /*
+   * The tutorial, once per device.
+   *
+   * Read in an effect rather than during render: `localStorage` doesn't exist
+   * on the server, and reading it while rendering would make the first client
+   * paint disagree with the markup that arrived.
+   */
+  const [tutorial, setTutorial] = useState(false);
+  useEffect(() => {
+    if (!verified) return;
+    if (tutorialSeen()) return;
+    const id = window.setTimeout(() => setTutorial(true), 600);
+    return () => window.clearTimeout(id);
+  }, [verified]);
 
   const boardOpen = verified || showAll;
   const boxes = tab === "locked" ? locked : cracked;
@@ -167,6 +182,7 @@ export function Landing({
       <PutOneUp />
 
       {signIn && <VerifyDialog onClose={() => setSignIn(false)} />}
+      {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
     </>
   );
 }

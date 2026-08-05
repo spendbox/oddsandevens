@@ -162,8 +162,6 @@ export function PowerUpShelf({
                     powerUp.blurb
                   ) : powerUp.repeat === "once" ? (
                     "Bought. It only sells once."
-                  ) : powerUp.repeat === "partial" ? (
-                    "Nothing left to name — you have all of them."
                   ) : (
                     "Already bought — it has nothing left to tell you."
                   )}
@@ -303,12 +301,10 @@ function PowerUpDialog({
         <p className="flex items-start gap-2 text-sm text-zinc-500">
           <Repeat2 className="mt-0.5 size-4 shrink-0" aria-hidden />
           {powerUp.repeat === "once"
-            ? "One purchase per box. What it tells you never changes, so there'd be nothing to buy a second time."
-            : powerUp.repeat === "partial"
-              ? "Buy it as often as you like. Each one draws from what it hasn't shown you yet, so it never repeats itself — and it stops selling once there's nothing left to name."
-              : powerUp.repeat === "hourly"
-                ? "Runs for an hour, then lapses. Buy it again whenever you need another."
-                : "Runs for 24 hours, then lapses. Buy it again whenever you need another."}
+            ? "One purchase per box. What it gives you never changes, so there'd be nothing to buy a second time."
+            : powerUp.repeat === "hourly"
+              ? "Runs for an hour, then lapses. Buy it again whenever you need another."
+              : "Runs for 24 hours, then lapses. Buy it again whenever you need another."}
         </p>
 
         {/*

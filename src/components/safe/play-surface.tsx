@@ -629,11 +629,12 @@ function Verdict({ outcome, view }: { outcome: Outcome; view: PlayView }) {
             <>You cracked it. No money behind this one — just the fact that you did it.</>
           ) : (
             <>
-              {formatNaira(view.box.rewardKobo)} is yours. We’ve emailed you —{" "}
+              {formatNaira(view.box.rewardKobo)} is yours, and it’s sent within
+              24 hours. We’ve emailed you —{" "}
               <Link href="/me" className="text-brass underline">
                 add your bank account
               </Link>{" "}
-              and we’ll send it.
+              and the transfer follows.
             </>
           )}
         </p>

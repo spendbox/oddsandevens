@@ -88,6 +88,12 @@ Lives can also be bought at **₦150 each**, up to 100 at a time. Nobody has to
 — the pool refills whether or not anyone pays, and the buy dialog says so
 before it says anything else.
 
+### Rewards
+
+A cracked safe pays out **within 24 hours** — to an account already on file. If
+the winner hadn't added one, the clock runs from when they do, which is most of
+why the tutorial ends on the bank screen rather than mentioning it in passing.
+
 ### Life Bank
 
 The ceiling is the real cost of a long hunt: an evening away banks seven
@@ -214,7 +220,7 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Consonant Scan | 1.25% | Counts the consonants — every letter that isn't a vowel |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
 | Space Count | 5% | Counts the spaces |
-| X-Ray | 5% | Names half the distinct characters it hasn't named yet, unordered |
+| X-Ray | 5% | Names half the distinct characters, unordered. Once |
 | Digit Count | 7.5% | Counts the digits |
 | Lowercase Count | 8.5% | Counts the lowercase letters |
 | Capital Count | 9% | Counts the capital letters |
@@ -406,6 +412,26 @@ attempt log and flicking back must scroll, not dismiss. Once engaged it takes
 over, which is why the touch listener is non-passive and added by hand —
 `preventDefault` is the only thing that stops the browser deciding halfway
 through that this was a scroll after all.
+
+---
+
+## The tutorial
+
+Seven cards, once per device, for somebody who has just verified an address and
+wants to guess a password. Everything in it is written down elsewhere — in the
+FAQ, in How it works, on the shelf — and none of that is read by a new player. A
+reference answers the question you already have; this answers the ones you don't
+know to ask.
+
+**It ends on the bank details screen**, and that is the whole shape of it. The
+moment to ask somebody for an account number is while nothing is at stake — not
+in the thirty seconds after a win, when the honest answer to "why do you need my
+bank details" is "because you just won ₦700,000", which is exactly what a
+phishing screen would say. It deep-links to `/me?tab=account` rather than
+dropping them at the safehouse to go and find the right tab.
+
+Nothing in it is a gate: every step has a way past and the whole thing has a
+Skip. A tutorial you cannot leave is an advertisement.
 
 ---
 

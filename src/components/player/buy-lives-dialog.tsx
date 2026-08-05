@@ -228,29 +228,32 @@ export function BuyLivesDialog({
         */}
         <div className="grid gap-2 sm:grid-cols-2">
           <Option
+            index={0}
             on={buying === "lives"}
             onPick={() => setBuying("lives")}
             icon={<Heart className="size-6 fill-berry text-berry" aria-hidden />}
             title="Lives"
-            body="A guess each. Yours forever, on any box."
+            body="A guess each. Yours forever, on any safe."
             price={`${formatNaira(player.lifePriceKobo)} each`}
           />
           {canWind && secondWind && (
             <Option
+              index={1}
               on={buying === "wind"}
               onPick={() => setBuying("wind")}
               icon={<PowerUpArt kind="second_wind" className="size-7" />}
               title="Second Wind"
-              body={SECOND_WIND_HOURS === 1 ? "Immortal for one hour." : `Immortal for ${SECOND_WIND_HOURS} hours.`}
+              body={`${SECOND_WIND_HOURS === 1 ? "Immortal for one hour" : `Immortal for ${SECOND_WIND_HOURS} hours`} — on this safe only.`}
               price={formatNaira(secondWind.priceKobo)}
             />
           )}
           <Option
+            index={2}
             on={bank}
             onPick={() => setBuying("bank")}
             icon={<LifeBankArt className="size-7" />}
             title="Life Bank"
-            body={`Hold ${LIFE_BANK_MAX} instead of ${LIVES_MAX} for a week, and fill up now.`}
+            body={`Hold ${LIFE_BANK_MAX} lives, instead of ${LIVES_MAX}, for a week.`}
             price={formatNaira(lifeBankKobo)}
           />
         </div>
@@ -312,8 +315,17 @@ export function BuyLivesDialog({
   );
 }
 
-/** One of the two things you can buy here. */
+/**
+ * One of the three things you can buy here.
+ *
+ * They arrive one after another rather than all at once — a hundred and eighty
+ * milliseconds apart — so the eye is walked across the three options instead of
+ * being handed a wall of them. The chosen one lifts and keeps a lit ring, which
+ * is the only state on this dialog that decides what the button at the bottom
+ * charges for.
+ */
 function Option({
+  index,
   on,
   onPick,
   icon,
@@ -321,6 +333,7 @@ function Option({
   body,
   price,
 }: {
+  index: number;
   on: boolean;
   onPick: () => void;
   icon: React.ReactNode;
@@ -333,14 +346,20 @@ function Option({
       type="button"
       onClick={onPick}
       aria-pressed={on}
+      style={{ ["--i" as string]: index }}
       className={
-        "flex flex-col items-start gap-1 rounded-2xl border-2 p-3 text-left transition " +
+        "animate-fade-up stagger flex flex-col items-start gap-1 rounded-2xl border-2 p-3 text-left transition duration-200 " +
         (on
-          ? "border-brass bg-brass/15"
-          : "border-white/12 bg-white/5 hover:border-white/30")
+          ? "-translate-y-0.5 border-brass bg-brass/15 shadow-[0_0_0_3px_var(--brass-deep)]"
+          : "border-white/12 bg-white/5 hover:-translate-y-0.5 hover:border-white/30")
       }
     >
-      <span className="flex items-center gap-2 font-black tracking-tight">
+      <span
+        className={
+          "flex items-center gap-2 font-black tracking-tight transition " +
+          (on ? "[&>*:first-child]:scale-110" : "")
+        }
+      >
         {icon}
         {title}
       </span>

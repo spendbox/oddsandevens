@@ -61,7 +61,7 @@ export const FAQ: FaqItem[] = [
     topic: "Playing",
     question: "Is the money real?",
     answer: [
-      "Yes. Every reward on Spendbox is real money, paid in naira to the bank account of whoever cracks the box.",
+      "Yes. Every reward on Spendbox is real money, paid in naira to the bank account of whoever cracks the box, within 24 hours.",
       "It is collected up front, in full, before a box ever goes on the board — from us on the boxes we create, and from the player who put it up on everyone else's. Nobody is waiting on somebody to be good for it at the moment they win.",
       "You can see it for yourself: the Already cracked tab on the front page lists every box that has been opened and what came out of it.",
     ],
@@ -344,6 +344,7 @@ export const FAQ: FaqItem[] = [
     question: "How do I get a reward I've won?",
     answer: [
       "Opening a box creates a claim. If you've already saved your bank details, it goes there; if not, add them in your safe house under Account and the transfer follows. We check the number with your bank and show you the name on it before saving.",
+      "Rewards are sent within 24 hours of the box being cracked. If your bank details weren't on file when you won, the 24 hours runs from when you add them — we can't send money to an account we don't have.",
     ],
   },
   {
