@@ -85,14 +85,21 @@ export function ChaseScene({
           the clearance measured at rest is the clearance at every moment of
           the corner.
         */}
-        <div className="chase-bend absolute inset-0">
+        <div className="chase-bend pointer-events-none absolute inset-0">
           <Road terrain={terrain} />
           <Scenery terrain={terrain} />
           <Streaks />
         </div>
 
-        {/* Ahead of you on the same road, so it reaches each corner first. */}
-        <div className="chase-swerve absolute inset-0">
+        {/*
+          Ahead of you on the same road, so it reaches each corner first.
+
+          `pointer-events-none` on the wrapper and back on for the safe itself.
+          A transparent div is still a hit target, so these full-bleed layers
+          were catching every tap meant for what is underneath them — which is
+          what stopped the safe opening its own sheet when you tapped it.
+        */}
+        <div className="chase-swerve pointer-events-none absolute inset-0">
           <Safe design={design} cracks={cracks} open={open} onTap={onSafe} />
         </div>
 
@@ -105,7 +112,7 @@ export function ChaseScene({
           Banking as one: they are all on the same piece of road, and cars that
           leaned independently would read as a pile-up rather than a chase.
         */}
-        <div className="chase-lean absolute inset-0">
+        <div className="chase-lean pointer-events-none absolute inset-0">
           <Field
             rivals={rivals}
             night={daypart === "night" || daypart === "dawn"}
@@ -186,24 +193,26 @@ function Verge({ terrain }: { terrain: ChaseTerrain }) {
 function Road({ terrain }: { terrain: ChaseTerrain }) {
   return (
     /*
-      56% of the width, and that number is arithmetic rather than taste. The
-      field occupies the middle 44% — lanes at 34% and 66% with cars 12.5%
-      wide — so a 54% road leaves a lane's worth of margin either side at rest
-      and still covers every wheel at the extremes of the bend. It used to be
-      80% on a phone, which left the verges too narrow to stand anything on:
-      half the trees were growing out of the tarmac.
+      Sized to the field, which is the only thing it has to be: the outermost
+      lanes sit at 31% and 66% and a car is up to 12.5% wide, so the wheels
+      reach about 25% and 72%, and 60% of the width covers that with a couple
+      of percent to spare on each side.
 
-      The skew is what sets the verge width, not the road's own edges: two and
-      a half degrees over a 700px screen swings each corner about fifteen
-      pixels wider than the ribbon is at its middle, and the trees have to
-      clear *that*, not the number above. Measured rather than reasoned — a
-      hit test against the tarmac at every phase of the bend, at 320px, where
-      the tightest moment leaves about ten pixels.
+      Two things move the wheels further out than those numbers suggest, and
+      both are the reason this is 60% rather than 55%. The road skews into its
+      corners, which swings each end of the ribbon inward relative to the
+      middle. And the field *banks* — a rotation about the middle of the
+      screen, so a car in the back row swings sideways by rather more than the
+      one at the front.
+
+      All of it measured rather than reasoned: a hit test of every car and
+      every tree against the tarmac, at five phases of the bend, at 320 and
+      390. Nothing overlaps at any of them.
 
       `chase-carve` owns the transform, so the centring lives in its keyframes
       rather than in a `-translate-x-1/2` here that it would overwrite.
     */
-    <div aria-hidden className="chase-carve absolute inset-y-0 left-1/2 w-[54%] sm:w-[58%]">
+    <div aria-hidden className="chase-carve absolute inset-y-0 left-1/2 w-[60%] sm:w-[62%]">
       {/* The surface itself does not move. A repeating band across it read as
           floor tiles rather than tarmac — the speed comes from the markings,
           the tyre tracks and the streaks, all of which are things that would
@@ -287,16 +296,16 @@ function Scenery({ terrain }: { terrain: ChaseTerrain }) {
  * with three percent of bend either way already accounted for.
  */
 const PROPS = [
-  { x: 1, dur: 3.6, delay: 0, scale: 1, rest: 8 },
-  { x: 3, dur: 4.4, delay: 1.3, scale: 0.8, rest: 34 },
+  { x: 0, dur: 3.6, delay: 0, scale: 1, rest: 8 },
+  { x: 2, dur: 4.4, delay: 1.3, scale: 0.8, rest: 34 },
   { x: 0, dur: 3.1, delay: 2.4, scale: 1.15, rest: 62 },
-  { x: 4, dur: 5, delay: 3.4, scale: 0.7, rest: 84 },
-  { x: 2, dur: 4, delay: 4.6, scale: 0.95, rest: 47 },
-  { x: 90, dur: 3.4, delay: 0.7, scale: 1.05, rest: 20 },
-  { x: 94, dur: 4.6, delay: 1.9, scale: 0.85, rest: 55 },
-  { x: 91, dur: 3.9, delay: 3, scale: 1.2, rest: 76 },
-  { x: 95, dur: 5.2, delay: 4.2, scale: 0.75, rest: 38 },
-  { x: 92, dur: 4.2, delay: 5.1, scale: 0.9, rest: 91 },
+  { x: 3, dur: 5, delay: 3.4, scale: 0.7, rest: 84 },
+  { x: 1, dur: 4, delay: 4.6, scale: 0.95, rest: 47 },
+  { x: 92, dur: 3.4, delay: 0.7, scale: 1.05, rest: 20 },
+  { x: 96, dur: 4.6, delay: 1.9, scale: 0.85, rest: 55 },
+  { x: 93, dur: 3.9, delay: 3, scale: 1.2, rest: 76 },
+  { x: 97, dur: 5.2, delay: 4.2, scale: 0.75, rest: 38 },
+  { x: 94, dur: 4.2, delay: 5.1, scale: 0.9, rest: 91 },
 ];
 
 function Prop({ kind, colour }: { kind: ChaseTerrain["prop"]; colour: [string, string] }) {
@@ -414,7 +423,7 @@ function Safe({
       onClick={onTap}
       disabled={!onTap}
       aria-label="What is in this safe"
-      className="chase-safe absolute left-1/2 top-[15%] w-[26%] max-w-[9rem] disabled:cursor-default sm:w-[16%]"
+      className="chase-safe pointer-events-auto absolute left-1/2 top-[15%] w-[26%] max-w-[9rem] disabled:cursor-default sm:w-[16%]"
     >
       <svg viewBox="0 0 100 120" className="w-full drop-shadow-2xl" aria-hidden>
         <defs>
@@ -528,16 +537,19 @@ const CRACK_PATHS = [
 const GRID: { x: number; y: number }[] = [
   // Front row: the leader in the middle, second and third either side.
   { x: 50, y: 54 },
-  { x: 33, y: 56 },
-  { x: 67, y: 56 },
+  { x: 34, y: 56 },
+  { x: 66, y: 56 },
   // Second row, offset so it shows through the gaps in the first.
-  { x: 41, y: 66 },
-  { x: 59, y: 66 },
-  { x: 28, y: 68 },
+  { x: 42, y: 66 },
+  { x: 58, y: 66 },
+  // Sixth was at 28, which put a car and a half outside the tarmac on a phone.
+  // The road is sized to hold exactly this grid now, and a lane the road
+  // cannot hold is a car driving through the trees.
+  { x: 31, y: 68 },
   // Third.
   { x: 50, y: 77 },
-  { x: 34, y: 78 },
-  { x: 66, y: 78 },
+  { x: 36, y: 78 },
+  { x: 64, y: 78 },
   // And the back marker.
   { x: 42, y: 87 },
 ];
@@ -571,7 +583,7 @@ function Field({
             onClick={() => onRival?.(rival)}
             disabled={!onRival}
             aria-label={`${rival.player}, ${rival.percent.toFixed(1)}% in`}
-            className="absolute z-10 -translate-x-1/2 -translate-y-1/2 disabled:cursor-default"
+            className="pointer-events-auto absolute z-10 -translate-x-1/2 -translate-y-1/2 disabled:cursor-default"
             style={{
               left: `${at.x}%`,
               top: `${at.y}%`,
