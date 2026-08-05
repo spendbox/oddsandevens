@@ -37,7 +37,7 @@ export async function GET() {
         .from("life_orders")
         .select("price_kobo, platform_kobo, contributor_kobo, quantity")
         .eq("status", "paid"),
-      db.from("boxes").select("id, status, reward_kobo, platform_fee_kobo"),
+      db.from("boxes").select("id, status, reward_kobo, platform_fee_kobo, seeded_at"),
     ]);
 
   const fundingRows = (funding ?? []) as { box_id: string; amount_kobo: number }[];
@@ -46,6 +46,7 @@ export async function GET() {
     status: string;
     reward_kobo: number;
     platform_fee_kobo: number;
+    seeded_at: string | null;
   }[];
 
   const fundedBoxIds = new Set(fundingRows.map((row) => row.box_id));
@@ -83,8 +84,13 @@ export async function GET() {
       funding: boxRows.filter((b) => b.status === "funding").length,
       unlocked: boxRows.filter((b) => b.status === "unlocked").length,
       // Owed, not paid: what unlocked boxes have promised their winners.
+      //
+      // Seeded boxes are excluded, and that is the point of marking them. A
+      // box authored as already-cracked has no winner and no claim behind it,
+      // so counting its reward here would put a debt on this screen that
+      // nobody is owed and nobody could ever tick off.
       rewardsOwedKobo: boxRows
-        .filter((b) => b.status === "unlocked")
+        .filter((b) => b.status === "unlocked" && !b.seeded_at)
         .reduce((total, b) => total + Number(b.reward_kobo), 0),
     },
   });

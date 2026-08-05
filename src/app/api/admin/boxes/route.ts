@@ -11,6 +11,7 @@ import { alphabetOf, loadSymbols, withinAlphabet } from "@/lib/game/alphabet";
 import { getAdminUser } from "@/lib/admin-auth";
 import { toDesign } from "@/lib/game/designs";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
+import { applySeeding } from "@/lib/game/seeding";
 
 /** Every box on the platform, whoever built it. */
 export async function GET() {
@@ -47,7 +48,8 @@ export async function GET() {
  * first, which this does.
  */
 export async function POST(req: Request) {
-  if (!(await getAdminUser())) {
+  const admin = await getAdminUser();
+  if (!admin) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -57,6 +59,12 @@ export async function POST(req: Request) {
     secret?: string;
     rewardKobo?: number;
     design?: string;
+    /** Seeding, all optional. See 0044 for what each of these does and doesn't. */
+    attemptsCount?: number;
+    playersCount?: number;
+    crackedBy?: string;
+    crackedAt?: string;
+    hunters?: unknown;
   };
 
   const title = (body.title ?? "").trim();
@@ -117,7 +125,16 @@ export async function POST(req: Request) {
     console.error("[admin] general box create failed:", error);
     return NextResponse.json({ error: "create_failed" }, { status: 500 });
   }
-  return NextResponse.json({ box: toPublicBox(data as BoxRow) });
+
+  // Seeding, if any was asked for. A box authored as already-cracked is one
+  // request rather than two, because the second one is the one you forget.
+  const created = data as BoxRow;
+  const { box: seeded, changed } = await applySeeding(db, created.id, body, admin.email);
+
+  return NextResponse.json({
+    box: toPublicBox(seeded ?? created),
+    seeded: changed,
+  });
 }
 
 /** Withdraw a box from play. An unlocked box is already finished; leave it. */

@@ -22,7 +22,7 @@
 // scene is the whole surface and every control sits on top of it. That is the
 // difference between a game and a form with a picture at the top of it.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, KeyRound, Lightbulb, Tag } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -106,6 +106,20 @@ export function PlaySurface({
   /** Bumped when somebody else's guess lands on this safe. */
   const [rivalShot, setRivalShot] = useState(0);
 
+  /**
+   * The stack above the button, and the reason it is a ref.
+   *
+   * A verdict, a gift crate and the result of the guess you just made all
+   * queue up in one short scroller, and on a small screen they do not all fit.
+   * A scroller sitting at the top shows the *oldest* of them — so a crate that
+   * arrived ten minutes ago was holding the slot and the answer to the guess
+   * just made was below the fold, unread and gone 2.6 seconds later.
+   *
+   * The newest thing is always the one worth seeing, and it is always last, so
+   * the scroller is pinned to its bottom whenever the contents change.
+   */
+  const stack = useRef<HTMLDivElement>(null);
+
   const now = useNow(
     view.player.nextLifeAt ??
       view.discount?.expiresAt ??
@@ -152,6 +166,17 @@ export function PlaySurface({
     if (res.ok) setView((await res.json()) as PlayView);
     await refresh();
   }, [slug, refresh]);
+
+  const drop = drops.drop;
+  useEffect(() => {
+    const el = stack.current;
+    if (!el) return;
+    // After paint, so the height being scrolled to is the new one.
+    const id = window.requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [drop, result, outcome]);
 
   /*
    * The golden chip takes itself away.
@@ -404,12 +429,15 @@ export function PlaySurface({
           their own, and can spill as far as they were drawn to.
         */}
         <div className="pointer-events-auto mx-auto flex min-h-0 w-full max-w-md flex-col gap-3">
-        <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain px-1 py-1">
+        <div
+          ref={stack}
+          className="min-h-0 space-y-3 overflow-y-auto overscroll-contain px-1 py-1"
+        >
           {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
 
-          {drops.drop && (
+          {drop && (
             <DropCrate
-              drop={drops.drop}
+              drop={drop}
               onDismiss={drops.dismiss}
               onClaim={() => {
                 void drops.claim().then((got) => {

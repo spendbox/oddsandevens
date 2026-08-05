@@ -21,6 +21,7 @@ import {
   Palette,
   ShieldCheck,
   Tag,
+  Sprout,
   Star,
   Trash2,
   Users,
@@ -48,6 +49,7 @@ import { LimitsPanel } from "@/components/admin/limits-panel";
 import { GrantLives } from "@/components/admin/grant-lives";
 import { UsersPanel } from "@/components/admin/users-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
+import { SeedBoxDialog } from "@/components/admin/seed-box-dialog";
 import type { PublicBox } from "@/lib/types";
 
 const INPUT =
@@ -105,6 +107,7 @@ export default function AdminPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [tab, setTab] = useState<Tab>("money");
   const [deleting, setDeleting] = useState<{ id: string; title: string } | null>(null);
+  const [seeding, setSeeding] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/overview", { cache: "no-store" });
@@ -253,7 +256,10 @@ export default function AdminPage() {
             every attempt with it.{" "}
             <strong className="text-zinc-300">Feature</strong> puts a live box at
             the top of the landing page — as many as you like, from either side,
-            and cracking one clears it automatically.
+            and cracking one clears it automatically.{" "}
+            <strong className="text-zinc-300">Seed</strong> writes the history of
+            one of our own boxes: its hunter and attempt counts, the names on its
+            chase, and whether it has already been cracked.
           </p>
           <ul className="space-y-1.5">
             {boxes.map((box) => (
@@ -312,6 +318,17 @@ export default function AdminPage() {
                     Close
                   </button>
                 )}
+                {/* Ours only: a contributor's history is not ours to write. */}
+                {box.kind === "general" && (
+                  <button
+                    type="button"
+                    onClick={() => setSeeding(box.id)}
+                    className="flex shrink-0 items-center gap-1 rounded-lg bg-mint/15 px-2 py-1 text-xs font-bold text-mint transition hover:bg-mint/25 active:translate-y-px"
+                  >
+                    <Sprout className="size-3.5" aria-hidden />
+                    Seed
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setDeleting({ id: box.id, title: box.title })}
@@ -334,6 +351,14 @@ export default function AdminPage() {
           boxTitle={deleting.title}
           onClose={() => setDeleting(null)}
           onDeleted={() => void load()}
+        />
+      )}
+
+      {seeding && (
+        <SeedBoxDialog
+          boxId={seeding}
+          onClose={() => setSeeding(null)}
+          onSeeded={() => void load()}
         />
       )}
     </div>
@@ -407,10 +432,27 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
   const [secret, setSecret] = useState("");
   const [rewardNaira, setRewardNaira] = useState("");
   const [design, setDesign] = useState<Design>(DEFAULT_DESIGN);
-  const [card, setCard] = useState<"box" | "password" | "reward" | "design" | null>(null);
+  const [card, setCard] = useState<"box" | "password" | "reward" | "design" | "history" | null>(
+    null
+  );
   const [chars, setChars] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * Seeding, folded into the same four-card form.
+   *
+   * A box authored as already-cracked is one request rather than two, and the
+   * second request is the one that gets forgotten. Everything here is optional
+   * and everything here is marked in the database — see 0044.
+   */
+  const [attempts, setAttempts] = useState("");
+  const [hunters, setHunters] = useState("");
+  const [winner, setWinner] = useState("");
+  const [when, setWhen] = useState("");
+  const [board, setBoard] = useState<{ email: string; percent: string }[]>(
+    Array.from({ length: 5 }, () => ({ email: "", percent: "" }))
+  );
 
   // Not upper-cased. Case is part of a password now, and quietly folding it
   // would make an admin box the one kind nobody could crack. The alphabet is
@@ -437,6 +479,13 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         secret: clean,
         rewardKobo,
         design,
+        attemptsCount: Number(attempts || 0),
+        playersCount: Number(hunters || 0),
+        crackedBy: winner.trim() || undefined,
+        crackedAt: when ? new Date(`${when}T12:00:00Z`).toISOString() : undefined,
+        hunters: board
+          .filter((row) => row.email.trim().length > 0)
+          .map((row) => ({ email: row.email.trim(), percent: Number(row.percent || 0) })),
       }),
     });
     setBusy(false);
@@ -446,6 +495,11 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
       setSecret("");
       setRewardNaira("");
       setDesign(DEFAULT_DESIGN);
+      setAttempts("");
+      setHunters("");
+      setWinner("");
+      setWhen("");
+      setBoard(Array.from({ length: 5 }, () => ({ email: "", percent: "" })));
       onCreated();
       return;
     }
@@ -495,6 +549,20 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
           art={<SafeArt design={design} className="size-9" />}
           onOpen={() => setCard("design")}
         />
+        {/* The fifth card, and the only optional one. */}
+        <BuildCard
+          icon={<Sprout className="size-4" aria-hidden />}
+          label="Its history"
+          value={
+            winner.trim()
+              ? `Cracked by ${winner.trim()}`
+              : hunters || attempts
+                ? `${hunters || 0} hunters · ${attempts || 0} attempts`
+                : "Starts from nothing"
+          }
+          done={!!(winner.trim() || hunters || attempts)}
+          onOpen={() => setCard("history")}
+        />
       </div>
 
       {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
@@ -506,7 +574,13 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
         className={`mt-3 ${PRIMARY}`}
       >
-        {busy ? "Creating…" : ready ? "Put it live" : "Fill in the cards above"}
+        {busy
+          ? "Creating…"
+          : !ready
+            ? "Fill in the cards above"
+            : winner.trim()
+              ? "Create it, already cracked"
+              : "Put it live"}
       </button>
 
       {card === "box" && (
@@ -662,6 +736,111 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
             ))}
           </div>
           <p className="text-sm text-zinc-500">{DESIGN_SPECS[design].note}</p>
+        </CardDialog>
+      )}
+
+      {card === "history" && (
+        <CardDialog title="Its history" onClose={() => setCard(null)}>
+          <p className="text-sm text-zinc-400">
+            All of this is optional, and all of it is marked in the database as
+            authored rather than played — the real numbers can always be told
+            from these, and one query removes them. No accounts are created: a
+            seeded winner and a seeded hunter are an address on a row, so they
+            hold no lives and never appear in the list of players. Addresses are
+            shown masked, exactly as a real hunter&apos;s is.
+          </p>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-sm font-bold text-zinc-300">Hunters</span>
+              <input
+                inputMode="numeric"
+                value={hunters}
+                onChange={(e) => setHunters(e.target.value.replace(/[^\d]/g, ""))}
+                placeholder="0"
+                className={`${INPUT} mt-1.5 font-mono`}
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-bold text-zinc-300">Attempts</span>
+              <input
+                inputMode="numeric"
+                value={attempts}
+                onChange={(e) => setAttempts(e.target.value.replace(/[^\d]/g, ""))}
+                placeholder="0"
+                className={`${INPUT} mt-1.5 font-mono`}
+              />
+            </label>
+          </div>
+          <p className="text-xs text-zinc-500">
+            A floor rather than a fiction: real play carries on from whatever is
+            set here, so the numbers only ever grow from this point.
+          </p>
+
+          <div>
+            <p className="text-sm font-bold text-zinc-300">The chase</p>
+            <p className="mb-2 mt-0.5 text-xs text-zinc-500">
+              Up to five names on the leaderboard, closest first. A real player
+              overtakes a seeded one the moment they score higher.
+            </p>
+            <ul className="space-y-1.5">
+              {board.map((row, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="w-4 shrink-0 text-center font-mono text-xs text-zinc-500">
+                    {i + 1}
+                  </span>
+                  <input
+                    value={row.email}
+                    onChange={(e) =>
+                      setBoard((rows) =>
+                        rows.map((r, at) => (at === i ? { ...r, email: e.target.value } : r))
+                      )
+                    }
+                    placeholder="somebody@example.com"
+                    className={`${INPUT} min-w-0 flex-1 py-2 text-sm`}
+                  />
+                  <input
+                    inputMode="decimal"
+                    value={row.percent}
+                    onChange={(e) =>
+                      setBoard((rows) =>
+                        rows.map((r, at) =>
+                          at === i ? { ...r, percent: e.target.value.replace(/[^\d.]/g, "") } : r
+                        )
+                      )
+                    }
+                    placeholder="%"
+                    aria-label={`Percent for row ${i + 1}`}
+                    className={`${INPUT} w-16 shrink-0 py-2 text-center font-mono text-sm`}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <p className="text-sm font-bold text-zinc-300">Already cracked</p>
+            <p className="mb-2 mt-0.5 text-xs text-zinc-500">
+              Fill this in and the box is created finished: closed, won by that
+              address on that date, and on the wall of cracked safes. It writes
+              no reward claim and emails nobody. There is no undo.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input
+                value={winner}
+                onChange={(e) => setWinner(e.target.value)}
+                placeholder="winner@example.com"
+                className={`${INPUT} py-2 text-sm`}
+              />
+              <input
+                type="date"
+                value={when}
+                onChange={(e) => setWhen(e.target.value)}
+                aria-label="Date cracked"
+                className={`${INPUT} py-2 text-sm`}
+              />
+            </div>
+          </div>
         </CardDialog>
       )}
     </section>

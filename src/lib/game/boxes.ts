@@ -19,7 +19,7 @@ import type { PlayerState, PublicBox } from "@/lib/types";
  * travel any further.
  */
 export const PUBLIC_BOX_COLUMNS =
-  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, best_percent, published_at, unlocked_at, unlocked_by, contributor_id, featured_at";
+  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, best_percent, published_at, unlocked_at, unlocked_by, unlocked_alias, contributor_id, featured_at, seeded_at";
 
 export interface BoxRow {
   id: string;
@@ -37,8 +37,12 @@ export interface BoxRow {
   published_at: string | null;
   unlocked_at: string | null;
   unlocked_by: string | null;
+  /** A seeded winner: an address rather than a player row. See 0044. */
+  unlocked_alias: string | null;
   contributor_id: string | null;
   featured_at: string | null;
+  /** Set when an admin authored any of this box's history by hand. */
+  seeded_at: string | null;
 }
 
 /**
@@ -71,7 +75,13 @@ export function toPublicBox(
     contributor: extras.contributor ?? null,
     publishedAt: row.published_at,
     unlockedAt: row.unlocked_at,
-    unlockedBy: extras.winnerEmail ? maskEmail(extras.winnerEmail) : null,
+    // The alias first: a seeded crack has an address on the box and no player
+    // row behind it, and there is nothing else to look up.
+    unlockedBy: row.unlocked_alias
+      ? maskEmail(row.unlocked_alias)
+      : extras.winnerEmail
+        ? maskEmail(extras.winnerEmail)
+        : null,
     featured: !!row.featured_at,
   };
 }
