@@ -21,7 +21,10 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
     <div
       style={{ ["--i" as string]: index }}
       className={
-        "panel panel-lift animate-fade-up stagger group relative flex flex-col gap-3 rounded-3xl p-4 " +
+        // `min-w-0`: a grid item's min-width is `auto`, so without it the
+        // column cannot size below the card's min-content and the right-hand
+        // edge is silently clipped away by the page's `overflow-x: clip`.
+        "panel panel-lift animate-fade-up stagger group relative flex min-w-0 flex-col gap-3 rounded-3xl p-4 " +
         (open ? "opacity-70" : "")
       }
     >
@@ -33,9 +36,18 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
 
       <div className="relative z-10 flex items-start justify-between gap-3">
         <div className="min-w-0">
+          {/*
+            One line each, clamped, and the description gets its slot whether
+            or not there is one. A board where a two-word box is half the
+            height of a wordy one reads as broken, and the full text is a tap
+            away in the vault sheet once you're playing.
+          */}
           <p className="truncate font-black tracking-tight">{box.title}</p>
           <p className="mt-0.5 truncate text-xs text-zinc-400">
             {box.kind === "general" ? "by Spendbox" : `by ${box.contributor}`}
+          </p>
+          <p className="mt-1 line-clamp-2 h-9 overflow-hidden text-xs leading-snug text-zinc-500">
+            {box.blurb ?? ""}
           </p>
         </div>
         {/* The contributor's own safe. An opened box shows it swung — the card
@@ -61,8 +73,11 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
       <div className="relative z-10">
         <p
           className={
-            "font-black tabular-nums " +
-            (box.isChallenge && !open ? "text-2xl text-grape" : "brass-text text-3xl")
+            // One size for both, so a challenge card is exactly as tall as a
+            // money one. A board of cards that don't line up reads as broken
+            // long before anybody works out why.
+            "text-3xl font-black tabular-nums " +
+            (box.isChallenge && !open ? "text-grape" : "brass-text")
           }
         >
           {rewardLabel(box.rewardKobo)}

@@ -399,10 +399,28 @@ Live boxes only, not already won, most recently touched first. A safe somebody
 else cracks drops off the list on its own, which needs no sweep: there is
 nothing to go back to.
 
-The featured carousel also **peeks** now. A full-bleed slide is
-indistinguishable from a static hero until somebody happens to drag it, so each
-card stops just short of the full width and the next one shows through — the
-only thing on the page that says there is more than one.
+The featured carousel also **peeks**. A full-bleed slide is indistinguishable
+from a static hero until somebody happens to drag it, so each card stops just
+short of the full width and the next one shows through — the only thing on the
+page that says there is more than one.
+
+A featured card is three bands with hairlines between them: **who and what**
+(maker, name, description), **the prize** alone on a lit plate in the middle,
+and **the terms** — difficulty on one side, the crowd on the other. It was one
+column of eight things four pixels apart, which is how it managed to read as
+cramped and boring at the same time: nothing was louder than anything else, so
+nothing led.
+
+**Every card is exactly the same height**, and that costs more care than it
+sounds. Descriptions get a fixed two-line slot whether or not there is one; the
+title gets two lines' worth of room; a challenge prints "Challenge" at the same
+size a reward prints its figure; and the terms band is `flex-col sm:flex-row`
+rather than `flex-wrap`, because wrapping is decided per card — a "Merciless"
+badge pushed its counters onto a second line while a "Warm" one didn't, and two
+slides of different heights make the carousel jump under your thumb.
+
+Descriptions are truncated everywhere they appear. The full text is in the
+**vault sheet** during play, which is most of what that button is for.
 
 And a cracked safe keeps its figure in gold, captioned *won by*. Greying it out
 was reading as "there was nothing here" when the opposite is true: somebody was

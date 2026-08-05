@@ -476,6 +476,8 @@ export function PlaySurface({
           isChallenge={view.box.isChallenge}
           contributor={view.box.contributor}
           difficulty={view.box.difficulty}
+          title={view.box.title}
+          blurb={view.box.blurb}
           onClose={() => setSheet("none")}
         />
       )}

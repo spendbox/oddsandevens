@@ -112,8 +112,8 @@ export const LIFE_REGEN_MINUTES = 60;
 // Text shapes
 // ---------------------------------------------------------------------------
 
-export const TITLE_MAX = 12;
-export const BLURB_MAX = 30;
+export const TITLE_MAX = 32;
+export const BLURB_MAX = 120;
 export const DISPLAY_NAME_MAX = 40;
 
 export const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

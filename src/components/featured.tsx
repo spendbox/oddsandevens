@@ -140,19 +140,33 @@ export function Featured({ boxes }: { boxes: PublicBox[] }) {
 /**
  * One featured box, as big as it deserves.
  *
- * The reward is the headline and everything else arranges itself around it —
- * the safe on the left at a size you can actually see, the counters stacked in
- * their own tiles so a six-figure attempt count has somewhere to go, and the
- * whole card a single target.
+ * It was a two-column card with everything stacked at the same rhythm — kicker,
+ * title, blurb, reward, difficulty, counters, link — eight things four pixels
+ * apart, which is why it read as cramped *and* as boring at the same time.
+ * Nothing was louder than anything else, so nothing led.
+ *
+ * It has three bands now, separated by hairlines and generous space:
+ *
+ *   who and what   the maker, the name, and the description.
+ *   the prize      alone in the middle band, on a lit plate. It is the reason
+ *                  the card exists and it is now the only thing in its row.
+ *   the terms      how hard it is on one side, who's already on it on the
+ *                  other — pushed apart rather than stacked four pixels apart.
+ *
+ * The description gets a fixed two-line slot whether or not there is one, so
+ * every slide in the carousel is exactly as tall as every other and swiping
+ * doesn't make the page jump.
  */
 function FeaturedCard({ box }: { box: PublicBox }) {
+  const spec = DESIGN_SPECS[box.design];
+
   return (
     /*
       A stretched link rather than an anchor round everything: the share chip
       has to be a real button, and a button inside an anchor is invalid — and
       in practice means one tap doing both things.
     */
-    <div className="panel panel-lift group relative flex flex-col items-center gap-5 overflow-hidden rounded-3xl p-6 text-center sm:flex-row sm:p-8 sm:text-left">
+    <div className="panel panel-lift group relative flex flex-col overflow-hidden rounded-3xl">
       <Link
         href={`/b/${box.slug}`}
         aria-label={box.title}
@@ -164,67 +178,98 @@ function FeaturedCard({ box }: { box: PublicBox }) {
           Inline rather than a class because the colour comes from the design. */}
       <div
         aria-hidden
-        style={{ background: DESIGN_SPECS[box.design].body[0] }}
-        className="pointer-events-none absolute -left-16 -top-16 size-64 rounded-full opacity-15 blur-3xl"
+        style={{ background: spec.body[0] }}
+        className="pointer-events-none absolute -left-20 -top-24 size-72 rounded-full opacity-20 blur-3xl"
       />
 
-      <SafeArt
-        design={box.design}
-        className="pointer-events-none relative z-10 size-28 shrink-0 drop-shadow-2xl transition duration-300 group-hover:scale-105 group-hover:-rotate-2 sm:size-36"
-      />
+      {/* ---- who and what ---------------------------------------------- */}
+      <div className="relative z-10 flex items-start gap-3 p-4 sm:gap-5 sm:p-7">
+        <div className="relative shrink-0">
+          {/* A pedestal under the safe. Without it the art floats on the
+              gradient and the whole card reads as flat. */}
+          <div
+            aria-hidden
+            style={{ background: spec.body[0] }}
+            className="pointer-events-none absolute inset-x-0 bottom-1 mx-auto h-3 w-4/5 rounded-full opacity-40 blur-md"
+          />
+          <SafeArt
+            design={box.design}
+            className="pointer-events-none relative size-24 drop-shadow-2xl transition duration-300 group-hover:scale-105 group-hover:-rotate-3 sm:size-32"
+          />
+        </div>
 
-      <div className="relative z-10 min-w-0 flex-1">
-        <p className="text-xs font-black uppercase tracking-widest text-brass">
-          {box.kind === "general" ? "By Spendbox" : `By ${box.contributor}`}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[11px] font-black uppercase tracking-[0.2em] text-brass">
+            {box.kind === "general" ? "By Spendbox" : `By ${box.contributor}`}
+          </p>
+
+          {/* Two lines' worth of room whether the name needs them or not.
+              A carousel whose slides are different heights makes the page jump
+              under your thumb as you swipe. */}
+          <h3 className="mt-1.5 line-clamp-2 min-h-[3.125rem] text-xl font-black leading-tight tracking-tight sm:min-h-[3.75rem] sm:text-2xl">
+            {box.title}
+          </h3>
+
+          {/*
+            A fixed slot, filled or not. Every card on the site truncates the
+            description — the full text is in the vault sheet during play — and
+            reserving the space is what keeps one slide from being two lines
+            taller than the next.
+          */}
+          <p className="mt-1.5 line-clamp-2 h-10 overflow-hidden text-sm leading-snug text-zinc-400">
+            {box.blurb ?? ""}
+          </p>
+        </div>
+      </div>
+
+      {/* ---- the prize -------------------------------------------------- */}
+      <div className="relative z-10 border-y border-white/10 bg-black/25 px-4 py-4 text-center sm:px-7 sm:py-5">
+        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500">
+          {/* Both short enough to stay on one line at 320px. A two-line
+              kicker on one card and a one-line kicker on the next is fifteen
+              pixels of difference in a carousel that has to be uniform. */}
+          {box.isChallenge ? "A pure challenge" : "Crack it, it's yours"}
         </p>
-
-        <h3 className="mt-1 truncate text-2xl font-black tracking-tight sm:text-3xl">
-          {box.title}
-        </h3>
-        {box.blurb && (
-          <p className="mt-1 line-clamp-2 text-sm text-zinc-400">{box.blurb}</p>
-        )}
-
         <p
           className={
-            "mt-3 font-black leading-none tabular-nums " +
             // Stepped at 360px as well as at `sm`, because a seven-figure
-            // reward at `text-5xl` runs into both edges of a 320px screen.
-            (box.isChallenge
-              ? "text-3xl text-grape"
-              : "brass-text text-4xl min-[360px]:text-5xl sm:text-6xl")
+            // reward at `text-5xl` runs into both edges of a 320px screen. The
+            // same steps for a challenge, in grape — the band has to be the
+            // same height whichever kind of box is in it.
+            "mt-1 text-4xl font-black leading-none tabular-nums min-[360px]:text-5xl sm:text-6xl " +
+            (box.isChallenge ? "text-grape" : "brass-text")
           }
         >
           {rewardLabel(box.rewardKobo)}
         </p>
+      </div>
 
+      {/* ---- the terms -------------------------------------------------- */}
+      {/*
+        Stacked on a phone, one row from `sm`. Deliberately *not* `flex-wrap`:
+        wrapping is decided per card, so a "Merciless" badge pushed its
+        counters onto a second line while a "Warm" one didn't — and two slides
+        of different heights make the carousel jump under your thumb.
+      */}
+      <div className="relative z-10 flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+        <DifficultyBadge difficulty={box.difficulty} />
         {/*
-          Difficulty first, on its own line, then the crowd. They were one row
-          and it read as three equal facts — but how hard a box is decides
-          whether you play it, and how many people are already on it is
-          context for that decision, not a rival to it.
+          Pushed to the far side rather than sitting two pixels under the
+          badge. They answer different questions — how hard, and how busy —
+          and putting them on opposite ends is what says so.
         */}
-        <div className="mt-4 flex justify-center sm:justify-start">
-          <DifficultyBadge difficulty={box.difficulty} />
-        </div>
-
-        <div className="mt-2 flex items-stretch justify-center gap-2 sm:justify-start">
-          {/*
-            Stacked tiles rather than a "37 hunters · 412 attempts" line: a
-            popular box reaches six figures and an inline count wraps into
-            nonsense at exactly the moment it's most worth reading.
-          */}
+        <div className="flex items-stretch gap-2">
           <Counter label="Hunters" value={box.playersCount} />
           <Counter label="Attempts" value={box.attemptsCount} />
         </div>
+      </div>
 
-        <span className="mt-4 flex items-center justify-center gap-3 sm:justify-start">
-          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-brass">
-            Take a crack at it
-            <ArrowRight className="size-4 transition group-hover:translate-x-1" aria-hidden />
-          </span>
-          <ShareChip slug={box.slug} title={box.title} />
+      <div className="relative z-10 flex items-center justify-between gap-3 border-t border-white/10 px-4 py-3.5 sm:px-7">
+        <span className="inline-flex items-center gap-1.5 text-sm font-bold text-brass">
+          Take a crack at it
+          <ArrowRight className="size-4 transition group-hover:translate-x-1" aria-hidden />
         </span>
+        <ShareChip slug={box.slug} title={box.title} />
       </div>
     </div>
   );

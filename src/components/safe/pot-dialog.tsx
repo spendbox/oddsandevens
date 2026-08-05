@@ -24,6 +24,8 @@ export function PotDialog({
   isChallenge,
   contributor,
   difficulty,
+  title,
+  blurb,
   onClose,
 }: {
   rewardKobo: number;
@@ -31,6 +33,9 @@ export function PotDialog({
   contributor: string | null;
   /** How hard this one is. It lives here rather than on the rail now. */
   difficulty: Difficulty;
+  /** What the box is called, and whatever its author said about it. */
+  title: string;
+  blurb: string | null;
   onClose: () => void;
 }) {
   return (
@@ -72,6 +77,22 @@ export function PotDialog({
             it will take. They belong on the same sheet. */}
         <div className="flex justify-center border-t border-white/10 pt-3">
           <DifficultyBadge difficulty={difficulty} />
+        </div>
+
+        {/*
+          And what the box actually is. Every card on the site truncates the
+          description to keep the boards even — this is the one place it is
+          shown in full, which is why it is worth having a button for.
+        */}
+        <div className="border-t border-white/10 pt-3 text-left">
+          <p className="font-black tracking-tight">{title}</p>
+          {blurb ? (
+            <p className="mt-1 text-sm leading-relaxed text-zinc-400">{blurb}</p>
+          ) : (
+            <p className="mt-1 text-sm text-zinc-500">
+              No description — just the password.
+            </p>
+          )}
         </div>
       </div>
     </Modal>
