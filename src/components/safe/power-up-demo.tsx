@@ -13,14 +13,8 @@
 // state, nothing that has to be cleaned up when a dialog closes.
 
 import type { CSSProperties } from "react";
-import {
-  isScanKind,
-  LIFE_BANK_MAX,
-  SCANS,
-  type PowerUpKind,
-  type ScanField,
-} from "@/lib/game/power-ups";
-import { LIVES_MAX, visible } from "@/lib/constants";
+import { isScanKind, SCANS, type PowerUpKind, type ScanField } from "@/lib/game/power-ups";
+import { visible } from "@/lib/constants";
 
 /**
  * The password every demo is performed on. Never a real one, and chosen so
@@ -50,8 +44,6 @@ export function PowerUpDemo({ kind }: { kind: PowerUpKind }) {
         <ScanDemo field={SCANS[kind].field} />
       ) : kind === "length_lock" ? (
         <LengthDemo />
-      ) : kind === "life_bank" ? (
-        <LifeBankDemo />
       ) : kind === "second_wind" ? (
         <WindDemo />
       ) : kind === "breakdown" ? (
@@ -121,33 +113,6 @@ function LengthDemo() {
         />
       </div>
       <Answer tone="bg-sky/20 text-sky">{SAMPLE.length} characters</Answer>
-    </div>
-  );
-}
-
-/** Life Bank: the ceiling goes up and the pool fills to it. */
-function LifeBankDemo() {
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="flex max-w-[15rem] flex-wrap justify-center gap-1">
-        {Array.from({ length: LIFE_BANK_MAX }, (_, i) => (
-          <span
-            key={i}
-            style={
-              i < LIVES_MAX
-                ? undefined
-                : ({ animationName: "demo-pop", ["--i" as string]: i - LIVES_MAX } as CSSProperties)
-            }
-            className={
-              "size-2.5 rounded-full " +
-              (i < LIVES_MAX ? "bg-berry" : "demo-run bg-berry/70 ring-1 ring-berry")
-            }
-          />
-        ))}
-      </div>
-      <Answer tone="bg-berry/20 text-berry">
-        {LIVES_MAX} → {LIFE_BANK_MAX}, for good
-      </Answer>
     </div>
   );
 }

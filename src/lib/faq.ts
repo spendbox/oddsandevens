@@ -94,7 +94,7 @@ export const FAQ: FaqItem[] = [
     topic: "Playing",
     question: "What characters can a password contain?",
     answer: [
-      `Anything on a standard keyboard: the 26 letters in either case, the ten digits, and every symbol — ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \\ ] ^ _ \` { | } ~. That is ${ALPHABET.length} possible characters in every position.`,
+      `The 26 letters in either case, the ten digits, the space, every symbol on a QWERTY keyboard, and a handful beyond it: • √ π ÷ × § ∆ £ ¢ € ¥ ° © ® ™ ✓. That is ${ALPHABET.length} possible characters in every position.`,
       "Spaces count too, so a password can be a phrase. Wherever a guess is shown back to you a space is drawn as ␣, so you can always see whether one is there.",
     ],
   },
@@ -147,6 +147,15 @@ export const FAQ: FaqItem[] = [
   },
   {
     topic: "Lives",
+    question: "What is Life Bank?",
+    answer: [
+      `A week of a taller pool. Your lives refill one an hour and stop at ${LIVES_MAX}, so a day away banks ${LIVES_MAX} guesses and every hour after that is thrown away. Life Bank raises the ceiling to ${LIFE_BANK_MAX} for seven days and fills you to it on the spot.`,
+      "It is bought beside lives rather than on the power-up shelf, because it changes the pool every box is played from rather than telling you anything about one password.",
+      "Buying another week while one is running adds to it rather than replacing it. When it lapses nothing is taken away — you keep whatever lives you are holding and simply stop accruing until you are back under the normal ceiling.",
+    ],
+  },
+  {
+    topic: "Lives",
     question: "How much do extra lives cost?",
     answer: [
       `${formatNaira(LIFE_PRICE_KOBO)} each. You can buy them from your own page or from inside any box.`,
@@ -179,14 +188,14 @@ export const FAQ: FaqItem[] = [
       `Second Wind gives you unlimited guesses on that box for ${SECOND_WIND_HOURS} hour, spending no lives.`,
       `Colour Read splits every score into its parts for ${BREAKDOWN_HOURS} hours — including every attempt you've already made.`,
       "X-Ray names half the different characters the password is built from, in no order — and can be bought again for half of what's left.",
-      `Life Bank raises your life ceiling from ${LIVES_MAX} to ${LIFE_BANK_MAX}, permanently and on every box. It's the only one that isn't about the password.`,
+
     ],
   },
   {
     topic: "Power-ups",
     question: "Can I buy the same power-up twice?",
     answer: [
-      "Length Lock, the seven counters and Life Bank are one purchase each: what they give you never changes, so buying again would pay for the same answer.",
+      "Length Lock and the seven counters are one purchase each: what they give you never changes, so buying again would pay for the same answer.",
       `Second Wind and Colour Read rent a window rather than sell a fact — ${SECOND_WIND_HOURS} hour and ${BREAKDOWN_HOURS} hours respectively — and can be bought again the moment they lapse.`,
       "X-Ray can be bought as often as you like. Each purchase draws from the characters it hasn't named yet, so it never tells you the same thing twice, and it stops being offered once you have all of them.",
     ],

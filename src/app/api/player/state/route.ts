@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 import { playerEmail } from "@/lib/player-session";
-import { ensurePlayer, toPlayerState } from "@/lib/game/boxes";
-import { liveLifeDiscount } from "@/lib/game/view";
+import { currentPlayerState } from "@/lib/player-state";
+import { toPlayerState } from "@/lib/game/boxes";
 
 /**
  * The life pool, as the header shows it. Reading it is also what refills it:
@@ -14,11 +13,5 @@ export async function GET() {
   const email = await playerEmail();
   if (!email) return NextResponse.json({ player: toPlayerState(null, null) });
 
-  const db = supabaseAdmin();
-  const player = await ensurePlayer(db, email);
-  return NextResponse.json({
-    player: toPlayerState(player, email, {
-      lifeDiscount: player ? await liveLifeDiscount(db, player.id) : null,
-    }),
-  });
+  return NextResponse.json({ player: await currentPlayerState() });
 }

@@ -33,8 +33,9 @@ behind a password and wants people to attack it.
 ## Guessing
 
 A password is 3 to 26 characters from the 26 letters (both cases), ten digits,
-every symbol on a QWERTY keyboard, and the space — 95 in all. Anything you can
-type is fair game: `& $ # ) ( ; : ! ? *` and the rest.
+every symbol on a QWERTY keyboard, the space, and a handful beyond the
+keyboard — `• √ π ÷ × § ∆ £ ¢ € ¥ ° © ® ™ ✓` — 111 in all. Anything you can
+type or paste is fair game.
 
 Space was excluded at first, on the grounds that a password you can't tell the
 length of by eye shouldn't also be one you can't tell the *shape* of by eye.
@@ -86,6 +87,26 @@ only on how many lives you have. A hard box is a siege, not a sitting.
 Lives can also be bought at **₦150 each**, up to 100 at a time. Nobody has to
 — the pool refills whether or not anyone pays, and the buy dialog says so
 before it says anything else.
+
+### Life Bank
+
+The ceiling is the real cost of a long hunt: an evening away banks seven
+guesses and every hour after that is thrown away. **₦2,500 buys a week** of a
+ceiling of 24, and fills you to it on the spot — a ceiling that takes
+seventeen hours to become visible is a purchase that appears to have done
+nothing.
+
+It sits in the buy-lives dialog with the other two, because all three answer
+the same question in different units: lives are *quantity*, Second Wind is
+*time*, Life Bank is *headroom*. Buying a second week while one is running
+adds to what's left rather than replacing it — a renewal that threw away the
+remainder would punish renewing early.
+
+The ceiling is a column on `players` with an expiry beside it (0037, 0039), and
+`life_cap` falls back to the platform default the moment that passes rather
+than at the next purchase or on a sweep that might never run. **A lapsed week
+never takes lives away**: somebody holding nineteen keeps all nineteen and
+simply stops accruing until they are back under seven.
 
 Admins can grant lives from `/admin`, to an address that has never played if
 need be. It's the only honest fix when something breaks on our side.
@@ -188,17 +209,29 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Power-up | Price | What it does |
 | --- | --- | --- |
 | Length Lock | 0.5% | Tells you exactly how many characters the password has |
-| Symbol Count | 10% | Counts the symbols — anything that isn't a letter, digit or space |
-| Capital Count | 9% | Counts the capital letters |
-| Lowercase Count | 8.5% | Counts the lowercase letters |
-| Digit Count | 7.5% | Counts the digits |
-| Space Count | 5% | Counts the spaces |
-| Consonant Scan | 1.25% | Counts the consonants — every letter that isn't a vowel |
 | Vowel Scan | 0.5% | Counts the vowels, A E I O U, either case |
 | Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
+| Consonant Scan | 1.25% | Counts the consonants — every letter that isn't a vowel |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
+| Space Count | 5% | Counts the spaces |
 | X-Ray | 5% | Names half the distinct characters it hasn't named yet, unordered |
-| Life Bank | 0.7% | Raises your life ceiling from 7 to 24, permanently and everywhere |
+| Digit Count | 7.5% | Counts the digits |
+| Lowercase Count | 8.5% | Counts the lowercase letters |
+| Capital Count | 9% | Counts the capital letters |
+| Symbol Count | 10% | Counts the symbols — anything that isn't a letter, digit or space |
+
+The shelf is ordered **cheapest first**, which is the order above. It used to
+be in catalogue order — the order they happened to be written in — so a
+₦70,000 counter sat above a ₦3,500 one and the cheap end was somewhere in the
+middle. Price is the axis a player is actually sorting by.
+
+**Every price is editable from `/admin`**, per power-up and globally: the share
+of the reward, the floor, what a life costs, what a week of Life Bank costs,
+and what Spendbox keeps of a sale. The constants above are defaults and stay
+authoritative for anything nobody has touched — a missing settings row, an
+empty object and an untouched key all behave identically to a build with no
+settings at all. Overrides are clamped both when saved and when read, so a
+share typed as `50` instead of `0.5` can neither be stored nor honoured.
 
 **Prices are a share of the box's reward**, floored so that a challenge box
 with nothing behind it still has a shelf to sell. A hint that saves you a
@@ -230,12 +263,9 @@ old `caseMap` into it on read — so a hunt that paid for Case Map before it was
 retired keeps all four of its numbers, with no legacy field for the rest of the
 app to keep knowing about.
 
-**Life Bank** is the odd one out and the only power-up that isn't about the
-password. The pool refills one an hour and stops at seven, so an evening away
-banks seven guesses and every hour after that is thrown away. It raises the
-ceiling to twenty-four and fills you to it. The ceiling lives on `players`
-rather than on the hunt, because the pool is one pool across every safe —
-raising it on one box and not another would be a rule with nowhere to live.
+**Life Bank** is not on this shelf, and never should have been. Every other
+thing here is a fact about *one password*; that is a change to the life pool,
+which is shared across every safe. It is sold beside lives now — see below.
 
 The *share* is server-side only. A player is shown what something costs on the
 box in front of them and nothing about how that number was reached — and
@@ -363,6 +393,22 @@ money twice.
 
 ---
 
+### Sheets
+
+Everything modal in the game is one `Modal`. It caps itself to the *small*
+viewport, pins its header and footer, insets itself for an on-screen keyboard,
+and **closes when you swipe it down** — a sheet that arrives from the bottom
+edge of a phone has one gesture everybody already knows, and not honouring it
+makes the grab handle a lie.
+
+The drag engages only from the top of the sheet's scroll: reading down a long
+attempt log and flicking back must scroll, not dismiss. Once engaged it takes
+over, which is why the touch listener is non-passive and added by hand —
+`preventDefault` is the only thing that stops the browser deciding halfway
+through that this was a scroll after all.
+
+---
+
 ## Surfaces
 
 | Route | Who | What |
@@ -378,6 +424,15 @@ money twice.
 
 A player never signs up. They verify an address once — because a reward has to
 be sent somewhere — and a signed cookie remembers them for six months.
+
+**Every page resolves the player on the server** and hands it to the provider
+as its starting state. It used to start every page as an anonymous stranger and
+find out otherwise a round trip later, which on a fast connection is a flash
+and on a slow one is a second of being asked to sign in to a page you are
+already signed into. The address is in a cookie the server can read; there was
+never a reason to ask the browser to go and find out. The cost is that those
+pages can't be prerendered, which is the right trade for anything with a life
+count on it.
 
 ### Still open
 
@@ -825,7 +880,8 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             a discount's clock when it is claimed, 0036 moves
                             the whole gift rotation into Postgres, 0037 makes
                             the life ceiling a column Life Bank can raise, 0038
-                            adds the contributor payout ledger
+                            adds the contributor payout ledger, 0039 makes
+                            prices editable and Life Bank weekly
 ```
 
 ---

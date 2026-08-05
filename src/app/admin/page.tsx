@@ -43,6 +43,7 @@ import { DESIGNS, DESIGN_SPECS, DEFAULT_DESIGN, type Design } from "@/lib/game/d
 import { SafeArt } from "@/components/safe/safe-art";
 import { BuildCard, CardDialog } from "@/components/dashboard/build-panel";
 import { PayoutsPanel } from "@/components/admin/payouts-panel";
+import { PricingPanel } from "@/components/admin/pricing-panel";
 import { GrantLives } from "@/components/admin/grant-lives";
 import { UsersPanel } from "@/components/admin/users-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
@@ -219,6 +220,8 @@ export default function AdminPage() {
           </section>
 
           <PayoutsPanel />
+
+          <PricingPanel />
 
           <GrantLives />
         </>

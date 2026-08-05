@@ -16,7 +16,6 @@
 
 import { useState } from "react";
 import { ArrowRight, HelpCircle, MoveDown, MoveUp, Target } from "lucide-react";
-import Link from "next/link";
 import { Modal } from "@/components/ui/modal";
 import { Boxy } from "@/components/art/boxy";
 import { PowerUpArt } from "@/components/art/power-up-art";
@@ -63,15 +62,24 @@ export function HowItWorksDialog({ onClose }: { onClose: () => void }) {
       subtitle="Guess blind. One life = one guess."
       icon={<Boxy mood="sly" still />}
       onClose={onClose}
+      /*
+        The way out is *into the game*, not into the dashboard. This sheet is
+        opened almost entirely by people deciding whether to play — from the
+        landing page and from the question mark on the play screen — and
+        sending them off to build a box of their own was answering a question
+        nobody in it had asked. Putting one up is a link in the footer of the
+        site, where it belongs.
+      */
       footer={
-        <Link
-          href="/dashboard"
+        <button
+          type="button"
+          onClick={onClose}
           style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
           className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-brass px-4 py-3.5 text-ink"
         >
-          Put up a box of your own
+          Start guessing
           <ArrowRight className="size-4" aria-hidden />
-        </Link>
+        </button>
       }
     >
       <div className="space-y-4 pb-1 text-sm leading-relaxed text-zinc-300 sm:space-y-5">

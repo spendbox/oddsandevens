@@ -20,6 +20,7 @@ import {
   type BoxRow,
 } from "@/lib/game/boxes";
 import { maskEmail } from "@/lib/mask";
+import { loadPricing, resolved } from "@/lib/game/pricing";
 import type {
   AttemptRecord,
   ClaimedDiscount,
@@ -296,15 +297,21 @@ export async function buildPlayView(
   const winner = box.unlocked_by ? await winnerEmail(db, box.unlocked_by) : null;
   const publicBox = toPublicBox(box, { contributor, winnerEmail: winner });
 
+  // Whatever an admin has changed. The shelf is quoted from it, and the
+  // checkout re-reads it rather than trusting the quote.
+  const prices = await loadPricing(db);
+  const money = resolved(prices);
+
   if (!email) {
     return {
       box: publicBox,
-      player: toPlayerState(null, null),
+      player: toPlayerState(null, null, { lifePriceKobo: money.lifePriceKobo }),
       hunt: null,
       rivals: await rivalsOn(db, box.id, null),
       offer: null,
       discount: null,
-      powerUps: offerings(parseRevealed(null), box.reward_kobo),
+      lifeBankKobo: money.lifeBankKobo,
+      powerUps: offerings(parseRevealed(null), box.reward_kobo, prices),
       claim: null,
     };
   }
@@ -326,12 +333,14 @@ export async function buildPlayView(
     box: publicBox,
     player: toPlayerState(playerRow, email, {
       lifeDiscount: playerRow ? await liveLifeDiscount(db, playerRow.id) : null,
+      lifePriceKobo: money.lifePriceKobo,
     }),
     hunt: state,
     rivals: await rivalsOn(db, box.id, playerRow?.id ?? null),
     offer: playerRow ? await liveOffer(db, playerRow.id) : null,
     discount: playerRow ? await liveDiscount(db, playerRow.id, box.id) : null,
-    powerUps: offerings(state?.revealed ?? parseRevealed(null), box.reward_kobo),
+    lifeBankKobo: money.lifeBankKobo,
+    powerUps: offerings(state?.revealed ?? parseRevealed(null), box.reward_kobo, prices),
     claim: claim
       ? {
           amountKobo: Number(claim.amount_kobo),

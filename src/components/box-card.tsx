@@ -28,10 +28,16 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
         (open ? "opacity-70" : "")
       }
     >
+      {/*
+        Above the content, not below it. A stretched link underneath its own
+        card catches nothing — every div over it is a hit target in its own
+        right, so the tap lands on a paragraph and the card is dead. The share
+        chip lifts itself back above this.
+      */}
       <Link
         href={`/b/${box.slug}`}
         aria-label={box.title}
-        className="absolute inset-0 z-0 rounded-3xl"
+        className="absolute inset-0 z-20 rounded-3xl"
       />
 
       <div className="relative z-10 flex items-start justify-between gap-3">
@@ -106,7 +112,7 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
         {/* Sharing is a thing a *player* wants to do, not only an author: a
             board of safes is where somebody thinks of the friend who would
             enjoy one. */}
-        <ShareChip slug={box.slug} title={box.title} />
+        <ShareChip slug={box.slug} title={box.title} className="relative z-30" />
       </div>
     </div>
   );

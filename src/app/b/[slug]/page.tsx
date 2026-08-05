@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { currentPlayerState } from "@/lib/player-state";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { playerEmail } from "@/lib/player-session";
@@ -51,7 +52,7 @@ export default async function BoxPage({
   const view = await buildPlayView(db, box, await playerEmail());
 
   return (
-    <PlayerProvider>
+    <PlayerProvider initial={await currentPlayerState()}>
       {/*
         No site header on this one, and that is the point. The scene is the
         whole surface — sky to floor, edge to edge — and a chrome bar across

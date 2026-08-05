@@ -13,6 +13,7 @@ import {
   splitPowerUp,
 } from "@/lib/game/power-ups";
 import { findBox, findHunt } from "@/lib/game/view";
+import { loadPricing, resolved } from "@/lib/game/pricing";
 
 /**
  * Buy a power-up for the hunt in progress.
@@ -76,7 +77,8 @@ export async function POST(
   // A claimed drop can take a share off, and that share is read from the
   // database rather than the request for exactly the same reason: a discount
   // the client names is a discount the client can name itself.
-  const full = priceKobo(kind, box.reward_kobo);
+  const money = resolved(await loadPricing(db));
+  const full = priceKobo(kind, box.reward_kobo, { powerUps: money.powerUps });
   const { data: off } = await db.rpc("discount_for", {
     p_player_id: player.id,
     p_power_up: kind,
@@ -93,7 +95,7 @@ export async function POST(
   }
 
   const split = box.contributor_id
-    ? splitPowerUp(price)
+    ? splitPowerUp(price, money.platformSharePercent)
     : { contributorKobo: 0, platformKobo: price };
 
   const subaccount = box.contributor_id

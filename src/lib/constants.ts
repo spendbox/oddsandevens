@@ -33,6 +33,11 @@ export const SPECIALS = [
   "!", '"', "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
   ":", ";", "<", "=", ">", "?", "@", "[", "\\", "]", "^", "_", "`", "{", "|",
   "}", "~",
+  // Beyond the keyboard's own rows: currency, maths and marks. Every one of
+  // them is on a phone's symbol pages and reachable on a desktop by paste, and
+  // each one added is another candidate at every position — which is the whole
+  // point of having them.
+  "•", "√", "π", "÷", "×", "§", "∆", "£", "¢", "€", "¥", "°", "©", "®", "™", "✓",
 ];
 
 export const ALPHABET = [...UPPER, ...LOWER, ...DIGITS, ...SPECIALS];

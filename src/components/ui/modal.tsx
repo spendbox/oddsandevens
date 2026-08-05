@@ -23,9 +23,89 @@
 // screens, so the *content* is what fills a sheet rather than the frame
 // around it.
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Portal } from "./portal";
+
+/** Drag this far down and letting go closes it. */
+const DISMISS_PX = 110;
+
+/**
+ * Swipe a sheet away.
+ *
+ * A sheet that arrives from the bottom edge of a phone has exactly one gesture
+ * everybody already knows, and not honouring it makes the grab handle a lie.
+ *
+ * The whole sheet is draggable, not just the handle — but only from the top of
+ * its scroll. Reading down a long attempt log and flicking back up must scroll,
+ * not dismiss, so the drag only engages when the body is already at
+ * `scrollTop <= 0` and the finger is moving down. Once engaged it takes over,
+ * which is why the listener is non-passive and added by hand: `preventDefault`
+ * is the only thing that stops the browser deciding this was a scroll after
+ * all, and React's synthetic handlers can't be made non-passive.
+ */
+function useSwipeAway(onClose: () => void) {
+  const sheet = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState(0);
+
+  useEffect(() => {
+    const el = sheet.current;
+    if (!el) return;
+
+    let startY = 0;
+    let active = false;
+    let armed = false;
+
+    const start = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      startY = event.touches[0].clientY;
+      // Armed, not engaged: the direction isn't known until the finger moves.
+      armed = (body.current?.scrollTop ?? 0) <= 0;
+      active = false;
+    };
+
+    const move = (event: TouchEvent) => {
+      if (!armed || event.touches.length !== 1) return;
+      const dy = event.touches[0].clientY - startY;
+      if (!active) {
+        if (dy < 6) return;
+        active = true;
+      }
+      if (dy <= 0) {
+        setDrag(0);
+        return;
+      }
+      event.preventDefault();
+      // Rubber-banded: the first hundred pixels track the finger and the rest
+      // give, so a long drag never detaches the sheet from the thumb.
+      setDrag(dy > DISMISS_PX ? DISMISS_PX + (dy - DISMISS_PX) * 0.35 : dy);
+    };
+
+    const end = () => {
+      armed = false;
+      if (!active) return;
+      active = false;
+      setDrag((current) => {
+        if (current >= DISMISS_PX) onClose();
+        return 0;
+      });
+    };
+
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, [onClose]);
+
+  return [sheet, body, drag] as const;
+}
 
 export type ModalWidth = "sm" | "md" | "lg";
 
@@ -137,6 +217,7 @@ export function Modal({
   }, [onClose]);
 
   const keyboard = useKeyboardInset();
+  const [sheetRef, bodyRef, drag] = useSwipeAway(close);
 
   return (
     <Portal>
@@ -163,8 +244,14 @@ export function Modal({
           {above && <div className="shrink-0">{above}</div>}
 
           <div
+            ref={sheetRef}
             role="dialog"
             aria-modal="true"
+            style={
+              drag > 0
+                ? { transform: `translateY(${drag}px)`, transition: "none" }
+                : { transition: "transform 0.22s cubic-bezier(0.22,1,0.36,1)" }
+            }
             className="sheet animate-pop-in flex min-h-0 w-full flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl"
           >
           {/* Grab handle — the thing that says "this sheet moves". */}
@@ -200,7 +287,10 @@ export function Modal({
             </button>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6 sm:pb-5">
+          <div
+            ref={bodyRef}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6 sm:pb-5"
+          >
             {children}
           </div>
 

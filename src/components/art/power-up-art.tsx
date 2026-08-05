@@ -15,7 +15,6 @@
 //   Second Wind  mint     time and freedom
 //   Colour Read  berry    the colours behind a score
 //   X-Ray        gold     seeing inside, the most valuable of them
-//   Life Bank    berry    lives, and somewhere to keep them
 //
 // The seven counters share one drawing — a card with a beam under it — and
 // differ only by the glyph on the card and the colour of the badge. That is on
@@ -34,7 +33,6 @@ export const POWER_UP_COLOURS: Record<PowerUpKind, { from: string; to: string }>
   second_wind: { from: "#7ff0bb", to: "#11855a" },
   breakdown: { from: "#ff9ab8", to: "#b8214c" },
   x_ray: { from: "#ffe08a", to: "#b8750f" },
-  life_bank: { from: "#ff9db5", to: "#b8214c" },
   upper_case: { from: "#cfa4ff", to: "#6b2fc4" },
   lower_case: { from: "#c9b2ff", to: "#5326a8" },
   symbol_count: { from: "#ffc082", to: "#c05a12" },
@@ -90,7 +88,6 @@ export function PowerUpArt({
       <circle cx="32" cy="34" r="22" fill={`url(#${uid}-halo)`} />
 
       {kind === "length_lock" && <LengthLock />}
-      {kind === "life_bank" && <LifeBank />}
       {kind === "second_wind" && <SecondWind uid={uid} />}
       {kind === "breakdown" && <ColourRead uid={uid} />}
       {kind === "x_ray" && <XRay uid={uid} />}
@@ -181,7 +178,28 @@ function LengthLock() {
   );
 }
 
-/** A vault of hearts: the ceiling on the pool, raised. */
+/**
+ * A vault of hearts: the ceiling on the pool, raised.
+ *
+ * Exported on its own badge because Life Bank is no longer on the power-up
+ * shelf — it is sold beside lives, where the rest of the pool economy lives.
+ */
+export function LifeBankArt({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-hidden>
+      <defs>
+        <Grad id="lb-badge" from="#ff9db5" to="#b8214c" />
+        <Halo id="lb-halo" color="#ff9db5" />
+      </defs>
+      <rect x="3" y="3" width="58" height="58" rx="18" fill={INK} opacity="0.5" />
+      <rect x="2" y="1" width="60" height="60" rx="18" fill="url(#lb-badge)" stroke={INK} strokeWidth={STROKE} />
+      <Gloss cx={32} cy={13} rx={20} ry={6} opacity={0.3} />
+      <circle cx="32" cy="34" r="22" fill="url(#lb-halo)" />
+      <LifeBank />
+    </svg>
+  );
+}
+
 function LifeBank() {
   const heart = (cx: number, cy: number, s: number) =>
     `M ${cx} ${cy + 4 * s} C ${cx - 7 * s} ${cy - 3 * s}, ${cx - 4 * s} ${cy - 8 * s}, ${cx} ${cy - 3.5 * s} C ${cx + 4 * s} ${cy - 8 * s}, ${cx + 7 * s} ${cy - 3 * s}, ${cx} ${cy + 4 * s} Z`;

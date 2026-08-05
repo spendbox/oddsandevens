@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   apply,
   isPowerUpKind,
+  LIFE_BANK_DAYS,
   LIFE_BANK_MAX,
   parseRevealed,
 } from "@/lib/game/power-ups";
@@ -97,17 +98,6 @@ export async function settlePowerUp(
     await db.from("hunts").update({ revealed }).eq("id", hunt.id);
   }
 
-  // Life Bank is the one power-up whose effect isn't on the hunt. It raises the
-  // ceiling on the player's pool, which is shared across every box, so it is
-  // applied here rather than folded into `revealed`. `grant_life_bank` takes
-  // the greater of the two values, so a replayed webhook is a no-op.
-  if (kind === "life_bank") {
-    await db.rpc("grant_life_bank", {
-      p_player_id: row.player_id as string,
-      p_to: LIFE_BANK_MAX,
-    });
-  }
-
   await db.from("power_up_orders").update({ note }).eq("reference", reference);
 
   return { settled: true, note };
@@ -126,11 +116,24 @@ export async function settlePowerUp(
 export async function settleLives(
   db: Db,
   reference: string
-): Promise<{ settled: boolean; quantity: number; bonus: number }> {
+): Promise<{ settled: boolean; quantity: number; bonus: number; bank: boolean }> {
   const { claimed, row } = await markPaid(db, "life_orders", reference);
-  if (!row) return { settled: false, quantity: 0, bonus: 0 };
+  if (!row) return { settled: false, quantity: 0, bonus: 0, bank: false };
   const quantity = Number(row.quantity ?? 0);
-  if (!claimed) return { settled: row.status === "paid", quantity, bonus: 0 };
+  // A Life Bank is a life order that buys no lives. The reference prefix is
+  // what says so, and it is minted by the route that created it — nothing here
+  // has to infer intent from a zero.
+  const bank = reference.startsWith("bank_");
+  if (!claimed) return { settled: row.status === "paid", quantity, bonus: 0, bank };
+
+  if (bank) {
+    await db.rpc("grant_life_bank", {
+      p_player_id: row.player_id as string,
+      p_to: LIFE_BANK_MAX,
+      p_days: LIFE_BANK_DAYS,
+    });
+    return { settled: true, quantity: 0, bonus: 0, bank: true };
+  }
 
   const { data } = await db.rpc("settle_life_purchase", {
     p_player_id: row.player_id as string,
@@ -138,7 +141,7 @@ export async function settleLives(
   });
   const bonus = Number((data as { bonus_applied?: number } | null)?.bonus_applied ?? 0);
 
-  return { settled: true, quantity, bonus };
+  return { settled: true, quantity, bonus, bank: false };
 }
 
 /**
@@ -179,7 +182,7 @@ export function orderTableFor(
   reference: string
 ): "power_up_orders" | "life_orders" | "funding_orders" | null {
   if (reference.startsWith("pu_")) return "power_up_orders";
-  if (reference.startsWith("life_")) return "life_orders";
+  if (reference.startsWith("life_") || reference.startsWith("bank_")) return "life_orders";
   if (reference.startsWith("fund_")) return "funding_orders";
   return null;
 }

@@ -495,6 +495,7 @@ export function PlaySurface({
           slug={slug}
           contributor={view.box.contributor}
           secondWind={secondWind}
+          lifeBankKobo={view.lifeBankKobo}
           onClose={() => setSheet("none")}
         />
       )}

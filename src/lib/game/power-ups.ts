@@ -14,7 +14,6 @@
 //   Second Wind  the life pool, which is the pace of the whole game
 //   Colour Read  the components behind a score, which are withheld by default
 //   X-Ray        half the characters, unordered
-//   Life Bank    the ceiling on the life pool itself
 //
 // The counters replaced Case Map, which sold all four composition numbers at
 // one price. Sold separately they are seven decisions instead of one, and each
@@ -28,7 +27,7 @@
 // *result* of a purchase and never the password.
 
 import { randomInt } from "node:crypto";
-import { KOBO, LIVES_MAX } from "@/lib/constants";
+import { KOBO } from "@/lib/constants";
 import { splitSale } from "@/lib/game/rewards";
 
 export const POWER_UP_KINDS = [
@@ -43,12 +42,20 @@ export const POWER_UP_KINDS = [
   "second_wind",
   "breakdown",
   "x_ray",
-  "life_bank",
 ] as const;
 export type PowerUpKind = (typeof POWER_UP_KINDS)[number];
 
-/** What a Life Bank raises the ceiling to. */
+/**
+ * What a Life Bank raises the ceiling to, and for how long.
+ *
+ * Not a power-up any more. It never was one really — every other thing on the
+ * shelf is a fact about *this* password, and this is a change to the life pool,
+ * which is shared across every safe. It is sold beside lives now, where the
+ * rest of the pool economy lives, and it is a week rather than a permanence:
+ * ₦2,500 buys seven days of the raised ceiling.
+ */
 export const LIFE_BANK_MAX = 24;
+export const LIFE_BANK_DAYS = 7;
 
 /**
  * The counters, and the class of character each one counts.
@@ -271,16 +278,6 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     repeat: "once",
   },
 
-  life_bank: {
-    kind: "life_bank",
-    name: "Life Bank",
-    blurb: `Raises your life ceiling from ${LIVES_MAX} to ${LIFE_BANK_MAX}, permanently.`,
-    detail: `The only thing on this shelf that isn't about the password. Your pool refills one life an hour and stops at ${LIVES_MAX} — so an evening away is ${LIVES_MAX} guesses banked and every hour after that wasted. This raises the ceiling to ${LIFE_BANK_MAX} and fills you to it on the spot: a full day of accrual now banks instead of overflowing, which on a long hunt is worth far more than any single hint.`,
-    caveat: `It buys headroom, not speed — lives still come back one an hour. The new ceiling is yours for good and works on every box, not just this one.`,
-    share: 0.007,
-    floorKobo: 300 * KOBO,
-    repeat: "once",
-  },
 };
 
 /**
@@ -290,10 +287,34 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
  * platform's own challenges — still has something to sell. Rounded to the
  * nearest naira, because a price ending in kobo looks like a mistake.
  */
-export function priceKobo(kind: PowerUpKind, rewardKobo: number): number {
+export function priceKobo(
+  kind: PowerUpKind,
+  rewardKobo: number,
+  /** What an admin has changed, if anything. */
+  prices?: PriceOverrides
+): number {
   const spec = POWER_UPS[kind];
-  const share = Math.round((rewardKobo * spec.share) / KOBO) * KOBO;
-  return Math.max(MIN_PRICE_KOBO, spec.floorKobo, share);
+  const over = prices?.powerUps?.[kind];
+  const share = Math.round((rewardKobo * (over?.share ?? spec.share)) / KOBO) * KOBO;
+  return Math.max(MIN_PRICE_KOBO, over?.floorKobo ?? spec.floorKobo, share);
+}
+
+/**
+ * Prices an admin has changed, read from `platform_settings` at request time.
+ *
+ * Passed down rather than imported, because the catalogue is a pure module and
+ * has to stay one: it is used by the FAQ, the revenue estimate and a browser
+ * bundle, none of which can reach the database. The two places that actually
+ * *charge* money — the power-up checkout and the play view that quotes it —
+ * load the overrides and hand them in.
+ */
+export interface PriceOverrides {
+  powerUps?: Partial<Record<PowerUpKind, { share?: number; floorKobo?: number }>>;
+  /** What Spendbox keeps of every sale. */
+  platformSharePercent?: number;
+  lifePriceKobo?: number;
+  /** A week of the raised life ceiling. */
+  lifeBankKobo?: number;
 }
 
 /**
@@ -447,11 +468,6 @@ export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
   switch (kind) {
     case "length_lock":
       return revealed.length === null;
-    case "life_bank":
-      // A ceiling can only be raised once. It is raised on the player rather
-      // than on the hunt, but it is *recorded* here so the shelf on this box
-      // stops offering it.
-      return !revealed.used.life_bank;
     case "second_wind":
       // Re-buyable the moment it lapses. An hour is short on purpose.
       return !secondWindActive(revealed);
@@ -495,8 +511,19 @@ export interface Offering {
   activeUntil: string | null;
 }
 
-/** The catalogue as the play screen shows it, priced against this box. */
-export function offerings(revealed: Revealed, rewardKobo: number): Offering[] {
+/**
+ * The catalogue as the play screen shows it, priced against this box.
+ *
+ * **Cheapest first.** The shelf used to be in catalogue order, which is the
+ * order they were written in and means nothing to anybody looking at it — so a
+ * ₦70,000 counter sat above a ₦3,500 one and the cheap end of the shelf was
+ * somewhere in the middle. Price is the axis a player is actually sorting by.
+ */
+export function offerings(
+  revealed: Revealed,
+  rewardKobo: number,
+  prices?: PriceOverrides
+): Offering[] {
   return POWER_UP_KINDS.map((kind) => {
     const { name, blurb, detail, caveat, repeat } = POWER_UPS[kind];
     return {
@@ -506,7 +533,7 @@ export function offerings(revealed: Revealed, rewardKobo: number): Offering[] {
       detail,
       caveat,
       repeat,
-      priceKobo: priceKobo(kind, rewardKobo),
+      priceKobo: priceKobo(kind, rewardKobo, prices),
       available: isAvailable(kind, revealed),
       activeUntil:
         kind === "breakdown"
@@ -515,7 +542,7 @@ export function offerings(revealed: Revealed, rewardKobo: number): Offering[] {
             ? revealed.secondWindUntil
             : null,
     };
-  });
+  }).sort((a, b) => a.priceKobo - b.priceKobo);
 }
 
 // ---------------------------------------------------------------------------
@@ -555,15 +582,6 @@ export function apply(
       return {
         revealed: { ...counted, length: secret.length },
         note: `The password is ${secret.length} characters long.`,
-      };
-
-    case "life_bank":
-      // Nothing about the password. The ceiling itself is raised by the
-      // settlement, against the player rather than the hunt — this only
-      // records the purchase so the shelf stops offering it.
-      return {
-        revealed: counted,
-        note: `Your life ceiling is ${LIFE_BANK_MAX} from now on, on every box.`,
       };
 
     case "second_wind":

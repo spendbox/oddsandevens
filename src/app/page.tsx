@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { currentPlayerState } from "@/lib/player-state";
 import { PUBLIC_BOX_COLUMNS, toPublicBox, type BoxRow } from "@/lib/game/boxes";
 import { PlayerProvider } from "@/components/player/player-context";
 import { SiteHeader } from "@/components/site-header";
@@ -58,7 +59,7 @@ export default async function Home() {
   const featured = liveBoxes.filter((box) => box.featured);
 
   return (
-    <PlayerProvider>
+    <PlayerProvider initial={await currentPlayerState()}>
       <SiteHeader />
       <main className="flex-1">
         <Landing

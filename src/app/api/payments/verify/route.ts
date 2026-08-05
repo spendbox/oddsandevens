@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { LIFE_BANK_MAX } from "@/lib/game/power-ups";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { isTerminalFailure, paystackConfigured, verifyTransaction } from "@/lib/paystack";
 import {
@@ -46,8 +47,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ result: settled ? "paid" : "unknown", note });
   }
   if (table === "life_orders") {
-    const { settled, quantity } = await settleLives(db, reference);
-    return NextResponse.json({ result: settled ? "paid" : "unknown", quantity });
+    const { settled, quantity, bank } = await settleLives(db, reference);
+    return NextResponse.json({
+      result: settled ? "paid" : "unknown",
+      quantity,
+      note: bank ? `Life Bank running — your ceiling is ${LIFE_BANK_MAX}.` : undefined,
+    });
   }
 
   const { settled } = await settleFunding(db, reference);

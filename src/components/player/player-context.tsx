@@ -46,9 +46,24 @@ interface PlayerContextValue {
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 
-export function PlayerProvider({ children }: { children: ReactNode }) {
-  const [player, setPlayer] = useState<PlayerState>(ANONYMOUS);
-  const [ready, setReady] = useState(false);
+export function PlayerProvider({
+  /**
+   * Who the server already knows this is.
+   *
+   * Every page that mounts this resolves the player from the session cookie
+   * and hands it over, so the first paint is correct. Without it the provider
+   * starts as a stranger and corrects itself a round trip later — which on a
+   * page you are signed into reads as being asked to sign in again.
+   */
+  initial,
+  children,
+}: {
+  initial?: PlayerState;
+  children: ReactNode;
+}) {
+  const [player, setPlayer] = useState<PlayerState>(initial ?? ANONYMOUS);
+  // Ready immediately when the server told us: there is nothing to wait for.
+  const [ready, setReady] = useState(!!initial);
 
   const refresh = useCallback(async () => {
     try {

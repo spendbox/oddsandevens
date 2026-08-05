@@ -222,6 +222,8 @@ export interface PlayView {
   offer: Drop | null;
   /** A claimed discount still in its redemption window, if there is one. */
   discount: ClaimedDiscount | null;
+  /** A week of the raised life ceiling, at whatever an admin has priced it. */
+  lifeBankKobo: number;
   /**
    * The shelf, priced against *this* box. Every power-up costs a share of the
    * reward, so the same hint is a different price on a ₦7,000,000 safe and a

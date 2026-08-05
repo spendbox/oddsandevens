@@ -167,10 +167,18 @@ function FeaturedCard({ box }: { box: PublicBox }) {
       in practice means one tap doing both things.
     */
     <div className="panel panel-lift group relative flex flex-col overflow-hidden rounded-3xl">
+      {/*
+        `z-20`, above the content — not below it.
+        A stretched link underneath its own card catches nothing: every div
+        over it is a hit target in its own right, so the tap lands on a
+        paragraph and the card is dead. Everything decorative is
+        `pointer-events-none`, and the one real control on the card lifts
+        itself back above this with `z-30`.
+      */}
       <Link
         href={`/b/${box.slug}`}
         aria-label={box.title}
-        className="absolute inset-0 z-0 rounded-3xl"
+        className="absolute inset-0 z-20 rounded-3xl"
       />
 
       {/* A wash in the safe's own colour, so swiping from one featured box to
@@ -183,7 +191,8 @@ function FeaturedCard({ box }: { box: PublicBox }) {
       />
 
       {/* ---- who and what ---------------------------------------------- */}
-      <div className="relative z-10 flex items-start gap-3 p-4 sm:gap-5 sm:p-7">
+      <div className="relative z-10 p-4 sm:p-7">
+      <div className="flex items-start gap-3 sm:gap-5">
         <div className="relative shrink-0">
           {/* A pedestal under the safe. Without it the art floats on the
               gradient and the whole card reads as flat. */}
@@ -209,17 +218,22 @@ function FeaturedCard({ box }: { box: PublicBox }) {
           <h3 className="mt-1.5 line-clamp-2 min-h-[3.125rem] text-xl font-black leading-tight tracking-tight sm:min-h-[3.75rem] sm:text-2xl">
             {box.title}
           </h3>
-
-          {/*
-            A fixed slot, filled or not. Every card on the site truncates the
-            description — the full text is in the vault sheet during play — and
-            reserving the space is what keeps one slide from being two lines
-            taller than the next.
-          */}
-          <p className="mt-1.5 line-clamp-2 h-10 overflow-hidden text-sm leading-snug text-zinc-400">
-            {box.blurb ?? ""}
-          </p>
         </div>
+      </div>
+
+      {/*
+        The description, across the whole card rather than in the narrow column
+        beside the safe — at 320px that column is about twenty characters wide,
+        which turned a hundred and twenty of them into six lines and then
+        clipped four. Full width it is three, and the full width is also what
+        lets it sit directly under the name it belongs to.
+
+        A fixed slot, filled or not: reserving the space is what keeps one
+        slide from being taller than the next.
+      */}
+      <p className="mt-2 line-clamp-3 h-[3.6rem] overflow-hidden text-sm leading-snug text-zinc-400">
+        {box.blurb ?? ""}
+      </p>
       </div>
 
       {/* ---- the prize -------------------------------------------------- */}
@@ -269,7 +283,7 @@ function FeaturedCard({ box }: { box: PublicBox }) {
           Take a crack at it
           <ArrowRight className="size-4 transition group-hover:translate-x-1" aria-hidden />
         </span>
-        <ShareChip slug={box.slug} title={box.title} />
+        <ShareChip slug={box.slug} title={box.title} className="relative z-30" />
       </div>
     </div>
   );

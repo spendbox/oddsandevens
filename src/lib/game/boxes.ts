@@ -111,7 +111,11 @@ export function toPlayerState(
   player: PlayerRow | null,
   email: string | null,
   /** Things that need their own query, so the callers that can, pass them. */
-  extras: { lifeDiscount?: PlayerState["lifeDiscount"] } = {}
+  extras: {
+    lifeDiscount?: PlayerState["lifeDiscount"];
+    /** What an admin has priced a life at, if they've changed it. */
+    lifePriceKobo?: number;
+  } = {}
 ): PlayerState {
   if (!player) {
     return {
@@ -119,7 +123,7 @@ export function toPlayerState(
       lives: LIVES_MAX,
       livesMax: LIVES_MAX,
       nextLifeAt: null,
-      lifePriceKobo: LIFE_PRICE_KOBO,
+      lifePriceKobo: extras.lifePriceKobo ?? LIFE_PRICE_KOBO,
       inviteCode: null,
       bonusLivesPending: 0,
       lifeDiscount: null,
@@ -137,7 +141,7 @@ export function toPlayerState(
       : new Date(
           new Date(player.lives_accrued_at).getTime() + LIFE_REGEN_MINUTES * 60_000
         ).toISOString(),
-    lifePriceKobo: LIFE_PRICE_KOBO,
+    lifePriceKobo: extras.lifePriceKobo ?? LIFE_PRICE_KOBO,
     inviteCode: player.invite_code ?? null,
     bonusLivesPending: player.bonus_lives_pending ?? 0,
     lifeDiscount: extras.lifeDiscount ?? null,
