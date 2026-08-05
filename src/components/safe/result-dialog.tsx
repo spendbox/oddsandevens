@@ -35,27 +35,20 @@ import { CRACKS, cracksFor } from "@/lib/game/chase";
 import { formatScore, scoreBand } from "@/lib/game/feedback";
 import type { AttemptRecord } from "@/lib/types";
 
-/** Where the "stop showing me this" preference lives. */
-const MUTE_KEY = "spendbox.quiet-results";
-
-export function resultsMuted(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(MUTE_KEY) === "1";
-  } catch {
-    // Private mode, or storage disabled. Showing the dialog is the safe
-    // default — it is the feature, and a lost preference is a small cost.
-    return false;
-  }
-}
-
-function mute() {
-  try {
-    window.localStorage.setItem(MUTE_KEY, "1");
-  } catch {
-    /* nothing to do, and nothing worth telling anybody about */
-  }
-}
+/*
+ * There is no "stop showing me this" any more, and its absence is the fix.
+ *
+ * The X on this card used to write a permanent preference into localStorage —
+ * one click, in one browser, and the answer to every future guess silently
+ * stopped appearing, with nothing anywhere to turn it back on. An X on a card
+ * means "close this card" to everybody who has ever used a computer, so that
+ * is what it does now.
+ *
+ * Nothing reads the old key, so a browser that set it is unstuck by this
+ * change alone; the value can sit there harmlessly until localStorage is next
+ * cleared. And the card is hardly imposing to begin with: it takes itself away
+ * after 2.6 seconds, and tapping anywhere on it closes it early.
+ */
 
 const LENGTH = {
   shorter: { icon: MoveUp, title: "Too short", body: "Add characters." },
@@ -171,17 +164,16 @@ export function ResultCard({
         </p>
       </div>
 
-      {/* The only real control on the card. Everything else about it is an
+      {/* Closes this card, and only this card. Everything else about it is an
           announcement, and an announcement you have to dismiss with a button
           is the thing this card exists to stop being. */}
       <button
         type="button"
         onClick={(event) => {
           event.stopPropagation();
-          mute();
           onClose();
         }}
-        aria-label="Stop showing guess results"
+        aria-label="Close"
         className="shrink-0 self-start rounded-lg p-1 text-zinc-500 transition hover:bg-white/10 hover:text-zinc-200"
       >
         <X className="size-4" aria-hidden />

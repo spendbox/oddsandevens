@@ -46,7 +46,7 @@ import { SceneDock, SceneRail, type StatKind } from "./scene-hud";
 import { GuessDialog } from "./guess-dialog";
 import { PotDialog } from "./pot-dialog";
 import { StatDialog } from "./stat-dialog";
-import { ResultCard, ResultDialog, resultsMuted } from "./result-dialog";
+import { ResultCard, ResultDialog } from "./result-dialog";
 import { DropCrate } from "./drop-crate";
 import { useDrops } from "./use-drops";
 import type { Rival } from "@/lib/types";
@@ -312,7 +312,7 @@ export function PlaySurface({
     setShot(winning || improved ? "hit" : "miss");
     setColdStreak((n) => (improved || winning ? 0 : n + 1));
     setJolt((n) => n + 1);
-    if (landed && !resultsMuted()) setResult({ attempt: landed, was });
+    if (landed) setResult({ attempt: landed, was });
     await refresh();
   }
 
