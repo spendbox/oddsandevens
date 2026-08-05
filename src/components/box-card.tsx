@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { Users } from "lucide-react";
+import { SafeLink } from "@/components/safe-link";
 import { rewardLabel } from "@/lib/game/rewards";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { SafeArt } from "@/components/safe/safe-art";
@@ -34,11 +34,7 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
         right, so the tap lands on a paragraph and the card is dead. The share
         chip lifts itself back above this.
       */}
-      <Link
-        href={`/b/${box.slug}`}
-        aria-label={box.title}
-        className="absolute inset-0 z-20 rounded-3xl"
-      />
+      <SafeLink slug={box.slug} title={box.title} className="absolute inset-0 z-20 rounded-3xl" />
 
       <div className="relative z-10 flex items-start justify-between gap-3">
         <div className="min-w-0">

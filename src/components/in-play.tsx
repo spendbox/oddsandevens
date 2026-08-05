@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { LinkOpening } from "@/components/safe-link";
 import { ChevronRight, Play } from "lucide-react";
 import { SafeArt } from "@/components/safe/safe-art";
 import { DifficultyBadge } from "@/components/difficulty-badge";
@@ -92,8 +93,11 @@ function ResumeCard({ hunt, index }: { hunt: InPlayHunt; index: number }) {
         390px and the right-hand third of every card was clipped away by the
         page's `overflow-x: clip`, silently, with no scrollbar to explain it.
       */
-      className="panel panel-lift animate-fade-up stagger group flex min-w-0 items-center gap-3 rounded-2xl border-mint/25 p-3"
+      className="panel panel-lift animate-fade-up stagger group relative flex min-w-0 items-center gap-3 rounded-2xl border-mint/25 p-3"
     >
+      {/* The same "you pressed this" the board's cards show. */}
+      <LinkOpening />
+
       <SafeArt
         design={hunt.design}
         className="size-12 shrink-0 transition group-hover:-rotate-6"

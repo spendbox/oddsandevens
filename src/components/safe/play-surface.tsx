@@ -387,11 +387,24 @@ export function PlaySurface({
           )}
         </div>
 
-        {/* Everything that stacks above the button — a verdict, a crate, a
-            result card — can outgrow a short phone. It scrolls rather than
-            being clipped by the surface, which is the one thing a fixed-height
-            game screen must never do to its own controls. */}
-        <div className="pointer-events-auto mx-auto min-h-0 w-full max-w-md space-y-3 overflow-y-auto overscroll-contain">
+        {/*
+          Two stacks, and the split is about clipping.
+
+          Everything above the button — a verdict, a crate, a result card — can
+          outgrow a short phone, so it scrolls. The buttons must never be in
+          that scroller: `overflow-y: auto` computes `overflow-x` to `auto` as
+          well, which makes the box a clipping context, and every one of these
+          controls draws *outside* its own border box. `btn-chunky` is five
+          pixels of hard lip plus a twenty-pixel drop shadow, presses by
+          translating down another five, and the shelf carries a badge that
+          sits proud of its top-right corner. All of it was being shaved off at
+          the container's edge, which is exactly what "cropped" looks like.
+
+          So the actions live outside the scroller with a little padding of
+          their own, and can spill as far as they were drawn to.
+        */}
+        <div className="pointer-events-auto mx-auto flex min-h-0 w-full max-w-md flex-col gap-3">
+        <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain px-1 py-1">
           {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
 
           {drops.drop && (
@@ -422,13 +435,15 @@ export function PlaySurface({
               onClose={() => setResult(null)}
             />
           )}
+        </div>
 
+        <div className="shrink-0 px-1 pb-1">
           {verified ? (
-            /* The action on top at full width, its three subtabs underneath.
+            /* The action on top at full width, its two subtabs underneath.
                They used to share a row, which made the one thing you press
-               forty times an hour compete for width with three you press
+               forty times an hour compete for width with two you press
                occasionally. */
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <button
                 type="button"
                 disabled={busy || won}
@@ -463,6 +478,7 @@ export function PlaySurface({
               </button>
             </div>
           )}
+        </div>
         </div>
       </div>
 

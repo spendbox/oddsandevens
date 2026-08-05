@@ -284,6 +284,32 @@ body {
 }
 
 /*
+ * The visible viewport, with a fallback for browsers that predate `dvh`.
+ *
+ * The play screen is sized to the viewport as it *currently* is, so the dock
+ * sits on the bottom edge whether or not the browser's toolbars are showing.
+ * `dvh` is the unit that tracks that, and it arrived in iOS 15.4 — earlier
+ * versions drop the declaration entirely, which would leave the surface with
+ * no height at all rather than with a slightly wrong one. So the old unit goes
+ * first and the new one overrides it wherever it is understood.
+ */
+@utility h-viewport {
+  height: 100dvh;
+}
+
+/*
+ * The fallback, as a feature query rather than two `height` declarations in a
+ * row: the build's optimiser knows the project's browser targets and folds a
+ * duplicated property away, so the only way to keep a fallback that outlives
+ * it is to say plainly when it applies.
+ */
+@supports not (height: 100dvh) {
+  .h-viewport {
+    height: 100vh;
+  }
+}
+
+/*
  * A panel that is also a target. Small lift, quick spring — a card that jumps
  * is a card you stop trusting, but a card that doesn't move at all is a card
  * you don't realise you can press.
@@ -1148,6 +1174,76 @@ summary,
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * The road that goes somewhere
+ *
+ * A straight road is a treadmill. Everything on it moves, nothing about it
+ * changes, and after ten seconds the eye stops reading it as travel — which is
+ * a poor backdrop for a game somebody stares at for an hour.
+ *
+ * So the whole ground bends. Four transforms on one shared eighteen-second
+ * period, which is what keeps them a *road* rather than four things wobbling:
+ *
+ *   bend    the ground slides side to side. The road, the trees and the speed
+ *           lines are all in this layer, so the verges never change width and
+ *           a tree can never wander into a lane.
+ *   carve   the road alone skews, so the ribbon leans into the turn instead of
+ *           sliding rigidly. The trees are not skewed — a skewed tree is a
+ *           broken tree.
+ *   lean    every car rotates the opposite way to the slide, because a car on
+ *           a road curving left leans left.
+ *   swerve  the safe, running the same line — but ahead of you, so it takes
+ *           the corner first. That is one negative animation-delay and it is
+ *           the whole reason this reads as distance rather than as a layer.
+ *
+ * The amplitude is three percent of the viewport and no more. The cars occupy
+ * the middle 44% of the screen and the road is 56% of it, so at full lock
+ * there is still road under every wheel — the bend has to be a bend, not a
+ * reason for the field to drive through the trees.
+ * ------------------------------------------------------------------------- */
+
+@keyframes chase-bend {
+  0%   { transform: translateX(0); }
+  18%  { transform: translateX(3%); }
+  38%  { transform: translateX(-2.5%); }
+  58%  { transform: translateX(2%); }
+  78%  { transform: translateX(-3%); }
+  100% { transform: translateX(0); }
+}
+
+/* The road's own lean. `translateX(-50%)` is the centring, folded in — an
+   animation that sets `transform` replaces whatever a utility class put
+   there, so the centring has to live in every frame. */
+@keyframes chase-carve {
+  0%   { transform: translateX(-50%) skewX(0deg); }
+  18%  { transform: translateX(-50%) skewX(-2.5deg); }
+  38%  { transform: translateX(-50%) skewX(2deg); }
+  58%  { transform: translateX(-50%) skewX(-1.75deg); }
+  78%  { transform: translateX(-50%) skewX(2.5deg); }
+  100% { transform: translateX(-50%) skewX(0deg); }
+}
+
+/* Exactly the negation of the slide, so the field banks into the corner. */
+@keyframes chase-lean {
+  0%   { transform: rotate(0deg); }
+  18%  { transform: rotate(-3.5deg); }
+  38%  { transform: rotate(3deg); }
+  58%  { transform: rotate(-2.5deg); }
+  78%  { transform: rotate(3.5deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* The safe's line through the same corners, twice as wide because it is
+   further up the road and the curve is sharper where it is. */
+@keyframes chase-swerve {
+  0%   { transform: translateX(0); }
+  18%  { transform: translateX(6%); }
+  38%  { transform: translateX(-5%); }
+  58%  { transform: translateX(4%); }
+  78%  { transform: translateX(-6%); }
+  100% { transform: translateX(0); }
+}
+
 .chase-road   { animation: road-run 1.1s linear infinite; }
 .chase-prop   { animation: verge-run var(--dur, 4s) linear var(--delay, 0s) infinite; }
 .chase-streak { animation: streak-run var(--dur, 0.7s) linear var(--delay, 0s) infinite; }
@@ -1155,16 +1251,34 @@ summary,
 .chase-safe   { animation: safe-flee 1.7s ease-in-out infinite; }
 .chase-shake  { animation: scene-shake 0.4s ease-out; }
 
+.chase-bend   { animation: chase-bend 18s ease-in-out infinite; }
+.chase-carve  { animation: chase-carve 18s ease-in-out infinite; }
+.chase-lean   { animation: chase-lean 18s ease-in-out infinite; }
+/* Four seconds ahead of the ground: the safe is further along the same bend. */
+.chase-swerve { animation: chase-swerve 18s ease-in-out -4s infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .chase-road,
   .chase-prop,
   .chase-streak,
   .chase-car,
   .chase-safe,
-  .chase-shake {
+  .chase-shake,
+  .chase-bend,
+  .chase-carve,
+  .chase-lean,
+  .chase-swerve {
     animation: none !important;
   }
-  .chase-prop { opacity: 0.6; }
+  /* Parked where they were passing rather than piled at the top edge, which
+     is where `translateY(-30vh)` leaves all ten of them with the animation
+     switched off. */
+  .chase-prop {
+    opacity: 0.6;
+    transform: translateY(var(--rest, 40vh)) scale(var(--s, 1));
+  }
+  /* The centring the carve keyframes were carrying. */
+  .chase-carve { transform: translateX(-50%); }
 }
 
 /* ---------------------------------------------------------------------------

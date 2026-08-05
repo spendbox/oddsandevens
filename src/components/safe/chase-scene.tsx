@@ -75,23 +75,43 @@ export function ChaseScene({
         className={"absolute inset-0 " + (jolt > 0 && shot === "hit" ? "chase-shake" : "")}
       >
         <Verge terrain={terrain} />
-        <Road terrain={terrain} />
-        <Scenery terrain={terrain} />
-        <Streaks />
 
-        <Safe design={design} cracks={cracks} open={open} onTap={onSafe} />
+        {/*
+          The ground, and everything standing on it, in one bending layer.
+
+          The road, the trees and the speed lines slide together, which is the
+          only thing that keeps a verge a verge: move the road on its own and a
+          tree ends up in a lane at the extremes of the turn. Bound together,
+          the clearance measured at rest is the clearance at every moment of
+          the corner.
+        */}
+        <div className="chase-bend absolute inset-0">
+          <Road terrain={terrain} />
+          <Scenery terrain={terrain} />
+          <Streaks />
+        </div>
+
+        {/* Ahead of you on the same road, so it reaches each corner first. */}
+        <div className="chase-swerve absolute inset-0">
+          <Safe design={design} cracks={cracks} open={open} onTap={onSafe} />
+        </div>
 
         {/*
           The field. Ordered by how close each of them is, laid across six
           lanes and stepped back row by row, so nobody is ever behind anybody
           else — a leaderboard you can read at a glance only works if you can
           see all of it.
+
+          Banking as one: they are all on the same piece of road, and cars that
+          leaned independently would read as a pile-up rather than a chase.
         */}
-        <Field
-          rivals={rivals}
-          night={daypart === "night" || daypart === "dawn"}
-          onRival={onRival}
-        />
+        <div className="chase-lean absolute inset-0">
+          <Field
+            rivals={rivals}
+            night={daypart === "night" || daypart === "dawn"}
+            onRival={onRival}
+          />
+        </div>
 
         {jolt > 0 && <Gunfire key={jolt} shot={shot ?? "miss"} lane={lanes.mine} />}
         {rivalShot > 0 && (
@@ -165,7 +185,25 @@ function Verge({ terrain }: { terrain: ChaseTerrain }) {
  */
 function Road({ terrain }: { terrain: ChaseTerrain }) {
   return (
-    <div aria-hidden className="absolute inset-y-0 left-1/2 w-[80%] -translate-x-1/2 sm:w-[62%]">
+    /*
+      56% of the width, and that number is arithmetic rather than taste. The
+      field occupies the middle 44% — lanes at 34% and 66% with cars 12.5%
+      wide — so a 54% road leaves a lane's worth of margin either side at rest
+      and still covers every wheel at the extremes of the bend. It used to be
+      80% on a phone, which left the verges too narrow to stand anything on:
+      half the trees were growing out of the tarmac.
+
+      The skew is what sets the verge width, not the road's own edges: two and
+      a half degrees over a 700px screen swings each corner about fifteen
+      pixels wider than the ribbon is at its middle, and the trees have to
+      clear *that*, not the number above. Measured rather than reasoned — a
+      hit test against the tarmac at every phase of the bend, at 320px, where
+      the tightest moment leaves about ten pixels.
+
+      `chase-carve` owns the transform, so the centring lives in its keyframes
+      rather than in a `-translate-x-1/2` here that it would overwrite.
+    */
+    <div aria-hidden className="chase-carve absolute inset-y-0 left-1/2 w-[54%] sm:w-[58%]">
       {/* The surface itself does not move. A repeating band across it read as
           floor tiles rather than tarmac — the speed comes from the markings,
           the tyre tracks and the streaks, all of which are things that would
@@ -222,6 +260,10 @@ function Scenery({ terrain }: { terrain: ChaseTerrain }) {
             ["--dur" as string]: `${p.dur}s`,
             ["--delay" as string]: `${p.delay}s`,
             ["--s" as string]: p.scale,
+            // Where it stands when the animation is off. Without this every
+            // prop parks at the top edge in a pile for anybody who has asked
+            // for less motion, which is a stranger picture than a still road.
+            ["--rest" as string]: `${p.rest}vh`,
           }}
         >
           <Prop kind={terrain.prop} colour={terrain.propColour} />
@@ -236,25 +278,35 @@ function Scenery({ terrain }: { terrain: ChaseTerrain }) {
  *
  * Seeded rather than random so the server and the browser lay out the same
  * roadside, and so a re-render never teleports a tree.
+ *
+ * The x values are all *outside the tarmac*, which they were not: the road is
+ * centred and was 80% wide on a phone, so everything from 12% to 88% was
+ * growing in a lane. `left` is the prop's leading edge and a prop is about
+ * 12% of a narrow screen wide, so the left column has to finish before the
+ * road starts (≈21%) and the right column has to start after it ends (≈79%),
+ * with three percent of bend either way already accounted for.
  */
 const PROPS = [
-  { x: 4, dur: 3.6, delay: 0, scale: 1 },
-  { x: 12, dur: 4.4, delay: 1.3, scale: 0.8 },
-  { x: 2, dur: 3.1, delay: 2.4, scale: 1.15 },
-  { x: 14, dur: 5, delay: 3.4, scale: 0.7 },
-  { x: 7, dur: 4, delay: 4.6, scale: 0.95 },
-  { x: 84, dur: 3.4, delay: 0.7, scale: 1.05 },
-  { x: 93, dur: 4.6, delay: 1.9, scale: 0.85 },
-  { x: 88, dur: 3.9, delay: 3, scale: 1.2 },
-  { x: 96, dur: 5.2, delay: 4.2, scale: 0.75 },
-  { x: 82, dur: 4.2, delay: 5.1, scale: 0.9 },
+  { x: 1, dur: 3.6, delay: 0, scale: 1, rest: 8 },
+  { x: 3, dur: 4.4, delay: 1.3, scale: 0.8, rest: 34 },
+  { x: 0, dur: 3.1, delay: 2.4, scale: 1.15, rest: 62 },
+  { x: 4, dur: 5, delay: 3.4, scale: 0.7, rest: 84 },
+  { x: 2, dur: 4, delay: 4.6, scale: 0.95, rest: 47 },
+  { x: 90, dur: 3.4, delay: 0.7, scale: 1.05, rest: 20 },
+  { x: 94, dur: 4.6, delay: 1.9, scale: 0.85, rest: 55 },
+  { x: 91, dur: 3.9, delay: 3, scale: 1.2, rest: 76 },
+  { x: 95, dur: 5.2, delay: 4.2, scale: 0.75, rest: 38 },
+  { x: 92, dur: 4.2, delay: 5.1, scale: 0.9, rest: 91 },
 ];
 
 function Prop({ kind, colour }: { kind: ChaseTerrain["prop"]; colour: [string, string] }) {
   const [light, dark] = colour;
   // Seen from above, so every one of these is a canopy with a trunk under it.
   return (
-    <svg viewBox="0 0 40 40" className="size-12 drop-shadow-lg sm:size-16" aria-hidden>
+    /* Smaller on a phone than it was: a 48px canopy is fifteen percent of a
+       320px screen, and fifteen percent is more verge than there is to stand
+       it on once the road has leaned into a corner. */
+    <svg viewBox="0 0 40 40" className="size-9 drop-shadow-lg sm:size-16" aria-hidden>
       {kind === "block" ? (
         <>
           <rect x="6" y="6" width="28" height="28" rx="3" fill={dark} stroke="var(--ink)" strokeWidth="2" />

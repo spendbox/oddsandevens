@@ -200,28 +200,28 @@ export function SceneDock({
   onAttempts,
   onPowerUps,
 }: {
-  /** How many power-ups are still buyable. Drives the dot. */
+  /** How many power-ups are still buyable. Drives the badge. */
   powerUps: number;
   onAttempts: () => void;
   onPowerUps: () => void;
   className?: string;
 }) {
   return (
-    <div className={`z-20 grid grid-cols-2 gap-2 ${className}`}>
+    <div className={`z-20 grid grid-cols-2 gap-2.5 ${className}`}>
       <DockButton
         onClick={onAttempts}
         label="Attempts"
         tone="sky"
-        icon={<Swords className="size-5" aria-hidden />}
+        icon={<Swords className="size-4" aria-hidden />}
       />
-      {/* The shelf keeps its dot — "there is something here you can buy" is
-          news. A running total of your own guesses is not. */}
+      {/* The shelf keeps its badge — "there are four things here you can buy"
+          is news. A running total of your own guesses is not. */}
       <DockButton
         onClick={onPowerUps}
         label="Power-ups"
-        dot={powerUps > 0}
+        badge={powerUps > 0 ? powerUps : null}
         tone="grape"
-        icon={<Sparkles className="size-5" aria-hidden />}
+        icon={<Sparkles className="size-4" aria-hidden />}
       />
     </div>
   );
@@ -232,16 +232,30 @@ const TONES = {
   grape: { face: "bg-grape", lip: "var(--grape-deep)" },
 } as const;
 
+/**
+ * One subtab.
+ *
+ * A row rather than a stack — icon, word, and the count on the end — because
+ * two lines of 11px inside a 44px button is a lot of vertical for two words,
+ * and stacked it read as a smaller, sadder version of the button above it
+ * rather than a sibling of it.
+ *
+ * The badge sits *inside* the button. It hung off the top-right corner on
+ * negative offsets, which looks fine until an ancestor scrolls or clips —
+ * anything drawn outside a border box is at the mercy of every box above it,
+ * and the whole point of a badge is that it is the one thing you must not
+ * lose. Inside, it cannot be shaved off by anything.
+ */
 function DockButton({
   onClick,
   label,
-  dot,
+  badge,
   icon,
   tone,
 }: {
   onClick: () => void;
   label: string;
-  dot?: boolean;
+  badge?: number | null;
   icon: ReactNode;
   tone: keyof typeof TONES;
 }) {
@@ -251,14 +265,14 @@ function DockButton({
       type="button"
       onClick={onClick}
       style={{ "--btn-lip": lip } as React.CSSProperties}
-      className={`btn-chunky relative flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-2 text-ink ${face}`}
+      className={`btn-chunky flex min-w-0 items-center justify-center gap-1.5 rounded-2xl px-2.5 py-3 text-ink ${face}`}
     >
       {icon}
-      <span className="w-full truncate text-center text-[11px] font-black leading-none">
-        {label}
-      </span>
-      {dot && (
-        <span className="absolute -right-1 -top-1 size-3.5 rounded-full border-2 border-background bg-foreground" />
+      <span className="truncate text-[13px] font-black leading-none">{label}</span>
+      {badge != null && (
+        <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-ink/25 px-1 font-mono text-[10px] font-black leading-none text-ink">
+          {badge}
+        </span>
       )}
     </button>
   );

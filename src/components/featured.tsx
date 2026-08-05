@@ -13,8 +13,8 @@
 // where there is a pointer to use them.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { SafeLink } from "@/components/safe-link";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { ShareChip } from "@/components/share-safe";
 import { SafeArt } from "@/components/safe/safe-art";
@@ -175,11 +175,7 @@ function FeaturedCard({ box }: { box: PublicBox }) {
         `pointer-events-none`, and the one real control on the card lifts
         itself back above this with `z-30`.
       */}
-      <Link
-        href={`/b/${box.slug}`}
-        aria-label={box.title}
-        className="absolute inset-0 z-20 rounded-3xl"
-      />
+      <SafeLink slug={box.slug} title={box.title} className="absolute inset-0 z-20 rounded-3xl" />
 
       {/* A wash in the safe's own colour, so swiping from one featured box to
           the next doesn't feel like the same card twice with the words swapped.

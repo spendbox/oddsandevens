@@ -74,7 +74,7 @@ export default async function BoxPage({
         is always exactly as tall as what you can see and the dock sits on the
         bottom edge of it either way.
       */}
-      <main className="relative flex h-[100dvh] flex-col overflow-hidden">
+      <main className="relative flex h-viewport flex-col overflow-hidden">
         <PlaySurface initial={view} slug={box.slug} pendingReference={reference ?? null} />
       </main>
     </PlayerProvider>
