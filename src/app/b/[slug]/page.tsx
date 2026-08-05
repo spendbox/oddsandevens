@@ -60,7 +60,21 @@ export default async function BoxPage({
         is carried by the scene's own rail instead: the way out, the life pool,
         and the help.
       */}
-      <main className="relative flex flex-1 flex-col overflow-hidden">
+      {/*
+        `100dvh` rather than `flex-1`, and that is the whole fix for the dead
+        strip under the dock on a phone.
+
+        The body is `min-h-full` against an `h-full` html, and on iOS Safari
+        that resolves to the *small* viewport — the screen as it is with the
+        browser's own toolbars showing. So the scene was built to that height
+        once, and the moment the address bar slid away the visible viewport
+        grew by fifty-odd pixels that the scene did not: the buttons stayed put
+        and a band of background appeared under them. The dynamic viewport unit
+        is the one that tracks the chrome as it comes and goes, so the surface
+        is always exactly as tall as what you can see and the dock sits on the
+        bottom edge of it either way.
+      */}
+      <main className="relative flex h-[100dvh] flex-col overflow-hidden">
         <PlaySurface initial={view} slug={box.slug} pendingReference={reference ?? null} />
       </main>
     </PlayerProvider>

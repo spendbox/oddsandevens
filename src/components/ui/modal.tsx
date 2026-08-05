@@ -287,9 +287,18 @@ export function Modal({
             </button>
           </header>
 
+          {/*
+            `pt-1` and `scroll-pt-3` are the clip edge, not decoration. This is
+            a scroll container, so anything drawn *outside* a child's box — a
+            focus ring, a shadow — is cut off where the container starts, and
+            the first child of a dialog is very often the control that gets
+            focused. The padding keeps the ring inside; the scroll padding
+            keeps it inside after the browser has scrolled the field into view
+            on its own.
+          */}
           <div
             ref={bodyRef}
-            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6 sm:pb-5"
+            className="min-h-0 flex-1 scroll-pt-3 overflow-y-auto overscroll-contain px-4 pb-4 pt-1 sm:px-6 sm:pb-5"
           >
             {children}
           </div>

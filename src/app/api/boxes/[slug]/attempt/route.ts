@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { ALPHABET_SET, MAX_GUESS_LENGTH } from "@/lib/constants";
+import { MAX_GUESS_LENGTH } from "@/lib/constants";
 import { playerEmail } from "@/lib/player-session";
+import { guessSet, loadSymbols } from "@/lib/game/alphabet";
 import { isWellFormed, type LengthHint } from "@/lib/game/feedback";
 import { buildPlayView, findBox } from "@/lib/game/view";
 import { sendBoxCrackedEmail, sendBoxUnlockedEmail } from "@/lib/email";
@@ -31,11 +32,15 @@ export async function POST(
   const body = (await req.json().catch(() => ({}))) as { guess?: string };
   const guess = body.guess ?? "";
 
-  if (!isWellFormed(guess, ALPHABET_SET, MAX_GUESS_LENGTH)) {
+  const db = supabaseAdmin();
+
+  // Checked against the *guess* alphabet, which is the live list plus every
+  // symbol that has ever been standard. A safe's password is permanent, so an
+  // admin narrowing the list must never make an old one impossible to type.
+  if (!isWellFormed(guess, guessSet(await loadSymbols(db)), MAX_GUESS_LENGTH)) {
     return NextResponse.json({ error: "malformed_guess" }, { status: 400 });
   }
 
-  const db = supabaseAdmin();
   const box = await findBox(db, slug);
   if (!box) return NextResponse.json({ error: "box_not_found" }, { status: 404 });
 

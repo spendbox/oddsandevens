@@ -2,10 +2,17 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyCode } from "@/lib/verification";
 import { EMAIL_REGEX } from "@/lib/constants";
+import { callerKey, tooMany } from "@/lib/rate-limit";
 
 // Forgot password step 2: verify the code and set the new password. The client
 // signs in with it afterwards.
 export async function POST(req: Request) {
+  // A reset code *is* the password here, so this door gets the same limit as
+  // the admin one.
+  if (tooMany(callerKey(req, "password-reset"), 20, 10 * 60_000)) {
+    return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
   const email = String(body?.email ?? "").trim().toLowerCase();
   const code = String(body?.code ?? "").trim();

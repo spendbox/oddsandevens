@@ -27,11 +27,12 @@ export async function GET() {
   const { data: player } = await db.from("players").select("id").eq("email", email).maybeSingle();
   if (!player) return NextResponse.json({ prizes: [], banks: [] });
 
-  const { data } = await db
-    .from("prize_claims")
+  const { data, error } = await db
+    .from("reward_claims")
     .select(CLAIM_COLUMNS)
     .eq("player_id", player.id)
     .order("created_at", { ascending: false });
+  if (error) console.error("[prizes] read failed:", error);
 
   const prizes = ((data ?? []) as unknown as ClaimRow[]).map((row) => ({
     id: row.id,
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
   if (!resolved) return NextResponse.json({ error: "account_not_found" }, { status: 400 });
 
   const { data, error } = await db
-    .from("prize_claims")
+    .from("reward_claims")
     .update({
       status: "submitted",
       bank_code: body.bankCode,

@@ -13,11 +13,12 @@
 // game rather than a page with the game on it, and a keyboard that appears
 // exactly when there is something to type into.
 
-import { useEffect, useRef } from "react";
-import { Delete, KeyRound } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Delete, KeyRound, Keyboard } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { MascotShow } from "./mascot-show";
-import { ALPHABET_SET, MAX_GUESS_LENGTH } from "@/lib/constants";
+import { MAX_GUESS_LENGTH } from "@/lib/constants";
+import { allowedSet, CharsetDialog, useAlphabet } from "@/components/charset-dialog";
 import type { Revealed } from "@/lib/game/power-ups";
 
 export function GuessDialog({
@@ -36,6 +37,8 @@ export function GuessDialog({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  const alphabet = useAlphabet();
+  const [chars, setChars] = useState(false);
 
   useEffect(() => {
     // A dialog whose only purpose is a text field should arrive with the
@@ -69,7 +72,18 @@ export function GuessDialog({
       }
     >
       <div className="space-y-2 pb-1">
-        <div className="relative rounded-2xl border-2 border-white/12 bg-black/30 transition focus-within:border-brass">
+        {/*
+          The field lights its own border and nothing else.
+
+          It used to be a bordered wrapper around a plain input, which meant
+          the input was not a `.field` — so the site's global keyboard ring
+          (`:focus-visible:not(.field)`, three gold pixels two pixels *outside*
+          the box) landed on it. The dialog's body is the scroll container and
+          the field is the first thing in it, so that ring was drawn straight
+          into the clip edge and arrived on screen with its top shaved off.
+          One element, one border, drawn inside its own box.
+        */}
+        <div className="relative">
           <input
             ref={ref}
             value={value}
@@ -81,14 +95,14 @@ export function GuessDialog({
             maxLength={MAX_GUESS_LENGTH}
             aria-label="Your guess"
             placeholder="Type a password…"
-            onChange={(e) => onChange(clean(e.target.value))}
+            onChange={(e) => onChange(clean(e.target.value, allowedSet(alphabet)))}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 onSubmit();
               }
             }}
-            className="w-full rounded-2xl bg-transparent py-4 pl-4 pr-12 font-mono text-lg font-bold tracking-wide text-foreground outline-none placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:tracking-normal placeholder:text-zinc-500"
+            className="field py-4 pl-4 pr-12 font-mono text-lg font-bold tracking-wide placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:tracking-normal"
           />
 
           {value.length > 0 && !busy && (
@@ -109,23 +123,47 @@ export function GuessDialog({
           where it belongs, and a price tag on the only button in the game is a
           reason to hesitate over something free.
         */}
-        <p className="px-1 font-mono text-xs text-zinc-500">
-          {value.length} character{value.length === 1 ? "" : "s"}
-          {known !== null && (
-            <span className={over ? "text-mark-orange" : under ? "text-sky" : "text-mark-green"}>
-              {" "}
-              / {known}
-            </span>
-          )}
-        </p>
+        <div className="flex items-center justify-between gap-2 px-1">
+          <p className="font-mono text-xs text-zinc-500">
+            {value.length} character{value.length === 1 ? "" : "s"}
+            {known !== null && (
+              <span className={over ? "text-mark-orange" : under ? "text-sky" : "text-mark-green"}>
+                {" "}
+                / {known}
+              </span>
+            )}
+          </p>
+
+          {/* What the password could possibly be made of. It sits on the one
+              screen where the question comes up, and several of the characters
+              in it can only realistically be entered by copying them out of
+              it. */}
+          <button
+            type="button"
+            onClick={() => setChars(true)}
+            className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-xs font-bold text-zinc-500 transition hover:text-brass"
+          >
+            <Keyboard className="size-3.5" aria-hidden />
+            {alphabet.guess.length} characters allowed
+          </button>
+        </div>
       </div>
+
+      {chars && <CharsetDialog alphabet={alphabet} onClose={() => setChars(false)} />}
     </Modal>
   );
 }
 
-/** Everything the alphabet allows, and nothing it doesn't. */
-function clean(raw: string): string {
+/**
+ * Everything the alphabet allows, and nothing it doesn't.
+ *
+ * The set is passed in rather than imported because the alphabet is a setting
+ * now: a symbol an admin added this morning must be typeable this afternoon,
+ * and one they removed must still be typeable in a safe created before they
+ * removed it. Both of those are decided by the server and mirrored here.
+ */
+function clean(raw: string, allowed: Set<string>): string {
   let out = "";
-  for (const ch of raw) if (ALPHABET_SET.has(ch)) out += ch;
+  for (const ch of raw) if (allowed.has(ch)) out += ch;
   return out.slice(0, MAX_GUESS_LENGTH);
 }

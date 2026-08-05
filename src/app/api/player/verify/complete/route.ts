@@ -4,6 +4,7 @@ import { EMAIL_REGEX } from "@/lib/constants";
 import { verifyCode } from "@/lib/verification";
 import { rememberPlayer } from "@/lib/player-session";
 import { ensurePlayer, toPlayerState } from "@/lib/game/boxes";
+import { callerKey, tooMany } from "@/lib/rate-limit";
 
 /** Check the code, mint the session cookie, and open the player's life pool. */
 export async function POST(req: Request) {
@@ -14,6 +15,12 @@ export async function POST(req: Request) {
   const addr = (email ?? "").trim().toLowerCase();
   if (!EMAIL_REGEX.test(addr)) {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
+  }
+
+  // Belt to the database's braces: the per-code attempt ceiling is the real
+  // limit, this only stops one machine spending it faster than a person could.
+  if (tooMany(callerKey(req, "player-verify"), 20, 10 * 60_000)) {
+    return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
   }
 
   const ok = await verifyCode(addr, "player_verify", (code ?? "").trim());

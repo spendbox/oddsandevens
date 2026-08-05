@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
-  ALPHABET_SET,
   BLURB_MAX,
   MAX_FUNDING_KOBO,
   MAX_LENGTH,
   MIN_LENGTH,
   TITLE_MAX,
 } from "@/lib/constants";
+import { alphabetOf, loadSymbols, withinAlphabet } from "@/lib/game/alphabet";
 import { getAdminUser } from "@/lib/admin-auth";
 import { toDesign } from "@/lib/game/designs";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
@@ -77,10 +77,11 @@ export async function POST(req: Request) {
   if (secret.length < MIN_LENGTH || secret.length > MAX_LENGTH) {
     return NextResponse.json({ error: "invalid_length" }, { status: 400 });
   }
-  for (const ch of secret) {
-    if (!ALPHABET_SET.has(ch)) {
-      return NextResponse.json({ error: "invalid_characters" }, { status: 400 });
-    }
+  // The live alphabet, same as a contributor's box: an admin editing the
+  // symbol list edits what they can type into this field too.
+  const allowed = new Set(alphabetOf(await loadSymbols(supabaseAdmin())));
+  if (!withinAlphabet(secret, allowed)) {
+    return NextResponse.json({ error: "invalid_characters" }, { status: 400 });
   }
   if (rewardKobo < 0 || rewardKobo > MAX_FUNDING_KOBO) {
     return NextResponse.json({ error: "invalid_reward" }, { status: 400 });

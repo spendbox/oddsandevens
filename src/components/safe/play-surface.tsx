@@ -318,8 +318,11 @@ export function PlaySurface({
       {/* Everything else floats on top of it. `pointer-events-none` on the
           column and back on for each control, so the gold underneath stays
           tappable through the gaps. */}
-      <div className="pointer-events-none relative z-10 flex flex-1 flex-col justify-between gap-3 p-3">
-        <div className="pointer-events-auto mx-auto w-full max-w-2xl space-y-2">
+      {/* `min-h-0` so this column can be shorter than its content rather than
+          pushing the surface past the viewport, and the bottom padding clears
+          the home indicator on a phone that has one. */}
+      <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col justify-between gap-3 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="pointer-events-auto mx-auto w-full max-w-2xl shrink-0 space-y-2">
           <SceneRail
             box={view.box}
             bestGuess={bestAttempt?.value ?? null}
@@ -384,7 +387,11 @@ export function PlaySurface({
           )}
         </div>
 
-        <div className="pointer-events-auto mx-auto w-full max-w-md space-y-3">
+        {/* Everything that stacks above the button — a verdict, a crate, a
+            result card — can outgrow a short phone. It scrolls rather than
+            being clipped by the surface, which is the one thing a fixed-height
+            game screen must never do to its own controls. */}
+        <div className="pointer-events-auto mx-auto min-h-0 w-full max-w-md space-y-3 overflow-y-auto overscroll-contain">
           {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
 
           {drops.drop && (

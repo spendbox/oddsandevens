@@ -28,8 +28,6 @@ import {
   Wallet,
 } from "lucide-react";
 import {
-  ALPHABET,
-  ALPHABET_SET,
   BLURB_MAX,
   KOBO,
   MAX_FUNDING_KOBO,
@@ -41,9 +39,11 @@ import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 import { difficultyOf } from "@/lib/game/difficulty";
 import { DESIGNS, DESIGN_SPECS, DEFAULT_DESIGN, type Design } from "@/lib/game/designs";
 import { SafeArt } from "@/components/safe/safe-art";
+import { CharsetDialog, useAlphabet } from "@/components/charset-dialog";
 import { BuildCard, CardDialog } from "@/components/dashboard/build-panel";
 import { PayoutsPanel } from "@/components/admin/payouts-panel";
 import { PricingPanel } from "@/components/admin/pricing-panel";
+import { AlphabetPanel } from "@/components/admin/alphabet-panel";
 import { GrantLives } from "@/components/admin/grant-lives";
 import { UsersPanel } from "@/components/admin/users-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
@@ -223,6 +223,8 @@ export default function AdminPage() {
 
           <PricingPanel />
 
+          <AlphabetPanel />
+
           <GrantLives />
         </>
       )}
@@ -384,13 +386,17 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
   const [rewardNaira, setRewardNaira] = useState("");
   const [design, setDesign] = useState<Design>(DEFAULT_DESIGN);
   const [card, setCard] = useState<"box" | "password" | "reward" | "design" | null>(null);
+  const [chars, setChars] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Not upper-cased. Case is part of a password now, and quietly folding it
-  // would make an admin box the one kind nobody could crack.
-  const rejected = [...new Set(secret.split("").filter((ch) => !ALPHABET_SET.has(ch)))];
-  const clean = secret.split("").filter((ch) => ALPHABET_SET.has(ch)).join("");
+  // would make an admin box the one kind nobody could crack. The alphabet is
+  // read rather than imported so this field and the create route agree.
+  const alphabet = useAlphabet();
+  const allowed = new Set(alphabet.alphabet);
+  const rejected = [...new Set(secret.split("").filter((ch) => !allowed.has(ch)))];
+  const clean = secret.split("").filter((ch) => allowed.has(ch)).join("");
   const length = clean.length;
   const passwordOk = length >= MIN_LENGTH && length <= MAX_LENGTH && rejected.length === 0;
   const titleOk = title.trim().length > 0;
@@ -534,7 +540,12 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
               onClick={() => {
                 const bytes = new Uint32Array(10);
                 crypto.getRandomValues(bytes);
-                setSecret(Array.from(bytes, (n) => ALPHABET[n % ALPHABET.length]).join(""));
+                setSecret(
+                  Array.from(
+                    bytes,
+                    (n) => alphabet.alphabet[n % alphabet.alphabet.length]
+                  ).join("")
+                );
               }}
               className="shrink-0 rounded-xl border border-white/10 px-3 text-sm text-zinc-400 hover:border-brass/40"
             >
@@ -544,7 +555,15 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
 
           <div className="flex items-baseline justify-between gap-3 text-sm">
             <span className="text-zinc-500">
-              {MIN_LENGTH}–{MAX_LENGTH} characters. Case matters.
+              {MIN_LENGTH}–{MAX_LENGTH} characters. Case matters.{" "}
+              <button
+                type="button"
+                onClick={() => setChars(true)}
+                className="font-bold text-brass underline underline-offset-2"
+              >
+                See all {alphabet.alphabet.length}
+              </button>
+              .
             </span>
             <span className="shrink-0 font-mono text-zinc-300">
               {length > 0 ? `${length} · ${difficultyOf(length)}` : `0/${MAX_LENGTH}`}
@@ -555,6 +574,10 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
             <p className="rounded-lg bg-berry/15 px-3 py-2 text-sm font-bold text-berry">
               Not allowed: <span className="font-mono">{rejected.join(" ")}</span>. Remove them.
             </p>
+          )}
+
+          {chars && (
+            <CharsetDialog alphabet={alphabet} creating onClose={() => setChars(false)} />
           )}
         </CardDialog>
       )}

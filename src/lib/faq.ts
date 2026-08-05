@@ -94,7 +94,8 @@ export const FAQ: FaqItem[] = [
     topic: "Playing",
     question: "What characters can a password contain?",
     answer: [
-      `The 26 letters in either case, the ten digits, the space, every symbol on a QWERTY keyboard, and a handful beyond it: • √ π ÷ × § ∆ £ ¢ € ¥ ° © ® ™ ✓. That is ${ALPHABET.length} possible characters in every position.`,
+      `The 26 letters in either case, the ten digits, the space, every symbol on a QWERTY keyboard, and a handful beyond it: • √ π ÷ × § ∆ £ ¢ € ¥ ° © ® ™ ✓. That is around ${ALPHABET.length} possible characters in every position.`,
+      "The exact list is never hidden from you. Open a safe, tap Crack the safe, and the line under the field says how many characters are allowed and shows every one of them — including the ones your keyboard can't produce, which you can copy straight out of that list.",
       "Spaces count too, so a password can be a phrase. Wherever a guess is shown back to you a space is drawn as ␣, so you can always see whether one is there.",
     ],
   },
