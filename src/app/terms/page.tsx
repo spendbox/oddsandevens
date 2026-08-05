@@ -77,7 +77,7 @@ export default function TermsPage() {
           heading: "What contributors earn",
           paragraphs: [
             `${share}% of everything hunters spend on your boxes — power-ups, and lives bought while playing them. Spendbox retains ${PLATFORM_SHARE_PERCENT}%.`,
-            "Your share is settled by our payment provider directly to the bank account you register, at the time of each sale. It does not sit in a Spendbox balance and there is nothing for you to withdraw.",
+            "Your share of each sale is recorded when the sale is made and transferred to the bank account you register, weekly. Your dashboard shows what has been earned, what has been sent, and the difference.",
             "Money you put behind a password is not income and is not returned to you. It is the reward, and it goes to whoever opens the box.",
           ],
         },

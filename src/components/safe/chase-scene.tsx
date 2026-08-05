@@ -74,6 +74,13 @@ export function ChaseScene({
         key={shot === "hit" ? jolt : undefined}
         className={"absolute inset-0 " + (jolt > 0 && shot === "hit" ? "chase-shake" : "")}
       >
+        {/*
+          The quarter turn, on a screen wide enough to want one. Everything
+          inside is drawn as if the road ran up the page; from `lg` this layer
+          lies it down so the chase runs across the window instead. One rule,
+          no second set of coordinates — see `.chase-flat` in globals.
+        */}
+        <div className="chase-flat absolute inset-0">
         <Verge terrain={terrain} />
 
         {/*
@@ -125,6 +132,7 @@ export function ChaseScene({
           <Gunfire key={`r${rivalShot}`} shot="hit" lane={lanes.other} quiet />
         )}
         {open && <Payday />}
+        </div>
       </div>
 
       {/* The hour of the day, as one tint over everything. Top-down has no sky
@@ -592,8 +600,10 @@ function Field({
             }}
           >
             <Car night={night} mine={rival.you} inline />
+            {/* Counter-rotated at `lg`: the scene lies on its side there, and
+                this is the only word inside it. */}
             {rival.you && (
-              <span className="mt-0.5 block rounded-full border border-brass/60 bg-background/85 px-1 text-[9px] font-black leading-tight text-brass">
+              <span className="mt-0.5 block rounded-full border border-brass/60 bg-background/85 px-1 text-[9px] font-black leading-tight text-brass lg:-rotate-90">
                 you
               </span>
             )}

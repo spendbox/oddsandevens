@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { ACCOUNT_NUMBER_REGEX } from "@/lib/constants";
 import { playerEmail } from "@/lib/player-session";
-import { listBanks, resolveAccount } from "@/lib/paystack";
 
 interface ClaimRow {
   id: string;
@@ -18,87 +16,66 @@ interface ClaimRow {
 const CLAIM_COLUMNS =
   "id, amount_kobo, status, account_name, bank_name, created_at, paid_at, boxes(title, slug)";
 
-/** Every safe this player has opened, and where each prize has got to. */
+/**
+ * Every safe this player has opened, where each prize has got to, and the one
+ * account all of it is going to.
+ *
+ * The account comes back beside the prizes on purpose. It used to be collected
+ * per claim — so a winner was asked for bank details they had already given on
+ * the next tab, and ended up with two accounts on file and no way to tell
+ * which one anything had been sent to. There is one account per player now, it
+ * lives on `players`, and this reads it rather than asking again. That is also
+ * why this route no longer accepts a POST: there is nothing left for a winner
+ * to submit.
+ *
+ * A paid claim keeps its own copy of the account it went to, because that is a
+ * payment record and must not move when somebody edits their details.
+ */
 export async function GET() {
   const email = await playerEmail();
-  if (!email) return NextResponse.json({ prizes: [], banks: [] });
+  if (!email) return NextResponse.json({ prizes: [], account: null });
 
   const db = supabaseAdmin();
-  const { data: player } = await db.from("players").select("id").eq("email", email).maybeSingle();
-  if (!player) return NextResponse.json({ prizes: [], banks: [] });
+  const { data: player } = await db
+    .from("players")
+    .select("id, bank_name, account_number, account_name")
+    .eq("email", email)
+    .maybeSingle();
+  if (!player) return NextResponse.json({ prizes: [], account: null });
+
+  const row = player as {
+    id: string;
+    bank_name: string | null;
+    account_number: string | null;
+    account_name: string | null;
+  };
 
   const { data, error } = await db
     .from("reward_claims")
     .select(CLAIM_COLUMNS)
-    .eq("player_id", player.id)
+    .eq("player_id", row.id)
     .order("created_at", { ascending: false });
   if (error) console.error("[prizes] read failed:", error);
 
-  const prizes = ((data ?? []) as unknown as ClaimRow[]).map((row) => ({
-    id: row.id,
-    amountKobo: Number(row.amount_kobo),
-    status: row.status,
-    title: row.boxes?.title ?? "A spendbox",
-    slug: row.boxes?.slug ?? null,
-    accountName: row.account_name,
-    bankName: row.bank_name,
-    wonAt: row.created_at,
-    paidAt: row.paid_at,
-  }));
-
-  // Only fetch the bank list when there's actually something to claim.
-  const banks = prizes.some((p) => p.status === "unclaimed") ? ((await listBanks()) ?? []) : [];
-
-  return NextResponse.json({ prizes, banks });
-}
-
-/**
- * Tell us where to send a prize.
- *
- * The account number is resolved with the bank before it's stored, so a
- * winner who fats-fingers a digit is shown whose account they actually
- * reached rather than finding out after the transfer.
- */
-export async function POST(req: Request) {
-  const email = await playerEmail();
-  if (!email) return NextResponse.json({ error: "not_verified" }, { status: 401 });
-
-  const body = (await req.json().catch(() => ({}))) as {
-    claimId?: string;
-    bankCode?: string;
-    bankName?: string;
-    accountNumber?: string;
-  };
-  const accountNumber = (body.accountNumber ?? "").trim();
-  if (!body.claimId || !body.bankCode || !ACCOUNT_NUMBER_REGEX.test(accountNumber)) {
-    return NextResponse.json({ error: "invalid_account" }, { status: 400 });
-  }
-
-  const db = supabaseAdmin();
-  const { data: player } = await db.from("players").select("id").eq("email", email).maybeSingle();
-  if (!player) return NextResponse.json({ error: "not_verified" }, { status: 401 });
-
-  const resolved = await resolveAccount({ accountNumber, bankCode: body.bankCode });
-  if (!resolved) return NextResponse.json({ error: "account_not_found" }, { status: 400 });
-
-  const { data, error } = await db
-    .from("reward_claims")
-    .update({
-      status: "submitted",
-      bank_code: body.bankCode,
-      bank_name: body.bankName ?? null,
-      account_number: accountNumber,
-      account_name: resolved.accountName,
-      submitted_at: new Date().toISOString(),
-    })
-    .eq("id", body.claimId)
-    .eq("player_id", player.id)
-    .neq("status", "paid")
-    .select("id")
-    .maybeSingle();
-
-  if (error || !data) {
-    return NextResponse.json({ error: "claim_not_found" }, { status: 404 });
-  }
-  return NextResponse.json({ result: "submitted", accountName: resolved.accountName });
+  return NextResponse.json({
+    prizes: ((data ?? []) as unknown as ClaimRow[]).map((claim) => ({
+      id: claim.id,
+      amountKobo: Number(claim.amount_kobo),
+      status: claim.status,
+      title: claim.boxes?.title ?? "A spendbox",
+      slug: claim.boxes?.slug ?? null,
+      accountName: claim.account_name,
+      bankName: claim.bank_name,
+      wonAt: claim.created_at,
+      paidAt: claim.paid_at,
+    })),
+    account: {
+      accountName: row.account_name,
+      bankName: row.bank_name,
+      // Only the last four ever leave the server. Nothing on that screen needs
+      // the whole number read back.
+      accountLast4: row.account_number ? row.account_number.slice(-4) : null,
+      connected: !!row.account_number,
+    },
+  });
 }

@@ -406,10 +406,19 @@ export function BuildCard({
 export function CardDialog({
   title,
   onClose,
+  /**
+   * Reason the card cannot be finished yet, or null when it can.
+   *
+   * On the button rather than as a validation message after the fact: a card
+   * that closes on an unusable answer just moves the error to the step behind
+   * it, where it is somebody else's problem to notice.
+   */
+  blocked = null,
   children,
 }: {
   title: string;
   onClose: () => void;
+  blocked?: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -419,11 +428,12 @@ export function CardDialog({
       footer={
         <button
           type="button"
+          disabled={!!blocked}
           onClick={onClose}
           style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
           className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
         >
-          Done
+          {blocked ?? "Done"}
         </button>
       }
     >
@@ -452,7 +462,19 @@ function PasswordCard({
   const length = clean.length;
 
   return (
-    <CardDialog title="The password" onClose={onClose}>
+    <CardDialog
+      title="The password"
+      onClose={onClose}
+      blocked={
+        length === 0
+          ? `At least ${MIN_LENGTH} characters`
+          : length < MIN_LENGTH
+            ? `${MIN_LENGTH - length} more character${MIN_LENGTH - length === 1 ? "" : "s"}`
+            : rejected.length > 0
+              ? "Remove what isn't allowed"
+              : null
+      }
+    >
       <div className="relative">
         <input
           type={reveal ? "text" : "password"}

@@ -304,6 +304,18 @@ export interface ContributorEarnings {
   /** What the platform kept, shown so the split is never a mystery. */
   platformKobo: number;
   sharePercent: number;
+  /** Transferred so far, from the payout ledger. */
+  paidKobo: number;
+  /** Earned minus paid: what is still coming. */
+  owedKobo: number;
+}
+
+/** One transfer an admin has recorded against a contributor. */
+export interface ContributorPayout {
+  id: string;
+  amountKobo: number;
+  paidAt: string;
+  note: string | null;
 }
 
 export interface WinnerRow {

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { ACCOUNT_NUMBER_REGEX, PLATFORM_SHARE_PERCENT } from "@/lib/constants";
+import { ACCOUNT_NUMBER_REGEX } from "@/lib/constants";
 import { getAuthedContributor } from "@/lib/contributor-auth";
-import { listBanks, paystackConfigured, resolveAccount, upsertSubaccount } from "@/lib/paystack";
+import { listBanks, paystackConfigured, resolveAccount } from "@/lib/paystack";
 
 /** The banks Paystack can settle to, for the payout form's dropdown. */
 export async function GET() {
@@ -13,13 +13,18 @@ export async function GET() {
 }
 
 /**
- * Point a contributor's 70% at their bank.
+ * Where a contributor's share is sent.
  *
- * Registering the account as a Paystack subaccount is what makes the split
- * real rather than a line in a report: every power-up bought against their
- * boxes is charged against that subaccount, and Paystack settles their share
- * to them directly. Nobody at Spendbox ever moves the money by hand, and it
- * never sits in our balance in the first place.
+ * This used to register the account as a Paystack subaccount so that every
+ * sale split itself at settlement and nobody ever moved the money by hand.
+ * Payouts are made by hand now — weekly, from the ledger the admin screen
+ * works through — so a subaccount is a second copy of these details living
+ * somewhere nothing reads, and one more thing that can silently fail to be
+ * created. The account is recorded here and that is all it is for.
+ *
+ * The number is still checked against the bank before it is stored, because
+ * the failure it prevents is unchanged: a mistyped digit that nobody notices
+ * until a transfer has gone to a stranger.
  */
 export async function POST(req: Request) {
   const { userId, contributor } = await getAuthedContributor();
@@ -42,16 +47,6 @@ export async function POST(req: Request) {
   const resolved = await resolveAccount({ accountNumber, bankCode: body.bankCode });
   if (!resolved) return NextResponse.json({ error: "account_not_found" }, { status: 400 });
 
-  // `percentageCharge` is the share the *subaccount* keeps, so it's theirs.
-  const subaccount = await upsertSubaccount({
-    existingCode: contributor.paystack_subaccount_code,
-    businessName: contributor.display_name,
-    bankCode: body.bankCode,
-    accountNumber,
-    percentageCharge: 100 - PLATFORM_SHARE_PERCENT,
-  });
-  if (!subaccount) return NextResponse.json({ error: "subaccount_failed" }, { status: 502 });
-
   const { error } = await supabaseAdmin()
     .from("contributors")
     .update({
@@ -59,7 +54,6 @@ export async function POST(req: Request) {
       payout_bank_name: body.bankName ?? null,
       payout_account_number: accountNumber,
       payout_account_name: resolved.accountName,
-      paystack_subaccount_code: subaccount.subaccountCode,
     })
     .eq("id", contributor.id);
   if (error) {

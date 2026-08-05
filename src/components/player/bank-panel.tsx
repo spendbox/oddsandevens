@@ -12,7 +12,7 @@
 // account number is a page you have to be careful where you open.
 
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, Landmark } from "lucide-react";
+import { BadgeCheck, Landmark, Pencil } from "lucide-react";
 import { ACCOUNT_NUMBER_REGEX } from "@/lib/constants";
 import type { Bank } from "@/lib/types";
 
@@ -35,6 +35,15 @@ export function BankPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  /*
+   * A saved account is a *card*, not a form.
+   *
+   * It used to be both at once: the confirmation sat above two empty inputs
+   * and a button reading "Update", which reads as an account that has not been
+   * saved yet — and left the one field somebody might fumble open at all
+   * times. Editing is now a thing you ask for.
+   */
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/player/bank", { cache: "no-store" });
@@ -75,6 +84,8 @@ export function BankPanel() {
     setBusy(false);
     if (res.ok) {
       setAccountNumber("");
+      setBankCode("");
+      setEditing(false);
       setSaved(body.accountName ?? "Saved.");
       await load();
       return;
@@ -95,18 +106,46 @@ export function BankPanel() {
         Where your rewards go
       </h2>
 
-      {bank?.connected && (
-        <p className="flex items-start gap-2 rounded-2xl border-2 border-mint/40 bg-mint/10 px-3 py-2.5 text-sm font-semibold text-mint">
-          <BadgeCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <span>
-            {bank.accountName} · {bank.bankName} ···· {bank.accountLast4}
-          </span>
-        </p>
-      )}
+      {bank?.connected && !editing ? (
+        <>
+          <div className="rounded-2xl border-2 border-mint/40 bg-mint/10 p-4">
+            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-mint">
+              <BadgeCheck className="size-4 shrink-0" aria-hidden />
+              Account set
+            </p>
+            <p className="mt-2 truncate text-lg font-black tracking-tight text-foreground">
+              {bank.accountName}
+            </p>
+            <p className="mt-0.5 truncate text-sm text-zinc-300">
+              {bank.bankName} · <span className="font-mono">···· {bank.accountLast4}</span>
+            </p>
+          </div>
 
+          {saved && (
+            <p className="text-sm font-semibold text-mint">Saved — {saved}.</p>
+          )}
+
+          <p className="text-sm text-zinc-400">
+            Every reward you win goes here, within 24 hours of the crack.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(true);
+              setSaved(null);
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-white/15 bg-white/6 px-5 py-3 font-bold transition hover:border-brass/50 hover:bg-white/10 active:translate-y-0.5"
+          >
+            <Pencil className="size-4" aria-hidden />
+            Change the account
+          </button>
+        </>
+      ) : (
+      <>
       <p className="text-sm text-zinc-400">
         {bank?.connected
-          ? "Change it below whenever you like. We check the number with your bank first."
+          ? "Enter the new account. We check the number with your bank before anything is saved."
           : "Add an account now and any reward you win goes straight to it."}
       </p>
 
@@ -148,12 +187,27 @@ export function BankPanel() {
           {busy ? "Checking with the bank…" : bank?.connected ? "Update" : "Save"}
         </button>
 
+        {bank?.connected && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(false);
+              setError(null);
+            }}
+            className="w-full rounded-2xl px-5 py-2 text-sm font-bold text-zinc-500 transition hover:text-zinc-200"
+          >
+            Cancel
+          </button>
+        )}
+
         {banks.length === 0 && (
           <p className="text-xs text-zinc-500">
             The bank list isn’t loading right now — try again shortly.
           </p>
         )}
       </div>
+      </>
+      )}
     </section>
   );
 }

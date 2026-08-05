@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getAdminUser } from "@/lib/admin-auth";
-import { createAndSendCode, verifyCode } from "@/lib/verification";
 
 /**
- * Deleting a box, in two steps.
+ * Deleting a box, in two steps — but not two *emails*.
  *
  * A box is meant to be permanent. Players spend weeks against one password,
  * and the record of what they did has to outlive anybody's change of heart —
@@ -13,11 +12,13 @@ import { createAndSendCode, verifyCode } from "@/lib/verification";
  * nobody could type, something abusive in a title, a duplicate created by a
  * payment that fired twice.
  *
- * Because it is irreversible and takes other people's history with it, it is
- * confirmed out of band. Asking sends a six-digit code to the administrator's
- * own address; nothing is deleted until that code comes back. That turns a
- * mis-click into an email, and means a hijacked admin session alone is not
- * enough to erase the board.
+ * It used to require a six-digit code emailed to the administrator. The step
+ * that actually prevents a mis-click is the one that stays: asking first
+ * returns what the deletion would destroy — how many people played it, how
+ * many attempts they made — and the dialog makes you read that and type the
+ * box's name before the second call is allowed. A code in an inbox proved
+ * possession of the inbox; it did not make anybody read the number of hunters
+ * they were about to erase.
  */
 export async function POST(req: Request) {
   const admin = await getAdminUser();
@@ -25,7 +26,8 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as {
     boxId?: string;
-    code?: string;
+    /** Set on the second call, once the dialog has been read and typed into. */
+    confirm?: boolean;
     reason?: string;
   };
   const boxId = (body.boxId ?? "").trim();
@@ -39,15 +41,10 @@ export async function POST(req: Request) {
     .maybeSingle();
   if (!box) return NextResponse.json({ error: "box_not_found" }, { status: 404 });
 
-  // ---- Step one: ask. -----------------------------------------------------
-  if (!body.code) {
-    const sent = await createAndSendCode(admin.email, "admin_delete_box");
-    if (!sent) {
-      return NextResponse.json({ error: "too_many_codes" }, { status: 429 });
-    }
+  // ---- Step one: ask what it would cost. ----------------------------------
+  if (!body.confirm) {
     return NextResponse.json({
-      result: "code_sent",
-      to: admin.email,
+      result: "confirm",
       box: {
         title: (box as { title: string }).title,
         slug: (box as { slug: string }).slug,
@@ -58,10 +55,7 @@ export async function POST(req: Request) {
     });
   }
 
-  // ---- Step two: confirm. -------------------------------------------------
-  const ok = await verifyCode(admin.email, "admin_delete_box", body.code.trim());
-  if (!ok) return NextResponse.json({ error: "invalid_code" }, { status: 400 });
-
+  // ---- Step two: do it. ---------------------------------------------------
   const { data, error } = await db.rpc("admin_delete_box", {
     p_box_id: boxId,
     p_actor: admin.email,

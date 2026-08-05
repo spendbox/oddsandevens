@@ -267,8 +267,11 @@ body {
     border-color 0.15s ease,
     background-color 0.15s ease;
 
+  /* 0.35 was too quiet against a dark, semi-transparent field — a hint you
+     have to lean in to read is a hint that gets misread. Half opacity clears
+     4.5:1 against everything this sits on. */
   &::placeholder {
-    color: rgb(255 255 255 / 0.35);
+    color: rgb(255 255 255 / 0.5);
   }
 
   &:focus {
@@ -281,6 +284,62 @@ body {
   &:focus-visible {
     outline: none;
   }
+}
+
+/*
+ * Autofill, which is where the pale blue came from.
+ *
+ * Chrome paints an autofilled field with its own background — a light blue on
+ * most builds, yellow on some — and it does it in a way ordinary `background`
+ * cannot override, because the UA rule wins. On a dark form that turns a field
+ * into a bright rectangle with near-white text and a near-white placeholder
+ * sitting on it, which is exactly as unreadable as it sounds.
+ *
+ * Two tricks are needed and both are old. An inset box-shadow a thousand
+ * pixels deep paints over the UA's background, since `box-shadow` is not what
+ * the UA rule sets. And `-webkit-text-fill-color` is the only thing that moves
+ * the text colour of an autofilled value. The absurd transition delay stops
+ * Chrome animating its colour back in on focus.
+ *
+ * Applied to every field on the site rather than to the one that was reported:
+ * autofill can land on any of them, and a fix that lives in one component is a
+ * fix that the next form will not have.
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+select:-webkit-autofill,
+textarea:-webkit-autofill {
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-low) inset;
+  box-shadow: 0 0 0 1000px var(--surface-low) inset;
+  border-color: rgb(255 255 255 / 0.12);
+  transition: background-color 100000s ease-in-out 0s;
+}
+
+/*
+ * And a floor under every control, whether or not it wears `.field`.
+ *
+ * A bare `<input>` or `<select>` inherits the browser's own colours, which on
+ * a dark page means black text on white — or worse, the platform's idea of a
+ * text field, which on iOS is white and on Chrome's autofill is that blue. One
+ * rule so nothing can be born unreadable; anything that wants to look
+ * different says so afterwards.
+ */
+input,
+select,
+textarea {
+  color: var(--foreground);
+  background-color: transparent;
+}
+
+/* The dropdown itself is drawn by the OS on a light background, so its options
+   have to stay dark whatever the page is doing. */
+option {
+  color: #16121f;
+  background-color: #ffffff;
 }
 
 /*
@@ -1250,6 +1309,47 @@ summary,
 .chase-car    { animation: car-idle 2.4s ease-in-out infinite; }
 .chase-safe   { animation: safe-flee 1.7s ease-in-out infinite; }
 .chase-shake  { animation: scene-shake 0.4s ease-out; }
+
+/*
+ * On a wide screen the chase runs across, not up.
+ *
+ * The scene is drawn top-down and endless, which is right on a phone — the
+ * road is the long axis of the screen and there is plenty of it. On a desktop
+ * the same layout has a short road, a wide verge and the whole chase squeezed
+ * into the middle third: the picture is the wrong way round for the window.
+ *
+ * Rotating the entire scene a quarter turn is the whole fix, and it is one
+ * rule rather than a second set of coordinates. Everything inside keeps its
+ * geometry — the lanes, the bend, the gunfire, the trees on the verges — and
+ * the ground simply scrolls left instead of down, so the field chases the safe
+ * across the window. The swapped width and height are what make a rotated box
+ * still cover its parent: the child's width is the parent's height and the
+ * other way about.
+ *
+ * Ninety degrees clockwise rather than anticlockwise, so the safe ends up
+ * ahead on the *right* and the cars travel rightwards, which is the direction
+ * a chase reads in.
+ *
+ * The HUD, the daylight tint and the vignette all sit outside this and stay
+ * the way up the reader is.
+ */
+@media (min-width: 1024px) {
+  .chase-flat {
+    top: 50%;
+    left: 50%;
+    width: 100vh;
+    height: 100vw;
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+}
+
+@supports (height: 100dvh) {
+  @media (min-width: 1024px) {
+    .chase-flat {
+      width: 100dvh;
+    }
+  }
+}
 
 .chase-bend   { animation: chase-bend 18s ease-in-out infinite; }
 .chase-carve  { animation: chase-carve 18s ease-in-out infinite; }
