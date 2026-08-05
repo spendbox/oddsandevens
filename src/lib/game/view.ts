@@ -155,29 +155,60 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
  * way in" is the most a stranger should ever learn about another stranger.
  */
 async function rivalsOn(db: Db, boxId: string, meId: string | null): Promise<Rival[]> {
-  const { data } = await db
-    .from("hunts")
-    .select("player_id, best_percent")
-    .eq("box_id", boxId)
-    .order("best_percent", { ascending: false })
-    .limit(RIVALS);
+  const [{ data }, { data: seeded }] = await Promise.all([
+    db
+      .from("hunts")
+      .select("player_id, best_percent")
+      .eq("box_id", boxId)
+      .order("best_percent", { ascending: false })
+      .limit(RIVALS),
+    // The names an admin put on the board before anybody arrived. A separate
+    // table rather than invented hunts, so no real query ever has to tell the
+    // two apart — they meet here, on the way out, and nowhere else.
+    db
+      .from("box_seeds")
+      .select("email, percent")
+      .eq("box_id", boxId)
+      .order("rank")
+      .limit(RIVALS),
+  ]);
 
   const rows = (data ?? []) as { player_id: string; best_percent: string | number }[];
-  if (rows.length === 0) return [];
+  const emails = new Map<string, string>();
 
-  const { data: people } = await db
-    .from("players")
-    .select("id, email")
-    .in("id", rows.map((r) => r.player_id));
-  const emails = new Map(
-    ((people ?? []) as { id: string; email: string }[]).map((p) => [p.id, p.email])
-  );
+  if (rows.length > 0) {
+    const { data: people } = await db
+      .from("players")
+      .select("id, email")
+      .in("id", rows.map((r) => r.player_id));
+    ((people ?? []) as { id: string; email: string }[]).forEach((p) =>
+      emails.set(p.id, p.email)
+    );
+  }
 
-  return rows.map((row) => ({
+  const real: Rival[] = rows.map((row) => ({
     player: maskEmail(emails.get(row.player_id) ?? ""),
     percent: Number(row.best_percent ?? 0),
     you: row.player_id === meId,
   }));
+
+  const invented: Rival[] = ((seeded ?? []) as { email: string; percent: string | number }[]).map(
+    (row) => ({
+      player: maskEmail(row.email),
+      percent: Number(row.percent ?? 0),
+      you: false,
+    })
+  );
+
+  // Sorted together and cut to the same ten, so a seeded name is overtaken by
+  // a real player the moment one gets past it rather than holding a lane
+  // forever. `you` never loses its place: if the merge would push somebody off
+  // the end of their own leaderboard, their car has to stay.
+  const merged = [...real, ...invented].sort((a, b) => b.percent - a.percent);
+  const top = merged.slice(0, RIVALS);
+  const me = merged.find((r) => r.you);
+  if (me && !top.includes(me)) top[top.length - 1] = me;
+  return top;
 }
 
 /** An unclaimed offer, if one is waiting. */
@@ -294,7 +325,12 @@ export async function buildPlayView(
       ).data?.display_name as string | undefined) ?? null
     : null;
 
-  const winner = box.unlocked_by ? await winnerEmail(db, box.unlocked_by) : null;
+  // A seeded winner is an address on the box itself, so there is nobody to
+  // look up — `toPublicBox` prefers it and masks it the same way.
+  const winner =
+    !box.unlocked_alias && box.unlocked_by
+      ? await winnerEmail(db, box.unlocked_by)
+      : null;
   const publicBox = toPublicBox(box, { contributor, winnerEmail: winner });
 
   // Whatever an admin has changed. The shelf is quoted from it, and the
