@@ -45,6 +45,7 @@ import { BuildCard, CardDialog } from "@/components/dashboard/build-panel";
 import { PayoutsPanel } from "@/components/admin/payouts-panel";
 import { PricingPanel } from "@/components/admin/pricing-panel";
 import { AlphabetPanel } from "@/components/admin/alphabet-panel";
+import { HintsPanel } from "@/components/admin/hints-panel";
 import { LimitsPanel } from "@/components/admin/limits-panel";
 import { GrantLives } from "@/components/admin/grant-lives";
 import { UsersPanel } from "@/components/admin/users-panel";
@@ -232,6 +233,8 @@ export default function AdminPage() {
           <PricingPanel />
 
           <AlphabetPanel />
+
+          <HintsPanel />
 
           <GrantLives />
         </>

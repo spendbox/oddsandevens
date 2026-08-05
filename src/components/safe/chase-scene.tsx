@@ -847,11 +847,26 @@ function Payday() {
 // The hour
 // ---------------------------------------------------------------------------
 
+/*
+ * The hour of the day, as a colour rather than a dimmer.
+ *
+ * Night used to be a 62–72% black wash, and it sat on top of a vignette that
+ * is already taking 72% out of the top of the screen and 78% out of the
+ * bottom. Between eight in the evening and five in the morning — which for a
+ * game people play in bed is most of the time it is played — the road, the
+ * cars and the damage on the safe were all reading through two layers of
+ * darkness, and the whole screen went murky.
+ *
+ * A third of that is plenty. The hour should be legible as a mood — warm at
+ * dawn, red at dusk, blue and deep at night — and never as "somebody has
+ * turned the lights off". If the difference between night and day is that you
+ * cannot see the game at night, the feature is a fault.
+ */
 const LIGHT: Record<Daypart, string> = {
-  dawn: "linear-gradient(180deg, rgb(255 176 110 / 0.22), rgb(80 40 110 / 0.28))",
+  dawn: "linear-gradient(180deg, rgb(255 176 110 / 0.16), rgb(80 40 110 / 0.18))",
   day: "linear-gradient(180deg, rgb(255 250 220 / 0.06), rgb(90 140 190 / 0.06))",
-  dusk: "linear-gradient(180deg, rgb(230 100 90 / 0.24), rgb(50 30 90 / 0.34))",
-  night: "linear-gradient(180deg, rgb(20 14 45 / 0.62), rgb(8 5 20 / 0.72))",
+  dusk: "linear-gradient(180deg, rgb(230 100 90 / 0.16), rgb(50 30 90 / 0.22))",
+  night: "linear-gradient(180deg, rgb(24 18 55 / 0.30), rgb(10 7 26 / 0.36))",
 };
 
 function Daylight({ daypart }: { daypart: Daypart }) {

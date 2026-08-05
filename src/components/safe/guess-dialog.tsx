@@ -14,12 +14,45 @@
 // exactly when there is something to type into.
 
 import { useEffect, useRef, useState } from "react";
-import { Delete, KeyRound, Keyboard } from "lucide-react";
+import { Delete, HelpCircle, KeyRound, Keyboard, Lightbulb } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { MascotShow } from "./mascot-show";
 import { MAX_GUESS_LENGTH } from "@/lib/constants";
 import { allowedSet, CharsetDialog, useAlphabet } from "@/components/charset-dialog";
+import { HowItWorksDialog } from "@/components/how-it-works";
+import { DEFAULT_HINTS } from "@/lib/game/hints";
 import type { Revealed } from "@/lib/game/power-ups";
+
+/**
+ * One strategy, drawn when the dialog opens.
+ *
+ * Fetched rather than imported so an admin can edit the list without a deploy,
+ * and seeded from the built-in one so there is never a blank line while the
+ * request is in flight. The draw happens once per opening: a hint that changed
+ * under somebody mid-sentence would be worse than no hint.
+ */
+function useHint(): string {
+  const [hints, setHints] = useState<string[]>(DEFAULT_HINTS);
+  const [at] = useState(() => Math.random());
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/hints");
+      if (!res.ok || cancelled) return;
+      const body = (await res.json()) as { hints?: string[] };
+      if (!cancelled && body.hints && body.hints.length > 0) setHints(body.hints);
+    })().catch(() => {
+      // Offline, or the settings row is unreachable. The built-in list is a
+      // perfectly good answer.
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return hints[Math.floor(at * hints.length)] ?? DEFAULT_HINTS[0];
+}
 
 export function GuessDialog({
   value,
@@ -39,6 +72,8 @@ export function GuessDialog({
   const ref = useRef<HTMLInputElement>(null);
   const alphabet = useAlphabet();
   const [chars, setChars] = useState(false);
+  const [rules, setRules] = useState(false);
+  const hint = useHint();
 
   useEffect(() => {
     // A dialog whose only purpose is a text field should arrive with the
@@ -55,7 +90,7 @@ export function GuessDialog({
     <Modal
       above={<MascotShow className="mb-1" />}
       title="Crack the safe"
-      subtitle="Case matters."
+      subtitle="Case matters. Spaces count."
       icon={<KeyRound className="size-5 text-brass" aria-hidden />}
       width="sm"
       onClose={onClose}
@@ -134,22 +169,56 @@ export function GuessDialog({
             )}
           </p>
 
-          {/* What the password could possibly be made of. It sits on the one
-              screen where the question comes up, and several of the characters
-              in it can only realistically be entered by copying them out of
-              it. */}
-          <button
-            type="button"
-            onClick={() => setChars(true)}
-            className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-xs font-bold text-zinc-500 transition hover:text-brass"
-          >
-            <Keyboard className="size-3.5" aria-hidden />
-            {alphabet.guess.length} characters allowed
-          </button>
+          <div className="flex items-center gap-1">
+            {/* What the password could possibly be made of. It sits on the one
+                screen where the question comes up, and several of the
+                characters in it can only realistically be entered by copying
+                them out of it. */}
+            <button
+              type="button"
+              onClick={() => setChars(true)}
+              className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-xs font-bold text-zinc-500 transition hover:text-brass"
+            >
+              <Keyboard className="size-3.5" aria-hidden />
+              {alphabet.guess.length} allowed
+            </button>
+
+            {/* The rules, from the one screen where somebody is deciding what
+                to type. It was reachable only from the rail at the top, which
+                is behind this dialog the moment it opens. */}
+            <button
+              type="button"
+              onClick={() => setRules(true)}
+              aria-label="How it works"
+              className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-xs font-bold text-zinc-500 transition hover:text-brass"
+            >
+              <HelpCircle className="size-3.5" aria-hidden />
+              How it works
+            </button>
+          </div>
         </div>
+
+        {/*
+          A method, not a fact.
+
+          This is the one moment in the game when a sentence about how to play
+          is welcome rather than in the way: somebody has decided to spend a
+          life and has not yet decided what to type. Nothing here is about the
+          safe in front of you — every line is about the shape of the problem,
+          which is why the same list can be shown to everybody with no thought
+          about which box is open.
+        */}
+        <p className="flex items-start gap-2 rounded-2xl border-2 border-mint/25 bg-mint/10 px-3 py-2.5 text-xs leading-relaxed text-zinc-300">
+          <Lightbulb className="mt-0.5 size-4 shrink-0 text-mint" aria-hidden />
+          <span>
+            <span className="font-black uppercase tracking-wide text-mint">Hint · </span>
+            {hint}
+          </span>
+        </p>
       </div>
 
       {chars && <CharsetDialog alphabet={alphabet} onClose={() => setChars(false)} />}
+      {rules && <HowItWorksDialog onClose={() => setRules(false)} />}
     </Modal>
   );
 }
