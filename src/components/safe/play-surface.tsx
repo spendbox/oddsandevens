@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, KeyRound, Tag } from "lucide-react";
+import { ArrowRight, KeyRound, Lightbulb, Tag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { LIVES_MAX } from "@/lib/constants";
 import { EMPTY_REVEALED, POWER_UPS } from "@/lib/game/power-ups";
@@ -152,6 +152,21 @@ export function PlaySurface({
     if (res.ok) setView((await res.json()) as PlayView);
     await refresh();
   }, [slug, refresh]);
+
+  /*
+   * The golden chip takes itself away.
+   *
+   * It says things like "+2 free lives" and "40% off — it's on the shelf", and
+   * it used to be cleared only by the *next* guess. So a player who claimed a
+   * gift and then sat reading the shelf kept a stale notice under their life
+   * badge until they reloaded — still advertising an offer that had by then
+   * expired. Six seconds is long enough to read a five-word chip.
+   */
+  useEffect(() => {
+    if (!message) return;
+    const id = window.setTimeout(() => setMessage(null), 6_000);
+    return () => window.clearTimeout(id);
+  }, [message]);
 
   useEffect(() => {
     if (!pendingReference) return;
@@ -319,6 +334,23 @@ export function PlaySurface({
           <div className="flex items-center justify-between gap-2">
             <LivesBadge onBuy={() => setSheet("lives")} />
 
+            {/* Opposite the lives, under the stats: one icon, no label. It is
+                a reading you check occasionally, and it belongs at the top with
+                the other readings rather than down among the controls. */}
+            <button
+              type="button"
+              onClick={() => setSheet("known")}
+              aria-label="Active boosters"
+              className="relative flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/15 bg-background/85 text-zinc-200 transition hover:border-mint/60 hover:text-mint"
+            >
+              <Lightbulb className="size-4" aria-hidden />
+              {knowsAnything(revealed, now) && (
+                <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-background bg-mint" />
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
             {/* What you're holding, and how long you have to spend it. It goes
                 to the shelf on a tap, because a discount you have to go and
                 find is a discount that expires unused. */}
@@ -403,10 +435,8 @@ export function PlaySurface({
 
               <SceneDock
                 powerUps={view.powerUps.filter((p) => p.available).length}
-                known={knowsAnything(revealed, now)}
                 onAttempts={() => setSheet("attempts")}
                 onPowerUps={() => setSheet("power-ups")}
-                onKnown={() => setSheet("known")}
               />
             </div>
           ) : (

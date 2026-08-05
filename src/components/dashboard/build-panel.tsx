@@ -32,6 +32,8 @@ import {
   ALPHABET,
   ALPHABET_SET,
   BLURB_MAX,
+  KOBO,
+  MAX_FUNDING_KOBO,
   MAX_LENGTH,
   MIN_LENGTH,
   TITLE_MAX,
@@ -48,6 +50,19 @@ import { Modal } from "@/components/ui/modal";
 import { SafeArt } from "@/components/safe/safe-art";
 import { RevenueEstimate } from "./revenue-estimate";
 import { INPUT, Panel, PRIMARY } from "./shared";
+
+/**
+ * Digits only, no leading zeros, never above the platform ceiling.
+ *
+ * Clamping the *value* rather than the number of digits, because "10000001" and
+ * "99999999" are both eight characters and only one of them is over the line.
+ */
+function capFunding(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, "").replace(/^0+(?=\d)/, "");
+  if (!digits) return "";
+  const naira = Math.min(Number(digits), MAX_FUNDING_KOBO / KOBO);
+  return String(naira);
+}
 
 /** A suggested password. Generated in the browser: it's only a suggestion, and
  * the real one is whatever the contributor submits. */
@@ -88,6 +103,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
   const split = splitFunding(Math.max(fundingKobo, floor));
   const titleOk = title.trim().length > 0;
   const rewardOk = passwordOk && fundingKobo >= floor && fundingKobo > 0;
+  const atCeiling = fundingKobo >= MAX_FUNDING_KOBO;
   const ready = titleOk && passwordOk && rewardOk;
 
   async function build() {
@@ -164,7 +180,14 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
                 : "Write the password first"
           }
           done={rewardOk}
-          onOpen={() => passwordOk && setCard("reward")}
+          onOpen={() => {
+            if (!passwordOk) return;
+            // Opening it empty means typing the minimum from scratch, every
+            // time, on a field where the minimum is the answer most of the
+            // time. Pre-filled with the floor for the length just written.
+            if (!fundingNaira) setFundingNaira(String(Math.round(floor / KOBO)));
+            setCard("reward");
+          }}
           disabled={!passwordOk}
         />
         <BuildCard
@@ -205,9 +228,12 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
               maxLength={TITLE_MAX}
               autoFocus
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="The Friday Safe"
+              placeholder="Friday Safe"
               className={`${INPUT} mt-1.5`}
             />
+            <span className="mt-1 block text-right text-xs text-zinc-400">
+              {title.length}/{TITLE_MAX}
+            </span>
           </label>
           <label className="block">
             <span className="text-sm font-bold text-zinc-300">One line for the card</span>
@@ -244,11 +270,22 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
               inputMode="numeric"
               autoFocus
               value={fundingNaira}
-              onChange={(e) => setFundingNaira(e.target.value.replace(/[^\d]/g, ""))}
-              placeholder={String(Math.round(floor / 100))}
+              // Digits only, no leading zeros, and hard-stopped at the ceiling.
+              // Paystack will not move more than ₦10,000,000 in one transfer,
+              // so a figure above it is a box that can never pay out — better
+              // refused at the keystroke than at the checkout.
+              onChange={(e) => setFundingNaira(capFunding(e.target.value))}
+              placeholder={String(Math.round(floor / KOBO))}
               className={`${INPUT} mt-1.5 pl-8 font-mono`}
             />
           </div>
+
+          {atCeiling && (
+            <p className="rounded-lg bg-brass/10 px-3 py-2 text-sm text-brass">
+              {formatNaira(MAX_FUNDING_KOBO)} is the most a single box can hold —
+              it’s the largest transfer Paystack will make in one go.
+            </p>
+          )}
 
           <dl className="grid grid-cols-3 gap-2 text-center">
             <SplitTile label="You pay" value={formatNaira(split.fundingKobo)} />
@@ -305,7 +342,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
  * bottom is honest about being disabled because you can see exactly which one
  * is missing.
  */
-function BuildCard({
+export function BuildCard({
   icon,
   label,
   value,
@@ -362,7 +399,7 @@ function BuildCard({
   );
 }
 
-function CardDialog({
+export function CardDialog({
   title,
   onClose,
   children,
@@ -478,7 +515,7 @@ function PasswordCard({
 }
 
 
-function SplitTile({
+export function SplitTile({
   label,
   value,
   accent,

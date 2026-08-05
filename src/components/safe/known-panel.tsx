@@ -1,6 +1,6 @@
 "use client";
 
-// Everything the player has paid for, in one place.
+// Active boosters: everything the player has paid for, in one place.
 //
 // This used to sit in the middle of the play screen as a standing panel, and
 // the moment anybody bought anything the game screen grew a stack of prose
@@ -8,10 +8,10 @@
 // reward for spending money. It is a sheet now, opened from the dock, and the
 // scene stays the scene.
 //
-// Two things live in it, and the split matters. **What you know** is permanent:
-// facts about the password that were bought once and are true forever. **What's
-// running** is a clock: Second Wind and Colour Read are rented, and the only
-// urgent thing about them is how long is left.
+// Two things live in it, and the split matters. **What's running** is a clock:
+// Second Wind and Colour Read are rented, and the only urgent thing about them
+// is how long is left. Everything under it is permanent: facts about the
+// password that were bought once and are true forever.
 //
 // Nothing arrives here that wasn't bought: the server builds `revealed` and
 // this only lays it out.
@@ -27,19 +27,15 @@ import {
 import { countdown } from "@/components/player/lives-badge";
 import { plural } from "@/lib/plural";
 
-/**
- * The scans, in the order they read best as a sentence about a password.
- *
- * Digits and symbols are still listed although neither is on sale any more:
- * Case Map gives those two counts, and a hunt that bought the withdrawn scans
- * before they went should keep seeing what it paid for. A field with nothing
- * in it renders nothing, so the two dead rows cost exactly nothing.
- */
+/** The counters, in the order they read best as a sentence about a password. */
 const SCAN_ROWS: { field: ScanField; noun: string }[] = [
+  { field: "upper", noun: "capital" },
+  { field: "lower", noun: "lowercase letter" },
   { field: "vowels", noun: "vowel" },
   { field: "consonants", noun: "consonant" },
   { field: "numbers", noun: "digit" },
   { field: "symbols", noun: "symbol" },
+  { field: "spaces", noun: "space" },
 ];
 
 /** A power-up that is running right now, and when it stops. */
@@ -65,7 +61,6 @@ export function knowsAnything(revealed: Revealed, now: number): boolean {
   return (
     revealed.length !== null ||
     revealed.charset !== null ||
-    revealed.caseMap !== null ||
     SCAN_ROWS.some((row) => revealed.scans[row.field] !== undefined) ||
     runningNow(revealed, now).length > 0
   );
@@ -83,8 +78,8 @@ export function KnownDialog({
 }) {
   return (
     <Modal
-      title="What you know"
-      subtitle="Everything you've paid to find out."
+      title="Active boosters"
+      subtitle="Everything you've paid for, and what's still running."
       icon={<Lightbulb className="size-5 text-brass" aria-hidden />}
       width="sm"
       onClose={onClose}
@@ -118,8 +113,8 @@ export function KnownPanel({
   if (!knowsAnything(revealed, now)) {
     return (
       <p className="pb-1 text-sm text-zinc-400">
-        Nothing yet. Every power-up you buy puts its answer here, and it stays
-        for as long as the hunt does.
+        Nothing running, and nothing bought yet. Every power-up you buy puts its
+        answer here, and it stays for as long as the hunt does.
       </p>
     );
   }
@@ -163,19 +158,8 @@ export function KnownPanel({
         </Row>
       )}
 
-      {revealed.caseMap && (
-        <Row label="Made of">
-          <span className="font-mono text-xs text-zinc-300">
-            {plural(revealed.caseMap.upper, "capital")} ·{" "}
-            {plural(revealed.caseMap.lower, "lowercase letter")} ·{" "}
-            {plural(revealed.caseMap.digits, "digit")} ·{" "}
-            {plural(revealed.caseMap.specials, "symbol")}
-          </span>
-        </Row>
-      )}
-
       {scanned.length > 0 && (
-        <Row label="Scanned">
+        <Row label="Made of">
           <span className="flex flex-wrap gap-1.5">
             {scanned.map((row) => (
               <span

@@ -45,13 +45,16 @@ export function RevenueEstimate({
         {formatNaira(range.lowKobo)} – {formatNaira(range.highKobo)}
       </p>
 
-      <p className="mt-2 text-xs text-zinc-500">
-        {earnedKobo > 0
-          ? `${formatNaira(earnedKobo)} earned so far from ${plural(hunters, "hunter")}.`
-          : hunters > 0
-            ? `${plural(hunters, "hunter")} so far, nothing bought yet.`
-            : "No hunters yet."}
-      </p>
+      {/* Nothing at all when there is nothing to report. "No hunters yet" on a
+          box that hasn't been published is stating the obvious back at somebody
+          who is still building it. */}
+      {(earnedKobo > 0 || hunters > 0) && (
+        <p className="mt-2 text-xs text-zinc-500">
+          {earnedKobo > 0
+            ? `${formatNaira(earnedKobo)} earned so far from ${plural(hunters, "hunter")}.`
+            : `${plural(hunters, "hunter")} so far, nothing bought yet.`}
+        </p>
+      )}
 
       <button
         type="button"

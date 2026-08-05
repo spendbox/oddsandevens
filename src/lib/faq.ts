@@ -21,9 +21,10 @@ import {
   PLATFORM_SHARE_PERCENT,
   REFERRAL_MIN_LIVES,
   ALPHABET,
+  MAX_FUNDING_KOBO,
 } from "@/lib/constants";
-import { formatNaira, minFundingKobo, splitFunding } from "@/lib/game/rewards";
-import { BREAKDOWN_HOURS, SECOND_WIND_HOURS } from "@/lib/game/power-ups";
+import { formatNaira, fundingSchedule, minFundingKobo, splitFunding } from "@/lib/game/rewards";
+import { BREAKDOWN_HOURS, LIFE_BANK_MAX, SECOND_WIND_HOURS } from "@/lib/game/power-ups";
 
 export const FAQ_TOPICS = [
   "Playing",
@@ -94,7 +95,7 @@ export const FAQ: FaqItem[] = [
     question: "What characters can a password contain?",
     answer: [
       `Anything on a standard keyboard: the 26 letters in either case, the ten digits, and every symbol — ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \\ ] ^ _ \` { | } ~. That is ${ALPHABET.length} possible characters in every position.`,
-      "The one exception is the space, which is never part of a password.",
+      "Spaces count too, so a password can be a phrase. Wherever a guess is shown back to you a space is drawn as ␣, so you can always see whether one is there.",
     ],
   },
   {
@@ -174,17 +175,18 @@ export const FAQ: FaqItem[] = [
     question: "What does each one do?",
     answer: [
       "Length Lock tells you exactly how many characters the password has.",
-      "Case Map counts the uppercase letters, lowercase letters, digits and symbols, without saying where any of them sit.",
+      "Seven counters each answer one question about what the password is made of, without saying where anything sits: how many capitals, how many lowercase letters, how many vowels, how many consonants, how many digits, how many symbols and how many spaces. Each is priced by how much of the search it removes — knowing there are no symbols rules out far more than knowing there are no spaces.",
       `Second Wind gives you unlimited guesses on that box for ${SECOND_WIND_HOURS} hour, spending no lives.`,
       `Colour Read splits every score into its parts for ${BREAKDOWN_HOURS} hours — including every attempt you've already made.`,
       "X-Ray names half the different characters the password is built from, in no order — and can be bought again for half of what's left.",
+      `Life Bank raises your life ceiling from ${LIVES_MAX} to ${LIFE_BANK_MAX}, permanently and on every box. It's the only one that isn't about the password.`,
     ],
   },
   {
     topic: "Power-ups",
     question: "Can I buy the same power-up twice?",
     answer: [
-      "Length Lock and Case Map are one purchase per box: what they tell you never changes, so buying again would pay for the same sentence.",
+      "Length Lock, the seven counters and Life Bank are one purchase each: what they give you never changes, so buying again would pay for the same answer.",
       `Second Wind and Colour Read rent a window rather than sell a fact — ${SECOND_WIND_HOURS} hour and ${BREAKDOWN_HOURS} hours respectively — and can be bought again the moment they lapse.`,
       "X-Ray can be bought as often as you like. Each purchase draws from the characters it hasn't named yet, so it never tells you the same thing twice, and it stops being offered once you have all of them.",
     ],
@@ -252,6 +254,18 @@ export const FAQ: FaqItem[] = [
     answer: [
       `From ${formatNaira(floor)} for a ${MIN_LENGTH}-character password. Longer passwords cost more, because they take longer to crack and a harder box has to be worth attacking.`,
       `${share}% of what you put in becomes the reward — ${formatNaira(splitFunding(floor).rewardKobo)} at the floor — and Spendbox keeps ${PLATFORM_SHARE_PERCENT}% for running the box.`,
+    ],
+  },
+  {
+    topic: "Building a box",
+    question: "What does each password length cost?",
+    answer: [
+      "Every length has a floor, and it rises steeply — a longer password is a harder box and a harder box has to be worth attacking. You can always put up more than the floor; you can never put up less.",
+      ...fundingSchedule().map(
+        (row) =>
+          `${row.length} characters — from ${formatNaira(row.minFundingKobo)}, a ${formatNaira(splitFunding(row.minFundingKobo).rewardKobo)} reward.`
+      ),
+      `${formatNaira(MAX_FUNDING_KOBO)} is the ceiling on any one box: it's the largest single transfer Paystack will make, and a reward that can't be paid out isn't a reward.`,
     ],
   },
   {

@@ -174,20 +174,9 @@ export function PowerUpShelf({
         })}
       </div>
 
-      {view.hunt && view.hunt.notes.length > 0 && (
-        <div className="panel rounded-xl p-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            What you’ve bought
-          </h3>
-          <ul className="mt-2 space-y-1 text-sm text-brass">
-            {view.hunt.notes.map((note: string, i: number) => (
-              <li key={i} className="font-mono">
-                {note}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* "What you've bought" used to be listed again down here, under the
+          shelf. It is the whole content of the Active boosters sheet, laid out
+          far better, and repeating it turned the shop into a receipt. */}
 
       {open && (
         <PowerUpDialog

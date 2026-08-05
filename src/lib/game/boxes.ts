@@ -84,6 +84,8 @@ export interface PlayerRow {
   invite_code: string | null;
   /** Referral bonus banked, waiting for their next paid top-up. */
   bonus_lives_pending: number;
+  /** Their own ceiling, once Life Bank has raised it. Null means the default. */
+  lives_max: number | null;
 }
 
 /**
@@ -123,11 +125,13 @@ export function toPlayerState(
       lifeDiscount: null,
     };
   }
-  const full = player.lives >= LIVES_MAX;
+  // Their own ceiling if Life Bank has raised it, the platform's otherwise.
+  const cap = Math.max(LIVES_MAX, player.lives_max ?? LIVES_MAX);
+  const full = player.lives >= cap;
   return {
     email,
     lives: player.lives,
-    livesMax: LIVES_MAX,
+    livesMax: cap,
     nextLifeAt: full
       ? null
       : new Date(

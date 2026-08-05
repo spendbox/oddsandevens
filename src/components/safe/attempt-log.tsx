@@ -17,6 +17,7 @@
 // last?" but "what are my best five, and what do they have in common?".
 
 import { useMemo, useState } from "react";
+import { visible } from "@/lib/constants";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Clock, MoveDown, MoveUp, Target } from "lucide-react";
 import { LENGTH_HINT_COPY } from "@/lib/game/feedback";
 import type { AttemptRecord } from "@/lib/types";
@@ -141,7 +142,7 @@ function AttemptRow({
       >
         {/* `break-all` matters: a 40-character guess has no spaces to break on. */}
         <code className="min-w-0 flex-1 break-all font-mono text-sm text-zinc-200">
-          {attempt.value}
+          {visible(attempt.value)}
         </code>
 
         <span className="flex shrink-0 items-center gap-2.5">

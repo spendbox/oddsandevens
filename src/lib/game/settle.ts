@@ -7,7 +7,12 @@
 // actually having matched a row.
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { apply, isPowerUpKind, parseRevealed } from "@/lib/game/power-ups";
+import {
+  apply,
+  isPowerUpKind,
+  LIFE_BANK_MAX,
+  parseRevealed,
+} from "@/lib/game/power-ups";
 
 type Db = ReturnType<typeof supabaseAdmin>;
 
@@ -91,6 +96,18 @@ export async function settlePowerUp(
   if (!hunt.won_at) {
     await db.from("hunts").update({ revealed }).eq("id", hunt.id);
   }
+
+  // Life Bank is the one power-up whose effect isn't on the hunt. It raises the
+  // ceiling on the player's pool, which is shared across every box, so it is
+  // applied here rather than folded into `revealed`. `grant_life_bank` takes
+  // the greater of the two values, so a replayed webhook is a no-op.
+  if (kind === "life_bank") {
+    await db.rpc("grant_life_bank", {
+      p_player_id: row.player_id as string,
+      p_to: LIFE_BANK_MAX,
+    });
+  }
+
   await db.from("power_up_orders").update({ note }).eq("reference", reference);
 
   return { settled: true, note };

@@ -12,18 +12,18 @@
 // app.
 //
 //   Length Lock  sky      a measure
-//   Case Map     grape    a sorted set of things
 //   Second Wind  mint     time and freedom
 //   Colour Read  berry    the colours behind a score
 //   X-Ray        gold     seeing inside, the most valuable of them
+//   Life Bank    berry    lives, and somewhere to keep them
 //
-// The two scans share one drawing — a card with a beam under it — and differ
-// only by the glyph on the card and the colour of the badge. That is on
-// purpose: they are one idea sold twice, and two unrelated pictures for two
-// identical products is how a shelf becomes unreadable.
+// The seven counters share one drawing — a card with a beam under it — and
+// differ only by the glyph on the card and the colour of the badge. That is on
+// purpose: they are one idea sold seven times, and seven unrelated pictures
+// for seven identical products is how a shelf becomes unreadable.
 //
 // All of them are drawn in one 64-unit box so they line up at any size, and
-// every gradient id is prefixed with the kind so seven on one page don't
+// every gradient id is prefixed with the kind so a dozen on one page don't
 // collide.
 
 import type { PowerUpKind } from "@/lib/game/power-ups";
@@ -31,16 +31,26 @@ import { Gloss, Grad, Halo, INK, Sparkle, STROKE } from "./ink";
 
 export const POWER_UP_COLOURS: Record<PowerUpKind, { from: string; to: string }> = {
   length_lock: { from: "#7ddcf7", to: "#16759f" },
-  case_map: { from: "#cfa4ff", to: "#6b2fc4" },
   second_wind: { from: "#7ff0bb", to: "#11855a" },
   breakdown: { from: "#ff9ab8", to: "#b8214c" },
   x_ray: { from: "#ffe08a", to: "#b8750f" },
+  life_bank: { from: "#ff9db5", to: "#b8214c" },
+  upper_case: { from: "#cfa4ff", to: "#6b2fc4" },
+  lower_case: { from: "#c9b2ff", to: "#5326a8" },
+  symbol_count: { from: "#ffc082", to: "#c05a12" },
+  digit_count: { from: "#9df0a6", to: "#1a8a40" },
+  space_count: { from: "#a8e6ff", to: "#1a6e9c" },
   vowel_scan: { from: "#ffa8d8", to: "#a81d6d" },
   consonant_scan: { from: "#aebcff", to: "#3843b5" },
 };
 
-/** The glyph on each scan's card — the class it counts, in two characters. */
+/** The glyph on each counter's card — the class it counts, in two characters. */
 const SCAN_GLYPHS: Record<string, string> = {
+  upper_case: "AB",
+  lower_case: "ab",
+  symbol_count: "#$",
+  digit_count: "42",
+  space_count: "␣␣",
   vowel_scan: "AE",
   consonant_scan: "BC",
 };
@@ -80,7 +90,7 @@ export function PowerUpArt({
       <circle cx="32" cy="34" r="22" fill={`url(#${uid}-halo)`} />
 
       {kind === "length_lock" && <LengthLock />}
-      {kind === "case_map" && <CaseMap uid={uid} />}
+      {kind === "life_bank" && <LifeBank />}
       {kind === "second_wind" && <SecondWind uid={uid} />}
       {kind === "breakdown" && <ColourRead uid={uid} />}
       {kind === "x_ray" && <XRay uid={uid} />}
@@ -171,45 +181,24 @@ function LengthLock() {
   );
 }
 
-/** Four sorted blocks: capitals, lowercase, digits, symbols. */
-function CaseMap({ uid }: { uid: string }) {
-  const tiles: [number, number, string, string][] = [
-    [11, 13, "A", "#fdf7ff"],
-    [34, 13, "a", "#ffe08a"],
-    [11, 36, "7", "#7ff0bb"],
-    [34, 36, "#", "#ff9ab8"],
-  ];
+/** A vault of hearts: the ceiling on the pool, raised. */
+function LifeBank() {
+  const heart = (cx: number, cy: number, s: number) =>
+    `M ${cx} ${cy + 4 * s} C ${cx - 7 * s} ${cy - 3 * s}, ${cx - 4 * s} ${cy - 8 * s}, ${cx} ${cy - 3.5 * s} C ${cx + 4 * s} ${cy - 8 * s}, ${cx + 7 * s} ${cy - 3 * s}, ${cx} ${cy + 4 * s} Z`;
   return (
     <g>
-      {tiles.map(([x, y, glyph, fill]) => (
-        <g key={glyph}>
-          <rect
-            x={x}
-            y={y}
-            width="19"
-            height="19"
-            rx="6"
-            fill={fill}
-            stroke={INK}
-            strokeWidth={STROKE - 0.5}
-          />
-          <text
-            x={x + 9.5}
-            y={y + 14.2}
-            textAnchor="middle"
-            fontSize="13"
-            fontWeight="900"
-            fontFamily="ui-monospace, monospace"
-            fill={INK}
-          >
-            {glyph}
-          </text>
-        </g>
-      ))}
-      <Gloss cx={21} cy={18} rx={6} ry={2} opacity={0.5} />
-      <g opacity="0">
-        <rect x="0" y="0" width="1" height="1" fill={`url(#${uid}-metal)`} />
-      </g>
+      {/* The bank itself: a strongbox, because that is what this buys. */}
+      <rect x="9" y="20" width="46" height="32" rx="8" fill="#fdf7ff" stroke={INK} strokeWidth={STROKE} />
+      <rect x="14" y="25" width="36" height="22" rx="5" fill="#3a2b70" stroke={INK} strokeWidth={STROKE - 1} />
+
+      {/* Three inside, one going in over the top — the ceiling rising. */}
+      <path d={heart(23, 36, 1.1)} fill="#ff5c8a" stroke={INK} strokeWidth={STROKE - 1.2} />
+      <path d={heart(32, 36, 1.1)} fill="#ff5c8a" stroke={INK} strokeWidth={STROKE - 1.2} />
+      <path d={heart(41, 36, 1.1)} fill="#ff5c8a" stroke={INK} strokeWidth={STROKE - 1.2} />
+      <path d={heart(32, 13, 1.3)} fill="#ffb3c8" stroke={INK} strokeWidth={STROKE - 1} />
+
+      <Gloss cx={32} cy={23} rx={16} ry={2.6} opacity={0.6} />
+      <Sparkle x={51} y={14} size={5} color="#fff" index={0} />
     </g>
   );
 }

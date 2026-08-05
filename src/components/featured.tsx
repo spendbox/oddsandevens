@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { DifficultyBadge } from "@/components/difficulty-badge";
+import { ShareChip } from "@/components/share-safe";
 import { SafeArt } from "@/components/safe/safe-art";
 import { DESIGN_SPECS } from "@/lib/game/designs";
 import { rewardLabel } from "@/lib/game/rewards";
@@ -146,10 +147,18 @@ export function Featured({ boxes }: { boxes: PublicBox[] }) {
  */
 function FeaturedCard({ box }: { box: PublicBox }) {
   return (
-    <Link
-      href={`/b/${box.slug}`}
-      className="panel panel-lift group relative flex flex-col items-center gap-5 overflow-hidden rounded-3xl p-6 text-center sm:flex-row sm:p-8 sm:text-left"
-    >
+    /*
+      A stretched link rather than an anchor round everything: the share chip
+      has to be a real button, and a button inside an anchor is invalid — and
+      in practice means one tap doing both things.
+    */
+    <div className="panel panel-lift group relative flex flex-col items-center gap-5 overflow-hidden rounded-3xl p-6 text-center sm:flex-row sm:p-8 sm:text-left">
+      <Link
+        href={`/b/${box.slug}`}
+        aria-label={box.title}
+        className="absolute inset-0 z-0 rounded-3xl"
+      />
+
       {/* A wash in the safe's own colour, so swiping from one featured box to
           the next doesn't feel like the same card twice with the words swapped.
           Inline rather than a class because the colour comes from the design. */}
@@ -161,10 +170,10 @@ function FeaturedCard({ box }: { box: PublicBox }) {
 
       <SafeArt
         design={box.design}
-        className="size-28 shrink-0 drop-shadow-2xl transition duration-300 group-hover:scale-105 group-hover:-rotate-2 sm:size-36"
+        className="pointer-events-none relative z-10 size-28 shrink-0 drop-shadow-2xl transition duration-300 group-hover:scale-105 group-hover:-rotate-2 sm:size-36"
       />
 
-      <div className="relative min-w-0 flex-1">
+      <div className="relative z-10 min-w-0 flex-1">
         <p className="text-xs font-black uppercase tracking-widest text-brass">
           {box.kind === "general" ? "By Spendbox" : `By ${box.contributor}`}
         </p>
@@ -209,12 +218,15 @@ function FeaturedCard({ box }: { box: PublicBox }) {
           <Counter label="Attempts" value={box.attemptsCount} />
         </div>
 
-        <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-brass">
-          Take a crack at it
-          <ArrowRight className="size-4 transition group-hover:translate-x-1" aria-hidden />
+        <span className="mt-4 flex items-center justify-center gap-3 sm:justify-start">
+          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-brass">
+            Take a crack at it
+            <ArrowRight className="size-4 transition group-hover:translate-x-1" aria-hidden />
+          </span>
+          <ShareChip slug={box.slug} title={box.title} />
         </span>
       </div>
-    </Link>
+    </div>
   );
 }
 

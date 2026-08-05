@@ -21,16 +21,8 @@
 // are typing into is a worse arrangement than no floating button.
 
 import type { ReactNode } from "react";
-import {
-  ChevronLeft,
-  Coins,
-  HelpCircle,
-  Lightbulb,
-  Sparkles,
-  Swords,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { visible } from "@/lib/constants";
+import { ChevronLeft, Coins, HelpCircle, Sparkles, Swords, Trophy, Users } from "lucide-react";
 import { compact } from "@/lib/plural";
 import { rewardLabel } from "@/lib/game/rewards";
 import type { PublicBox } from "@/lib/types";
@@ -134,7 +126,7 @@ export function SceneRail({
         >
           <Trophy className="size-3.5 shrink-0 text-brass" aria-hidden />
           <code className="min-w-0 flex-1 truncate font-mono text-sm font-bold tracking-wide text-foreground">
-            {bestGuess}
+            {visible(bestGuess)}
           </code>
           <span className="shrink-0 rounded-full bg-brass/20 px-2 py-0.5 font-mono text-xs font-black tabular-nums text-brass">
             {(yourBest ?? 0).toFixed(1)}%
@@ -186,12 +178,16 @@ function Stat({
 }
 
 /**
- * The dock: the three subtabs under the Crack the safe button.
+ * The dock: the two subtabs under the Crack the safe button.
  *
- * They were two unlabelled squares floating beside the button, which put three
- * things in one corner and made the primary action share its row with them.
- * They sit under it now, full width, three across, and they are *labelled* —
- * an icon alone is a rebus, and this is the shelf where the money is.
+ * They were unlabelled squares floating beside the button, which made the
+ * primary action share its row with them. They sit under it now, full width,
+ * and they are *labelled* — an icon alone is a rebus, and one of these is the
+ * shelf where the money is.
+ *
+ * Active boosters used to be a third one here and has gone to the rail,
+ * opposite the lives: it is a reading rather than a control, and it belongs
+ * with the other readings.
  *
  * Positioned by the caller against the scene rather than the window. `fixed`
  * would be the obvious choice and is the wrong one on a phone: a keyboard
@@ -201,22 +197,17 @@ function Stat({
 export function SceneDock({
   className = "",
   powerUps,
-  known,
   onAttempts,
   onPowerUps,
-  onKnown,
 }: {
   /** How many power-ups are still buyable. Drives the dot. */
   powerUps: number;
-  /** Whether anything has been learned or is running. Drives the other dot. */
-  known: boolean;
   onAttempts: () => void;
   onPowerUps: () => void;
-  onKnown: () => void;
   className?: string;
 }) {
   return (
-    <div className={`z-20 grid grid-cols-3 gap-2 ${className}`}>
+    <div className={`z-20 grid grid-cols-2 gap-2 ${className}`}>
       <DockButton
         onClick={onAttempts}
         label="Attempts"
@@ -232,13 +223,6 @@ export function SceneDock({
         tone="grape"
         icon={<Sparkles className="size-5" aria-hidden />}
       />
-      <DockButton
-        onClick={onKnown}
-        label="Known"
-        dot={known}
-        tone="mint"
-        icon={<Lightbulb className="size-5" aria-hidden />}
-      />
     </div>
   );
 }
@@ -246,7 +230,6 @@ export function SceneDock({
 const TONES = {
   sky: { face: "bg-sky", lip: "var(--sky-deep)" },
   grape: { face: "bg-grape", lip: "var(--grape-deep)" },
-  mint: { face: "bg-mint", lip: "var(--mint-deep)" },
 } as const;
 
 function DockButton({

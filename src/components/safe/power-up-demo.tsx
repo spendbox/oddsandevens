@@ -13,18 +13,32 @@
 // state, nothing that has to be cleaned up when a dialog closes.
 
 import type { CSSProperties } from "react";
-import { isScanKind, SCANS, type PowerUpKind, type ScanField } from "@/lib/game/power-ups";
+import {
+  isScanKind,
+  LIFE_BANK_MAX,
+  SCANS,
+  type PowerUpKind,
+  type ScanField,
+} from "@/lib/game/power-ups";
+import { LIVES_MAX, visible } from "@/lib/constants";
 
-/** The password every demo is performed on. Nine characters, never a real one. */
-const SAMPLE = "Tr0ub4dor";
+/**
+ * The password every demo is performed on. Never a real one, and chosen so
+ * that every counter's answer on it is non-zero — a demo that answers "0" is
+ * demonstrating nothing.
+ */
+const SAMPLE = "Tr0ub 4d!";
 
-/** Which class a sample character belongs to. Presentation only. */
-function classOf(ch: string): ScanField {
-  if (/[0-9]/.test(ch)) return "numbers";
-  if (/[aeiou]/i.test(ch)) return "vowels";
-  if (/[a-z]/i.test(ch)) return "consonants";
-  return "symbols";
-}
+/** Whether a sample character belongs to a class. Presentation only. */
+const MATCHES: Record<ScanField, (ch: string) => boolean> = {
+  upper: (ch) => /[A-Z]/.test(ch),
+  lower: (ch) => /[a-z]/.test(ch),
+  numbers: (ch) => /[0-9]/.test(ch),
+  spaces: (ch) => ch === " ",
+  symbols: (ch) => !/[A-Za-z0-9]/.test(ch) && ch !== " ",
+  vowels: (ch) => /[aeiou]/i.test(ch),
+  consonants: (ch) => /[a-z]/i.test(ch) && !/[aeiou]/i.test(ch),
+};
 
 export function PowerUpDemo({ kind }: { kind: PowerUpKind }) {
   return (
@@ -36,8 +50,8 @@ export function PowerUpDemo({ kind }: { kind: PowerUpKind }) {
         <ScanDemo field={SCANS[kind].field} />
       ) : kind === "length_lock" ? (
         <LengthDemo />
-      ) : kind === "case_map" ? (
-        <CaseDemo />
+      ) : kind === "life_bank" ? (
+        <LifeBankDemo />
       ) : kind === "second_wind" ? (
         <WindDemo />
       ) : kind === "breakdown" ? (
@@ -111,26 +125,29 @@ function LengthDemo() {
   );
 }
 
-/** Case Map: four counts, arriving one after another. */
-function CaseDemo() {
-  const buckets: [string, number, string][] = [
-    ["A–Z", 1, "text-foreground"],
-    ["a–z", 6, "text-brass"],
-    ["0–9", 2, "text-mint"],
-    ["!@#", 0, "text-berry"],
-  ];
+/** Life Bank: the ceiling goes up and the pool fills to it. */
+function LifeBankDemo() {
   return (
-    <div className="flex items-end gap-2">
-      {buckets.map(([label, n, tone], i) => (
-        <span
-          key={label}
-          style={{ animationName: "demo-pop", ["--i" as string]: i * 2 } as CSSProperties}
-          className="demo-run flex flex-col items-center gap-1 rounded-xl border-2 border-white/12 bg-white/6 px-2.5 py-1.5"
-        >
-          <span className={`font-mono text-lg font-black leading-none ${tone}`}>{n}</span>
-          <span className="font-mono text-[10px] leading-none text-zinc-500">{label}</span>
-        </span>
-      ))}
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex max-w-[15rem] flex-wrap justify-center gap-1">
+        {Array.from({ length: LIFE_BANK_MAX }, (_, i) => (
+          <span
+            key={i}
+            style={
+              i < LIVES_MAX
+                ? undefined
+                : ({ animationName: "demo-pop", ["--i" as string]: i - LIVES_MAX } as CSSProperties)
+            }
+            className={
+              "size-2.5 rounded-full " +
+              (i < LIVES_MAX ? "bg-berry" : "demo-run bg-berry/70 ring-1 ring-berry")
+            }
+          />
+        ))}
+      </div>
+      <Answer tone="bg-berry/20 text-berry">
+        {LIVES_MAX} → {LIFE_BANK_MAX}, for good
+      </Answer>
     </div>
   );
 }
@@ -217,12 +234,9 @@ function ColourDemo() {
 function XRayDemo() {
   // Deliberately out of order and deliberately not all of them: the two things
   // the caveat says, said again in pictures.
-  const shown = new Map([
-    [1, "o"],
-    [3, "b"],
-    [5, "0"],
-    [7, "r"],
-  ]);
+  const shown = new Map(
+    [1, 4, 6, 8].map((i) => [i, visible(SAMPLE[i])] as const)
+  );
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="flex items-center gap-0.5">
@@ -248,19 +262,30 @@ function XRayDemo() {
   );
 }
 
-/** A scan: a beam crosses the row and the matching characters light up. */
+/** What one of each class is called, singular. */
+const NOUNS: Record<ScanField, string> = {
+  upper: "capital",
+  lower: "lowercase letter",
+  numbers: "digit",
+  spaces: "space",
+  symbols: "symbol",
+  vowels: "vowel",
+  consonants: "consonant",
+};
+
+/** A counter: a beam crosses the row and the matching characters light up. */
 function ScanDemo({ field }: { field: ScanField }) {
   const chars = [...SAMPLE];
-  const hits = chars.filter((ch) => classOf(ch) === field).length;
-  const noun = field === "numbers" ? "digit" : field.replace(/s$/, "");
+  const hits = chars.filter((ch) => MATCHES[field](ch)).length;
+  const noun = NOUNS[field];
 
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="relative flex items-center gap-0.5 overflow-hidden px-1 py-1">
         {chars.map((ch, i) => (
           <span key={i} className="relative">
-            <Tile tone="plain">{ch}</Tile>
-            {classOf(ch) === field && (
+            <Tile tone="plain">{visible(ch)}</Tile>
+            {MATCHES[field](ch) && (
               <span
                 style={
                   {

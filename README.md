@@ -32,11 +32,16 @@ behind a password and wants people to attack it.
 
 ## Guessing
 
-A password is 3 to 26 characters from the 26 letters (both cases), ten digits
-and every symbol on a QWERTY keyboard — 94 in all. Anything you can type is
-fair game: `& $ # ) ( ; : ! ? *` and the rest. The one exclusion is the space,
-because a password you can't tell the length of by eye shouldn't also be one
-you can't tell the *shape* of by eye.
+A password is 3 to 26 characters from the 26 letters (both cases), ten digits,
+every symbol on a QWERTY keyboard, and the space — 95 in all. Anything you can
+type is fair game: `& $ # ) ( ; : ! ? *` and the rest.
+
+Space was excluded at first, on the grounds that a password you can't tell the
+length of by eye shouldn't also be one you can't tell the *shape* of by eye.
+It's in now — a password game that forbids the most common character in a
+passphrase is a strange game — and the objection is answered where it belongs,
+in the rendering: everywhere a guess or a password is shown back, a space is
+drawn as `␣`.
 
 **Case is part of the password.** `k` and `K` are different characters, which
 roughly squares the search space and is, with the symbols, why a box takes
@@ -182,20 +187,27 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 
 | Power-up | Price | What it does |
 | --- | --- | --- |
-| Length Lock | 0.25% | Tells you exactly how many characters the password has |
-| Case Map | 5% | Counts the uppercase, lowercase, digits and symbols — without positions |
+| Length Lock | 0.5% | Tells you exactly how many characters the password has |
+| Symbol Count | 10% | Counts the symbols — anything that isn't a letter, digit or space |
+| Capital Count | 9% | Counts the capital letters |
+| Lowercase Count | 8.5% | Counts the lowercase letters |
+| Digit Count | 7.5% | Counts the digits |
+| Space Count | 5% | Counts the spaces |
+| Consonant Scan | 1.25% | Counts the consonants — every letter that isn't a vowel |
+| Vowel Scan | 0.5% | Counts the vowels, A E I O U, either case |
 | Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
 | X-Ray | 5% | Names half the distinct characters it hasn't named yet, unordered |
-| Vowel Scan | 0.5% | Counts the vowels, A E I O U, either case |
-| Consonant Scan | 0.5% | Counts the consonants — every letter that isn't a vowel |
+| Life Bank | 0.7% | Raises your life ceiling from 7 to 24, permanently and everywhere |
 
 **Prices are a share of the box's reward**, floored so that a challenge box
 with nothing behind it still has a shelf to sell. A hint that saves you a
 fortnight of grinding on a ₦7,000,000 safe is not worth what the same hint is
 worth on a ₦7,000 one, and a flat price got that wrong in both directions. The
-floors are ₦200 / ₦800 / ₦300 / ₦500 / ₦1,000 for the first five, and ₦200 for
-each of the scans.
+Every floor is at least ₦100, and that one is not a design choice: Paystack
+refuses a transaction below it, so a price under ₦100 is a checkout that opens
+and then fails. `MIN_PRICE_KOBO` is the backstop that makes it impossible to
+introduce a share low enough to fall through on a small box.
 
 Every dialog on the shelf **runs the effect** before it describes it: a
 four-second CSS loop of the power-up happening to a made-up nine-character
@@ -203,27 +215,27 @@ password. A paragraph asks a player to imagine the result at exactly the moment
 they are deciding whether to spend real money on it, and the sample is fixed
 and fictional so the demo can never be a hint.
 
-### The scans, and the two that went
+### The counters
 
-The scans are the cheap end of the shelf: one number each, sold once. There
-were four, and two of them were the same answer sold twice — Case Map already
-gives the digit and symbol counts, so Symbol Scan and Number Scan had nothing
-of their own to sell.
+Seven of them, one number each, sold once. They replaced **Case Map**, which
+sold all four composition numbers at a single price — and a single price is the
+problem, because those four numbers are worth wildly different amounts.
+Knowing there are no symbols removes about thirty candidates from every
+position; knowing there are no spaces removes one. Sold separately they can be
+priced by how much of the search each actually cuts, which is why Symbol Count
+is twenty times a Vowel Scan.
 
-They were briefly *gated* instead, coming off the shelf once Case Map was
-bought. That is a rule explaining a product that shouldn't exist, so they are
-simply gone. The two that remain answer a question nothing else here does: Case
-Map splits letters by **case**, which says nothing at all about sound.
+`Revealed.scans` is the one place a count lives, and `parseRevealed` folds an
+old `caseMap` into it on read — so a hunt that paid for Case Map before it was
+retired keeps all four of its numbers, with no legacy field for the rest of the
+app to keep knowing about.
 
-`Revealed.scans` still speaks in all four fields, and the Known sheet still
-renders whichever are present, so a hunt that bought a withdrawn scan keeps
-seeing what it paid for. A field with nothing in it renders nothing, so the two
-dead rows cost nothing either.
-
-Case Map is ten times a scan and should be: it is four answers in one and the
-only source of any of them. At 0.5% — the price it shipped at — it cost the
-same as a single scan, which made every scan pointless. A scan is for the
-player already deep in with exactly one question left.
+**Life Bank** is the odd one out and the only power-up that isn't about the
+password. The pool refills one an hour and stops at seven, so an evening away
+banks seven guesses and every hour after that is thrown away. It raises the
+ceiling to twenty-four and fills you to it. The ceiling lives on `players`
+rather than on the hunt, because the pool is one pool across every safe —
+raising it on one box and not another would be a rule with nowhere to live.
 
 The *share* is server-side only. A player is shown what something costs on the
 box in front of them and nothing about how that number was reached — and
@@ -256,8 +268,8 @@ closed, charging a life as usual, rather than aborting the guess.
 
 ### Buying one twice
 
-Length Lock and Case Map sell once: the answer is permanent and complete, so a
-second sale would be a second copy of the same sentence. Second Wind and Colour
+Length Lock, the seven counters and Life Bank sell once: the answer is
+permanent and complete, so a second sale would be a second copy of it. Second Wind and Colour
 Read rent a window and are buyable again the moment it lapses.
 
 X-Ray is neither. Each purchase draws from the characters it *hasn't* named,
@@ -793,7 +805,9 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0033 keeps each box's high-water score, 0034 each
                             hunt's, and adds drops, 0035 caps them and starts
                             a discount's clock when it is claimed, 0036 moves
-                            the whole gift rotation into Postgres
+                            the whole gift rotation into Postgres, 0037 makes
+                            the life ceiling a column Life Bank can raise, 0038
+                            adds the contributor payout ledger
 ```
 
 ---

@@ -19,13 +19,17 @@ export const DIGITS = "0123456789".split("");
 
 /**
  * Every printable symbol a QWERTY keyboard can produce without a modifier
- * hunt — the full unshifted and shifted punctuation rows.
+ * hunt — the full unshifted and shifted punctuation rows, and the space bar.
  *
- * Space is the one deliberate omission. It is invisible in a monospaced field,
- * survives a copy-paste inconsistently, and a player who cannot see whether
- * their guess ends in one is being cheated rather than challenged.
+ * Space was left out at first, on the grounds that it is invisible in a
+ * monospaced field and a player who cannot see whether their guess ends in one
+ * is being cheated rather than challenged. It is in now, because a password
+ * game that forbids the most common character in a passphrase is a strange
+ * game — and the objection is answered where it belongs, in the rendering:
+ * every place a guess or a password is shown back, a space is drawn as `␣`.
  */
 export const SPECIALS = [
+  " ",
   "!", '"', "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/",
   ":", ";", "<", "=", ">", "?", "@", "[", "\\", "]", "^", "_", "`", "{", "|",
   "}", "~",
@@ -33,6 +37,16 @@ export const SPECIALS = [
 
 export const ALPHABET = [...UPPER, ...LOWER, ...DIGITS, ...SPECIALS];
 export const ALPHABET_SET = new Set(ALPHABET);
+
+/**
+ * A password as it should be *shown*, with its spaces made visible.
+ *
+ * Never use the result for comparison or for filling a field — it is display
+ * only, and `␣` is not in the alphabet.
+ */
+export function visible(value: string): string {
+  return value.replace(/ /g, "␣");
+}
 
 /**
  * How many characters a player has to *distinguish between* at one position,
@@ -98,8 +112,8 @@ export const LIFE_REGEN_MINUTES = 60;
 // Text shapes
 // ---------------------------------------------------------------------------
 
-export const TITLE_MAX = 70;
-export const BLURB_MAX = 240;
+export const TITLE_MAX = 12;
+export const BLURB_MAX = 30;
 export const DISPLAY_NAME_MAX = 40;
 
 export const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

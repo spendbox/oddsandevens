@@ -9,83 +9,101 @@
 // Each one is tied to a specific thing the scoring withholds:
 //
 //   Length Lock  the length, which is hidden
-//   Case Map     what the password is made of, which the score never says
+//   The counters one number each: capitals, lowercase, symbols, digits,
+//                spaces, vowels, consonants
 //   Second Wind  the life pool, which is the pace of the whole game
 //   Colour Read  the components behind a score, which are withheld by default
 //   X-Ray        half the characters, unordered
-//   The scans    one count each: symbols, vowels, consonants, digits
+//   Life Bank    the ceiling on the life pool itself
 //
-// The scans are the cheap end of the shelf on purpose. Case Map is one price
-// for four numbers and will always be the better deal for somebody opening a
-// box cold; a scan is for the player who is already three-quarters of the way
-// through and has exactly one question left.
+// The counters replaced Case Map, which sold all four composition numbers at
+// one price. Sold separately they are seven decisions instead of one, and each
+// can be priced by how much it actually cuts the search: knowing there are no
+// symbols removes about thirty characters from every position, knowing there
+// are two spaces removes one — so they are not worth the same and no longer
+// cost the same.
 //
 // Everything except the catalogue is server-only: `apply` reads the password.
 // What reaches the browser is the accumulated `Revealed` state, which is the
 // *result* of a purchase and never the password.
 
 import { randomInt } from "node:crypto";
-import { KOBO } from "@/lib/constants";
+import { KOBO, LIVES_MAX } from "@/lib/constants";
 import { splitSale } from "@/lib/game/rewards";
 
 export const POWER_UP_KINDS = [
   "length_lock",
-  "case_map",
+  "upper_case",
+  "lower_case",
+  "symbol_count",
+  "digit_count",
+  "space_count",
+  "vowel_scan",
+  "consonant_scan",
   "second_wind",
   "breakdown",
   "x_ray",
-  "vowel_scan",
-  "consonant_scan",
+  "life_bank",
 ] as const;
 export type PowerUpKind = (typeof POWER_UP_KINDS)[number];
 
+/** What a Life Bank raises the ceiling to. */
+export const LIFE_BANK_MAX = 24;
+
 /**
- * The scans, and the class of character each one counts.
+ * The counters, and the class of character each one counts.
  *
  * Keyed by the field they write into `Revealed.scans`, so there is exactly one
  * place that says what a "vowel" is and the shelf copy, the counting and the
  * panel all read it from there.
- *
- * There were four. Symbol Scan and Number Scan have gone, because Case Map
- * gives both of those counts outright — they were the same answer sold twice,
- * and hiding them behind "unavailable once Case Map is bought" was a rule
- * explaining a product that shouldn't have existed. The two that remain answer
- * a question nothing else on the shelf does: Case Map splits letters by *case*,
- * which says nothing at all about sound.
  */
 export const SCANS = {
+  upper_case: { field: "upper", noun: "capitals" },
+  lower_case: { field: "lower", noun: "lowercase letters" },
+  symbol_count: { field: "symbols", noun: "symbols" },
+  digit_count: { field: "numbers", noun: "digits" },
+  space_count: { field: "spaces", noun: "spaces" },
   vowel_scan: { field: "vowels", noun: "vowels" },
   consonant_scan: { field: "consonants", noun: "consonants" },
 } as const satisfies Record<string, { field: ScanField; noun: string }>;
 
 export type ScanKind = keyof typeof SCANS;
 
-/**
- * The character classes a password is sorted into.
- *
- * Wider than the scans on sale on purpose: `symbols` and `numbers` are still
- * the vocabulary `Revealed.scans` is written in, so a hunt that bought Symbol
- * Scan before it was withdrawn keeps showing its answer rather than losing
- * something that was paid for.
- */
-export type ScanField = "symbols" | "vowels" | "consonants" | "numbers";
+/** The character classes a password can be counted by. */
+export type ScanField =
+  | "upper"
+  | "lower"
+  | "symbols"
+  | "numbers"
+  | "spaces"
+  | "vowels"
+  | "consonants";
 
 export function isScanKind(kind: PowerUpKind): kind is ScanKind {
   return kind in SCANS;
 }
 
-/** Which class one character belongs to, or null if it counts for none. */
-function classOf(ch: string): ScanField | null {
-  if (/[0-9]/.test(ch)) return "numbers";
-  if (/[aeiou]/i.test(ch)) return "vowels";
-  if (/[a-z]/i.test(ch)) return "consonants";
-  return "symbols";
-}
+/**
+ * Whether one character belongs to one class.
+ *
+ * Classes overlap on purpose and this is why it is a set of predicates rather
+ * than the single `classOf` it used to be: `A` is a capital *and* a vowel, and
+ * somebody who has bought both counters has paid to be told both.
+ */
+const MATCHES: Record<ScanField, (ch: string) => boolean> = {
+  upper: (ch) => /[A-Z]/.test(ch),
+  lower: (ch) => /[a-z]/.test(ch),
+  numbers: (ch) => /[0-9]/.test(ch),
+  spaces: (ch) => ch === " ",
+  symbols: (ch) => !/[A-Za-z0-9]/.test(ch) && ch !== " ",
+  vowels: (ch) => /[aeiou]/i.test(ch),
+  consonants: (ch) => /[a-z]/i.test(ch) && !/[aeiou]/i.test(ch),
+};
 
 /** How many characters of one class the password holds. */
 function countClass(secret: string, field: ScanField): number {
   let n = 0;
-  for (const ch of secret) if (classOf(ch) === field) n += 1;
+  for (const ch of secret) if (MATCHES[field](ch)) n += 1;
   return n;
 }
 
@@ -132,24 +150,68 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     detail:
       "The password's length is the first thing you have to work out, and the only free clue is whether a guess was too short, too long or right — a binary search that costs you lives to run. This ends it: you're told the number outright and every guess after this one can be the right length.",
     caveat: "It says how many characters, never which ones.",
-    share: 0.0025,
+    share: 0.005,
     floorKobo: 200 * KOBO,
     repeat: "once",
   },
-  case_map: {
-    kind: "case_map",
-    name: "Case Map",
-    blurb:
-      "Counts the uppercase, lowercase, digits and symbols — without saying where any sit.",
+
+  // The counters. One number each, and the number is the whole product — which
+  // is why every one of them sells once and says so on the shelf. They are
+  // priced by how much of the search each one actually removes, which is why
+  // they are nothing like the same price.
+  symbol_count: {
+    kind: "symbol_count",
+    name: "Symbol Count",
+    blurb: "Counts the symbols — anything that isn't a letter, a digit or a space.",
     detail:
-      "Reveals the composition of the password: how many uppercase letters, lowercase letters, digits, and symbols it contains. This dramatically narrows the search space. In a 94-character alphabet, learning that a password contains no digits immediately eliminates 10 possible characters from every remaining position. Every detail reduces uncertainty, turning a seemingly impossible challenge into a solvable puzzle.",
-    caveat:
-      "It gives you counts, not characters, and never a position. It says nothing about which letters are vowels — that is a different question and a different purchase.",
-    // The second most expensive thing on the shelf, and it should be: four
-    // answers in one, and the only source of any of them. At 0.5% it was
-    // priced the same as a single scan, which made every scan pointless.
+      "Tells you how many characters are symbols: punctuation, brackets, currency marks, anything off the top row. It is the largest single cut on the shelf, because there are more symbols than anything else — a count of zero removes about thirty candidates from every position at once, and a count of two tells you exactly how much of that space is still in play.",
+    caveat: "A count, and only of symbols. Never which ones, never where.",
+    share: 0.1,
+    floorKobo: 400 * KOBO,
+    repeat: "once",
+  },
+  upper_case: {
+    kind: "upper_case",
+    name: "Capital Count",
+    blurb: "Counts the capital letters.",
+    detail:
+      "Tells you how many characters are capitals. Case is the thing this game is hardest about — the same letter in the wrong case scores as a near miss and nothing more — so knowing how many capitals exist tells you how much of your work is finding letters and how much is flipping ones you already have.",
+    caveat: "A count of capitals. Never which letters, never where they sit.",
+    share: 0.09,
+    floorKobo: 350 * KOBO,
+    repeat: "once",
+  },
+  lower_case: {
+    kind: "lower_case",
+    name: "Lowercase Count",
+    blurb: "Counts the lowercase letters.",
+    detail:
+      "Tells you how many characters are lowercase letters. Next to the capital count it settles the shape of the whole password: the two together say how many characters are letters at all, and therefore how many are digits, symbols or spaces.",
+    caveat: "A count of lowercase letters. Never which ones, never where.",
+    share: 0.085,
+    floorKobo: 350 * KOBO,
+    repeat: "once",
+  },
+  digit_count: {
+    kind: "digit_count",
+    name: "Digit Count",
+    blurb: "Counts the digits, 0 through 9.",
+    detail:
+      "Tells you how many characters are digits. Most passwords people write have one, two or none, and knowing which of those three you are looking at changes where every remaining guess should go.",
+    caveat: "A count of digits. Never which ones, never where they sit.",
+    share: 0.075,
+    floorKobo: 300 * KOBO,
+    repeat: "once",
+  },
+  space_count: {
+    kind: "space_count",
+    name: "Space Count",
+    blurb: "Counts the spaces.",
+    detail:
+      "Tells you how many characters are spaces. A password with spaces in it is a phrase, and a phrase is attacked completely differently from a string — the count also tells you how many words you are looking for, which is one more than the number of spaces.",
+    caveat: "A count of spaces. Never where the gaps fall.",
     share: 0.05,
-    floorKobo: 800 * KOBO,
+    floorKobo: 250 * KOBO,
     repeat: "once",
   },
   second_wind: {
@@ -185,14 +247,12 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     repeat: "partial",
   },
 
-  // The scans. One number each, and the number is the whole product — which is
-  // why both of them sell once and say so on the shelf.
   vowel_scan: {
     kind: "vowel_scan",
     name: "Vowel Scan",
     blurb: "Counts the vowels — A, E, I, O and U, either case.",
     detail:
-      "Tells you how many of the characters are vowels. Nothing else on the shelf will: Case Map splits letters by case, not by sound. It is the single most useful number for deciding whether you are looking at words or at noise, and words and noise are attacked completely differently.",
+      "Tells you how many of the characters are vowels. It is the cheapest thing on the shelf and often the most telling: five candidates out of ninety-five, so the count is usually small and a small count is a strong statement about whether you are looking at words or at noise.",
     caveat: "A count of A, E, I, O and U in either case. Y doesn't count.",
     share: 0.005,
     floorKobo: 200 * KOBO,
@@ -203,10 +263,22 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     name: "Consonant Scan",
     blurb: "Counts the consonants — every letter that isn't a vowel.",
     detail:
-      "Tells you how many of the characters are consonants. On its own it narrows the alphabet; next to a Vowel Scan it does considerably more than that, because the two together tell you how many characters are letters at all, and therefore how many are not.",
+      "Tells you how many of the characters are consonants. Two and a half times the price of a Vowel Scan and worth it: there are four times as many consonants as vowels, so the same number rules out four times as much — and next to the vowel count it settles how many characters are letters at all.",
     caveat: "A count of the letters that aren't vowels. Y counts as one.",
-    share: 0.005,
-    floorKobo: 200 * KOBO,
+    // 2.5× the Vowel Scan, deliberately: 21 letters against 5.
+    share: 0.0125,
+    floorKobo: 500 * KOBO,
+    repeat: "once",
+  },
+
+  life_bank: {
+    kind: "life_bank",
+    name: "Life Bank",
+    blurb: `Raises your life ceiling from ${LIVES_MAX} to ${LIFE_BANK_MAX}, permanently.`,
+    detail: `The only thing on this shelf that isn't about the password. Your pool refills one life an hour and stops at ${LIVES_MAX} — so an evening away is ${LIVES_MAX} guesses banked and every hour after that wasted. This raises the ceiling to ${LIFE_BANK_MAX} and fills you to it on the spot: a full day of accrual now banks instead of overflowing, which on a long hunt is worth far more than any single hint.`,
+    caveat: `It buys headroom, not speed — lives still come back one an hour. The new ceiling is yours for good and works on every box, not just this one.`,
+    share: 0.007,
+    floorKobo: 300 * KOBO,
     repeat: "once",
   },
 };
@@ -221,8 +293,18 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
 export function priceKobo(kind: PowerUpKind, rewardKobo: number): number {
   const spec = POWER_UPS[kind];
   const share = Math.round((rewardKobo * spec.share) / KOBO) * KOBO;
-  return Math.max(spec.floorKobo, share);
+  return Math.max(MIN_PRICE_KOBO, spec.floorKobo, share);
 }
+
+/**
+ * The least anything on this shelf may ever cost.
+ *
+ * Not a design choice — Paystack will not take a transaction below ₦100, so a
+ * price under it is a checkout that opens and then fails. Every floor above is
+ * already higher; this is the backstop that makes it impossible to introduce
+ * one that isn't, on a box small enough for the share to fall through it.
+ */
+export const MIN_PRICE_KOBO = 100 * KOBO;
 
 /**
  * A price with a claimed drop taken off it.
@@ -252,14 +334,6 @@ export const splitPowerUp = splitSale;
 // What a hunt knows so far
 // ---------------------------------------------------------------------------
 
-/** Case Map's answer: how the password is composed, without any positions. */
-export interface CaseMap {
-  upper: number;
-  lower: number;
-  digits: number;
-  specials: number;
-}
-
 /**
  * Everything power-ups have handed this hunt. Stored on `hunts.revealed` and
  * sent to the browser as-is: the player has paid for all of it.
@@ -267,7 +341,6 @@ export interface CaseMap {
 export interface Revealed {
   /** The password's length, once Length Lock has been bought. */
   length: number | null;
-  caseMap: CaseMap | null;
   /** X-Ray's answer so far: distinct characters it has named, unordered. */
   charset: string[] | null;
   /**
@@ -280,9 +353,9 @@ export interface Revealed {
    */
   charsetTotal: number | null;
   /**
-   * What the scans have counted so far.
+   * What the counters have counted so far.
    *
-   * A field is absent until the scan that fills it has been paid for, and a
+   * A field is absent until the counter that fills it has been paid for, and a
    * count of zero is a real, purchased answer — so `undefined` and `0` mean
    * genuinely different things here and nothing may collapse them.
    */
@@ -297,7 +370,6 @@ export interface Revealed {
 
 export const EMPTY_REVEALED: Revealed = {
   length: null,
-  caseMap: null,
   charset: null,
   charsetTotal: null,
   scans: {},
@@ -308,15 +380,35 @@ export const EMPTY_REVEALED: Revealed = {
 
 /** Reads a `hunts.revealed` jsonb blob back into a shape with no holes in it. */
 export function parseRevealed(raw: unknown): Revealed {
-  const value = (raw ?? {}) as Partial<Revealed>;
+  const value = (raw ?? {}) as Partial<Revealed> & {
+    /** Case Map's old answer, on hunts that bought it before it was retired. */
+    caseMap?: { upper: number; lower: number; digits: number; specials: number };
+  };
+
+  /*
+   * Case Map's four numbers are the counters' four numbers, so a hunt that
+   * paid for it keeps them — folded into `scans` on read rather than left in a
+   * legacy field the whole app has to keep knowing about. Anything the player
+   * has since bought individually wins, because it was bought later.
+   */
+  const legacy = value.caseMap
+    ? {
+        upper: value.caseMap.upper,
+        lower: value.caseMap.lower,
+        numbers: value.caseMap.digits,
+        symbols: value.caseMap.specials,
+      }
+    : {};
+
   return {
     length: typeof value.length === "number" ? value.length : null,
-    caseMap: value.caseMap ?? null,
     charset: Array.isArray(value.charset) ? value.charset : null,
     charsetTotal:
       typeof value.charsetTotal === "number" ? value.charsetTotal : null,
     scans:
-      value.scans && typeof value.scans === "object" ? { ...value.scans } : {},
+      value.scans && typeof value.scans === "object"
+        ? { ...legacy, ...value.scans }
+        : legacy,
     breakdownUntil:
       typeof value.breakdownUntil === "string" ? value.breakdownUntil : null,
     secondWindUntil:
@@ -348,15 +440,18 @@ export function secondWindActive(revealed: Revealed, now = Date.now()): boolean 
  * password to decide stays on sale.
  */
 export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
-  // The scans, first. Each sells once, and neither of them overlaps anything
-  // else on the shelf — the two that did were withdrawn rather than gated.
+  // The counters, first. Each sells once — a count is permanent and complete,
+  // so a second sale would be a second copy of the same number.
   if (isScanKind(kind)) return revealed.scans[SCANS[kind].field] === undefined;
 
   switch (kind) {
     case "length_lock":
       return revealed.length === null;
-    case "case_map":
-      return revealed.caseMap === null;
+    case "life_bank":
+      // A ceiling can only be raised once. It is raised on the player rather
+      // than on the hunt, but it is *recorded* here so the shelf on this box
+      // stops offering it.
+      return !revealed.used.life_bank;
     case "second_wind":
       // Re-buyable the moment it lapses. An hour is short on purpose.
       return !secondWindActive(revealed);
@@ -462,19 +557,14 @@ export function apply(
         note: `The password is ${secret.length} characters long.`,
       };
 
-    case "case_map": {
-      const caseMap: CaseMap = { upper: 0, lower: 0, digits: 0, specials: 0 };
-      for (const ch of secret) {
-        if (/[A-Z]/.test(ch)) caseMap.upper += 1;
-        else if (/[a-z]/.test(ch)) caseMap.lower += 1;
-        else if (/[0-9]/.test(ch)) caseMap.digits += 1;
-        else caseMap.specials += 1;
-      }
+    case "life_bank":
+      // Nothing about the password. The ceiling itself is raised by the
+      // settlement, against the player rather than the hunt — this only
+      // records the purchase so the shelf stops offering it.
       return {
-        revealed: { ...counted, caseMap },
-        note: `${caseMap.upper} uppercase, ${caseMap.lower} lowercase, ${caseMap.digits} digits, ${caseMap.specials} symbols.`,
+        revealed: counted,
+        note: `Your life ceiling is ${LIFE_BANK_MAX} from now on, on every box.`,
       };
-    }
 
     case "second_wind":
       return {
