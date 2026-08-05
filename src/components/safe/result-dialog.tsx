@@ -106,12 +106,27 @@ export function ResultCard({
   const length = LENGTH[attempt.lengthHint];
   const LengthIcon = length.icon;
 
-  // Takes itself away. Long enough to read a two-digit number and a hint,
-  // short enough that somebody firing off guesses never waits for it.
+  /*
+   * Takes itself away. Long enough to read a two-digit number and a hint,
+   * short enough that somebody firing off guesses never waits for it.
+   *
+   * The callback goes through a ref rather than into the dependency list, and
+   * that is not tidiness. Callers pass an inline arrow, so its identity changes
+   * on every render of the parent — and the parent re-renders once a second for
+   * as long as any countdown is running, which is exactly the case where a
+   * discount or a free run is on. Depending on `onClose` meant the timer was
+   * cleared and re-armed every second and so never fired at all: the card
+   * simply stayed, on the one screen where something else was already
+   * competing for the space.
+   */
+  const close = useRef(onClose);
   useEffect(() => {
-    const id = window.setTimeout(onClose, 2600);
+    close.current = onClose;
+  });
+  useEffect(() => {
+    const id = window.setTimeout(() => close.current(), 2600);
     return () => window.clearTimeout(id);
-  }, [onClose]);
+  }, [attempt.ordinal]);
 
   return (
     <div
