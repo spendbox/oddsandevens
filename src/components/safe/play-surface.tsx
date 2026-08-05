@@ -1,43 +1,69 @@
 "use client";
 
-// One box, hunted.
+// One box, hunted — and the screen is the room it happens in.
 //
-// The server is the only thing that knows the password — it never leaves
-// Postgres — so this component decides nothing about a guess. It collects
-// characters, spends a life, and re-renders whatever comes back. Every
-// mutation returns a whole fresh view for exactly that reason: there is no
-// local model of the game to drift out of step.
+// The server is the only thing that knows the password. It never leaves
+// Postgres, so this component decides nothing about a guess: it collects
+// characters, spends a life, and re-renders whatever comes back. Every mutation
+// returns a whole fresh view for exactly that reason — there is no local model
+// of the game to drift out of step.
 //
-// The screen is a safe, the field under it, and then two tabs. Attempts and
-// power-ups were stacked before and the shelf was three screens down, which is
-// a strange place to put the only thing that costs money and the only thing
-// that helps. They're peers now: the log is where you work, the shelf is where
-// you get unstuck, and you flip between them.
+// Everything else about the screen is arrangement, and the arrangement is:
+//
+//   the scene   fills the viewport, behind everything. Sky, floor, chamber,
+//               door, and Boxy hauling on the wheel.
+//   the rail    floats over the top of it: hunters, attempts, the score to
+//               beat, the difficulty, and the way out.
+//   the button  floats over the bottom. One of them, and it says "Crack the
+//               safe". The field it used to be lives in a dialog now.
+//   the dock    floats in the corner: your attempts, the shelf, your best.
+//
+// Nothing is stacked down a page any more, because there is no page — the
+// scene is the whole surface and every control sits on top of it. That is the
+// difference between a game and a form with a picture at the top of it.
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Info, Palette, Sparkles, Swords, Users } from "lucide-react";
-import { ScorePill } from "./score-pill";
+import { ArrowRight, KeyRound, Lightbulb, Tag } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { LIVES_MAX } from "@/lib/constants";
-import { plural } from "@/lib/plural";
-import { EMPTY_REVEALED } from "@/lib/game/power-ups";
-import { formatNaira, rewardLabel } from "@/lib/game/rewards";
-import type { AttemptResult, PlayView } from "@/lib/types";
+import { EMPTY_REVEALED, POWER_UPS, secondWindLabel } from "@/lib/game/power-ups";
+import { formatNaira } from "@/lib/game/rewards";
+import type { AttemptRecord, AttemptResult, PlayView } from "@/lib/types";
+import { Modal } from "@/components/ui/modal";
 import { usePlayer } from "@/components/player/player-context";
 import { VerifyDialog } from "@/components/player/account-dialog";
 import { BuyLivesDialog } from "@/components/player/buy-lives-dialog";
-import { countdown, useNow } from "@/components/player/lives-badge";
-import { DifficultyBadge } from "@/components/difficulty-badge";
+import { LivesBadge, countdown, useNow } from "@/components/player/lives-badge";
 import { HowItWorksDialog } from "@/components/how-it-works";
 import { AttemptLog } from "./attempt-log";
-import { KnownPanel } from "./known-panel";
-import { PasswordField } from "./password-field";
+import { AttemptDialog } from "./attempt-dialog";
+import { KnownDialog, knowsAnything } from "./known-panel";
 import { PowerUpShelf } from "./power-up-shelf";
-import { SafeArt } from "./safe-art";
+import { ChaseScene } from "./chase-scene";
+import type { Shot } from "@/lib/game/chase";
+import { SceneDock, SceneRail, type StatKind } from "./scene-hud";
+import { GuessDialog } from "./guess-dialog";
+import { PotDialog } from "./pot-dialog";
+import { StatDialog } from "./stat-dialog";
+import { ResultCard, ResultDialog, resultsMuted } from "./result-dialog";
+import { DropCrate } from "./drop-crate";
+import { useDrops } from "./use-drops";
+import type { Rival } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
 
 type Outcome = "open" | "won" | "pipped";
-type Tab = "attempts" | "power-ups";
+type Sheet =
+  | "none"
+  | "verify"
+  | "lives"
+  | "rules"
+  | "attempts"
+  | "power-ups"
+  | "best"
+  | "guess"
+  | "known"
+  | "pot";
 
 export function PlaySurface({
   initial,
@@ -50,28 +76,76 @@ export function PlaySurface({
   pendingReference: string | null;
 }) {
   const { refresh, verified } = usePlayer();
+  const router = useRouter();
   const [view, setView] = useState(initial);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>("open");
-  const [dialog, setDialog] = useState<"none" | "verify" | "lives" | "rules">("none");
-  const [tab, setTab] = useState<Tab>("attempts");
+  const [sheet, setSheet] = useState<Sheet>("none");
   const [message, setMessage] = useState<string | null>(null);
-  // Ticks while anything on screen is counting down: a life, Colour Read's 24
-  // hours, or a Second Wind hour.
+  const [result, setResult] = useState<{ attempt: AttemptRecord; was: number } | null>(null);
+  const [jolt, setJolt] = useState(0);
+  /**
+   * What the last shot did.
+   *
+   * A hit is a guess that beat your own best, because that is the only thing
+   * that adds damage — so it is the only thing the gun is allowed to land.
+   */
+  const [shot, setShot] = useState<Shot>("miss");
+  /** Which rail figure somebody has asked about. */
+  const [stat, setStat] = useState<StatKind | null>(null);
+  /** Whose car has been tapped. */
+  const [rival, setRival] = useState<Rival | null>(null);
+  /**
+   * Guesses in a row that failed to beat your own best.
+   *
+   * The signal a drop is aimed at. A player five guesses into a cold run is
+   * the one about to close the tab.
+   */
+  const [coldStreak, setColdStreak] = useState(0);
+  /** Bumped when somebody else's guess lands on this safe. */
+  const [rivalShot, setRivalShot] = useState(0);
+
   const now = useNow(
     view.player.nextLifeAt ??
+      view.discount?.expiresAt ??
       view.hunt?.secondWindUntil ??
       view.hunt?.breakdownUntil ??
       null
   );
 
+  /**
+   * A discount the player is holding, while it is still worth anything.
+   *
+   * Checked against the ticking clock rather than trusted from the payload, so
+   * it disappears from the screen at the same second the checkout stops
+   * honouring it — a chip promising 40% off that the till then refuses is
+   * worse than never having offered it.
+   */
+  const discount =
+    view.discount && new Date(view.discount.expiresAt).getTime() > now
+      ? view.discount
+      : null;
+
   const open = view.box.status === "live";
   const revealed = view.hunt?.revealed ?? EMPTY_REVEALED;
   const won = view.hunt?.won ?? false;
-  const freeRun =
-    !!view.hunt?.secondWindUntil &&
-    new Date(view.hunt.secondWindUntil).getTime() > now;
+
+  const attempts = view.hunt?.attempts ?? [];
+  const best = view.hunt && attempts.length > 0 ? view.hunt.bestPercent : null;
+  const bestAttempt = bestOf(attempts);
+  const secondWind = view.powerUps.find((p) => p.kind === "second_wind") ?? null;
+
+  const drops = useDrops({
+    slug,
+    lives: view.player.lives,
+    coldStreak,
+    // Only what's still on sale here: a discount on something already bought
+    // is a gift of nothing, and it would take a slot in the rotation.
+    powerUps: view.powerUps.filter((p) => p.available).map((p) => p.kind),
+    initial: view.offer,
+    enabled: verified && open && !won,
+  });
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/boxes/${slug}`, { cache: "no-store" });
@@ -79,13 +153,21 @@ export function PlaySurface({
     await refresh();
   }, [slug, refresh]);
 
-  /**
-   * Settle the payment we've just been redirected back from.
+  /*
+   * The golden chip takes itself away.
    *
-   * Paystack's webhook will settle it too, but it can land after the browser
-   * does, and a player who has just paid for a hint should not be looking at
-   * the state they left. Whichever gets there first wins; both are idempotent.
+   * It says things like "+2 free lives" and "40% off — it's on the shelf", and
+   * it used to be cleared only by the *next* guess. So a player who claimed a
+   * gift and then sat reading the shelf kept a stale notice under their life
+   * badge until they reloaded — still advertising an offer that had by then
+   * expired. Six seconds is long enough to read a five-word chip.
    */
+  useEffect(() => {
+    if (!message) return;
+    const id = window.setTimeout(() => setMessage(null), 6_000);
+    return () => window.clearTimeout(id);
+  }, [message]);
+
   useEffect(() => {
     if (!pendingReference) return;
     let cancelled = false;
@@ -99,7 +181,6 @@ export function PlaySurface({
       if (cancelled) return;
       if (body.note) setMessage(body.note);
       await reload();
-      // Drop the reference from the URL so a refresh doesn't re-verify it.
       window.history.replaceState({}, "", `/b/${slug}`);
     }
     void settle();
@@ -108,15 +189,58 @@ export function PlaySurface({
     };
   }, [pendingReference, reload, slug]);
 
+  /**
+   * Watch for other people's guesses.
+   *
+   * The box's attempt count is the only thing that moves when a stranger
+   * plays, so that is what this polls. When it rises, somebody else has taken
+   * a shot at the same safe and the scene fires one — the safe is shared, and
+   * a chase where only your car ever shoots is not a chase.
+   */
+  useEffect(() => {
+    if (!open || won) return;
+    let seen = view.box.attemptsCount;
+    const id = window.setInterval(async () => {
+      const res = await fetch(`/api/boxes/${slug}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const fresh = (await res.json()) as PlayView;
+      if (fresh.box.attemptsCount > seen) {
+        seen = fresh.box.attemptsCount;
+        setRivalShot((n) => n + 1);
+        setView((current) => ({ ...current, box: fresh.box, rivals: fresh.rivals }));
+      }
+    }, 20_000);
+    return () => window.clearInterval(id);
+    // Deliberately not depending on `view` — this is a background watcher and
+    // re-arming it on every render would poll far harder than every 20s.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, open, won]);
+
+  function refuse(note: string) {
+    setMessage(note);
+    setShot("miss");
+    setJolt((n) => n + 1);
+  }
+
   async function submit() {
     if (!verified) {
-      setDialog("verify");
+      setSheet("verify");
       return;
     }
     if (busy || typed.length === 0) return;
 
     setBusy(true);
     setMessage(null);
+    setSheet("none");
+    // Put the keyboard away *before* anything else can open.
+    //
+    // Unmounting the field is not enough on iOS — Safari will happily keep the
+    // keyboard up after its input has gone — and the sheet that most often
+    // follows a guess is the out-of-lives one, which then arrives behind the
+    // keys with its buttons unreachable. An explicit blur is the only thing
+    // that reliably retracts it.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+
     const res = await fetch(`/api/boxes/${slug}/attempt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -130,19 +254,19 @@ export function PlaySurface({
 
     if (!res.ok) {
       if (body.error === "no_lives") {
-        setMessage(
+        refuse(
           body.nextLifeAt
             ? `Out of lives. The next one lands in ${countdown(body.nextLifeAt, Date.now())}.`
             : "Out of lives for now."
         );
-        setDialog("lives");
+        setSheet("lives");
         return;
       }
       if (body.error === "not_verified") {
-        setDialog("verify");
+        setSheet("verify");
         return;
       }
-      setMessage(
+      refuse(
         body.error === "box_unlocked"
           ? "Somebody opened this one while you were typing."
           : "That guess didn't go through."
@@ -150,300 +274,370 @@ export function PlaySurface({
       return;
     }
 
+    const was = view.hunt?.bestPercent ?? 0;
+    const landed = body.hunt?.attempts?.[0] ?? null;
+    const winning = body.outcome === "won";
+
+    // The shot and the sheet go up together. Nothing about the animation gates
+    // the answer — a player firing off guesses should never wait for a bullet.
     setView(body);
     setTyped("");
     setOutcome(body.outcome ?? "open");
+    const improved = !!landed && landed.scorePercent > was;
+    setShot(winning || improved ? "hit" : "miss");
+    setColdStreak((n) => (improved || winning ? 0 : n + 1));
+    setJolt((n) => n + 1);
+    if (landed && !resultsMuted()) setResult({ attempt: landed, was });
     await refresh();
+  }
+
+  if (!open) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-4 py-6">
+        <Cracked view={view} />
+      </div>
+    );
   }
 
   return (
     <>
-      <div className="mx-auto w-full max-w-2xl space-y-5 px-4 py-6">
-        <BoxHeader
-          view={view}
-          mood={won || !open ? "open" : busy ? "working" : "idle"}
-          onRules={() => setDialog("rules")}
-        />
+      {/* The chase, behind everything. Damage tracks your *best*, not your
+          last — the safe does not heal because you tried something worse. */}
+      <ChaseScene
+        design={view.box.design}
+        percent={best ?? 0}
+        jolt={jolt}
+        shot={shot}
+        open={won}
+        onSafe={() => setSheet("pot")}
+        rivals={view.rivals}
+        onRival={setRival}
+        rivalShot={rivalShot}
+      />
 
-        {!open ? (
-          <Cracked view={view} />
-        ) : (
-          <>
-            {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
+      {/* Everything else floats on top of it. `pointer-events-none` on the
+          column and back on for each control, so the gold underneath stays
+          tappable through the gaps. */}
+      {/* `min-h-0` so this column can be shorter than its content rather than
+          pushing the surface past the viewport, and the bottom padding clears
+          the home indicator on a phone that has one. */}
+      <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col justify-between gap-3 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="pointer-events-auto mx-auto w-full max-w-2xl shrink-0 space-y-2">
+          <SceneRail
+            box={view.box}
+            bestGuess={bestAttempt?.value ?? null}
+            yourBest={best}
+            onExplain={() => setSheet("rules")}
+            onBack={() => router.push("/")}
+            onReward={() => setSheet("pot")}
+            onStat={setStat}
+            onBestGuess={() => setSheet("best")}
+          />
 
-            {message && (
-              <p className="animate-fade-up rounded-2xl border-2 border-brass/50 bg-brass/15 px-3 py-2.5 text-center text-sm font-bold text-brass">
-                {message}
-              </p>
-            )}
+          <div className="flex items-center justify-between gap-2">
+            <LivesBadge onBuy={() => setSheet("lives")} />
 
-            {freeRun && view.hunt?.secondWindUntil && (
-              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-2xl border-2 border-mint/50 bg-mint/15 px-3 py-2.5 text-center text-xs font-bold text-mint">
-                <Sparkles className="size-3.5" aria-hidden />
-                Second Wind — guesses cost no lives for another{" "}
-                <span className="font-mono">
-                  {countdown(view.hunt.secondWindUntil, now)}
-                </span>
-              </p>
-            )}
-
-            {view.hunt?.hasBreakdown && view.hunt.breakdownUntil && (
-              <p className="flex flex-wrap items-center justify-center gap-x-2 rounded-2xl border-2 border-brass/50 bg-brass/15 px-3 py-2.5 text-center text-xs font-bold text-brass">
-                <Palette className="size-3.5" aria-hidden />
-                Colour Read is on — every score is split into its parts for another{" "}
-                <span className="font-mono">
-                  {countdown(view.hunt.breakdownUntil, now)}
-                </span>
-              </p>
-            )}
-
-            <KnownPanel revealed={revealed} now={now} />
-
-            {outcome === "open" && (
-              <PasswordField
-                value={typed}
-                onChange={setTyped}
-                onSubmit={() => void submit()}
-                disabled={won}
-                busy={busy}
-                revealed={revealed}
-                livesLeft={view.player.lives}
-                freeRun={freeRun}
-              />
-            )}
-
-            {!freeRun && view.player.lives === 0 && view.player.nextLifeAt && (
-              <p className="text-center text-sm text-zinc-400">
-                Next life in{" "}
-                <span className="font-mono text-brass">
-                  {countdown(view.player.nextLifeAt, now)}
-                </span>
-                {" · "}
-                <button
-                  type="button"
-                  onClick={() => setDialog("lives")}
-                  className="underline hover:text-zinc-200"
-                >
-                  or buy some
-                </button>
-                {" · "}
-                <button
-                  type="button"
-                  onClick={() => setTab("power-ups")}
-                  className="underline hover:text-zinc-200"
-                >
-                  or take an hour with no limit
-                </button>
-              </p>
-            )}
-
-            {/*
-              Both of these belong to a person, so neither appears until there
-              is one. Signed out, "Your attempts" was an empty log for a hunt
-              that doesn't exist and the shelf was five things you cannot buy —
-              two dead tabs where the reason to sign in should be.
-            */}
-            {!verified ? (
-              <div className="panel rounded-2xl px-4 py-6 text-center">
-                <Boxy mood="sly" className="mx-auto size-20" />
-                <p className="mt-1 font-black tracking-tight">
-                  Sign in to start hunting.
-                </p>
-                <p className="mx-auto mt-1 max-w-xs text-sm text-zinc-400">
-                  Your guesses, your score and the power-ups all live with your
-                  account. It’s free, and you get {LIVES_MAX} lives to begin
-                  with.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setDialog("verify")}
-                  style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-                  className="btn-chunky mt-4 rounded-2xl bg-brass px-6 py-3 text-ink"
-                >
-                  Sign in to play
-                </button>
-              </div>
-            ) : (
-            <div className="space-y-3">
-              <div
-                role="tablist"
-                aria-label="Attempts and power-ups"
-                className="panel flex gap-1 rounded-2xl p-1.5"
-              >
-                <TabButton
-                  id="attempts"
-                  active={tab}
-                  onPick={setTab}
-                  icon={<Swords className="size-4" aria-hidden />}
-                  label="Your attempts"
-                  badge={
-                    view.hunt && view.hunt.attemptsCount > 0
-                      ? String(view.hunt.attemptsCount)
-                      : null
-                  }
-                />
-                <TabButton
-                  id="power-ups"
-                  active={tab}
-                  onPick={setTab}
-                  icon={<Sparkles className="size-4" aria-hidden />}
-                  label="Power-ups"
-                  badge={String(view.powerUps.filter((p) => p.available).length)}
-                />
-              </div>
-
-              {tab === "attempts" ? (
-                <section className="space-y-2">
-                  {view.hunt && view.hunt.attemptsCount > 0 && (
-                    <div className="flex items-center justify-end gap-2 text-xs text-zinc-500">
-                      <span>best so far</span>
-                      <ScorePill percent={view.hunt.bestPercent} />
-                    </div>
-                  )}
-                  <AttemptLog attempts={view.hunt?.attempts ?? []} />
-                  {view.hunt &&
-                    view.hunt.attemptsCount > (view.hunt.attempts.length ?? 0) && (
-                      <p className="text-center text-xs text-zinc-600">
-                        Showing your last {view.hunt.attempts.length} of{" "}
-                        {view.hunt.attemptsCount}.
-                      </p>
-                    )}
-                </section>
-              ) : (
-                <PowerUpShelf view={view} slug={slug} disabled={won} now={now} />
+            {/* Opposite the lives, under the stats: one icon, no label. It is
+                a reading you check occasionally, and it belongs at the top with
+                the other readings rather than down among the controls. */}
+            <button
+              type="button"
+              onClick={() => setSheet("known")}
+              aria-label="Active boosters"
+              className="relative flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/15 bg-background/85 text-zinc-200 transition hover:border-mint/60 hover:text-mint"
+            >
+              <Lightbulb className="size-4" aria-hidden />
+              {knowsAnything(revealed, now) && (
+                <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-background bg-mint" />
               )}
-            </div>
+            </button>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            {/* What you're holding, and how long you have to spend it. It goes
+                to the shelf on a tap, because a discount you have to go and
+                find is a discount that expires unused. */}
+            {discount && (
+              <button
+                type="button"
+                onClick={() => setSheet("power-ups")}
+                className="flex items-center gap-1.5 rounded-full border-2 border-grape/60 bg-background/85 py-1 pl-2.5 pr-3 text-xs font-black text-grape shadow-lg backdrop-blur transition hover:border-grape"
+              >
+                <Tag className="size-3.5" aria-hidden />
+                {discount.amount}% off{" "}
+                {POWER_UPS[discount.powerUp as keyof typeof POWER_UPS]?.name ?? "a power-up"}
+                <span className="font-mono tabular-nums text-zinc-300">
+                  {countdown(discount.expiresAt, now)}
+                </span>
+              </button>
             )}
-          </>
-        )}
+          </div>
+
+          {/*
+            What used to be here: a standing "what you know" panel and a row of
+            chips for whatever was running. Both were the pre-scene layout, and
+            both appeared the moment anybody bought anything — so spending money
+            was rewarded with the old UI stacked over the game. They live in the
+            Known sheet now, behind the dock, with the countdowns in it.
+          */}
+          {message && (
+            <div className="flex flex-wrap gap-2">
+              <Chip tone="brass">{message}</Chip>
+            </div>
+          )}
+        </div>
+
+        {/*
+          Two stacks, and the split is about clipping.
+
+          Everything above the button — a verdict, a crate, a result card — can
+          outgrow a short phone, so it scrolls. The buttons must never be in
+          that scroller: `overflow-y: auto` computes `overflow-x` to `auto` as
+          well, which makes the box a clipping context, and every one of these
+          controls draws *outside* its own border box. `btn-chunky` is five
+          pixels of hard lip plus a twenty-pixel drop shadow, presses by
+          translating down another five, and the shelf carries a badge that
+          sits proud of its top-right corner. All of it was being shaved off at
+          the container's edge, which is exactly what "cropped" looks like.
+
+          So the actions live outside the scroller with a little padding of
+          their own, and can spill as far as they were drawn to.
+        */}
+        <div className="pointer-events-auto mx-auto flex min-h-0 w-full max-w-md flex-col gap-3">
+        <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain px-1 py-1">
+          {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
+
+          {drops.drop && (
+            <DropCrate
+              drop={drops.drop}
+              onDismiss={drops.dismiss}
+              onClaim={() => {
+                void drops.claim().then((got) => {
+                  if (got?.kind === "free_lives") {
+                    setMessage(`+${got.amount} free ${got.amount === 1 ? "life" : "lives"}`);
+                  } else if (got?.kind === "free_second_wind") {
+                    setMessage(`Free run — guesses cost nothing for ${secondWindLabel()}`);
+                  } else if (got) {
+                    setMessage(`${got.amount}% off — it's on the shelf`);
+                  }
+                  void refresh();
+                  void reload();
+                });
+              }}
+              className="mx-auto w-fit"
+            />
+          )}
+
+          {result && !won && (
+            <ResultCard
+              attempt={result.attempt}
+              previousBest={result.was}
+              onClose={() => setResult(null)}
+            />
+          )}
+        </div>
+
+        <div className="shrink-0 px-1 pb-1">
+          {verified ? (
+            /* The action on top at full width, its two subtabs underneath.
+               They used to share a row, which made the one thing you press
+               forty times an hour compete for width with two you press
+               occasionally. */
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                disabled={busy || won}
+                onClick={() => setSheet("guess")}
+                style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+                className="btn-chunky flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-brass px-3 py-4 text-base text-ink sm:text-lg"
+              >
+                <KeyRound className="size-5" aria-hidden />
+                {busy ? "Trying it…" : "Crack the safe"}
+              </button>
+
+              <SceneDock
+                powerUps={view.powerUps.filter((p) => p.available).length}
+                onAttempts={() => setSheet("attempts")}
+                onPowerUps={() => setSheet("power-ups")}
+              />
+            </div>
+          ) : (
+            <div className="sheet rounded-2xl px-4 py-4 text-center">
+              <Boxy mood="sly" className="mx-auto size-14" />
+              <p className="mt-1 font-black tracking-tight">Sign in to start hunting.</p>
+              <p className="mx-auto mt-1 max-w-xs text-sm text-zinc-400">
+                It’s free, and you get {LIVES_MAX} lives to begin with.
+              </p>
+              <button
+                type="button"
+                onClick={() => setSheet("verify")}
+                style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+                className="btn-chunky mt-3 w-full rounded-2xl bg-brass px-6 py-3 text-ink"
+              >
+                Sign in to play
+              </button>
+            </div>
+          )}
+        </div>
+        </div>
       </div>
 
-      {dialog === "verify" && (
+      {sheet === "guess" && (
+        <GuessDialog
+          value={typed}
+          onChange={setTyped}
+          onSubmit={() => void submit()}
+          busy={busy}
+          revealed={revealed}
+          onClose={() => setSheet("none")}
+        />
+      )}
+
+      {sheet === "pot" && (
+        <PotDialog
+          rewardKobo={view.box.rewardKobo}
+          isChallenge={view.box.isChallenge}
+          contributor={view.box.contributor}
+          difficulty={view.box.difficulty}
+          title={view.box.title}
+          blurb={view.box.blurb}
+          onClose={() => setSheet("none")}
+        />
+      )}
+
+      {sheet === "verify" && (
         <VerifyDialog
           onClose={() => {
-            setDialog("none");
+            setSheet("none");
             void reload();
           }}
         />
       )}
-      {dialog === "lives" && (
+      {sheet === "lives" && (
         <BuyLivesDialog
           slug={slug}
           contributor={view.box.contributor}
-          onClose={() => setDialog("none")}
+          secondWind={secondWind}
+          lifeBankKobo={view.lifeBankKobo}
+          onClose={() => setSheet("none")}
         />
       )}
-      {dialog === "rules" && <HowItWorksDialog onClose={() => setDialog("none")} />}
+
+      {sheet === "known" && (
+        <KnownDialog revealed={revealed} now={now} onClose={() => setSheet("none")} />
+      )}
+      {sheet === "rules" && <HowItWorksDialog onClose={() => setSheet("none")} />}
+
+      {sheet === "attempts" && (
+        <Modal
+          title="Your attempts"
+          subtitle={`${view.hunt?.attemptsCount ?? 0} so far on this safe`}
+          width="lg"
+          onClose={() => setSheet("none")}
+        >
+          <AttemptLog attempts={attempts} />
+          {view.hunt && view.hunt.attemptsCount > attempts.length && (
+            <p className="mt-2 text-center text-xs text-zinc-500">
+              Showing your last {attempts.length} of {view.hunt.attemptsCount}.
+            </p>
+          )}
+        </Modal>
+      )}
+
+      {sheet === "power-ups" && (
+        <Modal
+          title="Power-ups"
+          subtitle="Each one buys back something the game is keeping from you."
+          width="lg"
+          onClose={() => setSheet("none")}
+        >
+          <PowerUpShelf view={view} slug={slug} disabled={won} now={now} />
+        </Modal>
+      )}
+
+      {rival && <RivalDialog rival={rival} onClose={() => setRival(null)} />}
+
+      {sheet === "best" && bestAttempt && (
+        <AttemptDialog attempt={bestAttempt} onClose={() => setSheet("none")} />
+      )}
+
+      {stat && (
+        <StatDialog stat={stat} box={view.box} onClose={() => setStat(null)} />
+      )}
+
+      {result && won && (
+        <ResultDialog
+          attempt={result.attempt}
+          previousBest={result.was}
+          won
+          onClose={() => setResult(null)}
+        />
+      )}
     </>
   );
 }
 
-function TabButton({
-  id,
-  active,
-  onPick,
-  icon,
-  label,
-  badge,
-}: {
-  id: Tab;
-  active: Tab;
-  onPick: (tab: Tab) => void;
-  icon: React.ReactNode;
-  label: string;
-  badge: string | null;
-}) {
-  const on = active === id;
+/**
+ * Who that car is.
+ *
+ * A masked address and a percentage, and nothing else — that is the whole of
+ * what one stranger should learn about another on a screen where the only
+ * shared fact is a password neither of them has.
+ */
+function RivalDialog({ rival, onClose }: { rival: Rival; onClose: () => void }) {
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={on}
-      onClick={() => onPick(id)}
-      className={
-        "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-[13px] font-bold transition sm:gap-2 sm:px-3 sm:text-sm " +
-        (on
-          ? "bg-brass text-ink shadow-[inset_0_1.5px_0_rgba(255,255,255,0.45),0_3px_0_var(--brass-deep)]"
-          : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100")
+    <Modal
+      title={rival.you ? "That's you" : "Another hunter"}
+      width="sm"
+      onClose={onClose}
+      footer={
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+          className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
+        >
+          Back to the chase
+        </button>
       }
     >
-      {icon}
-      {label}
-      {badge && (
-        <span
-          className={
-            "rounded-md px-1.5 py-0.5 font-mono text-[10px] font-black " +
-            (on ? "bg-ink/20 text-ink" : "bg-white/8 text-zinc-400")
-          }
-        >
-          {badge}
-        </span>
-      )}
-    </button>
+      <div className="space-y-2 pb-1 text-center">
+        <p className="break-all font-mono text-sm text-zinc-300">{rival.player}</p>
+        <p className="brass-text text-5xl font-black leading-none tracking-tight tabular-nums">
+          {rival.percent.toFixed(1)}%
+        </p>
+      </div>
+    </Modal>
   );
 }
 
-function BoxHeader({
-  view,
-  mood,
-  onRules,
+/** The highest-scoring attempt on the page, or null before there is one. */
+function bestOf(attempts: AttemptRecord[]): AttemptRecord | null {
+  if (attempts.length === 0) return null;
+  return attempts.reduce((top, a) => (a.scorePercent > top.scorePercent ? a : top));
+}
+
+const CHIP_TONES = {
+  brass: "border-brass/50 bg-brass/20 text-brass",
+  mint: "border-mint/50 bg-mint/20 text-mint",
+} as const;
+
+function Chip({
+  tone,
+  children,
 }: {
-  view: PlayView;
-  mood: "idle" | "working" | "open";
-  onRules: () => void;
+  tone: keyof typeof CHIP_TONES;
+  children: React.ReactNode;
 }) {
-  const { box } = view;
   return (
-    <header className="space-y-2 text-center">
-      {/* Boxy is doing the reacting so the safe doesn't have to. A dial that
-          spins is a nice touch; a face that looks worried while you wait is
-          the thing people actually notice. */}
-      <div className="flex items-end justify-center gap-1">
-        <SafeArt design={box.design} mood={mood} className="size-28 sm:size-36" />
-        <Boxy
-          mood={mood === "open" ? "cheer" : mood === "working" ? "thinking" : "sly"}
-          className="size-24 sm:size-28"
-        />
-      </div>
-
-      <p className="text-xs uppercase tracking-widest text-zinc-500">
-        {box.kind === "general" ? "Created by Spendbox" : `Created by ${box.contributor}`}
-      </p>
-      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{box.title}</h1>
-      {box.blurb && <p className="text-sm text-zinc-400">{box.blurb}</p>}
-
-      <p
-        className={
-          "font-black tabular-nums " +
-          (box.isChallenge ? "text-2xl text-zinc-300" : "brass-text text-4xl sm:text-5xl")
-        }
-      >
-        {rewardLabel(box.rewardKobo)}
-      </p>
-
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <DifficultyBadge difficulty={box.difficulty} />
-        <button
-          type="button"
-          onClick={onRules}
-          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 transition hover:border-brass/40 hover:text-brass"
-        >
-          <Info className="size-3.5" aria-hidden />
-          How it works
-        </button>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-zinc-500">
-        <span className="flex items-center gap-1.5">
-          <Users className="size-3.5" aria-hidden />
-          {plural(box.playersCount, "hunter")}
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Swords className="size-3.5" aria-hidden />
-          {plural(box.attemptsCount, "attempt")} so far
-        </span>
-      </div>
-    </header>
+    <span
+      className={
+        "animate-fade-up flex items-center gap-1.5 rounded-full border-2 px-3 py-1.5 text-xs font-bold backdrop-blur " +
+        CHIP_TONES[tone]
+      }
+    >
+      {children}
+    </span>
   );
 }
 
@@ -458,11 +652,12 @@ function Verdict({ outcome, view }: { outcome: Outcome; view: PlayView }) {
             <>You cracked it. No money behind this one — just the fact that you did it.</>
           ) : (
             <>
-              {formatNaira(view.box.rewardKobo)} is yours. We’ve emailed you —{" "}
+              {formatNaira(view.box.rewardKobo)} is yours, and it’s sent within
+              24 hours. We’ve emailed you —{" "}
               <Link href="/me" className="text-brass underline">
                 add your bank account
               </Link>{" "}
-              and we’ll send it.
+              and the transfer follows.
             </>
           )}
         </p>

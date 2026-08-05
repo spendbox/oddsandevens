@@ -41,7 +41,17 @@ export function EarningsPanel({
           <button type="button" onClick={onConnect} className="font-semibold underline">
             Add a bank account
           </button>{" "}
-          and future sales settle straight to you.
+          and future sales settle straight to you. Anything earned before that
+          is paid out by hand, and we send those <strong>every week</strong>.
+        </p>
+      )}
+
+      {connected && (
+        <p className="rounded-xl bg-white/5 px-4 py-3 text-sm text-zinc-400">
+          Your share of every sale settles straight to your account as the
+          payment clears — there is nothing to withdraw. Anything earned before
+          you connected the account is transferred by hand, and those go out{" "}
+          <strong className="text-zinc-200">every week</strong>.
         </p>
       )}
 

@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyCode } from "@/lib/verification";
 import { EMAIL_REGEX } from "@/lib/constants";
+import { callerKey, tooMany } from "@/lib/rate-limit";
 
 // Signup step 2: verify the code and create the account with the chosen
 // password. The client signs in with the password afterwards.
 export async function POST(req: Request) {
+  if (tooMany(callerKey(req, "signup-verify"), 20, 10 * 60_000)) {
+    return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
   const email = String(body?.email ?? "").trim().toLowerCase();
   const code = String(body?.code ?? "").trim();

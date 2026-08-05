@@ -21,9 +21,10 @@ import {
   PLATFORM_SHARE_PERCENT,
   REFERRAL_MIN_LIVES,
   ALPHABET,
+  MAX_FUNDING_KOBO,
 } from "@/lib/constants";
-import { formatNaira, minFundingKobo, splitFunding } from "@/lib/game/rewards";
-import { BREAKDOWN_HOURS, SECOND_WIND_HOURS } from "@/lib/game/power-ups";
+import { formatNaira, fundingSchedule, minFundingKobo, splitFunding } from "@/lib/game/rewards";
+import { BREAKDOWN_HOURS, LIFE_BANK_MAX, secondWindLabel } from "@/lib/game/power-ups";
 
 export const FAQ_TOPICS = [
   "Playing",
@@ -60,7 +61,7 @@ export const FAQ: FaqItem[] = [
     topic: "Playing",
     question: "Is the money real?",
     answer: [
-      "Yes. Every reward on Spendbox is real money, paid in naira to the bank account of whoever cracks the box.",
+      "Yes. Every reward on Spendbox is real money, paid in naira to the bank account of whoever cracks the box, within 24 hours.",
       "It is collected up front, in full, before a box ever goes on the board — from us on the boxes we create, and from the player who put it up on everyone else's. Nobody is waiting on somebody to be good for it at the moment they win.",
       "You can see it for yourself: the Already cracked tab on the front page lists every box that has been opened and what came out of it.",
     ],
@@ -93,8 +94,9 @@ export const FAQ: FaqItem[] = [
     topic: "Playing",
     question: "What characters can a password contain?",
     answer: [
-      `Anything on a standard keyboard: the 26 letters in either case, the ten digits, and every symbol — ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \\ ] ^ _ \` { | } ~. That is ${ALPHABET.length} possible characters in every position.`,
-      "The one exception is the space, which is never part of a password.",
+      `The 26 letters in either case, the ten digits, the space, every symbol on a QWERTY keyboard, and a handful beyond it: • √ π ÷ × § ∆ £ ¢ € ¥ ° © ® ™ ✓. That is around ${ALPHABET.length} possible characters in every position.`,
+      "The exact list is never hidden from you. Open a safe, tap Crack the safe, and the line under the field says how many characters are allowed and shows every one of them — including the ones your keyboard can't produce, which you can copy straight out of that list.",
+      "Spaces count too, so a password can be a phrase. Wherever a guess is shown back to you a space is drawn as ␣, so you can always see whether one is there.",
     ],
   },
   {
@@ -146,6 +148,15 @@ export const FAQ: FaqItem[] = [
   },
   {
     topic: "Lives",
+    question: "What is Life Bank?",
+    answer: [
+      `A week of a taller pool. Your lives refill one an hour and stop at ${LIVES_MAX}, so a day away banks ${LIVES_MAX} guesses and every hour after that is thrown away. Life Bank raises the ceiling to ${LIFE_BANK_MAX} for seven days and fills you to it on the spot.`,
+      "It is bought beside lives rather than on the power-up shelf, because it changes the pool every box is played from rather than telling you anything about one password.",
+      "Buying another week while one is running adds to it rather than replacing it. When it lapses nothing is taken away — you keep whatever lives you are holding and simply stop accruing until you are back under the normal ceiling.",
+    ],
+  },
+  {
+    topic: "Lives",
     question: "How much do extra lives cost?",
     answer: [
       `${formatNaira(LIFE_PRICE_KOBO)} each. You can buy them from your own page or from inside any box.`,
@@ -156,7 +167,7 @@ export const FAQ: FaqItem[] = [
     question: "Is there a limit on how many guesses I can make?",
     answer: [
       "No. There's no daily cap and no cooling-off period — the only limit is how many lives you have.",
-      `If you want to work without that limit for a while, Second Wind gives you unlimited guesses on one box for ${SECOND_WIND_HOURS} hour, and spends no lives at all.`,
+      `If you want to work without that limit for a while, Second Wind gives you unlimited guesses on one box for ${secondWindLabel()}, and spends no lives at all.`,
     ],
   },
 
@@ -174,18 +185,19 @@ export const FAQ: FaqItem[] = [
     question: "What does each one do?",
     answer: [
       "Length Lock tells you exactly how many characters the password has.",
-      "Case Map counts the uppercase letters, lowercase letters, digits and symbols, without saying where any of them sit.",
-      `Second Wind gives you unlimited guesses on that box for ${SECOND_WIND_HOURS} hour, spending no lives.`,
+      "Seven counters each answer one question about what the password is made of, without saying where anything sits: how many capitals, how many lowercase letters, how many vowels, how many consonants, how many digits, how many symbols and how many spaces. Each is priced by how much of the search it removes — knowing there are no symbols rules out far more than knowing there are no spaces.",
+      `Second Wind gives you unlimited guesses on that box for ${secondWindLabel()}, spending no lives.`,
       `Colour Read splits every score into its parts for ${BREAKDOWN_HOURS} hours — including every attempt you've already made.`,
       "X-Ray names half the different characters the password is built from, in no order — and can be bought again for half of what's left.",
+
     ],
   },
   {
     topic: "Power-ups",
     question: "Can I buy the same power-up twice?",
     answer: [
-      "Length Lock and Case Map are one purchase per box: what they tell you never changes, so buying again would pay for the same sentence.",
-      `Second Wind and Colour Read rent a window rather than sell a fact — ${SECOND_WIND_HOURS} hour and ${BREAKDOWN_HOURS} hours respectively — and can be bought again the moment they lapse.`,
+      "Length Lock and the seven counters are one purchase each: what they give you never changes, so buying again would pay for the same answer.",
+      `Second Wind and Colour Read rent a window rather than sell a fact — ${secondWindLabel()} and ${BREAKDOWN_HOURS} hours respectively — and can be bought again the moment they lapse.`,
       "X-Ray can be bought as often as you like. Each purchase draws from the characters it hasn't named yet, so it never tells you the same thing twice, and it stops being offered once you have all of them.",
     ],
   },
@@ -256,6 +268,18 @@ export const FAQ: FaqItem[] = [
   },
   {
     topic: "Building a box",
+    question: "What does each password length cost?",
+    answer: [
+      "Every length has a floor, and it rises steeply — a longer password is a harder box and a harder box has to be worth attacking. You can always put up more than the floor; you can never put up less.",
+      ...fundingSchedule().map(
+        (row) =>
+          `${row.length} characters — from ${formatNaira(row.minFundingKobo)}, a ${formatNaira(splitFunding(row.minFundingKobo).rewardKobo)} reward.`
+      ),
+      `${formatNaira(MAX_FUNDING_KOBO)} is the ceiling on any one box: it's the largest single transfer Paystack will make, and a reward that can't be paid out isn't a reward.`,
+    ],
+  },
+  {
+    topic: "Building a box",
     question: "Can I change a box after I've made it?",
     answer: [
       "Until it's paid for, yes — everything about it, and you can delete it outright. A draft is invisible and costs nothing.",
@@ -321,6 +345,7 @@ export const FAQ: FaqItem[] = [
     question: "How do I get a reward I've won?",
     answer: [
       "Opening a box creates a claim. If you've already saved your bank details, it goes there; if not, add them in your safe house under Account and the transfer follows. We check the number with your bank and show you the name on it before saving.",
+      "Rewards are sent within 24 hours of the box being cracked. If your bank details weren't on file when you won, the 24 hours runs from when you add them — we can't send money to an account we don't have.",
     ],
   },
   {

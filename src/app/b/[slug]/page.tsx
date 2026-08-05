@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { currentPlayerState } from "@/lib/player-state";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { playerEmail } from "@/lib/player-session";
@@ -6,7 +7,6 @@ import { buildPlayView, findBox } from "@/lib/game/view";
 import { rewardLabel } from "@/lib/game/rewards";
 import { difficultyOf } from "@/lib/game/difficulty";
 import { PlayerProvider } from "@/components/player/player-context";
-import { SiteHeader } from "@/components/site-header";
 import { PlaySurface } from "@/components/safe/play-surface";
 
 export async function generateMetadata({
@@ -52,9 +52,29 @@ export default async function BoxPage({
   const view = await buildPlayView(db, box, await playerEmail());
 
   return (
-    <PlayerProvider>
-      <SiteHeader />
-      <main className="flex-1">
+    <PlayerProvider initial={await currentPlayerState()}>
+      {/*
+        No site header on this one, and that is the point. The scene is the
+        whole surface — sky to floor, edge to edge — and a chrome bar across
+        the top of it would put the game back in a box. What the header carried
+        is carried by the scene's own rail instead: the way out, the life pool,
+        and the help.
+      */}
+      {/*
+        `100dvh` rather than `flex-1`, and that is the whole fix for the dead
+        strip under the dock on a phone.
+
+        The body is `min-h-full` against an `h-full` html, and on iOS Safari
+        that resolves to the *small* viewport — the screen as it is with the
+        browser's own toolbars showing. So the scene was built to that height
+        once, and the moment the address bar slid away the visible viewport
+        grew by fifty-odd pixels that the scene did not: the buttons stayed put
+        and a band of background appeared under them. The dynamic viewport unit
+        is the one that tracks the chrome as it comes and goes, so the surface
+        is always exactly as tall as what you can see and the dock sits on the
+        bottom edge of it either way.
+      */}
+      <main className="relative flex h-viewport flex-col overflow-hidden">
         <PlaySurface initial={view} slug={box.slug} pendingReference={reference ?? null} />
       </main>
     </PlayerProvider>

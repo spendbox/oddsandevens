@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { LIFE_PRICE_KOBO, LIFE_PURCHASE_MAX } from "@/lib/constants";
+import { LIFE_PURCHASE_MAX } from "@/lib/constants";
 import { playerEmail } from "@/lib/player-session";
 import { appBaseUrl } from "@/lib/base-url";
 import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
 import { ensurePlayer, newReference } from "@/lib/game/boxes";
 import { splitSale } from "@/lib/game/rewards";
+import { discountedKobo } from "@/lib/game/power-ups";
+import { loadPricing, resolved } from "@/lib/game/pricing";
 import { findBox } from "@/lib/game/view";
 
 /**
@@ -34,13 +36,17 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     quantity?: number;
     slug?: string;
+    /** True for a week of the raised ceiling rather than a count of lives. */
+    lifeBank?: boolean;
   };
+  const bank = body.lifeBank === true;
   const quantity = Math.trunc(Number(body.quantity ?? 0));
-  if (!Number.isFinite(quantity) || quantity < 1 || quantity > LIFE_PURCHASE_MAX) {
+  if (!bank && (!Number.isFinite(quantity) || quantity < 1 || quantity > LIFE_PURCHASE_MAX)) {
     return NextResponse.json({ error: "invalid_quantity" }, { status: 400 });
   }
 
   const db = supabaseAdmin();
+  const money = resolved(await loadPricing(db));
   const player = await ensurePlayer(db, email);
   if (!player) return NextResponse.json({ error: "player_failed" }, { status: 500 });
 
@@ -49,9 +55,29 @@ export async function POST(req: Request) {
   const box = body.slug ? await findBox(db, body.slug) : null;
   const contributorId = box?.contributor_id ?? null;
 
-  const priceKobo = quantity * LIFE_PRICE_KOBO;
+  // A claimed drop can take a share off, and that share is read from the
+  // database rather than the request: a discount the client names is a discount
+  // the client can name itself. It is burned immediately, against this order —
+  // the checkout may still be abandoned, and a one-use coupon that survives an
+  // abandoned checkout is a coupon that can be spent twice by abandoning once.
+  // A Life Bank is a flat weekly price rather than a count of lives, and the
+  // drop discount doesn't apply to it — a percentage off a subscription is a
+  // different product from a percentage off a top-up, and only one of them
+  // was ever offered.
+  const full = bank ? money.lifeBankKobo : quantity * money.lifePriceKobo;
+  const { data: off } = bank
+    ? { data: 0 }
+    : await db.rpc("life_discount_for", { p_player_id: player.id });
+  const discount = Math.max(0, Math.min(100, Number(off ?? 0)));
+  const priceKobo = discountedKobo(full, discount);
+  if (discount > 0) {
+    await db.rpc("spend_life_discount", { p_player_id: player.id });
+  }
+
+  // The split follows the discounted price, so a contributor's 70% is 70% of
+  // what the player actually paid rather than of a number nobody paid.
   const split = contributorId
-    ? splitSale(priceKobo)
+    ? splitSale(priceKobo, money.platformSharePercent)
     : { contributorKobo: 0, platformKobo: priceKobo };
 
   const subaccount = contributorId
@@ -64,11 +90,13 @@ export async function POST(req: Request) {
       ).data?.paystack_subaccount_code as string | null) ?? null
     : null;
 
-  const reference = newReference("life");
+  const reference = newReference(bank ? "bank" : "life");
   const { error } = await db.from("life_orders").insert({
     reference,
     player_id: player.id,
-    quantity,
+    // A bank buys no lives outright — the ceiling is the product, and the
+    // top-up to it is applied by `grant_life_bank` at settlement.
+    quantity: bank ? 0 : quantity,
     price_kobo: priceKobo,
     box_id: box?.id ?? null,
     contributor_id: contributorId,

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { currentPlayerState } from "@/lib/player-state";
 import { ArrowRight } from "lucide-react";
 import { PlayerProvider } from "@/components/player/player-context";
 import { SiteHeader } from "@/components/site-header";
@@ -12,9 +13,9 @@ export const metadata = {
     "How Spendbox works: guessing, lives, power-ups, invites, putting up a box of your own, and where the money goes.",
 };
 
-export default function FaqPage() {
+export default async function FaqPage() {
   return (
-    <PlayerProvider>
+    <PlayerProvider initial={await currentPlayerState()}>
       <SiteHeader />
       <main className="flex-1">
         <div className="relative mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">

@@ -138,21 +138,33 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
         <DifficultyBadge difficulty={box.difficulty} />
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+      {/*
+        Stacked, not three across.
+        A seven-figure reward and a six-figure attempt count do not fit in a
+        third of a card on a phone: the figures wrapped mid-number and the
+        estimate underneath ran into them. One row each, label left and figure
+        right, and every one of them has the whole width when it needs it.
+      */}
+      <dl className="mt-3 divide-y divide-white/5 overflow-hidden rounded-xl bg-black/25">
         <Figure label="Reward" value={rewardLabel(box.rewardKobo)} accent />
         <Figure label="You've earned" value={formatNaira(box.earnedKobo)} />
         <Figure
           label="Attempts"
-          value={String(box.attemptsCount)}
+          value={box.attemptsCount.toLocaleString("en-NG")}
           hint={plural(box.playersCount, "hunter")}
         />
-      </div>
+      </dl>
 
-      <RevenueEstimate
-        rewardKobo={box.rewardKobo}
-        hunters={box.playersCount}
-        earnedKobo={box.earnedKobo}
-      />
+      {/* Its own row. It used to butt straight up against the figures above
+          with nothing between them, so the estimate read as a fourth stat and
+          its border ran into theirs. */}
+      <div className="mt-3">
+        <RevenueEstimate
+          rewardKobo={box.rewardKobo}
+          hunters={box.playersCount}
+          earnedKobo={box.earnedKobo}
+        />
+      </div>
 
       {box.status === "unlocked" && (
         <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-400">
@@ -166,11 +178,13 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
       {unpublished && (
         <p className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-400">
           {box.status === "draft"
-            ? "A draft. Nobody can see it and nothing has been charged."
-            : "Waiting on payment. Nobody can see it and nothing has been charged yet."}{" "}
-          Fund it to put it live — after that the password, the name and the safe
-          are fixed for good, and the only thing you can change is the reward,
-          upwards.
+            ? "This is a draft. No one can see it, and no funds have been committed."
+            : "Waiting on payment. No one can see it, and no funds have been committed yet."}
+          {" "}
+          Fund the safe to make it live. Once it&apos;s live, the password, safe
+          name, and all settings become permanent and cannot be changed. The only
+          thing you can modify afterward is the reward amount — and only by
+          increasing it.
         </p>
       )}
 
@@ -329,16 +343,21 @@ function Figure({
   accent?: boolean;
 }) {
   return (
-    <div className="rounded-xl bg-white/5 px-2 py-2.5">
-      <p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
-      <p
-        className={
-          "mt-0.5 font-mono text-sm font-bold " + (accent ? "text-brass" : "text-zinc-200")
-        }
-      >
-        {value}
-      </p>
-      {hint && <p className="text-[11px] text-zinc-600">{hint}</p>}
+    <div className="flex items-baseline justify-between gap-3 px-3 py-2">
+      <dt className="shrink-0 text-[11px] uppercase tracking-wide text-zinc-500">
+        {label}
+      </dt>
+      <dd className="min-w-0 text-right">
+        <span
+          className={
+            "block truncate font-mono text-sm font-bold " +
+            (accent ? "text-brass" : "text-zinc-200")
+          }
+        >
+          {value}
+        </span>
+        {hint && <span className="block text-[11px] text-zinc-600">{hint}</span>}
+      </dd>
     </div>
   );
 }

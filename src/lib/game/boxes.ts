@@ -19,7 +19,7 @@ import type { PlayerState, PublicBox } from "@/lib/types";
  * travel any further.
  */
 export const PUBLIC_BOX_COLUMNS =
-  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, published_at, unlocked_at, unlocked_by, contributor_id, featured_at";
+  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, best_percent, published_at, unlocked_at, unlocked_by, contributor_id, featured_at";
 
 export interface BoxRow {
   id: string;
@@ -33,6 +33,7 @@ export interface BoxRow {
   status: PublicBox["status"];
   attempts_count: number;
   players_count: number;
+  best_percent: string | number;
   published_at: string | null;
   unlocked_at: string | null;
   unlocked_by: string | null;
@@ -64,6 +65,9 @@ export function toPublicBox(
     status: row.status,
     attemptsCount: row.attempts_count,
     playersCount: row.players_count,
+    // `numeric` arrives as a string from PostgREST, and a string here would
+    // reach the scene as a width in percent that silently never animates.
+    bestPercent: Number(row.best_percent ?? 0),
     contributor: extras.contributor ?? null,
     publishedAt: row.published_at,
     unlockedAt: row.unlocked_at,
@@ -80,6 +84,8 @@ export interface PlayerRow {
   invite_code: string | null;
   /** Referral bonus banked, waiting for their next paid top-up. */
   bonus_lives_pending: number;
+  /** Their own ceiling, once Life Bank has raised it. Null means the default. */
+  lives_max: number | null;
 }
 
 /**
@@ -101,31 +107,44 @@ export async function ensurePlayer(
   return (row as PlayerRow | null) ?? null;
 }
 
-export function toPlayerState(player: PlayerRow | null, email: string | null): PlayerState {
+export function toPlayerState(
+  player: PlayerRow | null,
+  email: string | null,
+  /** Things that need their own query, so the callers that can, pass them. */
+  extras: {
+    lifeDiscount?: PlayerState["lifeDiscount"];
+    /** What an admin has priced a life at, if they've changed it. */
+    lifePriceKobo?: number;
+  } = {}
+): PlayerState {
   if (!player) {
     return {
       email,
       lives: LIVES_MAX,
       livesMax: LIVES_MAX,
       nextLifeAt: null,
-      lifePriceKobo: LIFE_PRICE_KOBO,
+      lifePriceKobo: extras.lifePriceKobo ?? LIFE_PRICE_KOBO,
       inviteCode: null,
       bonusLivesPending: 0,
+      lifeDiscount: null,
     };
   }
-  const full = player.lives >= LIVES_MAX;
+  // Their own ceiling if Life Bank has raised it, the platform's otherwise.
+  const cap = Math.max(LIVES_MAX, player.lives_max ?? LIVES_MAX);
+  const full = player.lives >= cap;
   return {
     email,
     lives: player.lives,
-    livesMax: LIVES_MAX,
+    livesMax: cap,
     nextLifeAt: full
       ? null
       : new Date(
           new Date(player.lives_accrued_at).getTime() + LIFE_REGEN_MINUTES * 60_000
         ).toISOString(),
-    lifePriceKobo: LIFE_PRICE_KOBO,
+    lifePriceKobo: extras.lifePriceKobo ?? LIFE_PRICE_KOBO,
     inviteCode: player.invite_code ?? null,
     bonusLivesPending: player.bonus_lives_pending ?? 0,
+    lifeDiscount: extras.lifeDiscount ?? null,
   };
 }
 

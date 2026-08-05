@@ -29,9 +29,9 @@ import {
   Wallet,
 } from "lucide-react";
 import {
-  ALPHABET,
-  ALPHABET_SET,
   BLURB_MAX,
+  KOBO,
+  MAX_FUNDING_KOBO,
   MAX_LENGTH,
   MIN_LENGTH,
   TITLE_MAX,
@@ -46,15 +46,30 @@ import { difficultyOf } from "@/lib/game/difficulty";
 import { DESIGNS, DESIGN_SPECS, DEFAULT_DESIGN, type Design } from "@/lib/game/designs";
 import { Modal } from "@/components/ui/modal";
 import { SafeArt } from "@/components/safe/safe-art";
+import { CharsetDialog, useAlphabet } from "@/components/charset-dialog";
 import { RevenueEstimate } from "./revenue-estimate";
 import { INPUT, Panel, PRIMARY } from "./shared";
 
+/**
+ * Digits only, no leading zeros, never above the platform ceiling.
+ *
+ * Clamping the *value* rather than the number of digits, because "10000001" and
+ * "99999999" are both eight characters and only one of them is over the line.
+ */
+function capFunding(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, "").replace(/^0+(?=\d)/, "");
+  if (!digits) return "";
+  const naira = Math.min(Number(digits), MAX_FUNDING_KOBO / KOBO);
+  return String(naira);
+}
+
 /** A suggested password. Generated in the browser: it's only a suggestion, and
- * the real one is whatever the contributor submits. */
-function suggest(length: number): string {
+ * the real one is whatever the contributor submits. Drawn from the alphabet in
+ * force, so a suggestion is never something the server would then refuse. */
+function suggest(length: number, alphabet: string[]): string {
   const bytes = new Uint32Array(length);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (n) => ALPHABET[n % ALPHABET.length]).join("");
+  return Array.from(bytes, (n) => alphabet[n % alphabet.length]).join("");
 }
 
 type Card = "box" | "password" | "reward" | "design" | null;
@@ -71,14 +86,17 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
 
   // Characters outside the alphabet are shown as rejected rather than silently
   // dropped — quietly altering somebody's password would be the worst thing
-  // this form could do.
+  // this form could do. The alphabet is a setting now, so it is read rather
+  // than imported: what this field accepts is what the create route accepts.
+  const alphabet = useAlphabet();
+  const allowed = useMemo(() => new Set(alphabet.alphabet), [alphabet]);
   const rejected = useMemo(
-    () => [...new Set(secret.split("").filter((ch) => !ALPHABET_SET.has(ch)))],
-    [secret]
+    () => [...new Set(secret.split("").filter((ch) => !allowed.has(ch)))],
+    [secret, allowed]
   );
   const clean = useMemo(
-    () => secret.split("").filter((ch) => ALPHABET_SET.has(ch)).join(""),
-    [secret]
+    () => secret.split("").filter((ch) => allowed.has(ch)).join(""),
+    [secret, allowed]
   );
 
   const length = clean.length;
@@ -88,6 +106,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
   const split = splitFunding(Math.max(fundingKobo, floor));
   const titleOk = title.trim().length > 0;
   const rewardOk = passwordOk && fundingKobo >= floor && fundingKobo > 0;
+  const atCeiling = fundingKobo >= MAX_FUNDING_KOBO;
   const ready = titleOk && passwordOk && rewardOk;
 
   async function build() {
@@ -164,7 +183,14 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
                 : "Write the password first"
           }
           done={rewardOk}
-          onOpen={() => passwordOk && setCard("reward")}
+          onOpen={() => {
+            if (!passwordOk) return;
+            // Opening it empty means typing the minimum from scratch, every
+            // time, on a field where the minimum is the answer most of the
+            // time. Pre-filled with the floor for the length just written.
+            if (!fundingNaira) setFundingNaira(String(Math.round(floor / KOBO)));
+            setCard("reward");
+          }}
           disabled={!passwordOk}
         />
         <BuildCard
@@ -205,9 +231,12 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
               maxLength={TITLE_MAX}
               autoFocus
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="The Friday Safe"
+              placeholder="Friday Safe"
               className={`${INPUT} mt-1.5`}
             />
+            <span className="mt-1 block text-right text-xs text-zinc-400">
+              {title.length}/{TITLE_MAX}
+            </span>
           </label>
           <label className="block">
             <span className="text-sm font-bold text-zinc-300">One line for the card</span>
@@ -232,6 +261,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
           setSecret={setSecret}
           clean={clean}
           rejected={rejected}
+          alphabet={alphabet}
           onClose={() => setCard(null)}
         />
       )}
@@ -244,11 +274,22 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
               inputMode="numeric"
               autoFocus
               value={fundingNaira}
-              onChange={(e) => setFundingNaira(e.target.value.replace(/[^\d]/g, ""))}
-              placeholder={String(Math.round(floor / 100))}
+              // Digits only, no leading zeros, and hard-stopped at the ceiling.
+              // Paystack will not move more than ₦10,000,000 in one transfer,
+              // so a figure above it is a box that can never pay out — better
+              // refused at the keystroke than at the checkout.
+              onChange={(e) => setFundingNaira(capFunding(e.target.value))}
+              placeholder={String(Math.round(floor / KOBO))}
               className={`${INPUT} mt-1.5 pl-8 font-mono`}
             />
           </div>
+
+          {atCeiling && (
+            <p className="rounded-lg bg-brass/10 px-3 py-2 text-sm text-brass">
+              {formatNaira(MAX_FUNDING_KOBO)} is the most a single box can hold —
+              it’s the largest transfer Paystack will make in one go.
+            </p>
+          )}
 
           <dl className="grid grid-cols-3 gap-2 text-center">
             <SplitTile label="You pay" value={formatNaira(split.fundingKobo)} />
@@ -305,7 +346,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
  * bottom is honest about being disabled because you can see exactly which one
  * is missing.
  */
-function BuildCard({
+export function BuildCard({
   icon,
   label,
   value,
@@ -362,7 +403,7 @@ function BuildCard({
   );
 }
 
-function CardDialog({
+export function CardDialog({
   title,
   onClose,
   children,
@@ -396,15 +437,18 @@ function PasswordCard({
   setSecret,
   clean,
   rejected,
+  alphabet,
   onClose,
 }: {
   secret: string;
   setSecret: (next: string) => void;
   clean: string;
   rejected: string[];
+  alphabet: ReturnType<typeof useAlphabet>;
   onClose: () => void;
 }) {
   const [reveal, setReveal] = useState(false);
+  const [chars, setChars] = useState(false);
   const length = clean.length;
 
   return (
@@ -442,7 +486,7 @@ function PasswordCard({
           <button
             type="button"
             onClick={() => {
-              setSecret(suggest(length >= MIN_LENGTH ? length : 8));
+              setSecret(suggest(length >= MIN_LENGTH ? length : 8, alphabet.alphabet));
               setReveal(true);
             }}
             aria-label="Suggest a password"
@@ -455,8 +499,15 @@ function PasswordCard({
 
       <div className="flex items-baseline justify-between gap-3 text-sm">
         <span className="text-zinc-500">
-          {MIN_LENGTH}–{MAX_LENGTH} characters. Letters, digits and symbols.
-          Case matters.
+          {MIN_LENGTH}–{MAX_LENGTH} characters. Case matters.{" "}
+          <button
+            type="button"
+            onClick={() => setChars(true)}
+            className="font-bold text-brass underline underline-offset-2"
+          >
+            See all {alphabet.alphabet.length} you can use
+          </button>
+          .
         </span>
         <span className="shrink-0 font-mono text-zinc-300">
           {length > 0 ? `${length} · ${difficultyOf(length)}` : `0/${MAX_LENGTH}`}
@@ -473,12 +524,16 @@ function PasswordCard({
       <p className="rounded-lg bg-black/25 px-3 py-2.5 text-sm text-zinc-400">
         Nobody at Spendbox can read this back to you. Keep your own copy.
       </p>
+
+      {chars && (
+        <CharsetDialog alphabet={alphabet} creating onClose={() => setChars(false)} />
+      )}
     </CardDialog>
   );
 }
 
 
-function SplitTile({
+export function SplitTile({
   label,
   value,
   accent,

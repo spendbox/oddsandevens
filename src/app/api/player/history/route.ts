@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { playerEmail } from "@/lib/player-session";
+import { toDesign } from "@/lib/game/designs";
 
 const LIMIT = 50;
 
@@ -14,6 +15,7 @@ interface HistoryRow {
     title: string;
     slug: string;
     reward_kobo: number;
+    design: string;
     status: string;
     kind: string;
   } | null;
@@ -37,7 +39,7 @@ export async function GET() {
   const { data } = await db
     .from("hunts")
     .select(
-      "id, attempts_count, won_at, started_at, last_attempt_at, boxes(title, slug, reward_kobo, status, kind)"
+      "id, attempts_count, won_at, started_at, last_attempt_at, boxes(title, slug, reward_kobo, design, status, kind)"
     )
     .eq("player_id", player.id)
     .order("last_attempt_at", { ascending: false, nullsFirst: false })
@@ -53,6 +55,7 @@ export async function GET() {
       title: row.boxes?.title ?? "A spendbox",
       slug: row.boxes?.slug ?? null,
       rewardKobo: Number(row.boxes?.reward_kobo ?? 0),
+      design: toDesign(row.boxes?.design),
       boxStatus: row.boxes?.status ?? "closed",
       isPublicBox: row.boxes?.kind === "general",
     })),

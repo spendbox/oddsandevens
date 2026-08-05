@@ -16,10 +16,12 @@ Playing is free: seven lives, one back every hour, forever.
 There is one game. It comes in two versions, and the only difference is whose
 money is behind the reward.
 
-**The public box** is authored by the platform in `/admin` and funded by the
-platform. Free, nothing to collect, no split. Exactly one is playable at a time — a
-unique partial index enforces it — because the public game is *the* public
-game, not a catalogue of them.
+**A platform box** is authored in `/admin` and funded by the platform. Free,
+nothing to collect, no split. There used to be exactly one, enforced by a
+unique partial index, on the reasoning that the public game is *the* public
+game. 0032 dropped that: what leads the front page is now whichever boxes an
+admin has *featured*, from either side, so there is no longer any reason for
+ours to be singular.
 
 **A contributor box** is anyone else's. A contributor writes a password, puts
 money behind it, and shares the link. There is no business here: no trading name,
@@ -30,11 +32,17 @@ behind a password and wants people to attack it.
 
 ## Guessing
 
-A password is 3 to 26 characters from the 26 letters (both cases), ten digits
-and every symbol on a QWERTY keyboard — 94 in all. Anything you can type is
-fair game: `& $ # ) ( ; : ! ? *` and the rest. The one exclusion is the space,
-because a password you can't tell the length of by eye shouldn't also be one
-you can't tell the *shape* of by eye.
+A password is 3 to 26 characters from the 26 letters (both cases), ten digits,
+every symbol on a QWERTY keyboard, the space, and a handful beyond the
+keyboard — `• √ π ÷ × § ∆ £ ¢ € ¥ ° © ® ™ ✓` — 111 in all. Anything you can
+type or paste is fair game.
+
+Space was excluded at first, on the grounds that a password you can't tell the
+length of by eye shouldn't also be one you can't tell the *shape* of by eye.
+It's in now — a password game that forbids the most common character in a
+passphrase is a strange game — and the objection is answered where it belongs,
+in the rendering: everywhere a guess or a password is shown back, a space is
+drawn as `␣`.
 
 **Case is part of the password.** `k` and `K` are different characters, which
 roughly squares the search space and is, with the symbols, why a box takes
@@ -79,6 +87,32 @@ only on how many lives you have. A hard box is a siege, not a sitting.
 Lives can also be bought at **₦150 each**, up to 100 at a time. Nobody has to
 — the pool refills whether or not anyone pays, and the buy dialog says so
 before it says anything else.
+
+### Rewards
+
+A cracked safe pays out **within 24 hours** — to an account already on file. If
+the winner hadn't added one, the clock runs from when they do, which is most of
+why the tutorial ends on the bank screen rather than mentioning it in passing.
+
+### Life Bank
+
+The ceiling is the real cost of a long hunt: an evening away banks seven
+guesses and every hour after that is thrown away. **₦2,500 buys a week** of a
+ceiling of 24, and fills you to it on the spot — a ceiling that takes
+seventeen hours to become visible is a purchase that appears to have done
+nothing.
+
+It sits in the buy-lives dialog with the other two, because all three answer
+the same question in different units: lives are *quantity*, Second Wind is
+*time*, Life Bank is *headroom*. Buying a second week while one is running
+adds to what's left rather than replacing it — a renewal that threw away the
+remainder would punish renewing early.
+
+The ceiling is a column on `players` with an expiry beside it (0037, 0039), and
+`life_cap` falls back to the platform default the moment that passes rather
+than at the next purchase or on a sweep that might never run. **A lapsed week
+never takes lives away**: somebody holding nineteen keeps all nineteen and
+simply stops accruing until they are back under seven.
 
 Admins can grant lives from `/admin`, to an address that has never played if
 need be. It's the only honest fix when something breaks on our side.
@@ -180,17 +214,64 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 
 | Power-up | Price | What it does |
 | --- | --- | --- |
-| Length Lock | 0.25% | Tells you exactly how many characters the password has |
-| Case Map | 0.5% | Counts the uppercase, lowercase, digits and symbols — without positions |
+| Length Lock | 0.5% | Tells you exactly how many characters the password has |
+| Vowel Scan | 0.5% | Counts the vowels, A E I O U, either case |
 | Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
+| Consonant Scan | 1.25% | Counts the consonants — every letter that isn't a vowel |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
-| X-Ray | 5% | Names half the distinct characters it hasn't named yet, unordered |
+| Space Count | 5% | Counts the spaces |
+| X-Ray | 5% | Names half the distinct characters, unordered. Once |
+| Digit Count | 7.5% | Counts the digits |
+| Lowercase Count | 8.5% | Counts the lowercase letters |
+| Capital Count | 9% | Counts the capital letters |
+| Symbol Count | 10% | Counts the symbols — anything that isn't a letter, digit or space |
+
+The shelf is ordered **cheapest first**, which is the order above. It used to
+be in catalogue order — the order they happened to be written in — so a
+₦70,000 counter sat above a ₦3,500 one and the cheap end was somewhere in the
+middle. Price is the axis a player is actually sorting by.
+
+**Every price is editable from `/admin`**, per power-up and globally: the share
+of the reward, the floor, what a life costs, what a week of Life Bank costs,
+and what Spendbox keeps of a sale. The constants above are defaults and stay
+authoritative for anything nobody has touched — a missing settings row, an
+empty object and an untouched key all behave identically to a build with no
+settings at all. Overrides are clamped both when saved and when read, so a
+share typed as `50` instead of `0.5` can neither be stored nor honoured.
 
 **Prices are a share of the box's reward**, floored so that a challenge box
 with nothing behind it still has a shelf to sell. A hint that saves you a
 fortnight of grinding on a ₦7,000,000 safe is not worth what the same hint is
 worth on a ₦7,000 one, and a flat price got that wrong in both directions. The
-floors are ₦200 / ₦300 / ₦300 / ₦500 / ₦1,000 in the order above.
+Every floor is at least ₦100, and that one is not a design choice: Paystack
+refuses a transaction below it, so a price under ₦100 is a checkout that opens
+and then fails. `MIN_PRICE_KOBO` is the backstop that makes it impossible to
+introduce a share low enough to fall through on a small box.
+
+Every dialog on the shelf **runs the effect** before it describes it: a
+four-second CSS loop of the power-up happening to a made-up nine-character
+password. A paragraph asks a player to imagine the result at exactly the moment
+they are deciding whether to spend real money on it, and the sample is fixed
+and fictional so the demo can never be a hint.
+
+### The counters
+
+Seven of them, one number each, sold once. They replaced **Case Map**, which
+sold all four composition numbers at a single price — and a single price is the
+problem, because those four numbers are worth wildly different amounts.
+Knowing there are no symbols removes about thirty candidates from every
+position; knowing there are no spaces removes one. Sold separately they can be
+priced by how much of the search each actually cuts, which is why Symbol Count
+is twenty times a Vowel Scan.
+
+`Revealed.scans` is the one place a count lives, and `parseRevealed` folds an
+old `caseMap` into it on read — so a hunt that paid for Case Map before it was
+retired keeps all four of its numbers, with no legacy field for the rest of the
+app to keep knowing about.
+
+**Life Bank** is not on this shelf, and never should have been. Every other
+thing here is a fact about *one password*; that is a change to the life pool,
+which is shared across every safe. It is sold beside lives now — see below.
 
 The *share* is server-side only. A player is shown what something costs on the
 box in front of them and nothing about how that number was reached — and
@@ -223,8 +304,8 @@ closed, charging a life as usual, rather than aborting the guess.
 
 ### Buying one twice
 
-Length Lock and Case Map sell once: the answer is permanent and complete, so a
-second sale would be a second copy of the same sentence. Second Wind and Colour
+Length Lock, the seven counters and Life Bank sell once: the answer is
+permanent and complete, so a second sale would be a second copy of it. Second Wind and Colour
 Read rent a window and are buyable again the moment it lapses.
 
 X-Ray is neither. Each purchase draws from the characters it *hasn't* named,
@@ -318,12 +399,48 @@ money twice.
 
 ---
 
+### Sheets
+
+Everything modal in the game is one `Modal`. It caps itself to the *small*
+viewport, pins its header and footer, insets itself for an on-screen keyboard,
+and **closes when you swipe it down** — a sheet that arrives from the bottom
+edge of a phone has one gesture everybody already knows, and not honouring it
+makes the grab handle a lie.
+
+The drag engages only from the top of the sheet's scroll: reading down a long
+attempt log and flicking back must scroll, not dismiss. Once engaged it takes
+over, which is why the touch listener is non-passive and added by hand —
+`preventDefault` is the only thing that stops the browser deciding halfway
+through that this was a scroll after all.
+
+---
+
+## The tutorial
+
+Seven cards, once per device, for somebody who has just verified an address and
+wants to guess a password. Everything in it is written down elsewhere — in the
+FAQ, in How it works, on the shelf — and none of that is read by a new player. A
+reference answers the question you already have; this answers the ones you don't
+know to ask.
+
+**It ends on the bank details screen**, and that is the whole shape of it. The
+moment to ask somebody for an account number is while nothing is at stake — not
+in the thirty seconds after a win, when the honest answer to "why do you need my
+bank details" is "because you just won ₦700,000", which is exactly what a
+phishing screen would say. It deep-links to `/me?tab=account` rather than
+dropping them at the safehouse to go and find the right tab.
+
+Nothing in it is a gate: every step has a way past and the whole thing has a
+Skip. A tutorial you cannot leave is an advertisement.
+
+---
+
 ## Surfaces
 
 | Route | Who | What |
 | --- | --- | --- |
-| `/` | anyone | The lobby: the public box, every funded box, and the safes already opened |
-| `/b/[slug]` | anyone | A box, played. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
+| `/` | anyone | Featured safes, swipeable; the safes you have open; the locked and cracked boards behind a session |
+| `/b/[slug]` | anyone | A box, played — the vault scene. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
 | `/me` | a verified player | Lives, invites, attempts, and where a reward has got to. Not an account — there's no password here |
 | `/faq` | anyone | Every explanation the game screens deliberately don't give, searchable |
 | `/terms`, `/privacy` | anyone | The rules and what's collected, with the figures computed from the same constants the code uses |
@@ -333,6 +450,63 @@ money twice.
 
 A player never signs up. They verify an address once — because a reward has to
 be sent somewhere — and a signed cookie remembers them for six months.
+
+**Every page resolves the player on the server** and hands it to the provider
+as its starting state. It used to start every page as an anonymous stranger and
+find out otherwise a round trip later, which on a fast connection is a flash
+and on a slow one is a second of being asked to sign in to a page you are
+already signed into. The address is in a cookie the server can read; there was
+never a reason to ask the browser to go and find out. The cost is that those
+pages can't be prerendered, which is the right trade for anything with a life
+count on it.
+
+### Still open
+
+A signed-in player used to be shown exactly what a stranger was shown: a wall
+of boxes to choose from. But somebody four hundred guesses into a safe is not
+choosing — they are coming back, and the only thing they want is the one they
+were on.
+
+So a strip of the boxes they have open sits above the board, and it looks
+nothing like it. The board's cards are portrait, headed by a reward, and answer
+*is this worth starting*. These are landscape, headed by a progress bar, and
+answer *how far in am I* — your best score fills it and the best anybody has
+managed is a notch on it, so the gap between the two is visible without a
+number being read, and the gap is the whole reason to open it again. Same
+boxes, opposite question, and the shape is the fastest way to say which one you
+are looking at.
+
+Live boxes only, not already won, most recently touched first. A safe somebody
+else cracks drops off the list on its own, which needs no sweep: there is
+nothing to go back to.
+
+The featured carousel also **peeks**. A full-bleed slide is indistinguishable
+from a static hero until somebody happens to drag it, so each card stops just
+short of the full width and the next one shows through — the only thing on the
+page that says there is more than one.
+
+A featured card is three bands with hairlines between them: **who and what**
+(maker, name, description), **the prize** alone on a lit plate in the middle,
+and **the terms** — difficulty on one side, the crowd on the other. It was one
+column of eight things four pixels apart, which is how it managed to read as
+cramped and boring at the same time: nothing was louder than anything else, so
+nothing led.
+
+**Every card is exactly the same height**, and that costs more care than it
+sounds. Descriptions get a fixed two-line slot whether or not there is one; the
+title gets two lines' worth of room; a challenge prints "Challenge" at the same
+size a reward prints its figure; and the terms band is `flex-col sm:flex-row`
+rather than `flex-wrap`, because wrapping is decided per card — a "Merciless"
+badge pushed its counters onto a second line while a "Warm" one didn't, and two
+slides of different heights make the carousel jump under your thumb.
+
+Descriptions are truncated everywhere they appear. The full text is in the
+**vault sheet** during play, which is most of what that button is for.
+
+And a cracked safe keeps its figure in gold, captioned *won by*. Greying it out
+was reading as "there was nothing here" when the opposite is true: somebody was
+paid that, which is the most persuasive thing on the wall and the reason the
+wall exists.
 
 ### The contributor dashboard
 
@@ -416,6 +590,14 @@ four sorted tiles, a winged stopwatch, a prism splitting one beam into the
 three colours the attempt log uses, and a pair of goggles. The colour is how
 you tell them apart on a shelf you visit forty times.
 
+The two scans share one drawing — a card with two characters on it and a beam
+passing beneath — and differ only by the glyph and the badge colour. That is
+deliberate: they are one idea sold twice, and two unrelated pictures for two
+identical products is how a shelf becomes unreadable. The beam sits *under*
+the glyph rather than across it, because a scan line through the middle of two
+characters turns both to mush at the size this is actually looked at, which is
+twelve pixels.
+
 ---
 
 ## The safe
@@ -452,6 +634,202 @@ Because it's live it reacts: the dial rocks gently at rest and spins while a
 guess is in flight. All of the motion is CSS on SVG elements, and all of it is
 switched off by the global `prefers-reduced-motion` rule — with every animation
 stripped it is still a picture of a safe.
+
+---
+
+## The play screen
+
+A password game is, mechanically, a text field and a number. The play screen is
+built on one idea: **the mechanic should be visible as an event.**
+
+A guess either beat your own best or it did not. That is a binary, so it is a
+shot that lands or a shot that goes wide — and the safe carries the damage from
+every one that landed. Ten hits and it bursts.
+
+So the screen is a **chase, seen from above, running forever**: a car behind a
+runaway safe, both travelling, the ground going the other way. Full-bleed, no
+header, no container; every control floats on top of it. Top-down because a
+chase needs two things moving together and a third moving against them, and from
+above you get all three with no horizon to draw. Endless because there is no
+level to finish — you are on this safe until it opens.
+
+| Layer | What |
+| --- | --- |
+| **Verge** | The ground either side, in the terrain's colours. |
+| **Road** | A flat surface that does not move — a repeating band across it read as floor tiles rather than tarmac. The speed comes from the markings, the worn tyre strips and the streaks, which are the things that would actually be moving. |
+| **Scenery** | Ten props down both verges on staggered loops, so the roadside never repeats visibly. |
+| **The safe** | A strongbox on wheels, lid facing you, carrying its damage. |
+| **The car** | Behind it, gun on the roof. Headlights at night. |
+| **Gunfire** | Muzzle flash, the round, and either an impact ring or a shot drifting wide. |
+
+Five terrains — dunes, forest, tundra, coast, downtown — cycled **in order** on a
+22-second timer, crossfading. Random would teleport you between biomes, which
+reads as a bug. The hour of the day is one tint over everything, because a
+top-down view has no sky to put a sun in.
+
+### Under the button
+
+One thing you press forty times an hour, and three you press occasionally. The
+Crack the safe button is full width with the three subtabs — **Attempts**,
+**Power-ups**, **Known** — in a row beneath it; they used to be two unlabelled
+squares sharing the button's row, which made the primary action compete for
+width with them and made an icon alone stand for the shelf where the money is.
+
+**Known** is the one that fixed a real problem. Everything a player had paid to
+learn used to sit in a standing panel in the middle of the scene, with chips
+beside it for whatever was running — so the moment anybody bought anything, the
+game screen grew a stack of prose boxes over the chase. Spending money was
+rewarded with the old, pre-scene layout arriving on top of the new one. It is a
+sheet now, and the running power-ups are in it with their countdowns, which is
+also the only place a clock belongs.
+
+### The rail
+
+Three rows across the top, and nothing on it is captioned — every figure opens
+a sheet that says what it is, which is the only moment anybody wants the
+sentence. Row one is the prize and the two ways out; row two is your best guess
+with the score it earned pinned to the end of it; row three is the crowd.
+
+Two things moved to get there. There were **two trophies** — a percentage on
+the stat row and the same percentage on a floating pill — and a player
+reasonably read them as two different numbers and went looking for the
+difference. There is one now, and it sits on the string it describes, where it
+needs no label. And the **difficulty went into the vault sheet**: it is a fact
+about the box you read once when you arrive, not a reading you check while you
+play, and it was taking rail width from things that are.
+
+### The field
+
+The top ten hunters on a box are ten cars, arranged as the standing: the leader
+in the middle of the front row, everybody else filling outward and backward
+across six lanes and four rows. Nobody overlaps anybody — a standing you can
+read at a glance only works if you can see all of it — and **your car is in it
+wherever you are**, painted gold. Tapping one shows a masked address and a
+percentage, which is the whole of what one stranger should learn about another
+on a screen whose only shared fact is a password neither of them has.
+
+`hunts.best_percent` (0034) is what makes this one query instead of a sort over
+every guess ever made against a popular safe, ten times a page load.
+
+The screen also polls for other people's guesses. When the box's attempt count
+rises somebody else has taken a shot at the same safe, and the scene fires one —
+a chase where only your car ever shoots is not a chase.
+
+### Drops
+
+The two places a player quits a hard box are the same two every time: out of
+lives, and a run of guesses that went nowhere. So a crate floats in at those
+moments — five cold guesses, or two lives left — carrying one of four things,
+and it is gone in ten minutes.
+
+| Gift | What it is |
+| --- | --- |
+| Free lives | One to three, credited on the spot |
+| Free Second Wind | An hour on this box with no lives spent |
+| Power-up discount | 20–50% off one named power-up |
+| Life discount | 20–50% off your next lives, anywhere |
+
+**One gift every ninety minutes**, of any kind, and the floor is in SQL. It
+started at ninety *seconds*, with eight minutes between crates on a calm hunt,
+which over an evening is a gift every few minutes — not a gift, weather.
+
+**The rotation is server-side too, and that is the other half of the fix.** The
+browser used to name the kind it wanted and cycle the power-ups with a counter
+that reset on every page load, so two reloads produced a discount on Length
+Lock three times running. `mint_gift` (0036) ranks every candidate — the three
+fixed kinds plus one per power-up still worth discounting — by when it was last
+put in front of *this player*, oldest first, never-offered first of all, with
+`random()` breaking ties only among the ones they have genuinely never seen. A
+new player's first gifts are varied; a long-running player's are a strict
+cycle. Twelve asks in a row produce twelve different gifts.
+
+The browser's only remaining influence is the shortlist of power-ups still on
+sale here, which only it knows and which can only ever narrow what is offered.
+
+**The per-kind caps** survive underneath, and a capped kind simply isn't a
+candidate:
+
+| Kind | Cap |
+| --- | --- |
+| Free lives | at most five *claimed* in 24 hours |
+| Free Second Wind | one claimed a week |
+
+The two clocks measure different things on purpose. The ninety-minute floor
+counts `created_at`, so a crate somebody ignored still spends it — the limit is
+on how often a player is *interrupted*, and an interruption they declined still
+happened. The daily cap counts `claimed_at`, because that limit is on how many
+lives leave the building.
+
+A discount is a row that the checkout reads (`discount_for` for a power-up,
+`life_discount_for` for lives) and burns afterwards, because a discount the
+client names is a discount the client can name itself. **Its ten minutes run
+from the claim, not from the mint** — a coupon taken at 12:09 out of a window
+that opened at 12:00 used to arrive with forty seconds on it, and no way to
+tell. The play screen carries it as a chip with the countdown on it, the shelf
+strikes through the old price on the one power-up it applies to, and a life
+discount rides on `PlayerState` so the lives dialog shows the same price
+whether it opens from the game, the header or the profile. A discount visible
+in one place and invisible in another is somebody being charged without being
+told.
+
+Free lives never touch a `life_orders` row, so they are invisible to every
+payout: nothing was sold, and nobody's 70% is computed from them. Discounts
+are the reverse — the split is taken from the *discounted* price, so a
+contributor's share follows the discount down rather than being paid on a
+number the player never paid.
+
+### Damage
+
+Ten crack paths are drawn into the lid, revealed one per ten points of **best**
+score — not your last, because the safe does not heal when you try something
+worse. Each draws itself in rather than fading up: a crack that fades is a
+texture, a crack that *travels* is something that just happened.
+
+A hit shakes the scene. A miss travels the same distance at the same speed and
+drifts past — same timing on purpose, because a visibly slower miss would be
+telling you the answer before it lands.
+
+**Nothing about the animation gates the answer.** The result sheet and the shot
+go up in the same tick; somebody firing off guesses never waits for a bullet.
+
+### The mascot's ten turns
+
+The guess dialog carries Boxy on its lip, doing one of ten short turns picked at
+random each time it opens — a spin, a hop, a peek, a tumble. The two seconds
+between deciding to guess and typing it were dead. Nobody will notice which one
+they got; everybody will notice it is never the same twice.
+
+### The result
+
+The score counts up rather than appearing (a number that climbs to 61 feels like
+a result; a number that is simply 61 feels like a field), Boxy reacts, and
+beating your own best is called out — on a box that takes two thousand attempts
+that is the only progress there is.
+
+| | When | What |
+| --- | --- | --- |
+| **The card** | every ordinary guess | Sits over the bottom of the scene, dims nothing, takes itself away after 2.6 seconds. The dock fades while it is up so the two never fight for the corner. |
+| **The dialog** | once per box, on a win | The whole screen, a spark ring, and a button that says *Collect it*. |
+
+The card can be switched off from its own close button, remembered in
+`localStorage`.
+
+Nothing counts attempts at you. The per-attempt ordinal is gone from the log and
+its dialog, and the dock has a dot rather than a total: "attempt 314" measures
+how long you have been stuck, not anything you can act on.
+
+### The number to beat
+
+`boxes.best_percent` is the highest score anybody has reached on a box. It
+could have been a query — `attempts` joined through `hunts`, ordered by score —
+but that is two hops and a sort over every guess ever made against a popular
+safe, for one number, on a screen that reloads after every attempt. So it is a
+column, moved forward by `spend_attempt` with `greatest`, which makes it
+monotonic: it can only go up, which is what "the best so far" means and what
+stops a concurrent guess lowering it.
+
+It is not personal data. It says a stranger once reached 62% on this password;
+it does not say who, when, or with what.
 
 ---
 
@@ -510,17 +888,26 @@ src/lib/game/boxes.ts       reading boxes without reading passwords
 src/lib/game/view.ts        assembling what the play screen sees
 src/lib/game/settle.ts      turning a confirmed payment into the thing it bought
 src/app/api/boxes/…         play: the box, the run, the guess, the power-up
-src/app/api/player/…        lives, verification, history, reward claims
+src/app/api/player/…        lives, verification, history, drops, reward claims
+src/components/in-play.tsx  the safes you have open, above the board
 src/app/api/contributor/…   profile, boxes, funding, attempts, earnings, payout
 src/app/api/admin/…         the public box, reward claims, revenue
 src/components/art/         the house style, Boxy, and the power-up objects
-src/components/safe/        the play screen, and the safe itself in SVG
+src/components/safe/        the play screen: the chase, the field, the drops
+                            and the sheets behind the dock
 supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0027 made a score a percentage, 0028 added
                             Second Wind, the life split and box designs,
                             0029–0030 added invites, 0031 gave players
                             passwords and bank details, 0032 made featuring
-                            possible and merged the two identities into one
+                            possible and merged the two identities into one,
+                            0033 keeps each box's high-water score, 0034 each
+                            hunt's, and adds drops, 0035 caps them and starts
+                            a discount's clock when it is claimed, 0036 moves
+                            the whole gift rotation into Postgres, 0037 makes
+                            the life ceiling a column Life Bank can raise, 0038
+                            adds the contributor payout ledger, 0039 makes
+                            prices editable and Life Bank weekly
 ```
 
 ---

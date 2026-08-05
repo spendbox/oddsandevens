@@ -14,10 +14,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Check,
   Eye,
   EyeOff,
   Lock,
+  Palette,
   ShieldCheck,
+  Tag,
   Star,
   Trash2,
   Users,
@@ -25,15 +28,23 @@ import {
   Wallet,
 } from "lucide-react";
 import {
-  ALPHABET,
-  ALPHABET_SET,
   BLURB_MAX,
+  KOBO,
+  MAX_FUNDING_KOBO,
   MAX_LENGTH,
   MIN_LENGTH,
   TITLE_MAX,
 } from "@/lib/constants";
 import { formatNaira, rewardLabel } from "@/lib/game/rewards";
 import { difficultyOf } from "@/lib/game/difficulty";
+import { DESIGNS, DESIGN_SPECS, DEFAULT_DESIGN, type Design } from "@/lib/game/designs";
+import { SafeArt } from "@/components/safe/safe-art";
+import { CharsetDialog, useAlphabet } from "@/components/charset-dialog";
+import { BuildCard, CardDialog } from "@/components/dashboard/build-panel";
+import { PayoutsPanel } from "@/components/admin/payouts-panel";
+import { PricingPanel } from "@/components/admin/pricing-panel";
+import { AlphabetPanel } from "@/components/admin/alphabet-panel";
+import { LimitsPanel } from "@/components/admin/limits-panel";
 import { GrantLives } from "@/components/admin/grant-lives";
 import { UsersPanel } from "@/components/admin/users-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
@@ -68,6 +79,7 @@ interface Claim {
   accountNumber: string | null;
   accountName: string | null;
   wonAt: string;
+  paidAt: string | null;
 }
 
 interface Overview {
@@ -208,11 +220,22 @@ export default function AdminPage() {
             )}
           </section>
 
+          <PayoutsPanel />
+
+          <PricingPanel />
+
+          <AlphabetPanel />
+
           <GrantLives />
         </>
       )}
 
-      {tab === "players" && <UsersPanel />}
+      {tab === "players" && (
+        <>
+          <UsersPanel />
+          <LimitsPanel />
+        </>
+      )}
 
       {tab === "boxes" && (
         <section className="panel rounded-2xl p-5">
@@ -346,13 +369,17 @@ function ClaimRow({ claim, onPaid }: { claim: Claim; onPaid: () => void }) {
             setBusy(false);
             onPaid();
           }}
-          className="mt-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-semibold transition hover:border-brass/40 disabled:opacity-50"
+          className="mt-2 flex items-center gap-1.5 rounded-lg border border-mark-green/40 bg-mark-green/10 px-3 py-1.5 text-xs font-semibold text-mark-green transition hover:border-mark-green disabled:opacity-50"
         >
-          {busy ? "Marking…" : "Mark as sent"}
+          <Check className="size-3.5" aria-hidden />
+          {busy ? "Marking…" : "Tick when sent"}
         </button>
       )}
       {claim.status === "paid" && (
-        <p className="mt-1 text-xs text-mark-green">Sent</p>
+        <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-mark-green">
+          <Check className="size-3.5" aria-hidden />
+          Sent {claim.paidAt && new Date(claim.paidAt).toLocaleDateString()}
+        </p>
       )}
     </li>
   );
@@ -363,15 +390,24 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
   const [blurb, setBlurb] = useState("");
   const [secret, setSecret] = useState("");
   const [rewardNaira, setRewardNaira] = useState("");
+  const [design, setDesign] = useState<Design>(DEFAULT_DESIGN);
+  const [card, setCard] = useState<"box" | "password" | "reward" | "design" | null>(null);
+  const [chars, setChars] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const clean = secret
-    .toUpperCase()
-    .split("")
-    .filter((ch) => ALPHABET_SET.has(ch))
-    .join("");
-  const valid = clean.length >= MIN_LENGTH && clean.length <= MAX_LENGTH;
+  // Not upper-cased. Case is part of a password now, and quietly folding it
+  // would make an admin box the one kind nobody could crack. The alphabet is
+  // read rather than imported so this field and the create route agree.
+  const alphabet = useAlphabet();
+  const allowed = new Set(alphabet.alphabet);
+  const rejected = [...new Set(secret.split("").filter((ch) => !allowed.has(ch)))];
+  const clean = secret.split("").filter((ch) => allowed.has(ch)).join("");
+  const length = clean.length;
+  const passwordOk = length >= MIN_LENGTH && length <= MAX_LENGTH && rejected.length === 0;
+  const titleOk = title.trim().length > 0;
+  const rewardKobo = Math.round(Number(rewardNaira || 0) * KOBO);
+  const ready = titleOk && passwordOk;
 
   async function create() {
     setBusy(true);
@@ -383,7 +419,8 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         title: title.trim(),
         blurb: blurb.trim(),
         secret: clean,
-        rewardKobo: Math.round(Number(rewardNaira || 0) * 100),
+        rewardKobo,
+        design,
       }),
     });
     setBusy(false);
@@ -392,6 +429,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
       setBlurb("");
       setSecret("");
       setRewardNaira("");
+      setDesign(DEFAULT_DESIGN);
       onCreated();
       return;
     }
@@ -400,80 +438,215 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
 
   return (
     <section className="panel rounded-2xl p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
-        The Spendbox box
+      <h2 className="text-sm font-black uppercase tracking-wide text-zinc-300">
+        A Spendbox box
       </h2>
-      <p className="mt-1 text-xs text-zinc-500">
-        Funded by us, so there’s nothing to collect and no split — just a
-        reward, or none at all, which makes it a pure challenge. You can have as
-        many live at once as you like; feature the ones worth the front page.
+      <p className="mb-3 mt-1 text-xs text-zinc-500">
+        The same four decisions a contributor makes, in the same four cards —
+        with no checkout at the end of them. We fund these, so there is nothing
+        to collect and no split. Leave the reward blank for a pure challenge.
       </p>
 
-      <div className="mt-3 space-y-2">
-        <input
-          value={title}
-          maxLength={TITLE_MAX}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title"
-          className={INPUT}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <BuildCard
+          icon={<Tag className="size-4" aria-hidden />}
+          label="The box"
+          value={titleOk ? title.trim() : "Give it a name"}
+          done={titleOk}
+          onOpen={() => setCard("box")}
         />
-        <input
-          value={blurb}
-          maxLength={BLURB_MAX}
-          onChange={(e) => setBlurb(e.target.value)}
-          placeholder="One line for the card. Optional."
-          className={INPUT}
+        <BuildCard
+          icon={<Vault className="size-4" aria-hidden />}
+          label="The password"
+          value={
+            passwordOk ? `${length} characters · ${difficultyOf(length)}` : "Write one, or roll one"
+          }
+          done={passwordOk}
+          onOpen={() => setCard("password")}
         />
-        <div className="flex gap-2">
-          <input
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            placeholder="Password"
-            spellCheck={false}
-            autoComplete="off"
-            className={`${INPUT} font-mono tracking-[0.2em]`}
-          />
-          <button
-            type="button"
-            onClick={() => {
-              const bytes = new Uint32Array(6);
-              crypto.getRandomValues(bytes);
-              setSecret(Array.from(bytes, (n) => ALPHABET[n % ALPHABET.length]).join(""));
-            }}
-            className="shrink-0 rounded-xl border border-white/10 px-3 text-sm text-zinc-400 hover:border-brass/40"
-          >
-            Roll
-          </button>
-        </div>
-        <div className="relative">
-          <span className="absolute inset-y-0 left-4 flex items-center text-zinc-500">₦</span>
-          <input
-            inputMode="numeric"
-            value={rewardNaira}
-            onChange={(e) => setRewardNaira(e.target.value.replace(/[^\d]/g, ""))}
-            placeholder="Reward — leave blank for a pure challenge"
-            className={`${INPUT} pl-8 font-mono`}
-          />
-        </div>
-
-        <p className="text-xs text-zinc-500">
-          {clean.length} characters{valid && ` — ${difficultyOf(clean.length)}`}
-        </p>
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <button
-          type="button"
-          disabled={busy || !valid || !title.trim()}
-          onClick={() => void create()}
-          style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-          className={PRIMARY}
-        >
-          {busy ? "Publishing…" : "Publish it"}
-        </button>
+        <BuildCard
+          icon={<Wallet className="size-4" aria-hidden />}
+          label="The reward"
+          value={rewardKobo > 0 ? rewardLabel(rewardKobo) : "A pure challenge"}
+          done
+          onOpen={() => setCard("reward")}
+        />
+        <BuildCard
+          icon={<Palette className="size-4" aria-hidden />}
+          label="The safe"
+          value={DESIGN_SPECS[design].name}
+          done
+          art={<SafeArt design={design} className="size-9" />}
+          onOpen={() => setCard("design")}
+        />
       </div>
+
+      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+
+      <button
+        type="button"
+        disabled={busy || !ready}
+        onClick={() => void create()}
+        style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+        className={`mt-3 ${PRIMARY}`}
+      >
+        {busy ? "Creating…" : ready ? "Put it live" : "Fill in the cards above"}
+      </button>
+
+      {card === "box" && (
+        <CardDialog title="The box" onClose={() => setCard(null)}>
+          <label className="block">
+            <span className="text-sm font-bold text-zinc-300">Name</span>
+            <input
+              value={title}
+              maxLength={TITLE_MAX}
+              autoFocus
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Friday Safe"
+              className={`${INPUT} mt-1.5`}
+            />
+            <span className="mt-1 block text-right text-xs text-zinc-400">
+              {title.length}/{TITLE_MAX}
+            </span>
+          </label>
+          <label className="block">
+            <span className="text-sm font-bold text-zinc-300">One line for the card</span>
+            <textarea
+              value={blurb}
+              maxLength={BLURB_MAX}
+              rows={2}
+              onChange={(e) => setBlurb(e.target.value)}
+              placeholder="Optional."
+              className={`${INPUT} mt-1.5 resize-none`}
+            />
+            <span className="mt-1 block text-right text-xs text-zinc-400">
+              {blurb.length}/{BLURB_MAX}
+            </span>
+          </label>
+        </CardDialog>
+      )}
+
+      {card === "password" && (
+        <CardDialog title="The password" onClose={() => setCard(null)}>
+          <div className="flex gap-2">
+            <input
+              value={secret}
+              autoFocus
+              maxLength={MAX_LENGTH}
+              onChange={(e) => setSecret(e.target.value.slice(0, MAX_LENGTH))}
+              placeholder="Type it, or roll one"
+              spellCheck={false}
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              className={`${INPUT} font-mono tracking-[0.15em]`}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const bytes = new Uint32Array(10);
+                crypto.getRandomValues(bytes);
+                setSecret(
+                  Array.from(
+                    bytes,
+                    (n) => alphabet.alphabet[n % alphabet.alphabet.length]
+                  ).join("")
+                );
+              }}
+              className="shrink-0 rounded-xl border border-white/10 px-3 text-sm text-zinc-400 hover:border-brass/40"
+            >
+              Roll
+            </button>
+          </div>
+
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="text-zinc-500">
+              {MIN_LENGTH}–{MAX_LENGTH} characters. Case matters.{" "}
+              <button
+                type="button"
+                onClick={() => setChars(true)}
+                className="font-bold text-brass underline underline-offset-2"
+              >
+                See all {alphabet.alphabet.length}
+              </button>
+              .
+            </span>
+            <span className="shrink-0 font-mono text-zinc-300">
+              {length > 0 ? `${length} · ${difficultyOf(length)}` : `0/${MAX_LENGTH}`}
+            </span>
+          </div>
+
+          {rejected.length > 0 && (
+            <p className="rounded-lg bg-berry/15 px-3 py-2 text-sm font-bold text-berry">
+              Not allowed: <span className="font-mono">{rejected.join(" ")}</span>. Remove them.
+            </p>
+          )}
+
+          {chars && (
+            <CharsetDialog alphabet={alphabet} creating onClose={() => setChars(false)} />
+          )}
+        </CardDialog>
+      )}
+
+      {card === "reward" && (
+        <CardDialog title="The reward" onClose={() => setCard(null)}>
+          <div className="relative">
+            <span className="absolute inset-y-0 left-4 flex items-center text-zinc-400">₦</span>
+            <input
+              inputMode="numeric"
+              autoFocus
+              value={rewardNaira}
+              onChange={(e) => setRewardNaira(capNaira(e.target.value))}
+              placeholder="Leave blank for a pure challenge"
+              className={`${INPUT} mt-1.5 pl-8 font-mono`}
+            />
+          </div>
+          <p className="text-sm text-zinc-500">
+            Ours to fund, so there is no floor and no split — whatever goes in
+            here is what the winner is paid. {formatNaira(MAX_FUNDING_KOBO)} is
+            the ceiling, because it is the largest single transfer Paystack will
+            make.
+          </p>
+        </CardDialog>
+      )}
+
+      {card === "design" && (
+        <CardDialog title="The safe" onClose={() => setCard(null)}>
+          <p className="text-sm text-zinc-500">
+            Decoration, and only decoration — it changes nothing about the game.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {DESIGNS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setDesign(key)}
+                className={
+                  "flex flex-col items-center gap-1 rounded-xl border-2 p-2 transition " +
+                  (design === key
+                    ? "border-brass bg-brass/5"
+                    : "border-white/12 bg-white/5 hover:border-white/30")
+                }
+              >
+                <SafeArt design={key} className="size-14" />
+                <span className="text-xs font-bold text-zinc-300">
+                  {DESIGN_SPECS[key].name}
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="text-sm text-zinc-500">{DESIGN_SPECS[design].note}</p>
+        </CardDialog>
+      )}
     </section>
   );
+}
+
+/** Digits only, never above the ceiling Paystack will actually transfer. */
+function capNaira(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, "").replace(/^0+(?=\d)/, "");
+  if (!digits) return "";
+  return String(Math.min(Number(digits), MAX_FUNDING_KOBO / KOBO));
 }
 
 function AdminLogin({ onIn }: { onIn: () => void }) {

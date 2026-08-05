@@ -14,13 +14,49 @@
 // prize up.
 
 import { useState } from "react";
-import { Repeat2, Wallet } from "lucide-react";
+import { Check, Repeat2, Tag, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { PowerUpArt } from "@/components/art/power-up-art";
+import { PowerUpDemo } from "./power-up-demo";
 import { formatNaira } from "@/lib/game/rewards";
 import { countdown } from "@/components/player/lives-badge";
-import type { Offering } from "@/lib/game/power-ups";
-import type { PlayView } from "@/lib/types";
+import { discountedKobo, secondWindLabel, type Offering } from "@/lib/game/power-ups";
+import type { ClaimedDiscount, PlayView } from "@/lib/types";
+
+/**
+ * What this one costs today, and what it costs normally.
+ *
+ * A claimed drop applies to exactly one power-up, so this returns the full
+ * price untouched for every other card on the shelf — which is the point of
+ * tying a discount to a named power-up in the first place.
+ */
+function priced(
+  powerUp: Offering,
+  discount: ClaimedDiscount | null,
+  now: number
+): {
+  payKobo: number;
+  /** The undiscounted price, or null when there's nothing to strike through. */
+  wasKobo: number | null;
+  percentOff: number;
+  /** When the discount lapses, so the dialog can count it down. */
+  expiresAt: string | null;
+} {
+  const live =
+    discount &&
+    discount.powerUp === powerUp.kind &&
+    new Date(discount.expiresAt).getTime() > now;
+
+  if (!live) {
+    return { payKobo: powerUp.priceKobo, wasKobo: null, percentOff: 0, expiresAt: null };
+  }
+  return {
+    payKobo: discountedKobo(powerUp.priceKobo, discount.amount),
+    wasKobo: powerUp.priceKobo,
+    percentOff: discount.amount,
+    expiresAt: discount.expiresAt,
+  };
+}
 
 export function PowerUpShelf({
   view,
@@ -50,34 +86,73 @@ export function PowerUpShelf({
       <div className="grid gap-2 sm:grid-cols-2">
         {view.powerUps.map((powerUp, i) => {
           const running = !!powerUp.activeUntil && new Date(powerUp.activeUntil).getTime() > now;
+          const price = priced(powerUp, view.discount, now);
           return (
             <button
               key={powerUp.kind}
               type="button"
               onClick={() => setOpen(powerUp)}
               style={{ "--i": i } as React.CSSProperties}
+              /*
+                A spent power-up is *out*, and it should look it. Sixty percent
+                opacity was not enough — the art still had its colour, the price
+                was still gold, and it read as available-but-dim. It is
+                desaturated, dropped to a third, and captioned "bought" now.
+                Still tappable, because what it told you is still worth
+                re-reading.
+              */
               className={
                 "panel animate-fade-up stagger flex items-start gap-3 rounded-xl p-3 text-left transition hover:-translate-y-0.5 hover:border-brass/40 " +
-                (powerUp.available ? "" : "opacity-60")
+                (powerUp.available || running ? "" : "opacity-55 grayscale")
               }
             >
               <PowerUpArt kind={powerUp.kind} className="size-12 shrink-0 drop-shadow-lg" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="truncate font-semibold text-zinc-100">
+                    <span
+                      className={
+                        "truncate font-semibold " +
+                        (powerUp.available || running ? "text-zinc-100" : "text-zinc-400")
+                      }
+                    >
                       {powerUp.name}
                     </span>
-                    {powerUp.repeat === "once" && (
-                      <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500">
-                        Once
+                    {!powerUp.available && !running ? (
+                      <span className="flex shrink-0 items-center gap-0.5 rounded bg-white/8 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+                        <Check className="size-2.5" aria-hidden />
+                        Bought
                       </span>
+                    ) : (
+                      powerUp.repeat === "once" && (
+                        <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500">
+                          Once
+                        </span>
+                      )
                     )}
                   </span>
-                  <span className="shrink-0 font-mono text-sm text-brass">
-                    {formatNaira(powerUp.priceKobo)}
-                  </span>
+                  {/* No price on something that can't be bought. A struck-out
+                      figure on a spent power-up is an invitation to try. */}
+                  {(powerUp.available || running) && (
+                    <span className="shrink-0 text-right font-mono text-sm text-brass">
+                      {price.wasKobo !== null && (
+                        <span className="mr-1.5 text-xs text-zinc-500 line-through">
+                          {formatNaira(price.wasKobo)}
+                        </span>
+                      )}
+                      {formatNaira(price.payKobo)}
+                    </span>
+                  )}
                 </span>
+
+                {/* Not uppercased: `countdown` returns "6m", and "6M" on a
+                    price tag reads as six million. */}
+                {price.expiresAt && (
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-grape/20 px-1.5 py-0.5 text-[10px] font-black tracking-wide text-grape">
+                    <Tag className="size-2.5" aria-hidden />
+                    {price.percentOff}% off · {countdown(price.expiresAt, now)}
+                  </span>
+                )}
                 <span className="mt-0.5 block text-xs leading-snug text-zinc-400">
                   {running && powerUp.activeUntil ? (
                     <span className="text-mark-green">
@@ -87,8 +162,6 @@ export function PowerUpShelf({
                     powerUp.blurb
                   ) : powerUp.repeat === "once" ? (
                     "Bought. It only sells once."
-                  ) : powerUp.repeat === "partial" ? (
-                    "Nothing left to name — you have all of them."
                   ) : (
                     "Already bought — it has nothing left to tell you."
                   )}
@@ -99,24 +172,14 @@ export function PowerUpShelf({
         })}
       </div>
 
-      {view.hunt && view.hunt.notes.length > 0 && (
-        <div className="panel rounded-xl p-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            What you’ve bought
-          </h3>
-          <ul className="mt-2 space-y-1 text-sm text-brass">
-            {view.hunt.notes.map((note: string, i: number) => (
-              <li key={i} className="font-mono">
-                {note}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* "What you've bought" used to be listed again down here, under the
+          shelf. It is the whole content of the Active boosters sheet, laid out
+          far better, and repeating it turned the shop into a receipt. */}
 
       {open && (
         <PowerUpDialog
           powerUp={open}
+          price={priced(open, view.discount, now)}
           slug={slug}
           contributor={view.box.contributor}
           disabled={disabled}
@@ -137,6 +200,7 @@ export function PowerUpShelf({
  */
 function PowerUpDialog({
   powerUp,
+  price,
   slug,
   contributor,
   disabled,
@@ -144,6 +208,7 @@ function PowerUpDialog({
   onClose,
 }: {
   powerUp: Offering;
+  price: ReturnType<typeof priced>;
   slug: string;
   contributor: string | null;
   disabled: boolean;
@@ -190,7 +255,7 @@ function PowerUpDialog({
       subtitle={
         running && powerUp.activeUntil
           ? `Running — ${countdown(powerUp.activeUntil, now)} left`
-          : `${formatNaira(powerUp.priceKobo)} on this box`
+          : `${formatNaira(price.payKobo)} on this box`
       }
       icon={<PowerUpArt kind={powerUp.kind} className="size-7" />}
       width="sm"
@@ -205,7 +270,7 @@ function PowerUpDialog({
             className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-grape px-4 py-3.5 text-ink"
           >
             <Wallet className="size-4" aria-hidden />
-            {busy ? "Opening checkout…" : `Pay ${formatNaira(powerUp.priceKobo)}`}
+            {busy ? "Opening checkout…" : `Pay ${formatNaira(price.payKobo)}`}
           </button>
         ) : (
           <button
@@ -219,6 +284,11 @@ function PowerUpDialog({
       }
     >
       <div className="space-y-4 pb-1">
+        {/* The effect, happening, before a word of it is described. Four
+            seconds on a loop, on a password that isn't the one behind this
+            box. */}
+        <PowerUpDemo kind={powerUp.kind} />
+
         <p className="text-sm leading-relaxed text-zinc-300">{powerUp.detail}</p>
 
         <div className="rounded-xl bg-black/25 px-3 py-2.5">
@@ -231,12 +301,10 @@ function PowerUpDialog({
         <p className="flex items-start gap-2 text-sm text-zinc-500">
           <Repeat2 className="mt-0.5 size-4 shrink-0" aria-hidden />
           {powerUp.repeat === "once"
-            ? "One purchase per box. What it tells you never changes, so there'd be nothing to buy a second time."
-            : powerUp.repeat === "partial"
-              ? "Buy it as often as you like. Each one draws from what it hasn't shown you yet, so it never repeats itself — and it stops selling once there's nothing left to name."
-              : powerUp.repeat === "hourly"
-                ? "Runs for an hour, then lapses. Buy it again whenever you need another."
-                : "Runs for 24 hours, then lapses. Buy it again whenever you need another."}
+            ? "One purchase per box. What it gives you never changes, so there'd be nothing to buy a second time."
+            : powerUp.repeat === "hourly"
+              ? `Runs for ${secondWindLabel()}, then lapses. Buy it again whenever you need another.`
+              : "Runs for 24 hours, then lapses. Buy it again whenever you need another."}
         </p>
 
         {/*
@@ -248,9 +316,22 @@ function PowerUpDialog({
         <div className="flex items-baseline justify-between gap-3 border-t border-white/10 pt-3">
           <span className="text-sm text-zinc-500">Price on this box</span>
           <span className="shrink-0 font-mono text-lg font-black text-brass">
-            {formatNaira(powerUp.priceKobo)}
+            {price.wasKobo !== null && (
+              <span className="mr-2 text-sm font-bold text-zinc-500 line-through">
+                {formatNaira(price.wasKobo)}
+              </span>
+            )}
+            {formatNaira(price.payKobo)}
           </span>
         </div>
+
+        {price.expiresAt && (
+          <p className="flex items-center gap-1.5 rounded-xl bg-grape/15 px-3 py-2 text-sm font-bold text-grape">
+            <Tag className="size-4 shrink-0" aria-hidden />
+            Your {price.percentOff}% off is applied — {countdown(price.expiresAt, now)} to use
+            it.
+          </p>
+        )}
 
         {contributor && (
           <p className="text-xs text-zinc-500">70% of this goes to {contributor}.</p>

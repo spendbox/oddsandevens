@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import {
-  ALPHABET_SET,
-  BLURB_MAX,
-  MAX_LENGTH,
-  MIN_LENGTH,
-  TITLE_MAX,
-} from "@/lib/constants";
+import { BLURB_MAX, MAX_LENGTH, MIN_LENGTH, TITLE_MAX } from "@/lib/constants";
+import { alphabetOf, loadSymbols, withinAlphabet } from "@/lib/game/alphabet";
 import { getAuthedContributor } from "@/lib/contributor-auth";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
 import { fundingIsValid, minFundingKobo, splitFunding } from "@/lib/game/rewards";
@@ -184,9 +179,11 @@ export async function readBoxBody(
   if (secret.length < MIN_LENGTH || secret.length > MAX_LENGTH) {
     return { error: "invalid_length" };
   }
-  for (const ch of secret) {
-    if (!ALPHABET_SET.has(ch)) return { error: "invalid_characters" };
-  }
+  // The *current* alphabet, not the guess one: a new password may only be
+  // built from what is on offer today. Anything creatable is guessable, so
+  // this is always the narrower of the two.
+  const allowed = new Set(alphabetOf(await loadSymbols(supabaseAdmin())));
+  if (!withinAlphabet(secret, allowed)) return { error: "invalid_characters" };
   if (!fundingIsValid(secret.length, fundingKobo)) {
     return { error: "funding_too_low", minFundingKobo: minFundingKobo(secret.length) };
   }

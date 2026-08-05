@@ -14,9 +14,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Gift, Landmark, Swords, Trophy } from "lucide-react";
+import { ArrowRight, Gift, Hammer, Landmark, Search, Swords, Trophy } from "lucide-react";
 import { LIVES_MAX } from "@/lib/constants";
-import { formatNaira } from "@/lib/game/rewards";
+import { formatNaira, rewardLabel } from "@/lib/game/rewards";
+import type { Design } from "@/lib/game/designs";
+import { SafeArt } from "@/components/safe/safe-art";
 import { plural } from "@/lib/plural";
 import type { Bank } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
@@ -38,6 +40,7 @@ interface HistoryHunt {
   title: string;
   slug: string | null;
   rewardKobo: number;
+  design: Design;
   boxStatus: string;
   /** The platform's own box. Worth marking — it's where most people start. */
   isPublicBox: boolean;
@@ -58,7 +61,18 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
   const [prizes, setPrizes] = useState<Prize[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
   const [hunts, setHunts] = useState<HistoryHunt[]>([]);
-  const [tab, setTab] = useState<Tab>("hunts");
+  /*
+   * Which tab, and the URL may ask for one.
+   *
+   * `?tab=account` is how the tutorial's last step lands somebody directly on
+   * their bank details — sending them to the safehouse and telling them to go
+   * and find the right tab would undo most of what the tutorial was for.
+   */
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === "undefined") return "hunts";
+    const asked = new URLSearchParams(window.location.search).get("tab");
+    return TABS.some((t) => t.id === asked) ? (asked as Tab) : "hunts";
+  });
   const [dialog, setDialog] = useState<"none" | "verify" | "lives">("none");
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -263,6 +277,33 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
         <div className="space-y-4">
           <BankPanel />
           <SecurityPanel />
+
+          {/*
+            The other side of the game, and the last thing on the last tab —
+            which is the right place for it. Somebody who has read this far
+            has an account, a bank account on file and a history of playing;
+            that is exactly the person who might put a safe up themselves, and
+            until now there was nothing anywhere on this screen that said they
+            could.
+          */}
+          <Link
+            href="/dashboard"
+            className="panel panel-lift flex items-center gap-3 rounded-2xl p-4"
+          >
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brass/15 text-brass">
+              <Hammer className="size-5" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-black tracking-tight">
+                Put up a safe of your own
+              </span>
+              <span className="mt-0.5 block text-xs leading-snug text-zinc-400">
+                Write a password, put money behind it, and share the link. You
+                keep 70% of everything players spend on it.
+              </span>
+            </span>
+            <ArrowRight className="size-4 shrink-0 text-zinc-500" aria-hidden />
+          </Link>
         </div>
       )}
 
@@ -289,13 +330,23 @@ function Hunts({ hunts }: { hunts: HistoryHunt[] }) {
   }
 
   return (
+    <>
     <ul className="space-y-2">
       {hunts.map((hunt) => {
         // The whole row is the link, not the title inside it. A card with one
         // destination should have one target the size of the card.
+        // Which safe this is, said twice over: the design on the left so a
+        // regular recognises a row before reading it, and the money, which is
+        // the reason any of these rows exist.
+        const live = !hunt.won && hunt.boxStatus === "live";
         const body = (
           <>
-            <div className="min-w-0">
+            <SafeArt
+              design={hunt.design}
+              mood={hunt.boxStatus === "unlocked" || hunt.won ? "open" : "idle"}
+              className="size-10 shrink-0"
+            />
+            <div className="min-w-0 flex-1">
               <p className="truncate font-bold">
                 {hunt.title}
                 {hunt.isPublicBox && (
@@ -309,28 +360,38 @@ function Hunts({ hunts }: { hunts: HistoryHunt[] }) {
                 {new Date(hunt.lastAttemptAt ?? hunt.startedAt).toLocaleDateString()}
               </p>
             </div>
-            <span
-              className={
-                "shrink-0 rounded-lg px-2.5 py-1 text-xs font-black " +
-                (hunt.won
-                  ? "bg-mint text-ink"
-                  : hunt.boxStatus === "live"
-                    ? "bg-brass text-ink"
-                    : "bg-white/10 text-zinc-400")
-              }
-            >
-              {hunt.won
-                ? "Opened"
-                : hunt.boxStatus === "live"
-                  ? "Still open"
-                  : hunt.boxStatus === "unlocked"
-                    ? "Taken"
-                    : "Closed"}
+            <span className="shrink-0 text-right">
+              <span
+                className={
+                  "block font-mono text-sm font-black tabular-nums " +
+                  (live ? "text-brass" : "text-zinc-500")
+                }
+              >
+                {rewardLabel(hunt.rewardKobo)}
+              </span>
+              <span
+                className={
+                  "mt-0.5 block rounded-lg px-2 py-0.5 text-[11px] font-black " +
+                  (hunt.won
+                    ? "bg-mint text-ink"
+                    : live
+                      ? "bg-brass text-ink"
+                      : "bg-white/10 text-zinc-400")
+                }
+              >
+                {hunt.won
+                  ? "Cracked"
+                  : live
+                    ? "Still locked"
+                    : hunt.boxStatus === "unlocked"
+                      ? "Cracked"
+                      : "Withdrawn"}
+              </span>
             </span>
           </>
         );
         const shell =
-          "panel flex items-center justify-between gap-3 rounded-2xl px-4 py-3";
+          "panel flex items-center gap-3 rounded-2xl px-3 py-3";
 
         return (
           <li key={hunt.id}>
@@ -345,5 +406,19 @@ function Hunts({ hunts }: { hunts: HistoryHunt[] }) {
         );
       })}
     </ul>
+
+    {/*
+      A way on. The list used to end at the last safe you had touched, which
+      on a screen called "the safehouse" reads as "that's all there is" — and
+      the only route back to the board was the browser's back button.
+    */}
+    <Link
+      href="/"
+      className="panel panel-lift mt-3 flex items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-bold text-brass"
+    >
+      <Search className="size-4" aria-hidden />
+      Find more safes
+    </Link>
+    </>
   );
 }

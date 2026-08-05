@@ -14,6 +14,7 @@
 // rather than the arithmetic.
 
 import { Lock, MoveDown, MoveUp, Target } from "lucide-react";
+import { visible } from "@/lib/constants";
 import { Modal } from "@/components/ui/modal";
 import { plural } from "@/lib/plural";
 import type { AttemptRecord } from "@/lib/types";
@@ -52,7 +53,7 @@ export function AttemptDialog({
 
   return (
     <Modal
-      title={`Attempt ${attempt.ordinal + 1}`}
+      title="This guess"
       subtitle={new Date(attempt.at).toLocaleString()}
       width="sm"
       onClose={onClose}
@@ -81,7 +82,7 @@ export function AttemptDialog({
           <p className="text-xs uppercase tracking-wide text-zinc-500">You typed</p>
           {/* `break-all`: a 40-character guess has no spaces to break on. */}
           <code className="mt-1 block break-all rounded-xl bg-black/30 px-3 py-2.5 font-mono text-base text-foreground">
-            {attempt.value}
+            {visible(attempt.value)}
           </code>
           <p className="mt-1 text-xs text-zinc-500">
             {plural(attempt.value.length, "character")}

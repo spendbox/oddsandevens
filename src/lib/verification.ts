@@ -84,17 +84,38 @@ export async function verifyCode(
     return false;
   }
 
+  /*
+   * Spend the attempt *before* checking the code, and spend it atomically.
+   *
+   * This used to read the counter, compare the code, and write `attempts + 1`
+   * only on a miss — three steps with no lock between them. Fire a thousand
+   * guesses at once and all thousand read `attempts = 0`, all thousand are
+   * checked, and the counter lands on 1: the five-attempt ceiling was a
+   * ceiling on *sequential* guessing and no ceiling at all on parallel
+   * guessing, which is the only kind anybody attacking a six-digit code would
+   * do. A reset code is a contributor's password and a player's session, so
+   * that is an account takeover in about a million requests.
+   *
+   * The `eq("attempts", …)` makes the update a compare-and-set: exactly one
+   * concurrent request can move the counter from n to n+1, and everybody who
+   * loses that race is turned away without their guess ever being compared.
+   * Spending it first also means a request that dies mid-flight still costs an
+   * attempt rather than being free.
+   */
+  const { data: spent } = await db
+    .from("verification_codes")
+    .update({ attempts: row.attempts + 1 })
+    .eq("id", row.id)
+    .eq("attempts", row.attempts)
+    .select("id")
+    .maybeSingle();
+  if (!spent) return false;
+
   const expected = Buffer.from(row.code_hash);
   const actual = Buffer.from(hashCode(addr, code));
   const ok = expected.length === actual.length && timingSafeEqual(expected, actual);
 
-  if (!ok) {
-    await db
-      .from("verification_codes")
-      .update({ attempts: row.attempts + 1 })
-      .eq("id", row.id);
-    return false;
-  }
+  if (!ok) return false;
 
   // Consume every outstanding code for this email + purpose.
   await db

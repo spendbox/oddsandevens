@@ -34,6 +34,15 @@ export interface PublicBox {
   status: BoxStatus;
   attemptsCount: number;
   playersCount: number;
+  /**
+   * The best score anybody has reached on this box, 0–100.
+   *
+   * The number to beat, and the only thing on the play screen that is about
+   * somebody other than you. It names nobody and dates nothing — it says a
+   * stranger once got this close, which is the whole of what a leaderboard is
+   * for on a game with exactly one winner.
+   */
+  bestPercent: number;
   contributor: string | null;
   publishedAt: string | null;
   unlockedAt: string | null;
@@ -50,6 +59,31 @@ export interface PublicBox {
   featured: boolean;
 }
 
+/**
+ * A box this player has open, for the strip above the board.
+ *
+ * Not a `PublicBox`: a box on the board is an invitation and is described by
+ * what it's worth, while one of these is a thing already in progress and is
+ * described by how far in you are. Different question, different shape, and
+ * folding them together is what made the signed-in front page look exactly
+ * like the signed-out one.
+ */
+export interface InPlayHunt {
+  slug: string;
+  title: string;
+  design: Design;
+  difficulty: Difficulty;
+  rewardKobo: number;
+  isChallenge: boolean;
+  /** Guesses you have made at it. */
+  attempts: number;
+  /** Your best score on it, 0–100. */
+  bestPercent: number;
+  /** The best anybody has managed, so yours has something to sit against. */
+  boxBestPercent: number;
+  lastAttemptAt: string | null;
+}
+
 /** The player's own life pool, as the header shows it. */
 export interface PlayerState {
   email: string | null;
@@ -62,6 +96,15 @@ export interface PlayerState {
   inviteCode: string | null;
   /** Bonus lives banked, which land free on their next paid top-up. */
   bonusLivesPending: number;
+  /**
+   * Money off the next lives order, claimed from a drop and unspent.
+   *
+   * It lives on the player rather than on a box, because lives bought anywhere
+   * work everywhere — and so that the lives dialog shows the same price
+   * wherever it is opened from. A discount visible in the game and invisible
+   * in the header would be a discount somebody is charged without being told.
+   */
+  lifeDiscount: { amount: number; expiresAt: string } | null;
 }
 
 /** What the invite screen shows: the link, and what it has earned so far. */
@@ -114,10 +157,73 @@ export interface HuntState {
   won: boolean;
 }
 
+/**
+ * Somebody else on the same safe.
+ *
+ * The play screen draws the top ten as a field of cars, so this is deliberately
+ * the smallest thing that supports that: a masked address and how close they
+ * are. No id, no dates, nothing that identifies anybody to anybody.
+ */
+export interface Rival {
+  /** Masked before it leaves the server, always. */
+  player: string;
+  percent: number;
+  /** True for the one that is you, so your car can be marked. */
+  you: boolean;
+}
+
+/**
+ * A drop: something that falls out of the sky mid-hunt and is gone in minutes.
+ *
+ * Minted server-side and claimed server-side. It exists as a row rather than a
+ * browser-side coupon for the obvious reason — a discount the client names is
+ * a discount the client can name itself.
+ */
+export type DropKind =
+  | "free_lives"
+  | "power_up_discount"
+  | "free_second_wind"
+  | "life_discount";
+
+export interface Drop {
+  id: string;
+  kind: DropKind;
+  /** A count of lives, a percentage off, or an hour of Second Wind. */
+  amount: number;
+  /** Which power-up a discount applies to. Null for every other kind. */
+  powerUp: string | null;
+  expiresAt: string;
+}
+
+/**
+ * A discount already claimed and not yet spent — the thing a player is
+ * *holding*, as opposed to the crate they were offered.
+ *
+ * It has its own ten minutes, starting from the claim, and the play screen
+ * counts them down in front of them. A discount you were given and then
+ * couldn't find is worse than no discount, and one that quietly expired while
+ * you were reading the shelf is worse still.
+ */
+export interface ClaimedDiscount {
+  /** The power-up it may be spent on, and only that one. */
+  powerUp: string;
+  /** Percent off. */
+  amount: number;
+  expiresAt: string;
+}
+
 export interface PlayView {
   box: PublicBox;
   player: PlayerState;
   hunt: HuntState | null;
+  /** The top ten on this box, closest first. Includes you wherever you are. */
+  rivals: Rival[];
+  /** An unclaimed offer waiting, if there is one. */
+  offer: Drop | null;
+  /** A claimed discount still in its redemption window, if there is one. */
+  discount: ClaimedDiscount | null;
+  /** A week of the raised life ceiling, at whatever an admin has priced it. */
+  lifeBankKobo: number;
   /**
    * The shelf, priced against *this* box. Every power-up costs a share of the
    * reward, so the same hint is a different price on a ₦7,000,000 safe and a

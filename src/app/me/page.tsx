@@ -1,4 +1,5 @@
 import { PlayerProvider } from "@/components/player/player-context";
+import { currentPlayerState } from "@/lib/player-state";
 import { SiteHeader } from "@/components/site-header";
 import { PlayerPortal } from "@/components/player/player-portal";
 
@@ -16,7 +17,7 @@ export default async function MePage({
 }) {
   const { reference } = await searchParams;
   return (
-    <PlayerProvider>
+    <PlayerProvider initial={await currentPlayerState()}>
       <SiteHeader />
       <main className="flex-1">
         <PlayerPortal pendingReference={reference ?? null} />

@@ -74,12 +74,12 @@ export function LivesBadge({ onBuy }: { onBuy?: () => void }) {
       disabled={!onBuy}
       style={
         {
-          "--btn-lip": empty ? "var(--berry-deep)" : "rgba(0,0,0,0.35)",
+          "--btn-lip": empty ? "var(--berry-deep)" : "var(--surface-low)",
         } as React.CSSProperties
       }
       className={
         "btn-chunky flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm " +
-        (empty ? "bg-berry text-ink" : "bg-white/8 text-foreground") +
+        (empty ? "bg-berry text-ink" : "bg-surface-high text-foreground") +
         (onBuy ? " cursor-pointer" : " cursor-default")
       }
       title={onBuy ? "Buy more lives" : undefined}
@@ -87,7 +87,7 @@ export function LivesBadge({ onBuy }: { onBuy?: () => void }) {
       <HeartArt className={"size-5 " + (empty ? "opacity-70" : "")} />
       <span className="font-black tabular-nums">{player.lives}</span>
       {player.nextLifeAt && (
-        <span className={"text-xs font-semibold " + (empty ? "text-ink/70" : "text-zinc-400")}>
+        <span className={"text-xs font-semibold " + (empty ? "text-ink/70" : "text-zinc-300")}>
           +1 in {countdown(player.nextLifeAt, now)}
         </span>
       )}

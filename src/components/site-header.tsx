@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { Home } from "lucide-react";
 import { usePlayer } from "@/components/player/player-context";
 import { Boxy } from "@/components/art/boxy";
 import { LivesBadge } from "@/components/player/lives-badge";
@@ -18,6 +20,7 @@ import { VerifyDialog } from "@/components/player/account-dialog";
 export function SiteHeader() {
   const { verified, ready } = usePlayer();
   const [dialog, setDialog] = useState<"none" | "verify" | "lives">("none");
+  const onSafehouse = usePathname().startsWith("/me");
 
   return (
     <>
@@ -46,12 +49,25 @@ export function SiteHeader() {
               </button>
             )}
 
+            {/*
+              One button, and it always points at the place you are not. It
+              used to say "You" everywhere including *on* the safehouse, where
+              it was a link to the page already open — so the only way back to
+              the board was the browser's back button or the wordmark.
+            */}
             {verified && (
               <Link
-                href="/me"
-                className="rounded-xl border border-white/15 bg-white/5 px-3.5 py-2 text-sm font-bold transition hover:border-brass/50"
+                href={onSafehouse ? "/" : "/me"}
+                className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3.5 py-2 text-sm font-bold transition hover:border-brass/50"
               >
-                You
+                {onSafehouse ? (
+                  <>
+                    <Home className="size-4" aria-hidden />
+                    Home
+                  </>
+                ) : (
+                  "You"
+                )}
               </Link>
             )}
           </div>

@@ -5,6 +5,7 @@ import { appBaseUrl } from "@/lib/base-url";
 import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
 import { newReference } from "@/lib/game/boxes";
 import {
+  discountedKobo,
   isAvailable,
   isPowerUpKind,
   parseRevealed,
@@ -12,6 +13,7 @@ import {
   splitPowerUp,
 } from "@/lib/game/power-ups";
 import { findBox, findHunt } from "@/lib/game/view";
+import { loadPricing, resolved } from "@/lib/game/pricing";
 
 /**
  * Buy a power-up for the hunt in progress.
@@ -71,9 +73,29 @@ export async function POST(
 
   // Priced here, off the box's own reward, and never taken from the request.
   // The browser is told the price so it can show it; it doesn't get to name it.
-  const price = priceKobo(kind, box.reward_kobo);
+  //
+  // A claimed drop can take a share off, and that share is read from the
+  // database rather than the request for exactly the same reason: a discount
+  // the client names is a discount the client can name itself.
+  const money = resolved(await loadPricing(db));
+  const full = priceKobo(kind, box.reward_kobo, { powerUps: money.powerUps });
+  const { data: off } = await db.rpc("discount_for", {
+    p_player_id: player.id,
+    p_power_up: kind,
+    p_box_id: box.id,
+  });
+  const discount = Math.max(0, Math.min(100, Number(off ?? 0)));
+  const price = discountedKobo(full, discount);
+  if (discount > 0) {
+    await db.rpc("spend_discount", {
+      p_player_id: player.id,
+      p_power_up: kind,
+      p_box_id: box.id,
+    });
+  }
+
   const split = box.contributor_id
-    ? splitPowerUp(price)
+    ? splitPowerUp(price, money.platformSharePercent)
     : { contributorKobo: 0, platformKobo: price };
 
   const subaccount = box.contributor_id

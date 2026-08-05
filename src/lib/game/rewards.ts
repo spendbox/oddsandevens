@@ -94,11 +94,16 @@ export function splitFunding(fundingKobo: number): Split {
  * On the platform's own box there is nobody to pay, and the caller decides
  * that rather than this: it takes an amount, not a box.
  */
-export function splitSale(kobo: number): {
+export function splitSale(
+  kobo: number,
+  /** What the platform keeps, if an admin has changed it. */
+  platformSharePercent = PLATFORM_SHARE_PERCENT
+): {
   contributorKobo: number;
   platformKobo: number;
 } {
-  const platformKobo = Math.ceil((kobo * PLATFORM_SHARE_PERCENT) / 100);
+  const share = Math.max(0, Math.min(100, platformSharePercent));
+  const platformKobo = Math.ceil((kobo * share) / 100);
   return { contributorKobo: kobo - platformKobo, platformKobo };
 }
 
