@@ -24,7 +24,7 @@ import {
   MAX_FUNDING_KOBO,
 } from "@/lib/constants";
 import { formatNaira, fundingSchedule, minFundingKobo, splitFunding } from "@/lib/game/rewards";
-import { BREAKDOWN_HOURS, LIFE_BANK_MAX, SECOND_WIND_HOURS } from "@/lib/game/power-ups";
+import { BREAKDOWN_HOURS, LIFE_BANK_MAX, secondWindLabel } from "@/lib/game/power-ups";
 
 export const FAQ_TOPICS = [
   "Playing",
@@ -167,7 +167,7 @@ export const FAQ: FaqItem[] = [
     question: "Is there a limit on how many guesses I can make?",
     answer: [
       "No. There's no daily cap and no cooling-off period — the only limit is how many lives you have.",
-      `If you want to work without that limit for a while, Second Wind gives you unlimited guesses on one box for ${SECOND_WIND_HOURS} hour, and spends no lives at all.`,
+      `If you want to work without that limit for a while, Second Wind gives you unlimited guesses on one box for ${secondWindLabel()}, and spends no lives at all.`,
     ],
   },
 
@@ -186,7 +186,7 @@ export const FAQ: FaqItem[] = [
     answer: [
       "Length Lock tells you exactly how many characters the password has.",
       "Seven counters each answer one question about what the password is made of, without saying where anything sits: how many capitals, how many lowercase letters, how many vowels, how many consonants, how many digits, how many symbols and how many spaces. Each is priced by how much of the search it removes — knowing there are no symbols rules out far more than knowing there are no spaces.",
-      `Second Wind gives you unlimited guesses on that box for ${SECOND_WIND_HOURS} hour, spending no lives.`,
+      `Second Wind gives you unlimited guesses on that box for ${secondWindLabel()}, spending no lives.`,
       `Colour Read splits every score into its parts for ${BREAKDOWN_HOURS} hours — including every attempt you've already made.`,
       "X-Ray names half the different characters the password is built from, in no order — and can be bought again for half of what's left.",
 
@@ -197,7 +197,7 @@ export const FAQ: FaqItem[] = [
     question: "Can I buy the same power-up twice?",
     answer: [
       "Length Lock and the seven counters are one purchase each: what they give you never changes, so buying again would pay for the same answer.",
-      `Second Wind and Colour Read rent a window rather than sell a fact — ${SECOND_WIND_HOURS} hour and ${BREAKDOWN_HOURS} hours respectively — and can be bought again the moment they lapse.`,
+      `Second Wind and Colour Read rent a window rather than sell a fact — ${secondWindLabel()} and ${BREAKDOWN_HOURS} hours respectively — and can be bought again the moment they lapse.`,
       "X-Ray can be bought as often as you like. Each purchase draws from the characters it hasn't named yet, so it never tells you the same thing twice, and it stops being offered once you have all of them.",
     ],
   },

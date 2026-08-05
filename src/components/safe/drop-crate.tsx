@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from "react";
 import { Gift, Timer, X } from "lucide-react";
-import { POWER_UPS, SECOND_WIND_HOURS } from "@/lib/game/power-ups";
+import { POWER_UPS, secondWindLabel } from "@/lib/game/power-ups";
 import type { Drop } from "@/lib/types";
 
 /** The four things a crate can hold, and how each one is said. */
@@ -43,7 +43,7 @@ export function DropCrate({
     drop.kind === "free_lives"
       ? `${drop.amount} free ${drop.amount === 1 ? "life" : "lives"}`
       : drop.kind === "free_second_wind"
-        ? `Free Second Wind · ${SECOND_WIND_HOURS === 1 ? "1 hour" : `${SECOND_WIND_HOURS} hours`}`
+        ? `Free Second Wind · ${secondWindLabel()}`
         : drop.kind === "life_discount"
           ? `${drop.amount}% off your next lives`
           : `${drop.amount}% off ${name ?? "a power-up"}`;

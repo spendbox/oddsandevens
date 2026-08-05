@@ -27,7 +27,7 @@ import Link from "next/link";
 import { ArrowRight, KeyRound, Lightbulb, Tag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { LIVES_MAX } from "@/lib/constants";
-import { EMPTY_REVEALED, POWER_UPS } from "@/lib/game/power-ups";
+import { EMPTY_REVEALED, POWER_UPS, secondWindLabel } from "@/lib/game/power-ups";
 import { formatNaira } from "@/lib/game/rewards";
 import type { AttemptRecord, AttemptResult, PlayView } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
@@ -403,7 +403,7 @@ export function PlaySurface({
                   if (got?.kind === "free_lives") {
                     setMessage(`+${got.amount} free ${got.amount === 1 ? "life" : "lives"}`);
                   } else if (got?.kind === "free_second_wind") {
-                    setMessage("Free run — guesses cost nothing for an hour");
+                    setMessage(`Free run — guesses cost nothing for ${secondWindLabel()}`);
                   } else if (got) {
                     setMessage(`${got.amount}% off — it's on the shelf`);
                   }

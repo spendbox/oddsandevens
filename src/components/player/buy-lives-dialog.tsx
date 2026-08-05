@@ -5,7 +5,7 @@
 //
 // Three things can be bought here, and they answer the same question in three
 // different units. Lives are *quantity* — a fixed number of guesses, yours
-// forever, spendable anywhere. Second Wind is *time* — one hour on this box
+// forever, spendable anywhere. Second Wind is *time* — a window on this box
 // with no limit at all and no life spent. Life Bank is *headroom* — a week of
 // a taller pool, so a day away banks a day's accrual instead of overflowing at
 // seven.
@@ -25,7 +25,7 @@ import { LifeBankArt, PowerUpArt } from "@/components/art/power-up-art";
 import {
   discountedKobo,
   LIFE_BANK_MAX,
-  SECOND_WIND_HOURS,
+  secondWindLabel,
   type Offering,
 } from "@/lib/game/power-ups";
 import { formatNaira } from "@/lib/game/rewards";
@@ -52,7 +52,7 @@ export function BuyLivesDialog({
   contributor,
   /**
    * Second Wind, priced against this box. Absent when there is no box — from
-   * the header there is nothing for an hour of unlimited guesses to apply to.
+   * the header there is nothing for a window of unlimited guesses to apply to.
    */
   secondWind,
   lifeBankKobo = LIFE_BANK_FALLBACK_KOBO,
@@ -150,7 +150,7 @@ export function BuyLivesDialog({
   return (
     <Modal
       title="Keep going"
-      subtitle="Buy guesses, an hour of them, or somewhere to keep more."
+      subtitle={`Buy guesses, ${secondWindLabel()} of them, or somewhere to keep more.`}
       icon={<Heart className="size-5 fill-brass text-brass" aria-hidden />}
       width="sm"
       onClose={onClose}
@@ -165,7 +165,7 @@ export function BuyLivesDialog({
           {busy ? (
             "Opening checkout…"
           ) : wind ? (
-            `Take the hour · ${formatNaira(total)}`
+            `Take the ${secondWindLabel()} · ${formatNaira(total)}`
           ) : bank ? (
             `${bankRunning ? "Another week" : "Take the week"} · ${formatNaira(total)}`
           ) : (
@@ -218,7 +218,7 @@ export function BuyLivesDialog({
         {/*
           Three things, and they answer the same question in different units.
           Lives are *quantity* — a fixed number of guesses, yours forever.
-          Second Wind is *time* — an hour on this box with no limit at all.
+          Second Wind is *time* — a window on this box with no limit at all.
           Life Bank is *headroom* — a week of a taller pool, so an evening away
           banks a day's accrual instead of overflowing at seven.
 
@@ -243,7 +243,7 @@ export function BuyLivesDialog({
               onPick={() => setBuying("wind")}
               icon={<PowerUpArt kind="second_wind" className="size-7" />}
               title="Second Wind"
-              body={`${SECOND_WIND_HOURS === 1 ? "Immortal for one hour" : `Immortal for ${SECOND_WIND_HOURS} hours`} — on this safe only.`}
+              body={`Immortal for ${secondWindLabel()} — on this safe only.`}
               price={formatNaira(secondWind.priceKobo)}
             />
           )}

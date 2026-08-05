@@ -20,7 +20,7 @@ import { PowerUpArt } from "@/components/art/power-up-art";
 import { PowerUpDemo } from "./power-up-demo";
 import { formatNaira } from "@/lib/game/rewards";
 import { countdown } from "@/components/player/lives-badge";
-import { discountedKobo, type Offering } from "@/lib/game/power-ups";
+import { discountedKobo, secondWindLabel, type Offering } from "@/lib/game/power-ups";
 import type { ClaimedDiscount, PlayView } from "@/lib/types";
 
 /**
@@ -303,7 +303,7 @@ function PowerUpDialog({
           {powerUp.repeat === "once"
             ? "One purchase per box. What it gives you never changes, so there'd be nothing to buy a second time."
             : powerUp.repeat === "hourly"
-              ? "Runs for an hour, then lapses. Buy it again whenever you need another."
+              ? `Runs for ${secondWindLabel()}, then lapses. Buy it again whenever you need another.`
               : "Runs for 24 hours, then lapses. Buy it again whenever you need another."}
         </p>
 

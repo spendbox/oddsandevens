@@ -116,7 +116,29 @@ function countClass(secret: string, field: ScanField): number {
 
 /** Colour Read and Second Wind rent rather than sell. */
 export const BREAKDOWN_HOURS = 24;
-export const SECOND_WIND_HOURS = 1;
+
+/**
+ * Second Wind, in minutes rather than hours.
+ *
+ * It was an hour, and an hour of unlimited free guessing is a lot of the game
+ * for half a percent of the reward: a methodical player with a fast finger can
+ * take several hundred attempts inside one, which made buying Second Wind
+ * repeatedly the cheapest route through a large safe rather than a way out of
+ * a wait. Half the window at the same price doubles what that route costs.
+ *
+ * Minutes because it is no longer a whole number of hours, and a duration that
+ * has to be phrased two different ways in six places is a duration that will
+ * eventually be phrased wrongly in one of them — `secondWindLabel()` is the
+ * only thing allowed to word it now.
+ */
+export const SECOND_WIND_MINUTES: number = 30;
+
+/** "30 minutes" / "an hour" / "2 hours" — one wording, everywhere. */
+export function secondWindLabel(): string {
+  if (SECOND_WIND_MINUTES < 60) return `${SECOND_WIND_MINUTES} minutes`;
+  if (SECOND_WIND_MINUTES === 60) return "an hour";
+  return `${SECOND_WIND_MINUTES / 60} hours`;
+}
 
 /** X-Ray shows this much of the password's distinct characters, unordered. */
 export const XRAY_SHARE = 0.5;
@@ -223,9 +245,9 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
   second_wind: {
     kind: "second_wind",
     name: "Second Wind",
-    blurb: `Unlimited guesses on this box for ${SECOND_WIND_HOURS} hour. Costs no lives at all.`,
-    detail: `For one hour, guesses on this box are free — your life pool isn't touched and there's no waiting between attempts. It is the only way to work fast: everything else on this shelf tells you something, and this gives you the time to use it.`,
-    caveat: `The hour starts as soon as you pay, and it only covers this box.`,
+    blurb: `Unlimited guesses on this box for ${secondWindLabel()}. Costs no lives at all.`,
+    detail: `For ${secondWindLabel()}, guesses on this box are free — your life pool isn't touched and there's no waiting between attempts. It is the only way to work fast: everything else on this shelf tells you something, and this gives you the time to use it.`,
+    caveat: `The clock starts as soon as you pay, and it only covers this box.`,
     share: 0.005,
     floorKobo: 300 * KOBO,
     repeat: "hourly",
@@ -468,7 +490,7 @@ export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
     case "length_lock":
       return revealed.length === null;
     case "second_wind":
-      // Re-buyable the moment it lapses. An hour is short on purpose.
+      // Re-buyable the moment it lapses. The window is short on purpose.
       return !secondWindActive(revealed);
     case "breakdown":
       return !breakdownActive(revealed);
@@ -557,6 +579,7 @@ export function apply(
   const used = { ...before.used, [kind]: (before.used[kind] ?? 0) + 1 };
   const counted = { ...before, used };
   const hours = (n: number) => new Date(Date.now() + n * 60 * 60 * 1000).toISOString();
+  const minutes = (n: number) => new Date(Date.now() + n * 60 * 1000).toISOString();
 
   if (isScanKind(kind)) {
     const { field, noun } = SCANS[kind];
@@ -579,8 +602,8 @@ export function apply(
 
     case "second_wind":
       return {
-        revealed: { ...counted, secondWindUntil: hours(SECOND_WIND_HOURS) },
-        note: `Guesses on this box are free for the next hour.`,
+        revealed: { ...counted, secondWindUntil: minutes(SECOND_WIND_MINUTES) },
+        note: `Guesses on this box are free for the next ${secondWindLabel()}.`,
       };
 
     case "breakdown":

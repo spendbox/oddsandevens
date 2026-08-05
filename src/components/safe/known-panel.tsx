@@ -20,7 +20,7 @@ import { Clock, Lightbulb, Zap } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import {
   POWER_UPS,
-  SECOND_WIND_HOURS,
+  secondWindLabel,
   type Revealed,
   type ScanField,
 } from "@/lib/game/power-ups";
@@ -196,8 +196,7 @@ export function KnownPanel({
       {running.every((one) => one.kind !== "second_wind") && revealed.used.second_wind && (
         <Row label="Free run">
           <span className="text-xs text-zinc-500">
-            Lapsed. {SECOND_WIND_HOURS === 1 ? "An hour" : `${SECOND_WIND_HOURS} hours`} at
-            a time, buyable again.
+            Lapsed. {secondWindLabel()} at a time, buyable again.
           </span>
         </Row>
       )}

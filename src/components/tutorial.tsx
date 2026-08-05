@@ -27,7 +27,7 @@ import { PowerUpArt } from "@/components/art/power-up-art";
 import { HeartArt } from "@/components/player/lives-badge";
 import { SafeArt } from "@/components/safe/safe-art";
 import { LIVES_MAX, SPECIALS } from "@/lib/constants";
-import { SECOND_WIND_HOURS } from "@/lib/game/power-ups";
+import { secondWindLabel } from "@/lib/game/power-ups";
 
 /** Where "they've seen it" lives. Per device, which is the honest scope. */
 const SEEN_KEY = "spendbox.tutorial";
@@ -104,7 +104,7 @@ function steps(): Step[] {
           forever, so playing costs nothing but patience.
           <Pips />
           If you are out and don&apos;t want to wait, you can buy more — or take
-          Second Wind, which is {SECOND_WIND_HOURS === 1 ? "an hour" : `${SECOND_WIND_HOURS} hours`}{" "}
+          Second Wind, which is {secondWindLabel()}{" "}
           of unlimited guesses <em>on one safe</em>.
         </>
       ),

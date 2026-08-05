@@ -44,6 +44,7 @@ import { BuildCard, CardDialog } from "@/components/dashboard/build-panel";
 import { PayoutsPanel } from "@/components/admin/payouts-panel";
 import { PricingPanel } from "@/components/admin/pricing-panel";
 import { AlphabetPanel } from "@/components/admin/alphabet-panel";
+import { LimitsPanel } from "@/components/admin/limits-panel";
 import { GrantLives } from "@/components/admin/grant-lives";
 import { UsersPanel } from "@/components/admin/users-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
@@ -229,7 +230,12 @@ export default function AdminPage() {
         </>
       )}
 
-      {tab === "players" && <UsersPanel />}
+      {tab === "players" && (
+        <>
+          <UsersPanel />
+          <LimitsPanel />
+        </>
+      )}
 
       {tab === "boxes" && (
         <section className="panel rounded-2xl p-5">

@@ -4,6 +4,7 @@ import { EMAIL_REGEX } from "@/lib/constants";
 import { playerEmail, rememberPlayer } from "@/lib/player-session";
 import { verifyCode } from "@/lib/verification";
 import { ensurePlayer, toPlayerState } from "@/lib/game/boxes";
+import { newAccountAllowed, stampSignupIp } from "@/lib/game/limits";
 import {
   hashPassword,
   needsRehash,
@@ -105,6 +106,12 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    // The other door a new account can come through, so it carries the same
+    // gate — and asks before the code is spent, for the same reason.
+    if (!(await newAccountAllowed(db, req, addr))) {
+      return NextResponse.json({ error: "too_many_accounts" }, { status: 429 });
+    }
+
     // The code is the proof of ownership, so it is checked before anything is
     // written and a bad one is the end of it.
     const ok = await verifyCode(addr, "player_verify", (body.code ?? "").trim());
@@ -112,6 +119,7 @@ export async function POST(req: Request) {
 
     const player = await ensurePlayer(db, addr);
     if (!player) return NextResponse.json({ error: "player_failed" }, { status: 500 });
+    await stampSignupIp(db, req, player.id);
 
     await db
       .from("players")

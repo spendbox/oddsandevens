@@ -136,7 +136,9 @@ export function AccountDialog({ onClose }: { onClose: () => void }) {
           ? "That code is wrong or has expired."
           : body.error === "weak_password"
             ? `Use at least ${MIN_PASSWORD_LENGTH} characters.`
-            : "Couldn't finish that. Try again in a moment."
+            : body.error === "too_many_accounts"
+              ? "Too many new accounts from this connection today. Try again tomorrow, or sign in to the one you already have."
+              : "Couldn't finish that. Try again in a moment."
       );
       return;
     }
