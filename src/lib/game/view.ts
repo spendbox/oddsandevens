@@ -83,6 +83,7 @@ interface AttemptDbRow {
   exact_count: number;
   miscase_count: number;
   elsewhere_count: number;
+  elsewhere_miscase_count: number;
   score_percent: string | number;
   created_at: string;
 }
@@ -92,7 +93,7 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
     db
       .from("attempts")
       .select(
-        "ordinal, value, length_hint, exact_count, miscase_count, elsewhere_count, score_percent, created_at"
+        "ordinal, value, length_hint, exact_count, miscase_count, elsewhere_count, elsewhere_miscase_count, score_percent, created_at"
       )
       .eq("hunt_id", hunt.id)
       .order("ordinal", { ascending: false })
@@ -123,6 +124,7 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
           exact: row.exact_count,
           miscase: row.miscase_count,
           elsewhere: row.elsewhere_count,
+          elsewhereMiscase: row.elsewhere_miscase_count,
         }
       : null,
     at: row.created_at,

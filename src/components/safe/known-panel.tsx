@@ -138,7 +138,7 @@ export function KnownPanel({
                 <span className="block text-xs leading-snug text-zinc-400">
                   {one.kind === "second_wind"
                     ? "Every guess is free. No lives spent at all."
-                    : "Every score, past and future, split into its three parts."}
+                    : "Every score, past and future, split into its four parts."}
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-1 font-mono text-sm font-black tabular-nums text-mint">

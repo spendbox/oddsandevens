@@ -122,7 +122,19 @@ export function AttemptDialog({
                   ? "Nothing in the wrong place"
                   : `${plural(attempt.breakdown.elsewhere, "character")} in there somewhere else`
               }
-              body="That character is in the password, just not where you put it."
+              body="Exactly that character, case and all, is in the password — just not where you put it."
+            />
+            <Row
+              icon={<Dot tone="bg-grape" />}
+              title={
+                attempt.breakdown.elsewhereMiscase === 0
+                  ? "Nothing misplaced and miscased"
+                  : `${plural(
+                      attempt.breakdown.elsewhereMiscase,
+                      "character"
+                    )} somewhere else, wrong case`
+              }
+              body="The letter is in the password, but in the other case and in another position. Two things to fix, and the least any hit is worth."
             />
           </>
         ) : (

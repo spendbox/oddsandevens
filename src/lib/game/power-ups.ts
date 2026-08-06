@@ -263,7 +263,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     kind: "breakdown",
     name: "Colour Read",
     blurb: `Splits every score into its parts, past attempts included. Lasts ${BREAKDOWN_HOURS} hours.`,
-    detail: `A score is a sum, and a sum can be reached many ways — which is exactly why one number is so hard to read. This splits every attempt into three: how many characters landed exactly, how many were the right letter in the wrong case, and how many are in the password but somewhere else. It applies backwards too, so every attempt you've already made is re-explained the moment you buy it. Measured against a solver, it roughly halves the work of cracking a box.`,
+    detail: `A score is a sum, and a sum can be reached many ways — which is exactly why one number is so hard to read. This splits every attempt into four: how many characters landed exactly, how many were the right letter in the wrong case, how many are the right character sitting somewhere else, and how many are in the password but in the other case *and* another position. It applies backwards too, so every attempt you've already made is re-explained the moment you buy it. Measured against a solver, it roughly halves the work of cracking a box.`,
     caveat: `${BREAKDOWN_HOURS} hours, then it lapses and can be bought again. It gives you the counts, never which positions they refer to, and never the arithmetic behind the score.`,
     share: 0.015,
     floorKobo: 500 * KOBO,

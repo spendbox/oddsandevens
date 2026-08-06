@@ -23,10 +23,9 @@
 //   which is the right trade, and the reason this comment exists.
 //
 // The player types every guess themselves, exactly, including its case. That is
-// not busywork: `baaa` and `Baaa` are two different guesses with a ten-fold
-// difference between them, and typing both is how that stops being a sentence
-// and starts being a fact. There is a fill-it-in button for anybody who would
-// rather watch.
+// not busywork: `baaa` and `Baaa` are two different guesses two and a half times
+// apart, and typing both is how that stops being a sentence and starts being a
+// fact. There is a fill-it-in button for anybody who would rather watch.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, CornerDownLeft, MoveDown, MoveUp, Target } from "lucide-react";
@@ -66,13 +65,19 @@ function Key({ children }: { children: ReactNode }) {
  * The nineteen guesses, in four movements: how long is it, where is the digit,
  * what are the letters, and what is the symbol.
  *
- * The b-probe in the third movement is worth reading closely, because it is the
- * one place the obvious reading of the scores is backwards. `baaa` scores
- * *less* than `abaa`, `aaba` and `aaab` — and that is precisely how it gives
- * the position away. A character sitting in the wrong place is worth more than
- * the same character sitting in the right place with the wrong case, so the
- * probe that dips is the probe that found the spot. Somebody who assumed the
- * highest score wins would place the `b` in the one position it isn't.
+ * Two of the beats teach the shape of the scale rather than a character, and
+ * they are the two worth not cutting:
+ *
+ *   The b-probe. `baaa` scores 10% where `abaa`, `aaba` and `aaab` all score
+ *   5%, so the odd one out names the position — and the fact that 10% is still
+ *   short of the 25% a placed character pays is what says the case is wrong
+ *   before `Baaa` proves it. Two deductions from four cheap guesses.
+ *
+ *   `aaax` and `aaXa`, which both score 10%. Wrong place with the right case
+ *   and right place with the wrong case are worth exactly the same, so the
+ *   score refuses to say which mistake you made. That is the clearest possible
+ *   demonstration of why one number is hard to read, and it arrives right after
+ *   the player has been using the numbers confidently.
  */
 function beats(): Beat[] {
   return [
@@ -157,7 +162,7 @@ function beats(): Beat[] {
     {
       guess: "0aaa",
       hint: "exact",
-      score: 7.5,
+      score: 10,
       ask: (
         <>
           Use the blank. One <Key>0</Key> at the front, padded out:{" "}
@@ -166,9 +171,9 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          7.5% — real, but small. The <Key>0</Key> is in the password and it is{" "}
+          10% — real, but small. The <Key>0</Key> is in the password and it is{" "}
           <strong>not</strong> in the first position. A character in the wrong
-          place still scores; it just scores badly.
+          place still scores; it just scores less.
         </>
       ),
     },
@@ -183,8 +188,8 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          <strong className="text-brass-bright">7.5% to 25%.</strong> More than
-          three times, from moving one character one place. That jump is what a
+          <strong className="text-brass-bright">10% to 25%.</strong> Two and a
+          half times, from moving one character one place. That jump is what a
           character landing in its <em>right</em> position looks like, and there
           is nothing else it can be.
           <br />
@@ -199,7 +204,7 @@ function beats(): Beat[] {
     {
       guess: "baaa",
       hint: "exact",
-      score: 2.5,
+      score: 10,
       ask: (
         <>
           Now walk a new character through the positions. Start with{" "}
@@ -215,7 +220,7 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          2.5%. Not nothing — so <Key>b</Key> <em>is</em> in the password. Hold
+          10%. Not nothing — so <Key>b</Key> <em>is</em> in the password. Hold
           that number; the next three guesses are what make it mean something.
         </>
       ),
@@ -223,29 +228,29 @@ function beats(): Beat[] {
     {
       guess: "abaa",
       hint: "exact",
-      score: 7.5,
+      score: 5,
       ask: (
         <>
           Same character, next position: <Key>abaa</Key>.
         </>
       ),
-      learn: <>7.5%. Higher than the first one. Keep going.</>,
+      learn: <>5%. Lower than the first one. Keep going.</>,
     },
     {
       guess: "aaba",
       hint: "exact",
-      score: 7.5,
+      score: 5,
       ask: (
         <>
           And again: <Key>aaba</Key>.
         </>
       ),
-      learn: <>7.5% again.</>,
+      learn: <>5% again.</>,
     },
     {
       guess: "aaab",
       hint: "exact",
-      score: 7.5,
+      score: 5,
       ask: (
         <>
           Last position: <Key>aaab</Key>.
@@ -253,16 +258,19 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          7.5% a third time — and now the shape is clear.{" "}
+          5% a third time — and now the shape is clear.{" "}
           <strong className="text-brass-bright">
-            Three positions score 7.5% and one scores 2.5%.
+            Three positions score 5% and one scores 10%.
           </strong>
           <br />
           <br />
-          The odd one out is the answer, and it is the <em>low</em> one. A
-          character in the wrong place is worth more than the same character in
-          the right place with the wrong case. So <Key>b</Key> lives in position
-          one — and it isn&apos;t a lowercase <Key>b</Key>.
+          The odd one out is the answer. Getting the position right is always
+          worth something, so the probe that stood up is the one that found the
+          spot: <Key>b</Key> lives in position one.
+          <br />
+          <br />
+          But it isn&apos;t worth 25%, which is what a character in its right
+          place normally pays. Something about it is still wrong.
         </>
       ),
       mood: "sly",
@@ -278,8 +286,9 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          <strong className="text-brass-bright">2.5% to 25%.</strong> Ten times,
-          for holding down shift.
+          <strong className="text-brass-bright">10% to 25%.</strong> Two and a
+          half times, for holding down shift. The case was the only thing left
+          to be wrong about it.
           <br />
           <br />
           Two of four: the password starts <Key>B0</Key>.
@@ -345,7 +354,7 @@ function beats(): Beat[] {
     {
       guess: "aaax",
       hint: "exact",
-      score: 7.5,
+      score: 10,
       ask: (
         <>
           Prove it by breaking it. Move the <Key>x</Key> along one:{" "}
@@ -354,7 +363,7 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          Straight back down to 7.5% — the wrong-place score we already know.
+          Straight back down to 10% — the wrong-place score we already know.
           Position three it is.
         </>
       ),
@@ -362,7 +371,7 @@ function beats(): Beat[] {
     {
       guess: "aaXa",
       hint: "exact",
-      score: 2.5,
+      score: 10,
       ask: (
         <>
           One thing left to check about it. Capitalise it: <Key>aaXa</Key>.
@@ -370,7 +379,13 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          2.5% — the wrong-case score. So it stays lowercase.{" "}
+          10% again — and that is worth noticing. Wrong place with the right
+          case, and right place with the wrong case, are worth{" "}
+          <em>exactly the same</em>. Both are one step away, so the score
+          refuses to tell you which step. Only the 25% was unique, so the
+          lowercase <Key>x</Key> in position three stands.
+          <br />
+          <br />
           <strong className="text-brass-bright">
             Three of four: <Key>B0x</Key>.
           </strong>

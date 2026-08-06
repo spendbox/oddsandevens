@@ -150,12 +150,13 @@ function WindDemo() {
   );
 }
 
-/** Colour Read: one number becoming three. */
+/** Colour Read: one number becoming four. */
 function ColourDemo() {
   const parts: [string, string, string][] = [
-    ["48%", "bg-mark-green", "exact"],
-    ["27%", "bg-mark-orange", "wrong case"],
-    ["25%", "bg-sky", "elsewhere"],
+    ["44%", "bg-mark-green", "exact"],
+    ["23%", "bg-mark-orange", "wrong case"],
+    ["21%", "bg-sky", "elsewhere"],
+    ["12%", "bg-grape", "both wrong"],
   ];
   return (
     <div className="flex w-full max-w-[16rem] flex-col gap-2">

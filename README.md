@@ -55,11 +55,27 @@ An attempt answers two things:
 | **Length** | Too short, too long, or exactly right. Nothing ever says how long the password is — that's the first thing you have to hunt. |
 | **Score** | How close the guess is, as a percentage of a perfect one. |
 
-Every position contributes to the score: an exact character most, the right
-letter in the wrong case least, a character that's in the password but sitting
-somewhere else in between. **How much each is worth is not published** — not in
-the app, not in the API, not in any copy. Two very different guesses can score
-the same, and working out which explanation fits is the game.
+Every position contributes to the score, and place and case are independent
+questions — so a character gets four possible verdicts, not three:
+
+| | right place | wrong place |
+| --- | --- | --- |
+| **right case** | most | middle |
+| **wrong case** | middle | least |
+
+Getting the position right is always worth something, and the two ways of being
+one step away — right case in the wrong place, wrong case in the right place —
+are worth the same as each other. That equality is deliberate: it is the
+cheapest honest way to make a total that has several explanations.
+
+0027 got this wrong for a while, scoring the wrong-place pass case-blind and
+above the right-place-wrong-case one, so a character walked across the positions
+made the score *dip* exactly where it belonged. 0048 is the fix, and it rescored
+every attempt ever made so the board is on one scale.
+
+**How much each is worth is not published** — not in the app, not in the API,
+not in any copy. Two very different guesses can score the same, and working out
+which explanation fits is the game.
 
 The denominator is the longer of the guess and the password, so padding a
 correct prefix out dilutes the score rather than being free. That's what makes
@@ -153,8 +169,9 @@ once however often they top up.
 ## The breakdown is a purchase
 
 By default a score is one opaque number. **Colour Read** (1.5% of the reward)
-splits every attempt — the ones already made included — into its three parts: exact hits,
-right-letter-wrong-case hits, and characters that are in there somewhere else.
+splits every attempt — the ones already made included — into its four parts: exact hits,
+right-place-wrong-case hits, right-character-wrong-place hits, and characters that are in
+there in the other case *and* another position.
 
 It lasts **24 hours** and can be bought again after that. Alone among the
 power-ups it rents rather than sells: everything else hands over a fact that
@@ -226,7 +243,7 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Vowel Scan | 0.5% | Counts the vowels, A E I O U, either case |
 | Second Wind | 0.5% | Unlimited guesses on this box for 15 minutes. No lives spent at all |
 | Consonant Scan | 1.25% | Counts the consonants — every letter that isn't a vowel |
-| Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
+| Colour Read | 1.5% | Splits every score, past and future, into its four parts — for 24 hours |
 | Space Count | 5% | Counts the spaces |
 | X-Ray | 5% | Names half the distinct characters, unordered. Once |
 | Digit Count | 7.5% | Counts the digits |
