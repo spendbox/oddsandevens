@@ -55,11 +55,27 @@ An attempt answers two things:
 | **Length** | Too short, too long, or exactly right. Nothing ever says how long the password is — that's the first thing you have to hunt. |
 | **Score** | How close the guess is, as a percentage of a perfect one. |
 
-Every position contributes to the score: an exact character most, the right
-letter in the wrong case least, a character that's in the password but sitting
-somewhere else in between. **How much each is worth is not published** — not in
-the app, not in the API, not in any copy. Two very different guesses can score
-the same, and working out which explanation fits is the game.
+Every position contributes to the score, and place and case are independent
+questions — so a character gets four possible verdicts, not three:
+
+| | right place | wrong place |
+| --- | --- | --- |
+| **right case** | most | middle |
+| **wrong case** | middle | least |
+
+Getting the position right is always worth something, and the two ways of being
+one step away — right case in the wrong place, wrong case in the right place —
+are worth the same as each other. That equality is deliberate: it is the
+cheapest honest way to make a total that has several explanations.
+
+0027 got this wrong for a while, scoring the wrong-place pass case-blind and
+above the right-place-wrong-case one, so a character walked across the positions
+made the score *dip* exactly where it belonged. 0048 is the fix, and it rescored
+every attempt ever made so the board is on one scale.
+
+**How much each is worth is not published** — not in the app, not in the API,
+not in any copy. Two very different guesses can score the same, and working out
+which explanation fits is the game.
 
 The denominator is the longer of the guess and the password, so padding a
 correct prefix out dilutes the score rather than being free. That's what makes
@@ -153,8 +169,9 @@ once however often they top up.
 ## The breakdown is a purchase
 
 By default a score is one opaque number. **Colour Read** (1.5% of the reward)
-splits every attempt — the ones already made included — into its three parts: exact hits,
-right-letter-wrong-case hits, and characters that are in there somewhere else.
+splits every attempt — the ones already made included — into its four parts: exact hits,
+right-place-wrong-case hits, right-character-wrong-place hits, and characters that are in
+there in the other case *and* another position.
 
 It lasts **24 hours** and can be bought again after that. Alone among the
 power-ups it rents rather than sells: everything else hands over a fact that
@@ -224,9 +241,9 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | --- | --- | --- |
 | Length Lock | 0.5% | Tells you exactly how many characters the password has |
 | Vowel Scan | 0.5% | Counts the vowels, A E I O U, either case |
-| Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
+| Second Wind | 0.5% | Unlimited guesses on this box for 15 minutes. No lives spent at all |
 | Consonant Scan | 1.25% | Counts the consonants — every letter that isn't a vowel |
-| Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
+| Colour Read | 1.5% | Splits every score, past and future, into its four parts — for 24 hours |
 | Space Count | 5% | Counts the spaces |
 | X-Ray | 5% | Names half the distinct characters, unordered. Once |
 | Digit Count | 7.5% | Counts the digits |
@@ -309,6 +326,15 @@ decrements the counter.
 
 The window is read defensively — a malformed timestamp in `revealed` fails
 closed, charging a life as usual, rather than aborting the guess.
+
+It has been shortened twice, an hour to thirty minutes (0042) and thirty to
+fifteen (0047), at an unchanged price. Both times for the same reason: free
+guessing is a great deal of the game for half a percent of the reward, and a
+window long enough to walk an alphabet through a position funds grinding rather
+than the thing it is for. Fifteen minutes has to be aimed — you buy it holding
+a hypothesis you want to test now. Two places set the duration and they must
+agree: `SECOND_WIND_MINUTES` for the bought one, `claim_offer` for the free one
+a gift hands out.
 
 ### Buying one twice
 
@@ -733,7 +759,7 @@ and it is gone in ten minutes.
 | Gift | What it is |
 | --- | --- |
 | Free lives | One to three, credited on the spot |
-| Free Second Wind | An hour on this box with no lives spent |
+| Free Second Wind | 15 minutes on this box with no lives spent |
 | Power-up discount | 20–50% off one named power-up |
 | Life discount | 20–50% off your next lives, anywhere |
 
@@ -994,6 +1020,82 @@ constraints. A separate pass sets `role` to `anon` and `authenticated` and
 asserts that neither can read a password or call a privileged function.
 
 ---
+
+## Paying
+
+Two methods, and they are different Paystack products rather than two buttons
+onto one:
+
+| | Where the form lives | Why |
+| --- | --- | --- |
+| **Bank transfer** | Ours | A one-time account number is just text. Nothing sensitive passes through the page, so it is drawn in the game's own style. |
+| **Card** | Paystack's iframe | A card form we drew would put raw card numbers in our own DOM and pull the whole application into PCI DSS SAQ D. Paystack has no tokenising field SDK to borrow instead. |
+
+Transfer is the default and is offered first, because it is the path that never
+leaves the game.
+
+Both are started server-side by `startCheckout` — `/transaction/initialize` for
+a card, `/charge` with `bank_transfer` for a transfer — so **only the secret key
+exists** and no public key is ever handed to a browser. Both write the same
+reference onto the same order row, which is what lets `orderTableFor`, the
+webhook, the verify route and settlement stay ignorant of which was used. A
+player who opens the card form, thinks better of it and transfers instead
+cannot end up with two of anything.
+
+The transfer sheet polls `/api/payments/verify` every four seconds, and only
+`"paid"` counts. Everything else that route returns is either an in-flight
+Paystack status or a terminal failure, and treating any non-pending string as
+success would credit a purchase the moment somebody abandoned one. The poll is
+the impatient path, not the reliable one: the webhook credits the order whether
+or not the tab is still open.
+
+## On the list
+
+### Chase themes
+
+The chase is one scene — a car pursuing a runaway safe down a road — and it is
+the same scene on every box in the game. It should be a **choice the author
+makes**, set before the box is created and fixed with it, the way `design`
+already fixes the safe's colours.
+
+Five themes, each a complete restaging of the same three moving parts (the
+field, the thing being chased, the ground going the other way):
+
+| Theme | The field | What they're chasing | The world |
+| --- | --- | --- | --- |
+| **Space** | Spacecraft | A capital ship built like a safe | Planets off to the side, asteroids, drifting debris |
+| **Air Force** | Fighters | A transport | City, ocean, cloud decks — needs real perspective, not top-down |
+| **Boats** | Ships | An aircraft carrier | Open ocean, swell, wake, islands |
+| **Police** | Squad cars | A bullion van | The existing road world, restaged |
+| **Hunters** | Hunters | A dinosaur | Forest, plain, mountains |
+
+Requirements captured from the brief, so they don't get lost:
+
+- **Author picks it.** A selector in `/admin` and in the contributor's build
+  flow, alongside the safe design, before the box exists.
+- **The selector animates.** Picking a theme plays the actual scene, so an
+  author sees what they are choosing rather than reading its name.
+- **Backgrounds carry the theme.** Dynamic, layered, with mountains and horizon
+  where the theme has them — the current verge/road/scenery split is one
+  biome's worth of that idea and will need generalising.
+- **Mascots follow the theme.** Boxy re-costumed per theme, on the front page,
+  the loading screen and the cracking screen. Deliberately *not* started in the
+  pass that wrote this entry: hand-drawn SVG characters at the current Boxy's
+  standard are a serious piece of art work, and half-done mascots would be
+  worse than the one good one we have.
+
+What it touches, from a read of the current code:
+
+- `chase-scene.tsx` is ~880 lines built around a single metaphor. The layers
+  (verge, road, scenery, streaks, target, field, gunfire) are the right seams,
+  but they are hardcoded to tarmac and trees; they need to become theme data.
+- `.chase-flat` lays the whole scene on its side from `lg`, so any new art has
+  to read in both orientations. The Air Force theme is the one that genuinely
+  breaks the top-down frame and needs its own camera.
+- `GRID` in `chase-scene.tsx` must stay a mirror about x=50 — see the note on
+  it there, and the bug that note exists because of.
+- A `theme` column on `boxes` with a default, mirroring how `design` works, plus
+  the usual `notify pgrst`.
 
 ## Not in this version (deliberately)
 

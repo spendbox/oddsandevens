@@ -56,24 +56,99 @@ const LENGTH = {
   exact: { icon: Target, title: "Right length", body: "That is exactly how long it is." },
 } as const;
 
-/** What Boxy makes of it. */
-function moodFor(percent: number, won: boolean): BoxyMood {
-  if (won) return "cheer";
-  if (percent >= 80) return "cheer";
-  if (percent >= 45) return "sly";
-  if (percent >= 15) return "thinking";
-  return "sad";
+/*
+ * What Boxy says about the guess you just made.
+ *
+ * This used to be seven lines keyed off the score alone, and four of the seven
+ * were some flavour of "no". On a safe that takes two thousand attempts that is
+ * two thousand small refusals, and the mascot was wearing his sad face for most
+ * of them — which is exactly backwards. Boxy is not the obstacle. He is the one
+ * standing next to you while you work, and he is delighted when you win.
+ *
+ * So the reaction is read off the *movement* rather than the number. A score
+ * that went up is worth cheering even at 12%, and a score that went down is not
+ * a failure at all: it means the thing you changed was carrying weight, which
+ * is the single most useful sentence this game can say to somebody who has just
+ * lost three points. A flat zero is the same story told loudest — none of those
+ * characters are in the password, and crossing off a whole handful at once is a
+ * better afternoon than nudging a percentage.
+ *
+ * Nothing here is congratulation for turning up. Every line names what the
+ * guess actually told them; the warmth is in the framing, not in adjectives.
+ */
+type Reaction = { line: string; mood: BoxyMood };
+
+const WON = "The safe is open!";
+
+const NEARLY = [
+  "So close you can taste it.",
+  "That is nearly the whole thing.",
+  "One more idea and it's yours.",
+];
+
+const BEST = [
+  "Your best yet!",
+  "New best — keep pulling that thread.",
+  "Top of your own table. Go again.",
+];
+
+const WARMER = [
+  "Warmer! That change was worth making.",
+  "Up on the last one — keep whatever you just did.",
+  "That moved the right way.",
+];
+
+const COOLER = [
+  "Cooler — so the last one had something this one doesn't.",
+  "Down a little, and that is a real clue about what you swapped.",
+  "That change cost you, which means it mattered. Put it back.",
+];
+
+const ZERO = [
+  "A clean zero — not one of those characters is in it. Cross them all off.",
+  "Nothing in there at all, and that rules out a whole handful at once.",
+  "Zero is a result. You just eliminated every character in that guess.",
+];
+
+const STEADY = [
+  "Same score, different guess — that's worth knowing too.",
+  "No movement. Try changing something else.",
+  "Held level. Something in there is carrying its weight.",
+];
+
+/** One of a pool, fixed per attempt so a re-render never changes it. */
+function pick(pool: string[], seed: number): string {
+  return pool[Math.abs(seed) % pool.length];
 }
 
-/** One line, chosen by how well it went. Never more than one. */
-function headline(percent: number, won: boolean, personalBest: boolean): string {
-  if (won) return "The safe is open!";
-  if (personalBest && percent >= 80) return "So close.";
-  if (personalBest) return "Your best yet.";
-  if (percent >= 80) return "Nearly.";
-  if (percent >= 45) return "Getting warm.";
-  if (percent >= 15) return "Something in there.";
-  return "Not this one.";
+function reaction(
+  percent: number,
+  /** The score of the guess before this one. Null on the first of a hunt. */
+  previous: number | null,
+  previousBest: number,
+  won: boolean,
+  seed: number
+): Reaction {
+  if (won) return { line: WON, mood: "cheer" };
+
+  if (percent > previousBest) {
+    return {
+      line: pick(percent >= 80 ? NEARLY : BEST, seed),
+      mood: "cheer",
+    };
+  }
+
+  // Warm scores keep the sly face whatever the movement: at 60% he knows
+  // something, and looking worried about it would be a lie.
+  const settled: BoxyMood = percent >= 45 ? "sly" : "thinking";
+
+  if (percent === 0) return { line: pick(ZERO, seed), mood: "thinking" };
+  if (previous === null) return { line: pick(STEADY, seed), mood: settled };
+  if (percent > previous) {
+    return { line: pick(WARMER, seed), mood: percent >= 45 ? "cheer" : "sly" };
+  }
+  if (percent < previous) return { line: pick(COOLER, seed), mood: settled };
+  return { line: pick(STEADY, seed), mood: settled };
 }
 
 /**
@@ -87,10 +162,13 @@ function headline(percent: number, won: boolean, personalBest: boolean): string 
 export function ResultCard({
   attempt,
   previousBest,
+  previousScore,
   onClose,
 }: {
   attempt: AttemptRecord;
   previousBest: number;
+  /** The guess before this one. Null on the first of a hunt. */
+  previousScore: number | null;
   onClose: () => void;
 }) {
   const percent = attempt.scorePercent;
@@ -98,6 +176,7 @@ export function ResultCard({
   const shown = useCountUp(percent);
   const length = LENGTH[attempt.lengthHint];
   const LengthIcon = length.icon;
+  const said = reaction(percent, previousScore, previousBest, false, attempt.ordinal);
 
   /*
    * Takes itself away. Long enough to read a two-digit number and a hint,
@@ -128,7 +207,9 @@ export function ResultCard({
       aria-live="polite"
       className="animate-fade-up sheet flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left"
     >
-      <Boxy mood={moodFor(percent, false)} still className="size-11 shrink-0" />
+      {/* Not `still`: he reacts to every guess, and the one place a mascot
+          earns his keep is the moment a result lands. */}
+      <Boxy mood={said.mood} className="size-11 shrink-0" />
 
       <div className="min-w-0 flex-1">
         <p className="flex items-baseline gap-2">
@@ -151,7 +232,13 @@ export function ResultCard({
             </span>
           )}
         </p>
-        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-400">
+
+        {/* What he makes of it. The card used to show only the number and the
+            length, which are both facts about the guess and neither of which is
+            company. */}
+        <p className="mt-0.5 text-xs font-bold leading-snug text-zinc-200">{said.line}</p>
+
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-zinc-400">
           <LengthIcon
             className={
               "size-3.5 shrink-0 " +
@@ -189,16 +276,20 @@ export function ResultDialog({
   attempt,
   /** Their best *before* this guess, so an improvement can be called out. */
   previousBest,
+  /** The guess before this one. Null on the first of a hunt. */
+  previousScore,
   won,
   onClose,
 }: {
   attempt: AttemptRecord;
   previousBest: number;
+  previousScore: number | null;
   won: boolean;
   onClose: () => void;
 }) {
   const percent = attempt.scorePercent;
   const personalBest = percent > previousBest;
+  const said = reaction(percent, previousScore, previousBest, won, attempt.ordinal);
   const opened = won ? CRACKS : cracksFor(percent);
   const previouslyOpen = cracksFor(previousBest);
   const shown = useCountUp(percent);
@@ -238,11 +329,9 @@ export function ResultDialog({
         >
           <Burst band={scoreBand(percent)} />
 
-          <Boxy mood={moodFor(percent, won)} className="mx-auto size-24 drop-shadow-2xl" />
+          <Boxy mood={said.mood} className="mx-auto size-24 drop-shadow-2xl" />
 
-          <p className="mt-1 text-xl font-black tracking-tight">
-            {headline(percent, won, personalBest)}
-          </p>
+          <p className="mt-1 text-balance text-xl font-black tracking-tight">{said.line}</p>
 
           <p
             className={

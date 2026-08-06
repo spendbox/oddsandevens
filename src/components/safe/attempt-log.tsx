@@ -165,6 +165,7 @@ function AttemptRow({
               <Part value={attempt.breakdown.exact} tone="bg-mark-green/25 text-mark-green" />
               <Part value={attempt.breakdown.miscase} tone="bg-mark-orange/25 text-mark-orange" />
               <Part value={attempt.breakdown.elsewhere} tone="bg-sky-500/20 text-sky-300" />
+              <Part value={attempt.breakdown.elsewhereMiscase} tone="bg-grape/20 text-grape" />
             </span>
           )}
 

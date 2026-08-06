@@ -13,7 +13,7 @@ export type LengthHint = "shorter" | "longer" | "exact";
  * A percentage of a perfect guess, where a perfect guess is the password
  * itself. **How it is arrived at is deliberately undocumented** — different
  * kinds of near-miss are worth different amounts, and a total that could have
- * come from several combinations is far harder to read than three labelled
+ * come from several combinations is far harder to read than four labelled
  * counts. That opacity is the game.
  *
  * 100% means solved and nothing else does: the score is measured against the
@@ -29,18 +29,29 @@ export interface Verdict {
 /**
  * The verdict taken apart — sold, not given.
  *
- * Turning one opaque number into three labelled ones is the single most useful
+ * Turning one opaque number into four labelled ones is the single most useful
  * thing a player can buy, which is why it costs what it costs. Withheld on the
  * server rather than hidden in the browser: `buildPlayView` never puts these on
  * the wire for a hunt that hasn't bought them.
+ *
+ * Four rather than three, because place and case are independent questions and
+ * a character can get either, both or neither right. The old shape folded the
+ * two wrong-place outcomes together, which meant the breakdown could not
+ * account for its own score — they are weighted differently.
+ *
+ * Knowing all four still doesn't give you the total: two of the weights are
+ * equal, so several different breakdowns reach the same percentage. That is the
+ * game, and it is why this is worth buying without being an answer key.
  */
 export interface Breakdown {
   /** Right character, right place, right case. */
   exact: number;
   /** Right letter, right place, wrong case. */
   miscase: number;
-  /** Right character, sitting somewhere else in the password. */
+  /** Right character, right case, sitting somewhere else in the password. */
   elsewhere: number;
+  /** Right letter, wrong case, sitting somewhere else. The cheapest hit. */
+  elsewhereMiscase: number;
 }
 
 /**

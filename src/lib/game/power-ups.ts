@@ -124,14 +124,21 @@ export const BREAKDOWN_HOURS = 24;
  * for half a percent of the reward: a methodical player with a fast finger can
  * take several hundred attempts inside one, which made buying Second Wind
  * repeatedly the cheapest route through a large safe rather than a way out of
- * a wait. Half the window at the same price doubles what that route costs.
+ * a wait. Halving it to thirty helped and did not settle it — the same route
+ * simply cost twice as much, and a fast finger still had time to walk an
+ * alphabet through a position inside one window.
+ *
+ * Fifteen is short enough that the purchase has to be *aimed*. You buy it
+ * holding a hypothesis you want to test right now, not as a general licence to
+ * grind, and that is the thing it was always meant to be: a way out of waiting
+ * an hour for a life when you are three characters from the answer.
  *
  * Minutes because it is no longer a whole number of hours, and a duration that
  * has to be phrased two different ways in six places is a duration that will
  * eventually be phrased wrongly in one of them — `secondWindLabel()` is the
  * only thing allowed to word it now.
  */
-export const SECOND_WIND_MINUTES: number = 30;
+export const SECOND_WIND_MINUTES: number = 15;
 
 /** "30 minutes" / "an hour" / "2 hours" — one wording, everywhere. */
 export function secondWindLabel(): string {
@@ -256,7 +263,7 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     kind: "breakdown",
     name: "Colour Read",
     blurb: `Splits every score into its parts, past attempts included. Lasts ${BREAKDOWN_HOURS} hours.`,
-    detail: `A score is a sum, and a sum can be reached many ways — which is exactly why one number is so hard to read. This splits every attempt into three: how many characters landed exactly, how many were the right letter in the wrong case, and how many are in the password but somewhere else. It applies backwards too, so every attempt you've already made is re-explained the moment you buy it. Measured against a solver, it roughly halves the work of cracking a box.`,
+    detail: `A score is a sum, and a sum can be reached many ways — which is exactly why one number is so hard to read. This splits every attempt into four: how many characters landed exactly, how many were the right letter in the wrong case, how many are the right character sitting somewhere else, and how many are in the password but in the other case *and* another position. It applies backwards too, so every attempt you've already made is re-explained the moment you buy it. Measured against a solver, it roughly halves the work of cracking a box.`,
     caveat: `${BREAKDOWN_HOURS} hours, then it lapses and can be bought again. It gives you the counts, never which positions they refer to, and never the arithmetic behind the score.`,
     share: 0.015,
     floorKobo: 500 * KOBO,

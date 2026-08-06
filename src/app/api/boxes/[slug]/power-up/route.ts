@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { playerEmail } from "@/lib/player-session";
 import { appBaseUrl } from "@/lib/base-url";
-import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
+import { paystackConfigured } from "@/lib/paystack";
+import { payMethod, startCheckout } from "@/lib/checkout-server";
 import { newReference } from "@/lib/game/boxes";
 import {
   discountedKobo,
@@ -40,7 +41,12 @@ export async function POST(
     return NextResponse.json({ error: "payments_unavailable" }, { status: 503 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { kind?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    kind?: string;
+    /** "card" or "transfer". Anything else is a card. */
+    method?: string;
+  };
+  const method = payMethod(body.method);
   const kind = body.kind ?? "";
   if (!isPowerUpKind(kind)) {
     return NextResponse.json({ error: "unknown_power_up" }, { status: 400 });
@@ -117,16 +123,17 @@ export async function POST(
     return NextResponse.json({ error: "order_failed" }, { status: 500 });
   }
 
-  const init = await initializeTransaction({
-    email,
+  const started = await startCheckout({
+    email: email,
     amountKobo: price,
     reference,
     callbackUrl: `${appBaseUrl(req)}/b/${box.slug}?reference=${reference}`,
+    method,
   });
-  if (!init) {
+  if (!started) {
     await db.from("power_up_orders").update({ status: "failed" }).eq("reference", reference);
     return NextResponse.json({ error: "checkout_failed" }, { status: 502 });
   }
 
-  return NextResponse.json({ result: "redirect", authorizationUrl: init.authorizationUrl });
+  return NextResponse.json(started);
 }

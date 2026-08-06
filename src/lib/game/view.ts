@@ -36,8 +36,19 @@ type Db = ReturnType<typeof supabaseAdmin>;
 /** How much of a long hunt is sent down. The rest stays in the database. */
 const ATTEMPT_PAGE = 60;
 
-/** How many cars the chase draws. */
-const RIVALS = 10;
+/**
+ * How many cars the chase draws: the top four, and you.
+ *
+ * Ten was a leaderboard rendered as traffic. It filled the road, which meant
+ * the field had to be drawn small enough to fit and stepped so far back that
+ * the cars at the rear were specks — and nobody was reading positions six
+ * through ten anyway. Five is the number you can take in without counting.
+ *
+ * "And you" is not a rounding: `rivalsOn` replaces the last of the five with
+ * your own car when the cut would have dropped it, so the row always contains
+ * the one you came to look at. A leaderboard you are not on is somebody else's.
+ */
+const RIVALS = 5;
 
 export interface HuntRow {
   id: string;
@@ -83,6 +94,7 @@ interface AttemptDbRow {
   exact_count: number;
   miscase_count: number;
   elsewhere_count: number;
+  elsewhere_miscase_count: number;
   score_percent: string | number;
   created_at: string;
 }
@@ -92,7 +104,7 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
     db
       .from("attempts")
       .select(
-        "ordinal, value, length_hint, exact_count, miscase_count, elsewhere_count, score_percent, created_at"
+        "ordinal, value, length_hint, exact_count, miscase_count, elsewhere_count, elsewhere_miscase_count, score_percent, created_at"
       )
       .eq("hunt_id", hunt.id)
       .order("ordinal", { ascending: false })
@@ -123,6 +135,7 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
           exact: row.exact_count,
           miscase: row.miscase_count,
           elsewhere: row.elsewhere_count,
+          elsewhereMiscase: row.elsewhere_miscase_count,
         }
       : null,
     at: row.created_at,
@@ -144,7 +157,7 @@ async function huntState(db: Db, hunt: HuntRow): Promise<HuntState> {
 }
 
 /**
- * The top ten hunters on a box, closest first.
+ * The top few hunters on a box, closest first, with you always among them.
  *
  * One query against `hunts.best_percent`, which 0034 added for exactly this —
  * the alternative is a sort over every guess ever made against a popular safe,
@@ -200,10 +213,12 @@ async function rivalsOn(db: Db, boxId: string, meId: string | null): Promise<Riv
     })
   );
 
-  // Sorted together and cut to the same ten, so a seeded name is overtaken by
+  // Sorted together and cut to the same few, so a seeded name is overtaken by
   // a real player the moment one gets past it rather than holding a lane
   // forever. `you` never loses its place: if the merge would push somebody off
-  // the end of their own leaderboard, their car has to stay.
+  // the end of their own leaderboard, their car has to stay. It takes the last
+  // slot, which is also the truthful one — anybody displaced by the cut is
+  // behind everybody who survived it.
   const merged = [...real, ...invented].sort((a, b) => b.percent - a.percent);
   const top = merged.slice(0, RIVALS);
   const me = merged.find((r) => r.you);

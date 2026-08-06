@@ -14,6 +14,10 @@
 // prize up.
 
 import { useState } from "react";
+import { isTransfer, openCheckout, type CheckoutStart } from "@/lib/checkout";
+import { PayMethodPicker } from "@/components/player/pay-method";
+import { TransferSheet } from "@/components/player/transfer-sheet";
+import type { PayMethod } from "@/lib/checkout-server";
 import { Check, Repeat2, Tag, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { PowerUpArt } from "@/components/art/power-up-art";
@@ -63,12 +67,21 @@ export function PowerUpShelf({
   slug,
   disabled,
   now,
+  onBought,
 }: {
   view: PlayView;
   slug: string;
   disabled: boolean;
   /** Ticking clock from the parent — rendering must not call one itself. */
   now: number;
+  /**
+   * A purchase settled without the page going anywhere.
+   *
+   * Needed only since checkout became inline: the redirect used to come back
+   * through a fresh server render, so the new `revealed` state arrived for
+   * free. Nothing unmounts now, so the parent has to be told to refetch.
+   */
+  onBought?: (note: string | null) => void;
 }) {
   const [open, setOpen] = useState<Offering | null>(null);
 
@@ -185,6 +198,7 @@ export function PowerUpShelf({
           disabled={disabled}
           now={now}
           onClose={() => setOpen(null)}
+          onBought={onBought}
         />
       )}
     </section>
@@ -206,6 +220,7 @@ function PowerUpDialog({
   disabled,
   now,
   onClose,
+  onBought,
 }: {
   powerUp: Offering;
   price: ReturnType<typeof priced>;
@@ -214,9 +229,15 @@ function PowerUpDialog({
   disabled: boolean;
   now: number;
   onClose: () => void;
+  onBought?: (note: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [method, setMethod] = useState<PayMethod>("transfer");
+  const [transfer, setTransfer] = useState<{
+    details: NonNullable<CheckoutStart["transfer"]>;
+    reference: string;
+  } | null>(null);
 
   const running = !!powerUp.activeUntil && new Date(powerUp.activeUntil).getTime() > now;
   const buyable = powerUp.available && !disabled;
@@ -227,14 +248,26 @@ function PowerUpDialog({
     const res = await fetch(`/api/boxes/${slug}/power-up`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: powerUp.kind }),
+      body: JSON.stringify({ kind: powerUp.kind, method }),
     });
-    const body = (await res.json().catch(() => ({}))) as {
-      authorizationUrl?: string;
+    const body = (await res.json().catch(() => ({}))) as CheckoutStart & {
       error?: string;
     };
-    if (res.ok && body.authorizationUrl) {
-      window.location.assign(body.authorizationUrl);
+    if (res.ok && isTransfer(body)) {
+      setBusy(false);
+      setTransfer({ details: body.transfer, reference: body.reference });
+      return;
+    }
+    if (res.ok && (body.accessCode || body.authorizationUrl)) {
+      // The card form opens over the shelf. A power-up bought mid-hunt used to
+      // throw the whole screen away to buy a fact about the password.
+      const outcome = await openCheckout(body, (note) => {
+        onBought?.(note);
+        onClose();
+      });
+      if (outcome === "redirected") return;
+      setBusy(false);
+      if (outcome === "failed") setError("Couldn't open checkout. Try again in a moment.");
       return;
     }
     setBusy(false);
@@ -246,6 +279,21 @@ function PowerUpDialog({
           : body.error === "not_verified"
             ? "Verify your email address first — it's how a life pool is kept."
             : "Couldn't open checkout. Try again in a moment."
+    );
+  }
+
+  if (transfer) {
+    return (
+      <TransferSheet
+        transfer={transfer.details}
+        reference={transfer.reference}
+        what={powerUp.name}
+        onPaid={(note) => {
+          onBought?.(note);
+          onClose();
+        }}
+        onClose={onClose}
+      />
     );
   }
 
@@ -342,6 +390,8 @@ function PowerUpDialog({
             You’ve already bought this one. It has nothing left to tell you.
           </p>
         )}
+
+        {buyable && <PayMethodPicker value={method} onPick={setMethod} disabled={busy} />}
 
         {error && (
           <p className="rounded-xl bg-berry/15 px-3 py-2 text-sm font-bold text-berry">{error}</p>

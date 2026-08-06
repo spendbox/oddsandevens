@@ -43,11 +43,11 @@ export async function POST(req: Request) {
   }
 
   if (table === "power_up_orders") {
-    const { settled, note } = await settlePowerUp(db, reference);
+    const { settled, note } = await settlePowerUp(db, reference, verified.amountKobo);
     return NextResponse.json({ result: settled ? "paid" : "unknown", note });
   }
   if (table === "life_orders") {
-    const { settled, quantity, bank } = await settleLives(db, reference);
+    const { settled, quantity, bank } = await settleLives(db, reference, verified.amountKobo);
     return NextResponse.json({
       result: settled ? "paid" : "unknown",
       quantity,
@@ -55,6 +55,6 @@ export async function POST(req: Request) {
     });
   }
 
-  const { settled } = await settleFunding(db, reference);
+  const { settled } = await settleFunding(db, reference, verified.amountKobo);
   return NextResponse.json({ result: settled ? "paid" : "unknown" });
 }

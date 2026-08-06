@@ -51,6 +51,7 @@ import { DropCrate } from "./drop-crate";
 import { useDrops } from "./use-drops";
 import type { Rival } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
+import { ReportIssueButton } from "@/components/report-issue";
 
 type Outcome = "open" | "won" | "pipped";
 type Sheet =
@@ -83,7 +84,14 @@ export function PlaySurface({
   const [outcome, setOutcome] = useState<Outcome>("open");
   const [sheet, setSheet] = useState<Sheet>("none");
   const [message, setMessage] = useState<string | null>(null);
-  const [result, setResult] = useState<{ attempt: AttemptRecord; was: number } | null>(null);
+  // `was` is their best before this guess; `before` is the guess immediately
+  // before it. Both, because "up on your best" and "up on your last" are
+  // different pieces of news and the reaction wants the second one.
+  const [result, setResult] = useState<{
+    attempt: AttemptRecord;
+    was: number;
+    before: number | null;
+  } | null>(null);
   const [jolt, setJolt] = useState(0);
   /**
    * What the last shot did.
@@ -300,6 +308,10 @@ export function PlaySurface({
     }
 
     const was = view.hunt?.bestPercent ?? 0;
+    // The log is newest-first and hasn't been replaced yet, so its head is the
+    // guess before this one. Null on the first of a hunt, where "you went down"
+    // has nothing to be down from.
+    const before = view.hunt?.attempts?.[0]?.scorePercent ?? null;
     const landed = body.hunt?.attempts?.[0] ?? null;
     const winning = body.outcome === "won";
 
@@ -312,7 +324,7 @@ export function PlaySurface({
     setShot(winning || improved ? "hit" : "miss");
     setColdStreak((n) => (improved || winning ? 0 : n + 1));
     setJolt((n) => n + 1);
-    if (landed) setResult({ attempt: landed, was });
+    if (landed) setResult({ attempt: landed, was, before });
     await refresh();
   }
 
@@ -460,6 +472,7 @@ export function PlaySurface({
             <ResultCard
               attempt={result.attempt}
               previousBest={result.was}
+              previousScore={result.before}
               onClose={() => setResult(null)}
             />
           )}
@@ -564,6 +577,17 @@ export function PlaySurface({
           onClose={() => setSheet("none")}
         >
           <AttemptLog attempts={attempts} />
+
+          {/*
+            The way to tell us something is wrong, put where somebody who
+            thinks something *is* wrong already goes. A player disputing a
+            score opens their attempts to look at it, so the report button is
+            at the foot of that list with the guess they are staring at — not
+            on a support page they would have to leave the hunt to find.
+          */}
+          <div className="mt-3 flex justify-center border-t border-white/10 pt-3">
+            <ReportIssueButton context={`Playing /b/${slug}`} />
+          </div>
           {view.hunt && view.hunt.attemptsCount > attempts.length && (
             <p className="mt-2 text-center text-xs text-zinc-500">
               Showing your last {attempts.length} of {view.hunt.attemptsCount}.
@@ -579,7 +603,20 @@ export function PlaySurface({
           width="lg"
           onClose={() => setSheet("none")}
         >
-          <PowerUpShelf view={view} slug={slug} disabled={won} now={now} />
+          <PowerUpShelf
+            view={view}
+            slug={slug}
+            disabled={won}
+            now={now}
+            /* Inline checkout means nothing unmounts, so the revealed state
+               the purchase just bought has to be fetched rather than arriving
+               with a fresh render of the page. */
+            onBought={(note) => {
+              if (note) setMessage(note);
+              setSheet("none");
+              void reload();
+            }}
+          />
         </Modal>
       )}
 
@@ -597,6 +634,7 @@ export function PlaySurface({
         <ResultDialog
           attempt={result.attempt}
           previousBest={result.was}
+          previousScore={result.before}
           won
           onClose={() => setResult(null)}
         />

@@ -1155,9 +1155,26 @@ summary,
 }
 
 /* The car, holding station in the safe's wake. */
+/*
+ * A car ticking over. Bob and rotate, and *nothing else* — no centring.
+ *
+ * It used to carry `translate(-50%, 0)`, because the one place it was used was
+ * an absolutely positioned car whose `-translate-x-1/2` this animation would
+ * otherwise overwrite. Then the field arrived and used the same class on an
+ * in-flow element, where there was nothing to re-centre and the -50% was a
+ * straight shift of half a car's width to the left, held at every keyframe.
+ *
+ * That is the whole of the "cars sit off the road" bug, and the reason it read
+ * as two different bugs: a car is 12.5% of the scene wide, so the field was
+ * displaced 6.25% of the scene's width along its own axis — left on a phone,
+ * and *upward* from `lg`, where `.chase-flat` turns the scene a quarter turn
+ * and the scene's x becomes the screen's y.
+ *
+ * Centring belongs to whatever is doing the positioning. Keep it out of here.
+ */
 @keyframes car-idle {
-  0%, 100% { transform: translate(-50%, 0) rotate(-1.2deg); }
-  50%      { transform: translate(-50%, -6px) rotate(1.2deg); }
+  0%, 100% { transform: translateY(0) rotate(-1.2deg); }
+  50%      { transform: translateY(-6px) rotate(1.2deg); }
 }
 
 /* The safe, bolting. Heavier and more erratic than the car, because it is a

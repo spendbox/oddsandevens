@@ -333,7 +333,12 @@ export interface WinnerRow {
 
 /** Every checkout in the app answers with this. */
 export type CheckoutResponse =
-  | { result: "redirect"; authorizationUrl: string }
+  | {
+      result: "redirect";
+      authorizationUrl: string;
+      accessCode: string;
+      reference: string;
+    }
   | { result: "error"; error: string };
 
 export interface Bank {

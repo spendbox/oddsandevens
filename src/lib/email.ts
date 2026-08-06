@@ -171,6 +171,127 @@ export async function sendRewardPaidEmail(params: {
   );
 }
 
+/**
+ * Where an operational notice goes.
+ *
+ * `ADMIN_EMAIL` if there is one, otherwise the first address on `ADMIN_EMAILS`
+ * — the same two variables that decide who may sign in to `/admin`, so the
+ * person told about a payout is by construction somebody able to make it.
+ */
+function adminAddress(): string | null {
+  const dedicated = process.env.ADMIN_EMAIL?.trim();
+  if (dedicated) return dedicated;
+  const first = (process.env.ADMIN_EMAILS ?? "").split(",")[0]?.trim();
+  return first || null;
+}
+
+/**
+ * Somebody is owed money and can now be paid.
+ *
+ * Payouts are made by hand from the admin ledger, which means the whole system
+ * waits on an administrator *noticing*. Until now the only way to notice was to
+ * open `/admin` and look, so the clock on "within 24 hours" started whenever
+ * somebody happened to check. This closes that: the moment a payout becomes
+ * *payable* — not when it is created — the person who can send it is told.
+ *
+ * "Payable" is the important word, and it is why this fires from three places
+ * rather than one. A prize with no account behind it is not payable, and an
+ * account with no prize behind it is not either; whichever of the two arrives
+ * second is the thing that makes it actionable, and that is the moment worth
+ * an email.
+ *
+ * Fire-and-forget like everything else here. An administrator's inbox must
+ * never be able to fail a player's bank details being saved.
+ */
+export async function sendAdminPayoutDueEmail(params: {
+  kind: "prize" | "contributor";
+  /** Masked for a player, the trading name for a contributor. */
+  who: string;
+  amountKobo: number;
+  /** The safe involved, when there is one. */
+  title?: string | null;
+  accountName?: string | null;
+  bankName?: string | null;
+}) {
+  const to = adminAddress();
+  if (!to) return;
+
+  const { kind, who, amountKobo, title, accountName, bankName } = params;
+  const what = kind === "prize" ? "Prize" : "Contributor share";
+  const where = kind === "prize" ? "/admin" : "/admin";
+
+  await send(
+    to,
+    `${what} ready to pay — ${formatNaira(amountKobo)} to ${who}`,
+    `<div ${WRAP}>
+      <h2>${what} ready to pay</h2>
+      <p><strong>${formatNaira(amountKobo)}</strong> is owed to <strong>${who}</strong>${
+        title ? ` for <strong>${title}</strong>` : ""
+      }, and there is now an account to send it to.</p>
+      ${
+        accountName
+          ? `<p>${accountName}${bankName ? ` &middot; ${bankName}` : ""}</p>`
+          : ""
+      }
+      <p>Nothing is transferred automatically. This is waiting on somebody
+      pressing the button.</p>
+      ${link(where, "Open the admin ledger")}
+    </div>`
+  );
+}
+
+/** Where issue reports go. Fixed, and never taken from a request. */
+const SUPPORT_INBOX = "spendbox@gmail.com";
+
+/**
+ * Escape anything a stranger typed before it goes anywhere near HTML.
+ *
+ * Everything else in this file interpolates values we produced. This one
+ * interpolates a free-text field from an unauthenticated form, so it is the
+ * only place that can carry a `<script>` into an inbox — and a support inbox
+ * is exactly where somebody would aim one.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Somebody has reported a problem. */
+export async function sendIssueReportEmail(params: {
+  message: string;
+  /** Their address, if we have one. */
+  from: string | null;
+  /** True when it came from their session rather than a text field. */
+  verified: boolean;
+  /** The screen they reported from. */
+  context: string | null;
+  userAgent: string;
+}) {
+  const { message, from, verified, context, userAgent } = params;
+  const who = from ? escapeHtml(from) : "not given";
+
+  await send(
+    SUPPORT_INBOX,
+    `Issue report${context ? ` — ${context}` : ""}`,
+    `<div ${WRAP}>
+      <h2>Somebody reported a problem</h2>
+      <p style="white-space:pre-wrap;background:#f4f4f5;padding:12px;border-radius:8px">${escapeHtml(
+        message
+      )}</p>
+      <hr>
+      <p style="font-size:13px;color:#52525b">
+        <strong>From:</strong> ${who}${verified ? " (signed in)" : " (typed, unverified)"}<br>
+        ${context ? `<strong>Where:</strong> ${escapeHtml(context)}<br>` : ""}
+        <strong>Browser:</strong> ${escapeHtml(userAgent)}
+      </p>
+    </div>`
+  );
+}
+
 /** To a contributor, when an admin records a transfer of their share. */
 export async function sendPayoutSentEmail(params: {
   to: string;

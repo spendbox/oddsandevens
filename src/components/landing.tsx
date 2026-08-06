@@ -10,7 +10,7 @@
 // and a session lives in the browser.
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Swords, Trophy } from "lucide-react";
+import { ArrowRight, GraduationCap, Swords, Trophy } from "lucide-react";
 import { Boxy } from "@/components/art/boxy";
 import { SafeArt } from "@/components/safe/safe-art";
 import { BoxCard } from "@/components/box-card";
@@ -18,6 +18,7 @@ import { Featured } from "@/components/featured";
 import { InPlay } from "@/components/in-play";
 import { Tutorial, tutorialSeen } from "@/components/tutorial";
 import { HowItWorksButton } from "@/components/how-it-works";
+import { ReportIssueButton } from "@/components/report-issue";
 import { BuildDialog } from "@/components/build-dialog";
 import { usePlayer } from "@/components/player/player-context";
 import { VerifyDialog } from "@/components/player/account-dialog";
@@ -90,9 +91,33 @@ export function Landing({
           <Featured boxes={featured} />
         </div>
 
-        {/* One explainer button. There were two, saying the same thing. */}
-        <div className="mt-6 flex justify-center">
+        {/*
+          Two ways in, and they are not the same thing. "How it works" is the
+          reference — the rules, in a list, for the question you already have.
+          The walkthrough is the lesson: a real safe cracked a guess at a time.
+
+          It lives here permanently rather than only firing itself once per
+          device. The auto-open below still happens for a brand new player, but
+          somebody who skipped it on a bus used to have no way back to it, and
+          the walkthrough is the single most useful thing on this page for
+          anybody who has bounced off a hard box.
+        */}
+        <div className="mt-6 flex flex-wrap justify-center gap-2.5">
           <HowItWorksButton />
+          <button
+            type="button"
+            onClick={() => setTutorial(true)}
+            className="inline-flex items-center gap-2 rounded-2xl border-2 border-brass/40 bg-brass/12 px-5 py-3.5 font-bold text-brass transition hover:border-brass/70 hover:bg-brass/20 active:translate-y-0.5"
+          >
+            <GraduationCap className="size-4" aria-hidden />
+            Let&apos;s crack a code
+          </button>
+        </div>
+
+        {/* Quieter than the two above it on purpose: this is the door you want
+            to be able to find, not the one being advertised. */}
+        <div className="mt-3 flex justify-center">
+          <ReportIssueButton context="Home page" />
         </div>
       </section>
 

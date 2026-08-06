@@ -18,6 +18,10 @@
 // every box is played from.
 
 import { useState } from "react";
+import { isTransfer, openCheckout, type CheckoutStart } from "@/lib/checkout";
+import { PayMethodPicker } from "./pay-method";
+import { TransferSheet } from "./transfer-sheet";
+import type { PayMethod } from "@/lib/checkout-server";
 import { Heart, Infinity as InfinityIcon, Tag } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { LIFE_PURCHASE_MAX, LIVES_MAX } from "@/lib/constants";
@@ -64,7 +68,7 @@ export function BuyLivesDialog({
   /** A week of the raised ceiling. Admin-set; this is only the fallback. */
   lifeBankKobo?: number;
 }) {
-  const { player } = usePlayer();
+  const { player, refresh } = usePlayer();
   // Off the player rather than a prop: this dialog opens from the game, the
   // header and the profile, and only one of those has a box in front of it.
   const lifeDiscount = player.lifeDiscount;
@@ -75,6 +79,12 @@ export function BuyLivesDialog({
   const [buying, setBuying] = useState<Buying>("lives");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [method, setMethod] = useState<PayMethod>("transfer");
+  /* Set once a transfer charge comes back; the sheet owns the rest. */
+  const [transfer, setTransfer] = useState<{
+    details: NonNullable<CheckoutStart["transfer"]>;
+    reference: string;
+  } | null>(null);
 
   const windRunning =
     !!secondWind?.activeUntil && new Date(secondWind.activeUntil).getTime() > now;
@@ -93,14 +103,28 @@ export function BuyLivesDialog({
     const res = await fetch("/api/player/lives", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bank ? { lifeBank: true, slug } : { quantity, slug }),
+      body: JSON.stringify(
+        bank ? { lifeBank: true, slug, method } : { quantity, slug, method }
+      ),
     });
-    const body = (await res.json().catch(() => ({}))) as {
-      authorizationUrl?: string;
+    const body = (await res.json().catch(() => ({}))) as CheckoutStart & {
       error?: string;
     };
-    if (res.ok && body.authorizationUrl) {
-      window.location.assign(body.authorizationUrl);
+    if (res.ok && isTransfer(body)) {
+      setBusy(false);
+      setTransfer({ details: body.transfer, reference: body.reference });
+      return;
+    }
+    if (res.ok && (body.accessCode || body.authorizationUrl)) {
+      const outcome = await openCheckout(body, () => {
+        void refresh();
+        onClose();
+      });
+      if (outcome === "redirected") return;
+      setBusy(false);
+      if (outcome === "failed") {
+        setError("Couldn't start that payment. Try again in a moment.");
+      }
       return;
     }
     setBusy(false);
@@ -118,14 +142,26 @@ export function BuyLivesDialog({
     const res = await fetch(`/api/boxes/${slug}/power-up`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "second_wind" }),
+      body: JSON.stringify({ kind: "second_wind", method }),
     });
-    const body = (await res.json().catch(() => ({}))) as {
-      authorizationUrl?: string;
+    const body = (await res.json().catch(() => ({}))) as CheckoutStart & {
       error?: string;
     };
-    if (res.ok && body.authorizationUrl) {
-      window.location.assign(body.authorizationUrl);
+    if (res.ok && isTransfer(body)) {
+      setBusy(false);
+      setTransfer({ details: body.transfer, reference: body.reference });
+      return;
+    }
+    if (res.ok && (body.accessCode || body.authorizationUrl)) {
+      const outcome = await openCheckout(body, () => {
+        void refresh();
+        onClose();
+      });
+      if (outcome === "redirected") return;
+      setBusy(false);
+      if (outcome === "failed") {
+        setError("Couldn’t open checkout. Try again in a moment.");
+      }
       return;
     }
     setBusy(false);
@@ -146,6 +182,21 @@ export function BuyLivesDialog({
   const livesFull = quantity * player.lifePriceKobo;
   const livesTotal = discountedKobo(livesFull, off);
   const total = wind && secondWind ? secondWind.priceKobo : bank ? lifeBankKobo : livesTotal;
+
+  if (transfer) {
+    return (
+      <TransferSheet
+        transfer={transfer.details}
+        reference={transfer.reference}
+        what={wind ? secondWindLabel() : bank ? "Life Bank, one week" : `${quantity} lives`}
+        onPaid={() => {
+          void refresh();
+          onClose();
+        }}
+        onClose={onClose}
+      />
+    );
+  }
 
   return (
     <Modal
@@ -306,6 +357,8 @@ export function BuyLivesDialog({
             className="field mt-1.5 px-4 py-3"
           />
         </label>
+
+        <PayMethodPicker value={method} onPick={setMethod} disabled={busy} />
 
         {error && (
           <p className="rounded-xl bg-berry/15 px-3 py-2 text-sm font-bold text-berry">{error}</p>
