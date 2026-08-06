@@ -42,6 +42,7 @@ export const POWER_UP_KINDS = [
   "second_wind",
   "breakdown",
   "x_ray",
+  "power_pack",
 ] as const;
 export type PowerUpKind = (typeof POWER_UP_KINDS)[number];
 
@@ -149,6 +150,20 @@ export function secondWindLabel(): string {
 
 /** X-Ray shows this much of the password's distinct characters, unordered. */
 export const XRAY_SHARE = 0.5;
+
+/**
+ * The Power Pack, as a share of the reward.
+ *
+ * Thirty percent, and deliberately less than the shelf adds up to: the eleven
+ * things on it come to a little under half a reward bought separately, so this
+ * is roughly a third off for taking all of them at once. That discount is the
+ * product. Somebody buying the whole shelf is giving up the part of the game
+ * where you decide *which* hint is worth having, and the price should say so.
+ *
+ * Admin-editable through the same override path as every other power-up, since
+ * it is a kind like the rest — `pricing.powerUps.power_pack.share`.
+ */
+export const POWER_PACK_SHARE = 0.3;
 
 export interface PowerUpSpec {
   kind: PowerUpKind;
@@ -306,6 +321,18 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
     repeat: "once",
   },
 
+  power_pack: {
+    kind: "power_pack",
+    name: "Power Pack",
+    blurb: "Every power-up still on this shelf, in one purchase.",
+    detail:
+      "Everything above that you haven't already bought, applied in one go: the length, every count, half the characters, the score split into its parts, and a free run to use it all in. Priced as a share of the reward rather than as the sum of its parts, so it is always cheaper than buying them one at a time — the discount is for committing, and for giving up the pleasure of working out which hint to buy next.",
+    caveat:
+      "It buys what is still available and nothing else, so it is worth least to somebody who has already bought most of the shelf — the price does not drop to match. It never tells you the password.",
+    share: POWER_PACK_SHARE,
+    floorKobo: 2_000 * KOBO,
+    repeat: "once",
+  },
 };
 
 /**
@@ -489,6 +516,12 @@ export function secondWindActive(revealed: Revealed, now = Date.now()): boolean 
  * password to decide stays on sale.
  */
 export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
+  // The pack is worth selling exactly when something is left to put in it.
+  // Asking the rest of the shelf rather than keeping its own flag is what
+  // stops it being buyable as an empty box on a hunt that has bought
+  // everything — and it is why this branch comes before the scan check.
+  if (kind === "power_pack") return packContents(revealed).length > 0;
+
   // The counters, first. Each sells once — a count is permanent and complete,
   // so a second sale would be a second copy of the same number.
   if (isScanKind(kind)) return revealed.scans[SCANS[kind].field] === undefined;
@@ -509,6 +542,21 @@ export function isAvailable(kind: PowerUpKind, revealed: Revealed): boolean {
       // then you work.
       return revealed.charset === null;
   }
+}
+
+/**
+ * Everything the pack would apply, in shelf order.
+ *
+ * Every kind except itself that is still available on this hunt. Order matters
+ * and is the catalogue's: X-Ray draws from what is *not already known*, so
+ * running it after the counters is running it against the same pool it would
+ * have had alone, and running the free window last means its clock starts once
+ * everything it is meant to be used on has landed.
+ */
+export function packContents(revealed: Revealed): PowerUpKind[] {
+  return POWER_UP_KINDS.filter(
+    (kind) => kind !== "power_pack" && isAvailable(kind, revealed)
+  );
 }
 
 /**
@@ -583,6 +631,33 @@ export function apply(
   secret: string,
   before: Revealed
 ): { revealed: Revealed; note: string } {
+  /*
+   * The pack is not an effect of its own — it is every other effect, folded.
+   *
+   * Recursing through `apply` rather than reimplementing the eleven cases is
+   * the whole point: there is exactly one description of what X-Ray does, and
+   * a pack that had its own copy would be a second one to keep in step. The
+   * fold threads `revealed` through, so each step sees what the step before it
+   * revealed, which is what makes X-Ray draw from the right pool.
+   */
+  if (kind === "power_pack") {
+    const contents = packContents(before);
+    let revealed: Revealed = {
+      ...before,
+      used: { ...before.used, power_pack: (before.used.power_pack ?? 0) + 1 },
+    };
+    const notes: string[] = [];
+    for (const one of contents) {
+      const step = apply(one, secret, revealed);
+      revealed = step.revealed;
+      notes.push(step.note);
+    }
+    return {
+      revealed,
+      note: notes.length > 0 ? notes.join(" ") : "Nothing left to unpack.",
+    };
+  }
+
   const used = { ...before.used, [kind]: (before.used[kind] ?? 0) + 1 };
   const counted = { ...before, used };
   const hours = (n: number) => new Date(Date.now() + n * 60 * 60 * 1000).toISOString();

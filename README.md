@@ -250,6 +250,22 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Lowercase Count | 8.5% | Counts the lowercase letters |
 | Capital Count | 9% | Counts the capital letters |
 | Symbol Count | 10% | Counts the symbols — anything that isn't a letter, digit or space |
+| **Power Pack** | **30%** | Every power-up still on this shelf, in one purchase |
+
+Those eleven come to **49.3%** of a reward bought separately, so the Power Pack
+is about a third off for taking all of them at once. That discount is the
+product: somebody buying the whole shelf is giving up the part of the game
+where you decide *which* hint is worth having, and the price should say so.
+
+It is not an effect of its own. `apply` recurses through itself for the pack,
+folding `revealed` from one power-up into the next, which is what keeps X-Ray
+drawing from the pool the counters left it and means there is exactly one
+description of what each power-up does. It is only buyable while something is
+left to put in it, it buys what is still available and nothing else, and the
+price does not drop to match a half-empty shelf.
+
+Every price here is a default. `POWER_UP_KINDS` drives the admin pricing panel,
+so the pack's share and floor are editable there like any other.
 
 The shelf is ordered **cheapest first**, which is the order above. It used to
 be in catalogue order — the order they happened to be written in — so a

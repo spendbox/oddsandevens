@@ -40,6 +40,9 @@ export const POWER_UP_COLOURS: Record<PowerUpKind, { from: string; to: string }>
   space_count: { from: "#a8e6ff", to: "#1a6e9c" },
   vowel_scan: { from: "#ffa8d8", to: "#a81d6d" },
   consonant_scan: { from: "#aebcff", to: "#3843b5" },
+  // Gold, alone among them. The pack is the only thing on the shelf that is
+  // not one idea — it is all of them — so it does not belong to any accent.
+  power_pack: { from: "#ffe08a", to: "#b8750f" },
 };
 
 /** The glyph on each counter's card — the class it counts, in two characters. */
@@ -91,8 +94,51 @@ export function PowerUpArt({
       {kind === "second_wind" && <SecondWind uid={uid} />}
       {kind === "breakdown" && <ColourRead uid={uid} />}
       {kind === "x_ray" && <XRay uid={uid} />}
+      {kind === "power_pack" && <PowerPack uid={uid} />}
       {kind in SCAN_GLYPHS && <Scan glyph={SCAN_GLYPHS[kind]} tint={c.to} />}
     </svg>
+  );
+}
+
+/**
+ * The pack: three cards fanned out of a crate, and a spark over the lot.
+ *
+ * Deliberately made of the *other* pictures rather than a new symbol. What is
+ * being sold is the shelf, so the shelf is what should be in the box, and three
+ * overlapping cards read as "several of these" at 20px where three distinct
+ * glyphs would read as noise.
+ */
+function PowerPack({ uid }: { uid: string }) {
+  return (
+    <g>
+      {/* The cards, fanned. Back to front, so the nearest one is whole. */}
+      {[
+        { x: 12, y: 16, r: -14, fill: "#7ddcf7" },
+        { x: 22, y: 13, r: 0, fill: "#cfa4ff" },
+        { x: 32, y: 16, r: 14, fill: "#7ff0bb" },
+      ].map((card) => (
+        <rect
+          key={card.r}
+          x={card.x}
+          y={card.y}
+          width="20"
+          height="26"
+          rx="5"
+          fill={card.fill}
+          stroke={INK}
+          strokeWidth={STROKE - 1}
+          transform={`rotate(${card.r} ${card.x + 10} ${card.y + 13})`}
+        />
+      ))}
+
+      {/* The crate they are coming out of. */}
+      <rect x="12" y="36" width="40" height="18" rx="6" fill={`url(#${uid}-badge)`} stroke={INK} strokeWidth={STROKE} />
+      <rect x="12" y="36" width="40" height="6" rx="3" fill="#fff" opacity="0.25" />
+      <path d="M 32 36 L 32 54" stroke={INK} strokeWidth={STROKE - 1} opacity="0.5" />
+
+      <Sparkle x={49} y={16} size={7} color="#fff3d1" index={0} />
+      <Sparkle x={15} y={11} size={5} color="#fff3d1" index={2} />
+    </g>
   );
 }
 

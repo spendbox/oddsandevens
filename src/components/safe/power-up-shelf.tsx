@@ -96,7 +96,15 @@ export function PowerUpShelf({
         )}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      {/*
+        The pack spans the row, and that is the only thing marking it out.
+
+        It is the one thing on this shelf that is not a fact about the password
+        — it is the shelf — so a card the same size as the eleven it contains
+        would read as a twelfth hint. Full width says "this is a different kind
+        of thing" without a badge, a colour or a word.
+      */}
+      <div className="grid gap-2 sm:grid-cols-2 [&>button[data-pack]]:sm:col-span-2">
         {view.powerUps.map((powerUp, i) => {
           const running = !!powerUp.activeUntil && new Date(powerUp.activeUntil).getTime() > now;
           const price = priced(powerUp, view.discount, now);
@@ -104,6 +112,7 @@ export function PowerUpShelf({
             <button
               key={powerUp.kind}
               type="button"
+              data-pack={powerUp.kind === "power_pack" ? "" : undefined}
               onClick={() => setOpen(powerUp)}
               style={{ "--i": i } as React.CSSProperties}
               /*
@@ -116,6 +125,9 @@ export function PowerUpShelf({
               */
               className={
                 "panel animate-fade-up stagger flex items-start gap-3 rounded-xl p-3 text-left transition hover:-translate-y-0.5 hover:border-brass/40 " +
+                (powerUp.kind === "power_pack" && powerUp.available
+                  ? "border-brass/45 bg-brass/8 "
+                  : "") +
                 (powerUp.available || running ? "" : "opacity-55 grayscale")
               }
             >
