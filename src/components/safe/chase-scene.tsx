@@ -107,7 +107,13 @@ export function ChaseScene({
           what stopped the safe opening its own sheet when you tapped it.
         */}
         <div className="chase-swerve pointer-events-none absolute inset-0">
-          <Safe design={design} cracks={cracks} open={open} onTap={onSafe} />
+          <Safe
+            design={design}
+            cracks={cracks}
+            percent={open ? 100 : percent}
+            open={open}
+            onTap={onSafe}
+          />
         </div>
 
         {/*
@@ -415,15 +421,25 @@ const STREAKS = [
 function Safe({
   design,
   cracks,
+  percent,
   open,
   onTap,
 }: {
   design: Design;
   cracks: number;
+  /** The best score on this box. What is left of the safe is 100 minus it. */
+  percent: number;
   open?: boolean;
   onTap?: () => void;
 }) {
   const spec = DESIGN_SPECS[design];
+  // Integrity, and it is the score inverted rather than the cracks inverted.
+  // Cracks are worth a tenth each, so a bar driven off them would sit still
+  // for ten percent at a time and then jump — which reads as broken on every
+  // guess that moves the score without crossing a tenth. The number underneath
+  // is continuous, so the bar is too, and the cracks stay as the coarse,
+  // countable version of the same fact.
+  const integrity = Math.max(0, Math.min(100, 100 - percent));
 
   return (
     <button
@@ -433,6 +449,42 @@ function Safe({
       aria-label="What is in this safe"
       className="chase-safe pointer-events-auto absolute left-1/2 top-[15%] w-[26%] max-w-[9rem] disabled:cursor-default sm:w-[16%]"
     >
+      {/*
+        What is left of it, trailing behind it.
+
+        The ten cracks say how much damage has been done and are countable but
+        coarse; this says the same thing continuously, and it is the one place
+        on the scene where a guess that moved the score by half a percent is
+        visible at all.
+
+        *Behind* the safe rather than in front of it, which is the side the
+        chase is watched from: everything hunting this thing is further down the
+        road, so a bar on its trailing edge is between the player and the target
+        instead of on the far side of it. Never on the shell, so it can't
+        compete with the damage drawn into it.
+
+        Counter-rotated from `lg`, where `.chase-flat` lays the whole scene on
+        its side and a bar that empties leftward would otherwise empty upward.
+      */}
+      {!open && (
+        <span
+          aria-hidden
+          className="absolute inset-x-0 -bottom-3 mx-auto block h-1.5 w-[85%] overflow-hidden rounded-full border border-black/40 bg-black/50 lg:-rotate-90"
+        >
+          <span
+            className="block h-full rounded-full transition-[width,background-color] duration-500"
+            style={{
+              width: `${integrity}%`,
+              backgroundColor:
+                integrity > 60
+                  ? "var(--mint)"
+                  : integrity > 25
+                    ? "var(--brass)"
+                    : "var(--berry)",
+            }}
+          />
+        </span>
+      )}
       <svg viewBox="0 0 100 120" className="w-full drop-shadow-2xl" aria-hidden>
         <defs>
           <linearGradient id="cs-lid" x1="0" y1="0" x2="1" y2="1">

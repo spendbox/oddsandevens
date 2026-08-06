@@ -13,12 +13,13 @@
 // that's what Colour Read is for, and even Colour Read gives the components
 // rather than the arithmetic.
 
-import { Lock, MoveDown, MoveUp, Target } from "lucide-react";
+import { History, MoveDown, MoveUp, Target } from "lucide-react";
 import { visible } from "@/lib/constants";
 import { Modal } from "@/components/ui/modal";
 import { plural } from "@/lib/plural";
 import type { AttemptRecord } from "@/lib/types";
 import { ScorePill } from "./score-pill";
+import { AttemptSummary } from "./result-dialog";
 
 const LENGTH_COPY = {
   shorter: {
@@ -43,13 +44,42 @@ const LENGTH_COPY = {
 
 export function AttemptDialog({
   attempt,
+  /**
+   * Every attempt on this hunt, newest first.
+   *
+   * The summaries that appear the moment a guess lands used to be the only
+   * place the reasoning was said, and they were gone by the next guess. Now
+   * they are kept: this is where a player scrolls back through the hunt and
+   * reads the run of them together, which is a different and better thing than
+   * reading one at a time — three "cooler"s in a row is a sentence about the
+   * character you keep changing.
+   */
+  history = [],
   onClose,
 }: {
   attempt: AttemptRecord;
+  history?: AttemptRecord[];
   onClose: () => void;
 }) {
   const length = LENGTH_COPY[attempt.lengthHint];
   const Icon = length.icon;
+
+  /*
+   * Each summary needs the two numbers it was originally written against: the
+   * best before that guess, and the guess immediately before it. Both are
+   * recovered from the log rather than stored, so an old summary reads exactly
+   * as it did at the time.
+   *
+   * The log arrives newest-first, so "earlier" is a *higher* index.
+   */
+  const past = history.map((one, i) => {
+    const earlier = history.slice(i + 1);
+    return {
+      attempt: one,
+      previousBest: earlier.reduce((top, a) => Math.max(top, a.scorePercent), 0),
+      previousScore: earlier.length > 0 ? earlier[0].scorePercent : null,
+    };
+  });
 
   return (
     <Modal
@@ -95,7 +125,9 @@ export function AttemptDialog({
           body={length.body}
         />
 
-        {attempt.breakdown ? (
+        {/* Only when Colour Read is running. Nothing stands in for it when it
+            isn't: the score's own explanation is the thing being sold. */}
+        {attempt.breakdown && (
           <>
             <Row
               icon={<Dot tone="bg-mark-green" />}
@@ -137,42 +169,39 @@ export function AttemptDialog({
               body="The letter is in the password, but in the other case and in another position. Two things to fix, and the least any hit is worth."
             />
           </>
-        ) : (
-          <LockedBreakdown />
+        )}
+
+        {past.length > 0 && (
+          <div className="border-t border-white/10 pt-3">
+            <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-zinc-500">
+              <History className="size-3.5" aria-hidden />
+              Every guess, and what it said
+            </p>
+            {/* Capped in height rather than in count: a siege runs to hundreds
+                of these and the dialog should not become the page. */}
+            <div className="mt-2 max-h-[22rem] space-y-1.5 overflow-y-auto pr-0.5">
+              {past.map((row) => (
+                <div
+                  key={row.attempt.ordinal}
+                  className={
+                    "flex items-start gap-3 rounded-2xl px-2.5 py-2 " +
+                    (row.attempt.ordinal === attempt.ordinal
+                      ? "bg-brass/12 ring-2 ring-brass/40"
+                      : "bg-white/5")
+                  }
+                >
+                  <AttemptSummary
+                    attempt={row.attempt}
+                    previousBest={row.previousBest}
+                    previousScore={row.previousScore}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </Modal>
-  );
-}
-
-/**
- * What a score is, for a player who hasn't bought the breakdown.
- *
- * This used to be an advert for Colour Read, price and all. It isn't now. The
- * shelf sells the shelf; a player who has stopped on one attempt to think is
- * asking what the number means, and the honest answer — the same score can be
- * reached several ways — is more useful to them than a price tag, and is also
- * the thing that makes the game interesting.
- */
-function LockedBreakdown() {
-  return (
-    <div className="flex gap-3 border-t border-white/10 pt-3">
-      <Lock className="mt-0.5 size-4 shrink-0 text-zinc-400" aria-hidden />
-      <div className="min-w-0 space-y-2">
-        <p className="text-sm font-bold text-foreground">What Makes Up the Score?</p>
-        <p className="text-sm leading-relaxed text-zinc-500">
-          A score is only a measure of how close your guess is to the password.
-          The higher the score, the closer you are to unlocking the Spendbox.
-        </p>
-        <p className="text-sm leading-relaxed text-zinc-500">
-          Keep in mind that the same score can be reached in many different ways.
-          Two guesses might receive identical scores while sharing completely
-          different similarities to the password. Every attempt gives you another
-          piece of the puzzle, rewarding careful thinking, pattern recognition,
-          and persistence.
-        </p>
-      </div>
-    </div>
   );
 }
 

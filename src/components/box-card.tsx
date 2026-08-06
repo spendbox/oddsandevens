@@ -96,7 +96,22 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
         <DifficultyBadge difficulty={box.difficulty} />
       </div>
 
-      <div className="relative z-10 mt-auto flex items-end justify-between gap-2">
+      {/*
+        `relative` and *not* `z-10`, and that is the whole of the share button
+        being clickable.
+
+        A positioned element with any z-index other than `auto` opens a stacking
+        context, and every z-index inside it is resolved against its siblings
+        rather than against the page. So this row wearing `z-10` sealed the
+        share chip's `z-30` inside a box that itself sat at 10 — under the
+        stretched link at 20 — and no number on the chip could ever have got it
+        out. Every tap meant for Share landed on the link and opened the safe.
+
+        Dropping the z-index here leaves the row at `auto`, so the chip's own
+        z-30 is measured against the link and wins, while the row's text stays
+        under the link and keeps the whole card tappable. Do not re-add it.
+      */}
+      <div className="relative mt-auto flex items-end justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
           <span className="flex items-center gap-1">
             <Users className="size-3" aria-hidden />

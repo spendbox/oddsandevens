@@ -48,6 +48,8 @@ export function PowerUpDemo({ kind }: { kind: PowerUpKind }) {
         <WindDemo />
       ) : kind === "breakdown" ? (
         <ColourDemo />
+      ) : kind === "power_pack" ? (
+        <PackDemo />
       ) : (
         <XRayDemo />
       )}
@@ -192,6 +194,27 @@ function ColourDemo() {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** The pack: every other card turning over at once. */
+function PackDemo() {
+  const CARDS = ["Aa", "12", "#!", "␣", "AEI", "½"];
+  return (
+    <div className="flex w-full max-w-[16rem] flex-col items-center gap-2">
+      <div className="flex flex-wrap justify-center gap-1">
+        {CARDS.map((label, i) => (
+          <span
+            key={label}
+            style={{ animationName: "demo-pop", ["--i" as string]: i } as CSSProperties}
+            className="demo-run flex h-7 min-w-7 items-center justify-center rounded-lg border-2 border-brass/50 bg-brass/15 px-1.5 font-mono text-[11px] font-black text-brass"
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+      <Answer tone="bg-brass/20 text-brass">All of it, at once</Answer>
     </div>
   );
 }

@@ -250,6 +250,22 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | Lowercase Count | 8.5% | Counts the lowercase letters |
 | Capital Count | 9% | Counts the capital letters |
 | Symbol Count | 10% | Counts the symbols — anything that isn't a letter, digit or space |
+| **Power Pack** | **30%** | Every power-up still on this shelf, in one purchase |
+
+Those eleven come to **49.3%** of a reward bought separately, so the Power Pack
+is about a third off for taking all of them at once. That discount is the
+product: somebody buying the whole shelf is giving up the part of the game
+where you decide *which* hint is worth having, and the price should say so.
+
+It is not an effect of its own. `apply` recurses through itself for the pack,
+folding `revealed` from one power-up into the next, which is what keeps X-Ray
+drawing from the pool the counters left it and means there is exactly one
+description of what each power-up does. It is only buyable while something is
+left to put in it, it buys what is still available and nothing else, and the
+price does not drop to match a half-empty shelf.
+
+Every price here is a default. `POWER_UP_KINDS` drives the admin pricing panel,
+so the pack's share and floor are editable there like any other.
 
 The shelf is ordered **cheapest first**, which is the order above. It used to
 be in catalogue order — the order they happened to be written in — so a
@@ -1050,6 +1066,40 @@ the impatient path, not the reliable one: the webhook credits the order whether
 or not the tab is still open.
 
 ## On the list
+
+### The table
+
+Everyone hunting one safe is doing it alone, and that is the largest thing
+missing from the game. Somebody four hundred guesses in has learned things
+about a password nobody else knows, and the only channel any of it has to
+another player is the scoreboard.
+
+**One room per box, anonymous.** No names, no history, nothing that follows
+anybody to the next safe — what you say should read as a theory rather than a
+signature, and a handle would turn the room into a reputation game played
+alongside the real one.
+
+The button is already in the rail, next to Active boosters, and it opens a
+`ComingSoonDialog` with a live countdown to `TABLE_OPENS` in
+`src/components/safe/coming-soon.tsx` — **2026-11-06**, three months from the
+day it went in. The date is a constant on purpose: "three months from now"
+resets every time somebody opens the page and would read as three months away
+forever. Move it when the work moves, deliberately, and know that the countdown
+is checkable by anybody.
+
+What it will need, from a read of what is already there:
+
+- Messages per box, with a retention window — a room that keeps everything is a
+  room that has to be moderated forever.
+- Rate limiting per player, reusing `rate-limit.ts`.
+- A report path. `/api/report` already exists and already escapes free text on
+  the way into an inbox; a message report can go the same way.
+- Anonymity that is real on the server, not just unlabelled in the browser: the
+  player id must not travel with the message to other clients.
+- Somewhere for the abuse case to land. The one thing a chat room reliably
+  attracts is the password being posted the moment somebody cracks it — which
+  is harmless, because the box closes at that instant, but the room should
+  probably say so rather than look broken.
 
 ### Chase themes
 
