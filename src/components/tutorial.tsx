@@ -1,26 +1,38 @@
 "use client";
 
-// The first five minutes, in seven cards.
+// The first five minutes.
 //
-// Everything a new player needs to know is already written down — it is in the
-// FAQ, in How it works, and on the shelf — and none of that is read by somebody
-// who has just verified an email address and wants to guess a password. A
-// reference is for the question you already have; this is for the questions you
-// don't know to ask yet.
+// It used to be seven cards that *described* the game: here is a score, here is
+// a length hint, here is what case sensitivity means. All true, all read in
+// about nine seconds, and none of it survived contact with a real safe — because
+// what a new player is missing is not a list of the rules. It is the loop. They
+// do not know what to type second, or what a number going down is worth, or
+// that a guess scoring zero is one of the best things that can happen to them.
 //
-// So it is short, it is once, and it ends somewhere useful: on the bank details
-// screen. That is the last step for a reason. Somebody who cracks a safe before
-// adding an account has won money we cannot send, and the moment to ask for it
-// is while nothing is at stake — not in the thirty seconds after a win, when
-// the honest answer to "why do you need my bank details" is "because you just
-// won ₦700,000" and that is exactly what a phishing screen would say.
+// Nobody learns a deduction puzzle from a description of deduction. So the
+// middle of this is a real safe with a real password (`B0x!`), and the player
+// cracks it themselves in nineteen guesses, with the reasoning said out loud
+// between each one. Everything on either side is framing: two cards before it so
+// the first guess makes sense, three after it so they know what they are
+// carrying into a box that hasn't been solved for them.
 //
-// Nothing here is a gate. Every step has a way past it and the whole thing has
-// a Skip, because a tutorial you cannot leave is an advertisement.
+// It ends on the bank details screen, and that is the last step for a reason.
+// Somebody who cracks a safe before adding an account has won money we cannot
+// send, and the moment to ask for it is while nothing is at stake — not in the
+// thirty seconds after a win, when the honest answer to "why do you need my
+// bank details" is "because you just won ₦700,000" and that is exactly what a
+// phishing screen would say.
+//
+// Nothing here is a gate. Every step has a way past it, the practice safe will
+// type its own guesses for anybody who would rather watch, and the whole thing
+// has a Skip — because a tutorial you cannot leave is an advertisement. It is
+// also replayable from the front page, which the first version was not: it
+// showed itself once per device, forever, and a player who skipped it on a bus
+// had no way back to it.
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronLeft, Landmark } from "lucide-react";
+import { ArrowRight, ChevronLeft, Landmark, Sparkles } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Boxy } from "@/components/art/boxy";
 import { PowerUpArt } from "@/components/art/power-up-art";
@@ -28,6 +40,7 @@ import { HeartArt } from "@/components/player/lives-badge";
 import { SafeArt } from "@/components/safe/safe-art";
 import { LIVES_MAX, SPECIALS } from "@/lib/constants";
 import { secondWindLabel } from "@/lib/game/power-ups";
+import { TutorialCrack, TutorialPrize } from "./tutorial-crack";
 
 /** Where "they've seen it" lives. Per device, which is the honest scope. */
 const SEEN_KEY = "spendbox.tutorial";
@@ -37,7 +50,7 @@ export function tutorialSeen(): boolean {
     return window.localStorage.getItem(SEEN_KEY) === "done";
   } catch {
     // Private mode, or storage disabled. Treat it as seen rather than showing
-    // the same seven cards on every single page load forever.
+    // the same cards on every single page load forever.
     return true;
   }
 }
@@ -52,11 +65,17 @@ export function markTutorialSeen(): void {
 
 interface Step {
   title: string;
+  /** Omitted by the practice safe, which is its own picture. */
+  art?: ReactNode;
   body: ReactNode;
-  art: ReactNode;
+  /**
+   * Full width, left-aligned, and no Next button of its own — the step drives
+   * its own progress and says when it is finished.
+   */
+  drives?: boolean;
 }
 
-function steps(): Step[] {
+function steps(onSolved: () => void): Step[] {
   return [
     {
       title: "A password with money behind it",
@@ -70,28 +89,65 @@ function steps(): Step[] {
       ),
     },
     {
-      title: "You are guessing blind",
+      title: "Every guess answers two things",
       art: <Boxy mood="thinking" className="size-24" />,
       body: (
         <>
-          You are never told how long the password is. Every guess answers two
-          things: whether it was too short, too long or exactly right, and how
-          close you were as a score out of 100.
+          You are never told how long the password is, or what is in it. What
+          you get back is whether the guess was too short, too long or exactly
+          right — and one score out of 100.
           <Tiles />
+          <strong className="text-brass-bright">100% means solved.</strong>{" "}
+          Nothing else does. How the rest of the number is arrived at is never
+          explained, and working it out is the game.
         </>
       ),
     },
     {
-      title: "The score is the whole puzzle",
-      art: <PowerUpArt kind="breakdown" className="size-20" />,
+      title: "Crack this one with me",
+      drives: true,
+      body: <TutorialCrack onSolved={onSolved} />,
+    },
+    {
+      title: "That's a safe cracked",
+      art: null,
+      body: <TutorialPrize />,
+    },
+    {
+      title: "Anything you can type",
+      art: <Alphabet />,
       body: (
         <>
-          One number, and what it is made of is never explained. Two very
-          different guesses can score the same, and working out which
-          explanation fits is the game.
-          <Bar />
-          <strong className="text-brass-bright">100% means solved.</strong>{" "}
-          Nothing else does.
+          That one was four characters and kind to you. A real password can use
+          letters in either case, digits, spaces, and every symbol — including a
+          few you will have to paste.
+          <br />
+          <br />
+          You already felt why that matters:{" "}
+          <code className="rounded bg-white/10 px-1 font-mono text-brass">x</code>{" "}
+          and{" "}
+          <code className="rounded bg-white/10 px-1 font-mono text-brass">X</code>{" "}
+          scored ten times apart. Case is not a detail.
+        </>
+      ),
+    },
+    {
+      title: "Now find your own way in",
+      art: <Sparkles className="size-16 text-brass" aria-hidden />,
+      body: (
+        <>
+          That was one route, not the route. Sweep for blanks first, or hunt the
+          length, or open with words you think somebody would actually choose —
+          players who win regularly all have a method, and none of them have the
+          same one.
+          <br />
+          <br />
+          <strong className="text-brass-bright">
+            Some safes are genuinely hard.
+          </strong>{" "}
+          Hundreds of attempts hard. That is not you doing it wrong — and the
+          harder a safe is, the more it is holding. A guess that scores nothing
+          still crossed characters off. You are never not making progress.
         </>
       ),
     },
@@ -100,38 +156,23 @@ function steps(): Step[] {
       art: <HeartArt className="size-20" />,
       body: (
         <>
-          One life buys one guess, win or lose. They refill on their own,
-          forever, so playing costs nothing but patience.
+          One life buys one guess, win or lose. You hold {LIVES_MAX} at a time
+          and they refill on their own, forever, so playing costs nothing but
+          patience.
           <Pips />
-          If you are out and don&apos;t want to wait, you can buy more — or take
-          Second Wind, which is {secondWindLabel()}{" "}
-          of unlimited guesses <em>on one safe</em>.
-        </>
-      ),
-    },
-    {
-      title: "Power-ups buy back what's hidden",
-      art: <PowerUpArt kind="x_ray" className="size-20" />,
-      body: (
-        <>
-          Each one answers exactly one question the game is keeping from you:
+          Out and impatient? Buy more, or take Second Wind —{" "}
+          {secondWindLabel()} of unlimited guesses on one safe. And when you are
+          properly stuck, the power-ups buy back exactly one hidden thing each:
           how long it is, how many capitals, how many symbols, or half the
-          characters outright. All optional — a safe can be cracked without
-          spending anything.
-        </>
-      ),
-    },
-    {
-      title: "Anything you can type",
-      art: <Alphabet />,
-      body: (
-        <>
-          Letters in either case, digits, spaces and every symbol — including a
-          few you will have to paste. <strong>Case matters:</strong>{" "}
-          <code className="rounded bg-white/10 px-1 font-mono text-brass">k</code> and{" "}
-          <code className="rounded bg-white/10 px-1 font-mono text-brass">K</code> are
-          different characters, which is most of why a safe takes hundreds of
-          attempts rather than a dozen.
+          characters outright.
+          <span className="mt-3 flex justify-center gap-2">
+            <PowerUpArt kind="x_ray" className="size-10" />
+            <PowerUpArt kind="length_lock" className="size-10" />
+            <PowerUpArt kind="second_wind" className="size-10" />
+            <PowerUpArt kind="breakdown" className="size-10" />
+          </span>
+          Every one of them is optional. Nothing on that shelf is needed to
+          crack anything.
         </>
       ),
     },
@@ -155,7 +196,7 @@ function steps(): Step[] {
 
 export function Tutorial({ onClose }: { onClose: () => void }) {
   const [at, setAt] = useState(0);
-  const all = steps();
+  const all = steps(() => setAt((n) => n + 1));
   const step = all[at];
   const last = at === all.length - 1;
 
@@ -183,15 +224,19 @@ export function Tutorial({ onClose }: { onClose: () => void }) {
               <ArrowRight className="size-4" aria-hidden />
             </Link>
           ) : (
-            <button
-              type="button"
-              onClick={() => setAt((n) => n + 1)}
-              style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-              className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-brass px-4 py-3.5 text-ink"
-            >
-              Next
-              <ArrowRight className="size-4" aria-hidden />
-            </button>
+            /* The practice safe has its own buttons and its own idea of when
+               it is finished, so it does not get a Next above them. */
+            !step.drives && (
+              <button
+                type="button"
+                onClick={() => setAt((n) => n + 1)}
+                style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
+                className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-brass px-4 py-3.5 text-ink"
+              >
+                Next
+                <ArrowRight className="size-4" aria-hidden />
+              </button>
+            )
           )}
 
           <div className="flex items-center justify-between gap-2">
@@ -205,8 +250,8 @@ export function Tutorial({ onClose }: { onClose: () => void }) {
               Back
             </button>
 
-            {/* Where you are, and a way to jump. Seven cards is short enough
-                that a dot row is a map rather than a progress bar. */}
+            {/* Where you are, and a way to jump. Short enough that a dot row is
+                a map rather than a progress bar. */}
             <div className="flex gap-1.5">
               {all.map((one, i) => (
                 <button
@@ -236,9 +281,20 @@ export function Tutorial({ onClose }: { onClose: () => void }) {
     >
       {/* Keyed on the step so each card animates in rather than the text
           swapping under a static picture. */}
-      <div key={at} className="animate-fade-up space-y-3 pb-1 text-center">
-        <div className="flex h-24 items-center justify-center">{step.art}</div>
-        <p className="text-sm leading-relaxed text-zinc-300">{step.body}</p>
+      <div
+        key={at}
+        className={
+          "animate-fade-up space-y-3 pb-1 " + (step.drives ? "text-left" : "text-center")
+        }
+      >
+        {step.art !== undefined && step.art !== null && (
+          <div className="flex h-24 items-center justify-center">{step.art}</div>
+        )}
+        {step.drives ? (
+          step.body
+        ) : (
+          <div className="text-sm leading-relaxed text-zinc-300">{step.body}</div>
+        )}
       </div>
     </Modal>
   );
@@ -266,22 +322,10 @@ function Tiles() {
   );
 }
 
-/** One number, and the fact that it is opaque. */
-function Bar() {
-  return (
-    <span className="mx-auto mt-3 flex max-w-[15rem] items-center gap-2">
-      <span className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
-        <span className="block h-full w-[62%] rounded-full bg-gradient-to-r from-mint to-brass" />
-      </span>
-      <span className="font-mono text-sm font-black text-brass">62%</span>
-    </span>
-  );
-}
-
 /** The pool, as a row you can count. */
 function Pips() {
   return (
-    <span className="mt-3 flex justify-center gap-1.5">
+    <span className="my-3 flex justify-center gap-1.5">
       {Array.from({ length: LIVES_MAX }, (_, i) => (
         <span key={i} className="size-3 rounded-full bg-berry" />
       ))}

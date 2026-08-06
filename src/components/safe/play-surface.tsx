@@ -83,7 +83,14 @@ export function PlaySurface({
   const [outcome, setOutcome] = useState<Outcome>("open");
   const [sheet, setSheet] = useState<Sheet>("none");
   const [message, setMessage] = useState<string | null>(null);
-  const [result, setResult] = useState<{ attempt: AttemptRecord; was: number } | null>(null);
+  // `was` is their best before this guess; `before` is the guess immediately
+  // before it. Both, because "up on your best" and "up on your last" are
+  // different pieces of news and the reaction wants the second one.
+  const [result, setResult] = useState<{
+    attempt: AttemptRecord;
+    was: number;
+    before: number | null;
+  } | null>(null);
   const [jolt, setJolt] = useState(0);
   /**
    * What the last shot did.
@@ -300,6 +307,10 @@ export function PlaySurface({
     }
 
     const was = view.hunt?.bestPercent ?? 0;
+    // The log is newest-first and hasn't been replaced yet, so its head is the
+    // guess before this one. Null on the first of a hunt, where "you went down"
+    // has nothing to be down from.
+    const before = view.hunt?.attempts?.[0]?.scorePercent ?? null;
     const landed = body.hunt?.attempts?.[0] ?? null;
     const winning = body.outcome === "won";
 
@@ -312,7 +323,7 @@ export function PlaySurface({
     setShot(winning || improved ? "hit" : "miss");
     setColdStreak((n) => (improved || winning ? 0 : n + 1));
     setJolt((n) => n + 1);
-    if (landed) setResult({ attempt: landed, was });
+    if (landed) setResult({ attempt: landed, was, before });
     await refresh();
   }
 
@@ -460,6 +471,7 @@ export function PlaySurface({
             <ResultCard
               attempt={result.attempt}
               previousBest={result.was}
+              previousScore={result.before}
               onClose={() => setResult(null)}
             />
           )}
@@ -597,6 +609,7 @@ export function PlaySurface({
         <ResultDialog
           attempt={result.attempt}
           previousBest={result.was}
+          previousScore={result.before}
           won
           onClose={() => setResult(null)}
         />

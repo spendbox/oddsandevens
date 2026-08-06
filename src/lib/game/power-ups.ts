@@ -124,14 +124,21 @@ export const BREAKDOWN_HOURS = 24;
  * for half a percent of the reward: a methodical player with a fast finger can
  * take several hundred attempts inside one, which made buying Second Wind
  * repeatedly the cheapest route through a large safe rather than a way out of
- * a wait. Half the window at the same price doubles what that route costs.
+ * a wait. Halving it to thirty helped and did not settle it — the same route
+ * simply cost twice as much, and a fast finger still had time to walk an
+ * alphabet through a position inside one window.
+ *
+ * Fifteen is short enough that the purchase has to be *aimed*. You buy it
+ * holding a hypothesis you want to test right now, not as a general licence to
+ * grind, and that is the thing it was always meant to be: a way out of waiting
+ * an hour for a life when you are three characters from the answer.
  *
  * Minutes because it is no longer a whole number of hours, and a duration that
  * has to be phrased two different ways in six places is a duration that will
  * eventually be phrased wrongly in one of them — `secondWindLabel()` is the
  * only thing allowed to word it now.
  */
-export const SECOND_WIND_MINUTES: number = 30;
+export const SECOND_WIND_MINUTES: number = 15;
 
 /** "30 minutes" / "an hour" / "2 hours" — one wording, everywhere. */
 export function secondWindLabel(): string {

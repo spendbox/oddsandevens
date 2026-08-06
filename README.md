@@ -224,7 +224,7 @@ each one deletes a specific chunk of a hundreds-of-attempts grind.
 | --- | --- | --- |
 | Length Lock | 0.5% | Tells you exactly how many characters the password has |
 | Vowel Scan | 0.5% | Counts the vowels, A E I O U, either case |
-| Second Wind | 0.5% | Unlimited guesses on this box for 1 hour. No lives spent at all |
+| Second Wind | 0.5% | Unlimited guesses on this box for 15 minutes. No lives spent at all |
 | Consonant Scan | 1.25% | Counts the consonants — every letter that isn't a vowel |
 | Colour Read | 1.5% | Splits every score, past and future, into its three parts — for 24 hours |
 | Space Count | 5% | Counts the spaces |
@@ -309,6 +309,15 @@ decrements the counter.
 
 The window is read defensively — a malformed timestamp in `revealed` fails
 closed, charging a life as usual, rather than aborting the guess.
+
+It has been shortened twice, an hour to thirty minutes (0042) and thirty to
+fifteen (0047), at an unchanged price. Both times for the same reason: free
+guessing is a great deal of the game for half a percent of the reward, and a
+window long enough to walk an alphabet through a position funds grinding rather
+than the thing it is for. Fifteen minutes has to be aimed — you buy it holding
+a hypothesis you want to test now. Two places set the duration and they must
+agree: `SECOND_WIND_MINUTES` for the bought one, `claim_offer` for the free one
+a gift hands out.
 
 ### Buying one twice
 
@@ -733,7 +742,7 @@ and it is gone in ten minutes.
 | Gift | What it is |
 | --- | --- |
 | Free lives | One to three, credited on the spot |
-| Free Second Wind | An hour on this box with no lives spent |
+| Free Second Wind | 15 minutes on this box with no lives spent |
 | Power-up discount | 20–50% off one named power-up |
 | Life discount | 20–50% off your next lives, anywhere |
 
