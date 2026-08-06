@@ -1021,6 +1021,54 @@ asserts that neither can read a password or call a privileged function.
 
 ---
 
+## On the list
+
+### Chase themes
+
+The chase is one scene — a car pursuing a runaway safe down a road — and it is
+the same scene on every box in the game. It should be a **choice the author
+makes**, set before the box is created and fixed with it, the way `design`
+already fixes the safe's colours.
+
+Five themes, each a complete restaging of the same three moving parts (the
+field, the thing being chased, the ground going the other way):
+
+| Theme | The field | What they're chasing | The world |
+| --- | --- | --- | --- |
+| **Space** | Spacecraft | A capital ship built like a safe | Planets off to the side, asteroids, drifting debris |
+| **Air Force** | Fighters | A transport | City, ocean, cloud decks — needs real perspective, not top-down |
+| **Boats** | Ships | An aircraft carrier | Open ocean, swell, wake, islands |
+| **Police** | Squad cars | A bullion van | The existing road world, restaged |
+| **Hunters** | Hunters | A dinosaur | Forest, plain, mountains |
+
+Requirements captured from the brief, so they don't get lost:
+
+- **Author picks it.** A selector in `/admin` and in the contributor's build
+  flow, alongside the safe design, before the box exists.
+- **The selector animates.** Picking a theme plays the actual scene, so an
+  author sees what they are choosing rather than reading its name.
+- **Backgrounds carry the theme.** Dynamic, layered, with mountains and horizon
+  where the theme has them — the current verge/road/scenery split is one
+  biome's worth of that idea and will need generalising.
+- **Mascots follow the theme.** Boxy re-costumed per theme, on the front page,
+  the loading screen and the cracking screen. Deliberately *not* started in the
+  pass that wrote this entry: hand-drawn SVG characters at the current Boxy's
+  standard are a serious piece of art work, and half-done mascots would be
+  worse than the one good one we have.
+
+What it touches, from a read of the current code:
+
+- `chase-scene.tsx` is ~880 lines built around a single metaphor. The layers
+  (verge, road, scenery, streaks, target, field, gunfire) are the right seams,
+  but they are hardcoded to tarmac and trees; they need to become theme data.
+- `.chase-flat` lays the whole scene on its side from `lg`, so any new art has
+  to read in both orientations. The Air Force theme is the one that genuinely
+  breaks the top-down frame and needs its own camera.
+- `GRID` in `chase-scene.tsx` must stay a mirror about x=50 — see the note on
+  it there, and the bug that note exists because of.
+- A `theme` column on `boxes` with a default, mirroring how `design` works, plus
+  the usual `notify pgrst`.
+
 ## Not in this version (deliberately)
 
 - **No leaderboards.** A box has one winner and then it's over.
