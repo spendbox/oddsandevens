@@ -18,6 +18,7 @@
 // every box is played from.
 
 import { useState } from "react";
+import { openCheckout, type CheckoutStart } from "@/lib/checkout";
 import { Heart, Infinity as InfinityIcon, Tag } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { LIFE_PURCHASE_MAX, LIVES_MAX } from "@/lib/constants";
@@ -64,7 +65,7 @@ export function BuyLivesDialog({
   /** A week of the raised ceiling. Admin-set; this is only the fallback. */
   lifeBankKobo?: number;
 }) {
-  const { player } = usePlayer();
+  const { player, refresh } = usePlayer();
   // Off the player rather than a prop: this dialog opens from the game, the
   // header and the profile, and only one of those has a box in front of it.
   const lifeDiscount = player.lifeDiscount;
@@ -95,12 +96,19 @@ export function BuyLivesDialog({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(bank ? { lifeBank: true, slug } : { quantity, slug }),
     });
-    const body = (await res.json().catch(() => ({}))) as {
-      authorizationUrl?: string;
+    const body = (await res.json().catch(() => ({}))) as CheckoutStart & {
       error?: string;
     };
-    if (res.ok && body.authorizationUrl) {
-      window.location.assign(body.authorizationUrl);
+    if (res.ok && (body.accessCode || body.authorizationUrl)) {
+      const outcome = await openCheckout(body, () => {
+        void refresh();
+        onClose();
+      });
+      if (outcome === "redirected") return;
+      setBusy(false);
+      if (outcome === "failed") {
+        setError("Couldn't start that payment. Try again in a moment.");
+      }
       return;
     }
     setBusy(false);
@@ -120,12 +128,19 @@ export function BuyLivesDialog({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ kind: "second_wind" }),
     });
-    const body = (await res.json().catch(() => ({}))) as {
-      authorizationUrl?: string;
+    const body = (await res.json().catch(() => ({}))) as CheckoutStart & {
       error?: string;
     };
-    if (res.ok && body.authorizationUrl) {
-      window.location.assign(body.authorizationUrl);
+    if (res.ok && (body.accessCode || body.authorizationUrl)) {
+      const outcome = await openCheckout(body, () => {
+        void refresh();
+        onClose();
+      });
+      if (outcome === "redirected") return;
+      setBusy(false);
+      if (outcome === "failed") {
+        setError("Couldn’t open checkout. Try again in a moment.");
+      }
       return;
     }
     setBusy(false);

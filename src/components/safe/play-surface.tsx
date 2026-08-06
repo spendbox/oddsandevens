@@ -591,7 +591,20 @@ export function PlaySurface({
           width="lg"
           onClose={() => setSheet("none")}
         >
-          <PowerUpShelf view={view} slug={slug} disabled={won} now={now} />
+          <PowerUpShelf
+            view={view}
+            slug={slug}
+            disabled={won}
+            now={now}
+            /* Inline checkout means nothing unmounts, so the revealed state
+               the purchase just bought has to be fetched rather than arriving
+               with a fresh render of the page. */
+            onBought={(note) => {
+              if (note) setMessage(note);
+              setSheet("none");
+              void reload();
+            }}
+          />
         </Modal>
       )}
 

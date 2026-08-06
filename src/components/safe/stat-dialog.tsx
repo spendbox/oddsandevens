@@ -69,7 +69,9 @@ const COPY: Record<
     body:
       box.playersCount === 0
         ? "Nobody has tried this one."
-        : `Playing this safe. The closest anybody has come is ${box.bestPercent.toFixed(1)}%.`,
+        : `Playing this safe. The closest anybody has come is ${box.bestPercent.toFixed(
+            1
+          )}%. The chase shows the leading four and you — tap a car for a name and a score.`,
   }),
   attempts: (box) => ({
     title: "Attempts",

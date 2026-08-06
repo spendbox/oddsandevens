@@ -127,7 +127,7 @@ function steps(onSolved: () => void): Step[] {
           <code className="rounded bg-white/10 px-1 font-mono text-brass">x</code>{" "}
           and{" "}
           <code className="rounded bg-white/10 px-1 font-mono text-brass">X</code>{" "}
-          scored ten times apart. Case is not a detail.
+          scored two and a half times apart. Pay attention to the Case.
         </>
       ),
     },

@@ -12,12 +12,22 @@ export function paystackConfigured(): boolean {
   return !!secretKey();
 }
 
+/**
+ * Start a transaction, and hand back both ways of finishing it.
+ *
+ * `accessCode` is what Paystack's inline script resumes, so the card form opens
+ * over the game instead of replacing it. `authorizationUrl` is the same
+ * transaction as a full page, kept as the fallback for a browser that cannot
+ * load the script — an ad blocker, a locked-down network, an old phone. Both
+ * point at one transaction and one reference, so whichever route a player takes
+ * the settlement is identical and neither can be paid twice.
+ */
 export async function initializeTransaction(params: {
   email: string;
   amountKobo: number;
   reference: string;
   callbackUrl: string;
-}): Promise<{ authorizationUrl: string } | null> {
+}): Promise<{ authorizationUrl: string; accessCode: string } | null> {
   const key = secretKey();
   if (!key) return null;
   try {
@@ -35,11 +45,22 @@ export async function initializeTransaction(params: {
       }),
     });
     const body = await res.json();
-    if (!res.ok || !body?.status || !body?.data?.authorization_url) {
+    // The access code is required, not optional: without it every checkout
+    // silently falls back to a full-page redirect, which is the behaviour this
+    // is here to replace, and it would fail invisibly.
+    if (
+      !res.ok ||
+      !body?.status ||
+      !body?.data?.authorization_url ||
+      !body?.data?.access_code
+    ) {
       console.error("[paystack] initialize failed:", body);
       return null;
     }
-    return { authorizationUrl: body.data.authorization_url };
+    return {
+      authorizationUrl: body.data.authorization_url,
+      accessCode: String(body.data.access_code),
+    };
   } catch (err) {
     console.error("[paystack] initialize threw:", err);
     return null;

@@ -105,5 +105,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "checkout_failed" }, { status: 502 });
   }
 
-  return NextResponse.json({ result: "redirect", authorizationUrl: init.authorizationUrl });
+  // Both routes to the same transaction: the access code for the inline
+  // form, the URL as the fallback, and the reference so the browser can ask
+  // us to verify it however it was paid.
+  return NextResponse.json({
+    result: "redirect",
+    authorizationUrl: init.authorizationUrl,
+    accessCode: init.accessCode,
+    reference,
+  });
 }

@@ -15,6 +15,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { openCheckout, type CheckoutStart } from "@/lib/checkout";
 import { ExternalLink, Trash2, TrendingUp, Zap } from "lucide-react";
 import { SafeArt } from "@/components/safe/safe-art";
 import { Boxy } from "@/components/art/boxy";
@@ -80,13 +81,15 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(raiseToKobo ? { raiseToKobo } : {}),
     });
-    const body = (await res.json().catch(() => ({}))) as {
-      authorizationUrl?: string;
+    const body = (await res.json().catch(() => ({}))) as CheckoutStart & {
       result?: string;
       error?: string;
     };
-    if (res.ok && body.authorizationUrl) {
-      window.location.assign(body.authorizationUrl);
+    if (res.ok && (body.accessCode || body.authorizationUrl)) {
+      const outcome = await openCheckout(body, () => onChanged());
+      if (outcome === "redirected") return;
+      setBusy(false);
+      if (outcome === "failed") setError("Couldn't open checkout. Try again in a moment.");
       return;
     }
     setBusy(false);

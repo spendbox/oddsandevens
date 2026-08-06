@@ -535,31 +535,31 @@ const CRACK_PATHS = [
 // ---------------------------------------------------------------------------
 
 /**
- * Six lanes across the road, and four rows back.
+ * Five lanes across the road, in two rows.
  *
  * The arrangement is the leaderboard: first place takes the middle of the front
  * row, and everybody else fills outward and backward. Nobody overlaps anybody,
- * which is the only reason a field of ten is readable at all — and the closer
- * you are to cracking it, the closer to the safe you are drawn.
+ * and the closer you are to cracking it, the closer to the safe you are drawn.
+ *
+ * **It is symmetrical, and the old one was not.** Ten lanes were added a few at
+ * a time over several passes and the result averaged out at x=47.3 — the field
+ * as a body sat 2.7% left of the road it was driving on. On a phone that read
+ * as cars hugging the left verge; from `lg`, where `.chase-flat` lays the whole
+ * scene on its side, the same 2.7% became a field riding high on the tarmac.
+ * One bug, two symptoms, and neither fixable by nudging the road, because the
+ * road was centred correctly the whole time.
+ *
+ * So every row is now a mirror about x=50 and the centre of mass is exactly 50.
+ * Keep it that way: a lane added on one side needs its partner on the other.
  */
 const GRID: { x: number; y: number }[] = [
   // Front row: the leader in the middle, second and third either side.
   { x: 50, y: 54 },
-  { x: 34, y: 56 },
-  { x: 66, y: 56 },
-  // Second row, offset so it shows through the gaps in the first.
-  { x: 42, y: 66 },
-  { x: 58, y: 66 },
-  // Sixth was at 28, which put a car and a half outside the tarmac on a phone.
-  // The road is sized to hold exactly this grid now, and a lane the road
-  // cannot hold is a car driving through the trees.
-  { x: 31, y: 68 },
-  // Third.
-  { x: 50, y: 77 },
-  { x: 36, y: 78 },
-  { x: 64, y: 78 },
-  // And the back marker.
-  { x: 42, y: 87 },
+  { x: 36, y: 57 },
+  { x: 64, y: 57 },
+  // Second row, tucked into the gaps in the first.
+  { x: 43, y: 69 },
+  { x: 57, y: 69 },
 ];
 
 function laneOf(index: number): { x: number; y: number } {
@@ -600,13 +600,30 @@ function Field({
             }}
           >
             <Car night={night} mine={rival.you} inline />
-            {/* Counter-rotated at `lg`: the scene lies on its side there, and
-                this is the only word inside it. */}
-            {rival.you && (
-              <span className="mt-0.5 block rounded-full border border-brass/60 bg-background/85 px-1 text-[9px] font-black leading-tight text-brass lg:-rotate-90">
-                you
-              </span>
-            )}
+            {/*
+              Rank, or "you".
+
+              Five cars on a road do not say "these are the leaders" on their
+              own — they look like whoever happened to be nearby. A standing
+              beside each one says it without a caption anywhere, and it is the
+              cheapest way to make the field legible as a leaderboard.
+
+              Deliberately quiet: 9px, dim, and no background on anybody but
+              you. This is a chase, and a scoreboard bolted to every roof would
+              be reading it instead of watching it.
+
+              Counter-rotated at `lg`, where the scene lies on its side.
+            */}
+            <span
+              className={
+                "mt-0.5 block rounded-full px-1 text-[9px] font-black leading-tight lg:-rotate-90 " +
+                (rival.you
+                  ? "border border-brass/60 bg-background/85 text-brass"
+                  : "text-white/45")
+              }
+            >
+              {rival.you ? "you" : `#${i + 1}`}
+            </span>
           </button>
         );
       })}
