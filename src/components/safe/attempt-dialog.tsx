@@ -13,7 +13,8 @@
 // that's what Colour Read is for, and even Colour Read gives the components
 // rather than the arithmetic.
 
-import { History, MoveDown, MoveUp, Target } from "lucide-react";
+import { useState } from "react";
+import { Check, Copy, History, MoveDown, MoveUp, Target } from "lucide-react";
 import { visible } from "@/lib/constants";
 import { Modal } from "@/components/ui/modal";
 import { plural } from "@/lib/plural";
@@ -109,7 +110,10 @@ export function AttemptDialog({
         </div>
 
         <div>
-          <p className="text-xs uppercase tracking-wide text-zinc-500">You typed</p>
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-xs uppercase tracking-wide text-zinc-500">You typed</p>
+            <CopyGuess value={attempt.value} />
+          </div>
           {/* `break-all`: a 40-character guess has no spaces to break on. */}
           <code className="mt-1 block break-all rounded-xl bg-black/30 px-3 py-2.5 font-mono text-base text-foreground">
             {visible(attempt.value)}
@@ -177,9 +181,23 @@ export function AttemptDialog({
               <History className="size-3.5" aria-hidden />
               Every guess, and what it said
             </p>
-            {/* Capped in height rather than in count: a siege runs to hundreds
-                of these and the dialog should not become the page. */}
-            <div className="mt-2 max-h-[22rem] space-y-1.5 overflow-y-auto pr-0.5">
+            {/*
+              No scroller of its own, and that is deliberate.
+
+              This used to be capped at 22rem with `overflow-y-auto`, on the
+              reasoning that a long hunt should not turn the dialog into a page.
+              What it actually made was two nested scroll containers — the
+              modal's body is already one — and a finger landing anywhere on
+              this list drove the inner one while the sheet stayed put, then
+              handed over mid-gesture when the inner hit its end. Scrolling
+              felt like it stuck, jumped, or did nothing depending on where you
+              started.
+
+              One surface scrolls now: the sheet. The list is bounded anyway —
+              the server sends at most `ATTEMPT_PAGE` attempts — so there is a
+              floor under how long this can get without a cap here.
+            */}
+            <div className="mt-2 space-y-1.5">
               {past.map((row) => (
                 <div
                   key={row.attempt.ordinal}
@@ -202,6 +220,57 @@ export function AttemptDialog({
         )}
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Copy the guess, so the next one can be an edit of it.
+ *
+ * Almost every guess after the first is a small change to an earlier one — move
+ * a character along, flip its case, swap the symbol — and until now the only
+ * way to start from a previous guess was to read it off this sheet and retype
+ * it. On a password with two capitals and a symbol in it, retyping is where the
+ * typos come from, and a typo costs a life and scores as if it were a theory.
+ *
+ * It copies `attempt.value`, **not** what is on screen. The block above renders
+ * spaces as `␣` so they can be seen at all, and `␣` is not in the alphabet —
+ * pasting the visible form back into the guess field would produce a guess the
+ * server rejects, or worse, one it accepts as a different string.
+ */
+function CopyGuess({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void navigator.clipboard
+          .writeText(value)
+          .then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1600);
+          })
+          .catch(() => {
+            // No clipboard permission — an insecure origin, or a browser that
+            // refuses. The guess is on screen to be read either way, which is
+            // exactly where it was before this button existed.
+          });
+      }}
+      aria-label="Copy this guess"
+      className="flex shrink-0 items-center gap-1 rounded-lg border-2 border-brass/40 bg-brass/12 px-2 py-1 text-[11px] font-bold text-brass transition hover:bg-brass/25"
+    >
+      {copied ? (
+        <>
+          <Check className="size-3" aria-hidden />
+          Copied
+        </>
+      ) : (
+        <>
+          <Copy className="size-3" aria-hidden />
+          Copy
+        </>
+      )}
+    </button>
   );
 }
 
