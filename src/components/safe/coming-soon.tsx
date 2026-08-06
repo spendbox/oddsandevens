@@ -37,7 +37,7 @@ export function ComingSoonDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       title="The table"
-      subtitle="Not open yet"
+      subtitle="Coming soon"
       icon={<MessagesSquare className="size-5 text-grape" aria-hidden />}
       width="sm"
       onClose={onClose}
