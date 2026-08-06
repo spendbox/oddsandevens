@@ -120,12 +120,3 @@ revoke execute on function public.claim_offer(citext, uuid)
 grant execute on function public.claim_offer(citext, uuid) to service_role;
 
 notify pgrst, 'reload schema';
-
--- `create or replace` keeps an existing function's grants, but say it anyway:
--- this file may be the first thing to create it on a database rebuilt from
--- scratch, and a new function is EXECUTE to PUBLIC.
-revoke execute on function public.claim_offer(citext, uuid)
-  from public, anon, authenticated;
-grant execute on function public.claim_offer(citext, uuid) to service_role;
-
-notify pgrst, 'reload schema';
