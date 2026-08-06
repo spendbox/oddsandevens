@@ -1021,6 +1021,34 @@ asserts that neither can read a password or call a privileged function.
 
 ---
 
+## Paying
+
+Two methods, and they are different Paystack products rather than two buttons
+onto one:
+
+| | Where the form lives | Why |
+| --- | --- | --- |
+| **Bank transfer** | Ours | A one-time account number is just text. Nothing sensitive passes through the page, so it is drawn in the game's own style. |
+| **Card** | Paystack's iframe | A card form we drew would put raw card numbers in our own DOM and pull the whole application into PCI DSS SAQ D. Paystack has no tokenising field SDK to borrow instead. |
+
+Transfer is the default and is offered first, because it is the path that never
+leaves the game.
+
+Both are started server-side by `startCheckout` — `/transaction/initialize` for
+a card, `/charge` with `bank_transfer` for a transfer — so **only the secret key
+exists** and no public key is ever handed to a browser. Both write the same
+reference onto the same order row, which is what lets `orderTableFor`, the
+webhook, the verify route and settlement stay ignorant of which was used. A
+player who opens the card form, thinks better of it and transfers instead
+cannot end up with two of anything.
+
+The transfer sheet polls `/api/payments/verify` every four seconds, and only
+`"paid"` counts. Everything else that route returns is either an in-flight
+Paystack status or a terminal failure, and treating any non-pending string as
+success would credit a purchase the moment somebody abandoned one. The poll is
+the impatient path, not the reliable one: the webhook credits the order whether
+or not the tab is still open.
+
 ## On the list
 
 ### Chase themes

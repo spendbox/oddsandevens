@@ -67,6 +67,106 @@ export async function initializeTransaction(params: {
   }
 }
 
+/**
+ * What a player needs in order to pay by bank transfer.
+ *
+ * One-time account details, generated per transaction. Nothing here is a
+ * secret and nothing here is a card, which is the whole reason this path can be
+ * drawn in our own house style: the browser is being shown an account number to
+ * copy, not asked for anything sensitive. Money lands, Paystack fires
+ * `charge.success` at the webhook, and the order settles down exactly the same
+ * road a card payment does.
+ */
+export interface TransferDetails {
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  amountKobo: number;
+  /** ISO, when the account stops accepting this payment. Null if unstated. */
+  expiresAt: string | null;
+}
+
+/** How long a generated account stays live. Long enough to open a banking app. */
+const TRANSFER_MINUTES = 30;
+
+/**
+ * Charge by bank transfer rather than initialising a hosted checkout.
+ *
+ * `/charge` instead of `/transaction/initialize` because the two are different
+ * products, not two flags on one: initialize hands back a *page of Paystack's*
+ * to send the player to, and charge hands back the details of a payment they
+ * make themselves. Only the second can be rendered by us.
+ *
+ * They share the reference, and must: the order row, the webhook, the verify
+ * route and `orderTableFor` all key off it. One order, one reference, whichever
+ * way it gets paid — so a player who opens the card form, backs out and
+ * transfers instead cannot end up with two of anything.
+ *
+ * Response fields are read defensively. Paystack has moved account details
+ * between the top level of `data` and a nested object across versions of this
+ * endpoint, and a checkout that breaks on a field rename is a checkout that
+ * breaks silently.
+ */
+export async function chargeBankTransfer(params: {
+  email: string;
+  amountKobo: number;
+  reference: string;
+}): Promise<TransferDetails | null> {
+  const key = secretKey();
+  if (!key) return null;
+  const expiresAt = new Date(Date.now() + TRANSFER_MINUTES * 60_000).toISOString();
+
+  try {
+    const res = await fetch(`${PAYSTACK_BASE}/charge`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: params.email,
+        amount: String(params.amountKobo),
+        reference: params.reference,
+        bank_transfer: { account_expires_at: expiresAt },
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok || !body?.status) {
+      console.error("[paystack] transfer charge failed:", body);
+      return null;
+    }
+
+    const data = body.data ?? {};
+    const nested = data.account_details ?? data.account ?? {};
+    const account = String(nested.account_number ?? data.account_number ?? "");
+    const bank = String(
+      nested.bank_name ?? nested.bank?.name ?? data.bank?.name ?? data.bank_name ?? ""
+    );
+    const name = String(
+      nested.account_name ?? data.account_name ?? "Paystack Checkout"
+    );
+
+    if (!account || !bank) {
+      console.error("[paystack] transfer charge returned no account:", body);
+      return null;
+    }
+
+    return {
+      bankName: bank,
+      accountNumber: account,
+      accountName: name,
+      amountKobo: params.amountKobo,
+      expiresAt:
+        (nested.account_expires_at as string | undefined) ??
+        (data.account_expires_at as string | undefined) ??
+        expiresAt,
+    };
+  } catch (err) {
+    console.error("[paystack] transfer charge threw:", err);
+    return null;
+  }
+}
+
 export async function verifyTransaction(
   reference: string
 ): Promise<{ status: string; success: boolean; amountKobo: number } | null> {

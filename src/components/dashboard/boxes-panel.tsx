@@ -15,7 +15,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { openCheckout, type CheckoutStart } from "@/lib/checkout";
+import { isTransfer, openCheckout, type CheckoutStart } from "@/lib/checkout";
+import { PayMethodPicker } from "@/components/player/pay-method";
+import { TransferSheet } from "@/components/player/transfer-sheet";
+import type { PayMethod } from "@/lib/checkout-server";
 import { ExternalLink, Trash2, TrendingUp, Zap } from "lucide-react";
 import { SafeArt } from "@/components/safe/safe-art";
 import { Boxy } from "@/components/art/boxy";
@@ -72,6 +75,11 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [raising, setRaising] = useState(false);
+  const [method, setMethod] = useState<PayMethod>("transfer");
+  const [transfer, setTransfer] = useState<{
+    details: NonNullable<CheckoutStart["transfer"]>;
+    reference: string;
+  } | null>(null);
 
   async function checkout(raiseToKobo?: number) {
     setBusy(true);
@@ -79,12 +87,17 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
     const res = await fetch(`/api/contributor/boxes/${box.id}/fund`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(raiseToKobo ? { raiseToKobo } : {}),
+      body: JSON.stringify(raiseToKobo ? { raiseToKobo, method } : { method }),
     });
     const body = (await res.json().catch(() => ({}))) as CheckoutStart & {
       result?: string;
       error?: string;
     };
+    if (res.ok && isTransfer(body)) {
+      setBusy(false);
+      setTransfer({ details: body.transfer, reference: body.reference });
+      return;
+    }
     if (res.ok && (body.accessCode || body.authorizationUrl)) {
       const outcome = await openCheckout(body, () => onChanged());
       if (outcome === "redirected") return;
@@ -191,7 +204,24 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
         </p>
       )}
 
+      <div className="mt-3">
+        <PayMethodPicker value={method} onPick={setMethod} disabled={busy} />
+      </div>
+
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+
+      {transfer && (
+        <TransferSheet
+          transfer={transfer.details}
+          reference={transfer.reference}
+          what={box.title}
+          onPaid={() => {
+            setTransfer(null);
+            onChanged();
+          }}
+          onClose={() => setTransfer(null)}
+        />
+      )}
 
       {raising && (
         <RaiseForm

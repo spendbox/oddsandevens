@@ -27,9 +27,25 @@
 
 /** What the three checkout routes hand back. */
 export interface CheckoutStart {
+  result?: string;
   authorizationUrl?: string;
   accessCode?: string;
   reference?: string;
+  /** Present instead of the two above when the player chose a bank transfer. */
+  transfer?: {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    amountKobo: number;
+    expiresAt: string | null;
+  };
+}
+
+/** A transfer is finished by the sheet, not by this module. */
+export function isTransfer(
+  body: CheckoutStart
+): body is CheckoutStart & { transfer: NonNullable<CheckoutStart["transfer"]>; reference: string } {
+  return body.result === "transfer" && !!body.transfer && !!body.reference;
 }
 
 export type CheckoutOutcome =

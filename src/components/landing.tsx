@@ -109,7 +109,7 @@ export function Landing({
             className="inline-flex items-center gap-2 rounded-2xl border-2 border-brass/40 bg-brass/12 px-5 py-3.5 font-bold text-brass transition hover:border-brass/70 hover:bg-brass/20 active:translate-y-0.5"
           >
             <GraduationCap className="size-4" aria-hidden />
-            Let&apos;s crack this code
+            Let&apos;s crack a code
           </button>
         </div>
       </section>

@@ -3,7 +3,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { LIFE_PURCHASE_MAX } from "@/lib/constants";
 import { playerEmail } from "@/lib/player-session";
 import { appBaseUrl } from "@/lib/base-url";
-import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
+import { paystackConfigured } from "@/lib/paystack";
+import { payMethod, startCheckout } from "@/lib/checkout-server";
 import { ensurePlayer, newReference } from "@/lib/game/boxes";
 import { splitSale } from "@/lib/game/rewards";
 import { discountedKobo } from "@/lib/game/power-ups";
@@ -38,7 +39,10 @@ export async function POST(req: Request) {
     slug?: string;
     /** True for a week of the raised ceiling rather than a count of lives. */
     lifeBank?: boolean;
+    /** "card" or "transfer". Anything else is a card. */
+    method?: string;
   };
+  const method = payMethod(body.method);
   const bank = body.lifeBank === true;
   const quantity = Math.trunc(Number(body.quantity ?? 0));
   if (!bank && (!Number.isFinite(quantity) || quantity < 1 || quantity > LIFE_PURCHASE_MAX)) {
@@ -104,24 +108,17 @@ export async function POST(req: Request) {
     ? `${appBaseUrl(req)}/b/${box.slug}?reference=${reference}`
     : `${appBaseUrl(req)}/me?reference=${reference}`;
 
-  const init = await initializeTransaction({
+  const started = await startCheckout({
     email,
     amountKobo: priceKobo,
     reference,
-    callbackUrl,
+    callbackUrl: callbackUrl,
+    method,
   });
-  if (!init) {
+  if (!started) {
     await db.from("life_orders").update({ status: "failed" }).eq("reference", reference);
     return NextResponse.json({ error: "checkout_failed" }, { status: 502 });
   }
 
-  // Both routes to the same transaction: the access code for the inline
-  // form, the URL as the fallback, and the reference so the browser can ask
-  // us to verify it however it was paid.
-  return NextResponse.json({
-    result: "redirect",
-    authorizationUrl: init.authorizationUrl,
-    accessCode: init.accessCode,
-    reference,
-  });
+  return NextResponse.json(started);
 }

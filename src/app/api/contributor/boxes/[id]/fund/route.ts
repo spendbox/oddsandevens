@@ -3,7 +3,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { MAX_FUNDING_KOBO } from "@/lib/constants";
 import { getAuthedContributor } from "@/lib/contributor-auth";
 import { appBaseUrl } from "@/lib/base-url";
-import { initializeTransaction, paystackConfigured } from "@/lib/paystack";
+import { paystackConfigured } from "@/lib/paystack";
+import { payMethod, startCheckout } from "@/lib/checkout-server";
 import { newReference } from "@/lib/game/boxes";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -30,7 +31,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "payments_unavailable" }, { status: 503 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { raiseToKobo?: number };
+  const body = (await req.json().catch(() => ({}))) as {
+    raiseToKobo?: number;
+    /** "card" or "transfer". Anything else is a card. */
+    method?: string;
+  };
+  const method = payMethod(body.method);
   const raiseTo = body.raiseToKobo ? Math.trunc(Number(body.raiseToKobo)) : null;
 
   const db = supabaseAdmin();
@@ -94,24 +100,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // No subaccount here: funding is money coming *in* to back a reward, not a
   // sale to be split.
-  const init = await initializeTransaction({
+  const started = await startCheckout({
     email: user.email,
     amountKobo: chargeKobo,
     reference,
     callbackUrl: `${appBaseUrl(req)}/dashboard?reference=${reference}`,
+    method,
   });
-  if (!init) {
+  if (!started) {
     await db.from("funding_orders").update({ status: "failed" }).eq("reference", reference);
     return NextResponse.json({ error: "checkout_failed" }, { status: 502 });
   }
 
-  // Both routes to the same transaction: the access code for the inline
-  // form, the URL as the fallback, and the reference so the browser can ask
-  // us to verify it however it was paid.
-  return NextResponse.json({
-    result: "redirect",
-    authorizationUrl: init.authorizationUrl,
-    accessCode: init.accessCode,
-    reference,
-  });
+  return NextResponse.json(started);
 }
