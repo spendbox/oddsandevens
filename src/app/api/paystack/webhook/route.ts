@@ -40,8 +40,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
   }
 
-  const e = event as { event?: string; data?: { reference?: string } };
+  const e = event as {
+    event?: string;
+    data?: { reference?: string; amount?: number | string };
+  };
   const reference = String(e?.data?.reference ?? "");
+  // What actually arrived, in kobo. Settlement refuses to credit an order
+  // for less than it asked for — see `markPaid`.
+  const paidKobo = Number(e?.data?.amount ?? 0) || undefined;
   const table = orderTableFor(reference);
 
   if (table && (e.event === "charge.success" || e.event === "charge.failed")) {
@@ -49,11 +55,11 @@ export async function POST(req: Request) {
       if (e.event === "charge.failed") {
         await markFailed(supabaseAdmin(), table, reference);
       } else if (table === "power_up_orders") {
-        await settlePowerUp(supabaseAdmin(), reference);
+        await settlePowerUp(supabaseAdmin(), reference, paidKobo);
       } else if (table === "life_orders") {
-        await settleLives(supabaseAdmin(), reference);
+        await settleLives(supabaseAdmin(), reference, paidKobo);
       } else {
-        await settleFunding(supabaseAdmin(), reference);
+        await settleFunding(supabaseAdmin(), reference, paidKobo);
       }
     } catch (err) {
       // Let Paystack retry rather than silently dropping a paid order.

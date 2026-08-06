@@ -18,6 +18,7 @@ import { Featured } from "@/components/featured";
 import { InPlay } from "@/components/in-play";
 import { Tutorial, tutorialSeen } from "@/components/tutorial";
 import { HowItWorksButton } from "@/components/how-it-works";
+import { ReportIssueButton } from "@/components/report-issue";
 import { BuildDialog } from "@/components/build-dialog";
 import { usePlayer } from "@/components/player/player-context";
 import { VerifyDialog } from "@/components/player/account-dialog";
@@ -111,6 +112,12 @@ export function Landing({
             <GraduationCap className="size-4" aria-hidden />
             Let&apos;s crack a code
           </button>
+        </div>
+
+        {/* Quieter than the two above it on purpose: this is the door you want
+            to be able to find, not the one being advertised. */}
+        <div className="mt-3 flex justify-center">
+          <ReportIssueButton context="Home page" />
         </div>
       </section>
 

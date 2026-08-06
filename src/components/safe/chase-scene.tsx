@@ -657,12 +657,22 @@ function Car({
     return <CarArt night={night} body={body} className="chase-car w-full" />;
   }
 
+  /*
+   * Positioning outside, idle inside, and they must not be the same element.
+   *
+   * `car-idle` sets `transform`, which replaces whatever a utility class put
+   * there — so a single div wearing both `.chase-car` and `-translate-x-1/2`
+   * loses the centring the moment the animation starts. The old fix was to
+   * fold the centring into the keyframes, which then followed the class onto
+   * the in-flow cars in the field and shifted every one of them half a car
+   * width off the road.
+   */
   return (
     <div
-      className="chase-car absolute z-10 -translate-x-1/2 -translate-y-1/2"
+      className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
       style={{ left: `${at?.x ?? 50}%`, top: `${at?.y ?? 58}%`, width: `${13 * scale}%` }}
     >
-      <CarArt night={night} body={body} className="w-full" />
+      <CarArt night={night} body={body} className="chase-car w-full" />
     </div>
   );
 }

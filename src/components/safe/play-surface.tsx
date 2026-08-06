@@ -51,6 +51,7 @@ import { DropCrate } from "./drop-crate";
 import { useDrops } from "./use-drops";
 import type { Rival } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
+import { ReportIssueButton } from "@/components/report-issue";
 
 type Outcome = "open" | "won" | "pipped";
 type Sheet =
@@ -576,6 +577,17 @@ export function PlaySurface({
           onClose={() => setSheet("none")}
         >
           <AttemptLog attempts={attempts} />
+
+          {/*
+            The way to tell us something is wrong, put where somebody who
+            thinks something *is* wrong already goes. A player disputing a
+            score opens their attempts to look at it, so the report button is
+            at the foot of that list with the guess they are staring at — not
+            on a support page they would have to leave the hunt to find.
+          */}
+          <div className="mt-3 flex justify-center border-t border-white/10 pt-3">
+            <ReportIssueButton context={`Playing /b/${slug}`} />
+          </div>
           {view.hunt && view.hunt.attemptsCount > attempts.length && (
             <p className="mt-2 text-center text-xs text-zinc-500">
               Showing your last {attempts.length} of {view.hunt.attemptsCount}.

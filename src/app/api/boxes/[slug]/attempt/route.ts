@@ -5,7 +5,11 @@ import { playerEmail } from "@/lib/player-session";
 import { guessSet, loadSymbols } from "@/lib/game/alphabet";
 import { isWellFormed, type LengthHint } from "@/lib/game/feedback";
 import { buildPlayView, findBox } from "@/lib/game/view";
-import { sendBoxCrackedEmail, sendBoxUnlockedEmail } from "@/lib/email";
+import {
+  sendAdminPayoutDueEmail,
+  sendBoxCrackedEmail,
+  sendBoxUnlockedEmail,
+} from "@/lib/email";
 import { maskEmail } from "@/lib/mask";
 
 /**
@@ -109,6 +113,35 @@ async function announce(
     title: params.title,
     rewardKobo: params.rewardKobo,
   });
+
+  /*
+   * A winner who already has an account on file is owed money *now* — nothing
+   * further has to happen for an administrator to be able to send it, so this
+   * is the moment the payout becomes payable and the moment to say so. A
+   * winner without one is told nothing here; the notice fires later, when they
+   * add their details, from the bank route.
+   */
+  const { data: winner } = await db
+    .from("players")
+    .select("account_number, account_name, bank_name")
+    .eq("email", params.email)
+    .maybeSingle();
+  const account = winner as {
+    account_number: string | null;
+    account_name: string | null;
+    bank_name: string | null;
+  } | null;
+  if (account?.account_number) {
+    await sendAdminPayoutDueEmail({
+      kind: "prize",
+      who: maskEmail(params.email),
+      amountKobo: params.rewardKobo,
+      title: params.title,
+      accountName: account.account_name,
+      bankName: account.bank_name,
+    });
+  }
+
   if (!params.contributorId) return;
 
   const { data: owner } = await db

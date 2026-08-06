@@ -4,6 +4,8 @@ import { ACCOUNT_NUMBER_REGEX } from "@/lib/constants";
 import { playerEmail } from "@/lib/player-session";
 import { ensurePlayer } from "@/lib/game/boxes";
 import { listBanks, paystackConfigured, resolveAccount } from "@/lib/paystack";
+import { sendAdminPayoutDueEmail } from "@/lib/email";
+import { maskEmail } from "@/lib/mask";
 
 /**
  * Where a player's rewards go.
@@ -84,6 +86,37 @@ export async function POST(req: Request) {
       bank_updated_at: new Date().toISOString(),
     })
     .eq("id", player.id);
+
+  /*
+   * An account arriving is the second half of a payable prize.
+   *
+   * A win with nowhere to send the money is not actionable, so nothing was
+   * announced at the time. Now there is an account, every unpaid claim this
+   * player holds is something an administrator can act on — and they are the
+   * only thing that moves it, since transfers are made by hand.
+   *
+   * After the response is decided, and never awaited into the failure path: a
+   * player saving their bank details must not be able to see an email problem.
+   */
+  const { data: due } = await db
+    .from("reward_claims")
+    .select("amount_kobo, boxes(title)")
+    .eq("player_id", player.id)
+    .neq("status", "paid");
+
+  for (const claim of (due ?? []) as unknown as {
+    amount_kobo: number;
+    boxes: { title: string } | null;
+  }[]) {
+    await sendAdminPayoutDueEmail({
+      kind: "prize",
+      who: maskEmail(email),
+      amountKobo: Number(claim.amount_kobo),
+      title: claim.boxes?.title ?? null,
+      accountName: resolved.accountName,
+      bankName: body.bankName ?? null,
+    });
+  }
 
   return NextResponse.json({ result: "saved", accountName: resolved.accountName });
 }

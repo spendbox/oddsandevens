@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ReportIssueButton } from "@/components/report-issue";
 
 // One footer, so the legal pages and the FAQ are reachable from anywhere
 // rather than only from the landing page somebody arrived past.
@@ -20,6 +21,13 @@ export function SiteFooter() {
             {link.label}
           </Link>
         ))}
+        {/* Contact us, and the only one of these that is a form rather than a
+            page. It sits with the rest so it is reachable from anywhere. */}
+        <ReportIssueButton
+          context="Footer"
+          label="Contact us"
+          className="transition hover:text-brass"
+        />
       </nav>
     </footer>
   );
