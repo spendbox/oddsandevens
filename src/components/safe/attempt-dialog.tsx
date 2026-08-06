@@ -181,9 +181,23 @@ export function AttemptDialog({
               <History className="size-3.5" aria-hidden />
               Every guess, and what it said
             </p>
-            {/* Capped in height rather than in count: a siege runs to hundreds
-                of these and the dialog should not become the page. */}
-            <div className="mt-2 max-h-[22rem] space-y-1.5 overflow-y-auto pr-0.5">
+            {/*
+              No scroller of its own, and that is deliberate.
+
+              This used to be capped at 22rem with `overflow-y-auto`, on the
+              reasoning that a long hunt should not turn the dialog into a page.
+              What it actually made was two nested scroll containers — the
+              modal's body is already one — and a finger landing anywhere on
+              this list drove the inner one while the sheet stayed put, then
+              handed over mid-gesture when the inner hit its end. Scrolling
+              felt like it stuck, jumped, or did nothing depending on where you
+              started.
+
+              One surface scrolls now: the sheet. The list is bounded anyway —
+              the server sends at most `ATTEMPT_PAGE` attempts — so there is a
+              floor under how long this can get without a cap here.
+            */}
+            <div className="mt-2 space-y-1.5">
               {past.map((row) => (
                 <div
                   key={row.attempt.ordinal}
