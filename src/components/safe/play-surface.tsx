@@ -372,7 +372,10 @@ export function PlaySurface({
           />
 
           <div className="flex items-center justify-between gap-2">
-            <LivesBadge onBuy={() => setSheet("lives")} />
+            <LivesBadge
+              onBuy={() => setSheet("lives")}
+              secondWindUntil={view.hunt?.secondWindUntil ?? null}
+            />
 
             {/* Opposite the lives, under the stats: one icon, no label. It is
                 a reading you check occasionally, and it belongs at the top with
@@ -623,7 +626,11 @@ export function PlaySurface({
       {rival && <RivalDialog rival={rival} onClose={() => setRival(null)} />}
 
       {sheet === "best" && bestAttempt && (
-        <AttemptDialog attempt={bestAttempt} onClose={() => setSheet("none")} />
+        <AttemptDialog
+          attempt={bestAttempt}
+          history={attempts}
+          onClose={() => setSheet("none")}
+        />
       )}
 
       {stat && (

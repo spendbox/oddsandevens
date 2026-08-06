@@ -7,6 +7,7 @@
 // and a slot machine.
 
 import { useEffect, useState } from "react";
+import { Infinity as InfinityIcon } from "lucide-react";
 import { usePlayer } from "./player-context";
 
 /**
@@ -48,9 +49,25 @@ export function countdown(target: string, now: number): string {
  * pulses when the pool is empty — the one place in the app that is allowed to
  * nag, and only because running out is the thing you most need to notice.
  */
-export function LivesBadge({ onBuy }: { onBuy?: () => void }) {
+export function LivesBadge({
+  onBuy,
+  /**
+   * When a free run is on, and when it ends.
+   *
+   * The badge is the answer to "can I guess again?", and while Second Wind is
+   * running the honest answer stops being a number. Guesses cost nothing and
+   * the pool is not touched, so a counter reading 0 with a berry background is
+   * actively wrong — it is the out-of-lives face on a player who has unlimited
+   * guesses. Only the play screen passes this; everywhere else there is no box
+   * for a window to be running on.
+   */
+  secondWindUntil,
+}: {
+  onBuy?: () => void;
+  secondWindUntil?: string | null;
+}) {
   const { player, ready, verified, refresh } = usePlayer();
-  const now = useNow(player.nextLifeAt);
+  const now = useNow(secondWindUntil ?? player.nextLifeAt);
 
   // When the countdown runs out, the server is the one that decides a life has
   // landed — ask it rather than incrementing optimistically.
@@ -65,8 +82,17 @@ export function LivesBadge({ onBuy }: { onBuy?: () => void }) {
 
   if (!ready || !verified) return null;
 
-  const empty = player.lives === 0;
+  const windRunning = !!secondWindUntil && new Date(secondWindUntil).getTime() > now;
+  const empty = player.lives === 0 && !windRunning;
 
+  /*
+   * Three faces, and which one shows is the whole point of this control.
+   *
+   *   free   a run is on. Mint, an infinity mark, and the time left. No count,
+   *          because the count is not what is being spent.
+   *   empty  berry, and a prompt to do something about it.
+   *   idle   the pool, and when the next one lands.
+   */
   return (
     <button
       type="button"
@@ -74,22 +100,50 @@ export function LivesBadge({ onBuy }: { onBuy?: () => void }) {
       disabled={!onBuy}
       style={
         {
-          "--btn-lip": empty ? "var(--berry-deep)" : "var(--surface-low)",
+          "--btn-lip": windRunning
+            ? "var(--mint-deep)"
+            : empty
+              ? "var(--berry-deep)"
+              : "var(--surface-low)",
         } as React.CSSProperties
       }
       className={
         "btn-chunky flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm " +
-        (empty ? "bg-berry text-ink" : "bg-surface-high text-foreground") +
+        (windRunning
+          ? "bg-mint text-ink"
+          : empty
+            ? "bg-berry text-ink"
+            : "bg-surface-high text-foreground") +
         (onBuy ? " cursor-pointer" : " cursor-default")
       }
-      title={onBuy ? "Buy more lives" : undefined}
+      title={
+        windRunning
+          ? "Guesses are free right now"
+          : onBuy
+            ? "Buy more lives"
+            : undefined
+      }
     >
-      <HeartArt className={"size-5 " + (empty ? "opacity-70" : "")} />
-      <span className="font-black tabular-nums">{player.lives}</span>
-      {player.nextLifeAt && (
-        <span className={"text-xs font-semibold " + (empty ? "text-ink/70" : "text-zinc-300")}>
-          +1 in {countdown(player.nextLifeAt, now)}
-        </span>
+      {windRunning ? (
+        <>
+          <InfinityIcon className="size-5 shrink-0" aria-hidden />
+          <span className="font-black">Free</span>
+          <span className="text-xs font-semibold text-ink/70">
+            {countdown(secondWindUntil!, now)} left
+          </span>
+        </>
+      ) : (
+        <>
+          <HeartArt className={"size-5 " + (empty ? "opacity-70" : "")} />
+          <span className="font-black tabular-nums">{player.lives}</span>
+          {player.nextLifeAt && (
+            <span
+              className={"text-xs font-semibold " + (empty ? "text-ink/70" : "text-zinc-300")}
+            >
+              +1 in {countdown(player.nextLifeAt, now)}
+            </span>
+          )}
+        </>
       )}
     </button>
   );

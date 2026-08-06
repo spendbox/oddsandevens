@@ -33,6 +33,7 @@ import { Portal } from "@/components/ui/portal";
 import { Boxy, type BoxyMood } from "@/components/art/boxy";
 import { CRACKS, cracksFor } from "@/lib/game/chase";
 import { formatScore, scoreBand } from "@/lib/game/feedback";
+import { visible } from "@/lib/constants";
 import type { AttemptRecord } from "@/lib/types";
 
 /*
@@ -171,42 +172,86 @@ export function ResultCard({
   previousScore: number | null;
   onClose: () => void;
 }) {
-  const percent = attempt.scorePercent;
-  const personalBest = percent > previousBest;
-  const shown = useCountUp(percent);
-  const length = LENGTH[attempt.lengthHint];
-  const LengthIcon = length.icon;
-  const said = reaction(percent, previousScore, previousBest, false, attempt.ordinal);
-
   /*
-   * Takes itself away. Long enough to read a two-digit number and a hint,
-   * short enough that somebody firing off guesses never waits for it.
+   * It stays until it is replaced or dismissed.
    *
-   * The callback goes through a ref rather than into the dependency list, and
-   * that is not tidiness. Callers pass an inline arrow, so its identity changes
-   * on every render of the parent — and the parent re-renders once a second for
-   * as long as any countdown is running, which is exactly the case where a
-   * discount or a free run is on. Depending on `onClose` meant the timer was
-   * cleared and re-armed every second and so never fired at all: the card
-   * simply stayed, on the one screen where something else was already
-   * competing for the space.
+   * There used to be a 2.6-second timer on this, which is a reasonable length
+   * for a toast and the wrong idea for a *result*. The number and the line
+   * beside it are the answer to the thing the player just spent a life on, and
+   * on a phone — where the card sits above the button and below the scene —
+   * two and a half seconds is easily less than the time it takes to look down,
+   * read a percentage, and work out what it means about the guess before it.
+   * Miss it and the only way back was the attempt log.
+   *
+   * So there is no clock. The next guess replaces it, because the parent sets a
+   * new result per attempt, and the X or a tap on the card clears it early.
+   * Nothing here is in anybody's way: it covers no control and dims nothing.
    */
-  const close = useRef(onClose);
-  useEffect(() => {
-    close.current = onClose;
-  });
-  useEffect(() => {
-    const id = window.setTimeout(() => close.current(), 2600);
-    return () => window.clearTimeout(id);
-  }, [attempt.ordinal]);
-
   return (
     <div
       onClick={onClose}
       role="status"
       aria-live="polite"
-      className="animate-fade-up sheet flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left"
+      className="animate-fade-up sheet flex w-full cursor-pointer items-start gap-3 rounded-2xl px-3 py-2.5 text-left"
     >
+      <AttemptSummary
+        attempt={attempt}
+        previousBest={previousBest}
+        previousScore={previousScore}
+        live
+      />
+
+      {/* Closes this card, and only this card. Everything else about it is an
+          announcement, and an announcement you have to dismiss with a button
+          is the thing this card exists to stop being. */}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onClose();
+        }}
+        aria-label="Close"
+        className="shrink-0 self-start rounded-lg p-1 text-zinc-500 transition hover:bg-white/10 hover:text-zinc-200"
+      >
+        <X className="size-4" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * One guess, said out loud: the face, the number, the line and the length.
+ *
+ * Shared between the card that appears the moment a guess lands and the list of
+ * every earlier guess in the attempt dialog, because they are the same thing
+ * seen at different times — and a player scrolling back through a hunt should
+ * find the sentence they half-read at the time, not a different summary of the
+ * same row. Extracting it is what makes "keep the pop-ups" possible at all.
+ *
+ * `live` is the only difference: the score counts up when the guess has just
+ * been made, and is simply printed in a list of forty of them.
+ */
+export function AttemptSummary({
+  attempt,
+  previousBest,
+  previousScore,
+  live = false,
+}: {
+  attempt: AttemptRecord;
+  previousBest: number;
+  previousScore: number | null;
+  live?: boolean;
+}) {
+  const percent = attempt.scorePercent;
+  const personalBest = percent > previousBest;
+  const counted = useCountUp(live ? percent : 0);
+  const shown = live ? counted : percent;
+  const length = LENGTH[attempt.lengthHint];
+  const LengthIcon = length.icon;
+  const said = reaction(percent, previousScore, previousBest, false, attempt.ordinal);
+
+  return (
+    <>
       {/* Not `still`: he reacts to every guess, and the one place a mascot
           earns his keep is the moment a result lands. */}
       <Boxy mood={said.mood} className="size-11 shrink-0" />
@@ -225,8 +270,11 @@ export function ResultCard({
           >
             {formatScore(shown)}
           </span>
+          <code className="min-w-0 truncate font-mono text-xs text-zinc-500">
+            {visible(attempt.value)}
+          </code>
           {personalBest && (
-            <span className="flex items-center gap-1 text-[11px] font-bold text-brass">
+            <span className="ml-auto flex shrink-0 items-center gap-1 text-[11px] font-bold text-brass">
               <TrendingUp className="size-3" aria-hidden />
               best yet
             </span>
@@ -250,22 +298,7 @@ export function ResultCard({
           <span className="truncate">{length.body}</span>
         </p>
       </div>
-
-      {/* Closes this card, and only this card. Everything else about it is an
-          announcement, and an announcement you have to dismiss with a button
-          is the thing this card exists to stop being. */}
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          onClose();
-        }}
-        aria-label="Close"
-        className="shrink-0 self-start rounded-lg p-1 text-zinc-500 transition hover:bg-white/10 hover:text-zinc-200"
-      >
-        <X className="size-4" aria-hidden />
-      </button>
-    </div>
+    </>
   );
 }
 
