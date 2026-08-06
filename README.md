@@ -1067,6 +1067,40 @@ or not the tab is still open.
 
 ## On the list
 
+### The table
+
+Everyone hunting one safe is doing it alone, and that is the largest thing
+missing from the game. Somebody four hundred guesses in has learned things
+about a password nobody else knows, and the only channel any of it has to
+another player is the scoreboard.
+
+**One room per box, anonymous.** No names, no history, nothing that follows
+anybody to the next safe — what you say should read as a theory rather than a
+signature, and a handle would turn the room into a reputation game played
+alongside the real one.
+
+The button is already in the rail, next to Active boosters, and it opens a
+`ComingSoonDialog` with a live countdown to `TABLE_OPENS` in
+`src/components/safe/coming-soon.tsx` — **2026-11-06**, three months from the
+day it went in. The date is a constant on purpose: "three months from now"
+resets every time somebody opens the page and would read as three months away
+forever. Move it when the work moves, deliberately, and know that the countdown
+is checkable by anybody.
+
+What it will need, from a read of what is already there:
+
+- Messages per box, with a retention window — a room that keeps everything is a
+  room that has to be moderated forever.
+- Rate limiting per player, reusing `rate-limit.ts`.
+- A report path. `/api/report` already exists and already escapes free text on
+  the way into an inbox; a message report can go the same way.
+- Anonymity that is real on the server, not just unlabelled in the browser: the
+  player id must not travel with the message to other clients.
+- Somewhere for the abuse case to land. The one thing a chat room reliably
+  attracts is the password being posted the moment somebody cracks it — which
+  is harmless, because the box closes at that instant, but the room should
+  probably say so rather than look broken.
+
 ### Chase themes
 
 The chase is one scene — a car pursuing a runaway safe down a road — and it is

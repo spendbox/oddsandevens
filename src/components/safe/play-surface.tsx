@@ -24,7 +24,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, KeyRound, Lightbulb, Tag } from "lucide-react";
+import {
+  ArrowRight,
+  KeyRound,
+  Lightbulb,
+  LifeBuoy,
+  MessagesSquare,
+  Tag,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { LIVES_MAX } from "@/lib/constants";
 import { EMPTY_REVEALED, POWER_UPS, secondWindLabel } from "@/lib/game/power-ups";
@@ -51,7 +58,8 @@ import { DropCrate } from "./drop-crate";
 import { useDrops } from "./use-drops";
 import type { Rival } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
-import { ReportIssueButton } from "@/components/report-issue";
+import { ReportDialog, ReportIssueButton } from "@/components/report-issue";
+import { ComingSoonDialog } from "./coming-soon";
 
 type Outcome = "open" | "won" | "pipped";
 type Sheet =
@@ -64,6 +72,8 @@ type Sheet =
   | "best"
   | "guess"
   | "known"
+  | "table"
+  | "support"
   | "pot";
 
 export function PlaySurface({
@@ -371,26 +381,68 @@ export function PlaySurface({
             onBestGuess={() => setSheet("best")}
           />
 
-          <div className="flex items-center justify-between gap-2">
+          {/* `items-start`, not `items-center`: the right-hand column is three
+              buttons tall now, and centring against it would leave the lives
+              pill floating in the middle of the rail instead of sitting on the
+              top line with everything else. */}
+          <div className="flex items-start justify-between gap-2">
             <LivesBadge
               onBuy={() => setSheet("lives")}
               secondWindUntil={view.hunt?.secondWindUntil ?? null}
             />
 
-            {/* Opposite the lives, under the stats: one icon, no label. It is
-                a reading you check occasionally, and it belongs at the top with
-                the other readings rather than down among the controls. */}
-            <button
-              type="button"
-              onClick={() => setSheet("known")}
-              aria-label="Active boosters"
-              className="relative flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white/15 bg-background/85 text-zinc-200 transition hover:border-mint/60 hover:text-mint"
-            >
-              <Lightbulb className="size-4" aria-hidden />
-              {knowsAnything(revealed, now) && (
-                <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-background bg-mint" />
-              )}
-            </button>
+            {/*
+              Opposite the lives, under the stats: icons, no labels. These are
+              readings and doors you use occasionally, and they belong at the
+              top with the other readings rather than down among the controls.
+
+              Stacked rather than in a row because the rail's right edge is
+              narrow and three of them side by side would push into the score.
+            */}
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSheet("known")}
+                aria-label="Active boosters"
+                className="relative flex size-9 items-center justify-center rounded-full border-2 border-white/15 bg-background/85 text-zinc-200 transition hover:border-mint/60 hover:text-mint"
+              >
+                <Lightbulb className="size-4" aria-hidden />
+                {knowsAnything(revealed, now) && (
+                  <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-background bg-mint" />
+                )}
+              </button>
+
+              {/*
+                The room, before there is a room. It answers the button next to
+                it — everybody hunting this safe is doing it alone — and saying
+                so with a date attached is more honest than leaving the absence
+                unexplained.
+              */}
+              <button
+                type="button"
+                onClick={() => setSheet("table")}
+                aria-label="The table — coming soon"
+                className="relative flex size-9 items-center justify-center rounded-full border-2 border-white/15 bg-background/85 text-zinc-200 transition hover:border-grape/60 hover:text-grape"
+              >
+                <MessagesSquare className="size-4" aria-hidden />
+                <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-background bg-grape" />
+              </button>
+
+              {/*
+                Support, in the game rather than only in the footer. Somebody
+                whose guess did something strange is on this screen, not on the
+                front page, and a contact link they have to go and find is one
+                they do not use.
+              */}
+              <button
+                type="button"
+                onClick={() => setSheet("support")}
+                aria-label="Contact support"
+                className="flex size-9 items-center justify-center rounded-full border-2 border-white/15 bg-background/85 text-zinc-200 transition hover:border-sky/60 hover:text-sky"
+              >
+                <LifeBuoy className="size-4" aria-hidden />
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-2">
@@ -571,6 +623,12 @@ export function PlaySurface({
         <KnownDialog revealed={revealed} now={now} onClose={() => setSheet("none")} />
       )}
       {sheet === "rules" && <HowItWorksDialog onClose={() => setSheet("none")} />}
+
+      {sheet === "table" && <ComingSoonDialog onClose={() => setSheet("none")} />}
+
+      {sheet === "support" && (
+        <ReportDialog context={`Playing /b/${slug}`} onClose={() => setSheet("none")} />
+      )}
 
       {sheet === "attempts" && (
         <Modal
