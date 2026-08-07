@@ -68,8 +68,8 @@ export function PotDialog({
               {formatNaira(rewardKobo)}
             </p>
             <p className="text-sm text-zinc-400">
-              Paid into the bank account of whoever cracks the code first,
-              within 24 hours.
+              Paid, within 24 hours, into the bank account of whoever cracks
+              the code first.
             </p>
           </>
         )}
