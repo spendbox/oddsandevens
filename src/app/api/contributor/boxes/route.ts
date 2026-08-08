@@ -5,6 +5,7 @@ import { alphabetOf, loadSymbols, withinAlphabet } from "@/lib/game/alphabet";
 import { getAuthedContributor } from "@/lib/contributor-auth";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
 import { fundingIsValid, minFundingKobo, splitFunding } from "@/lib/game/rewards";
+import { loadFundingLadder } from "@/lib/game/pricing";
 import { toDesign, type Design } from "@/lib/game/designs";
 import type { OwnedBox } from "@/lib/types";
 
@@ -154,9 +155,17 @@ export interface ParsedBox {
  * here upper-cases anything. Characters outside the alphabet are rejected
  * rather than silently dropped — quietly changing somebody's password would be
  * the worst possible thing to do here.
+ *
+ * `existing` is the draft being edited, where there is one. A raised ladder
+ * applies to new boxes and to nothing else: a draft written when boxes were
+ * cheaper keeps the price it was quoted, exactly as its funding checkout would
+ * have — that route charges what the box already holds and has never consulted
+ * the floor. Lengthening the password is the one thing that re-prices it, and
+ * it has to, because the floor is a function of the length.
  */
 export async function readBoxBody(
-  req: Request
+  req: Request,
+  existing?: { length: number; fundingKobo: number }
 ): Promise<ParsedBox | { error: string; minFundingKobo?: number }> {
   const body = (await req.json().catch(() => ({}))) as {
     title?: string;
@@ -184,8 +193,18 @@ export async function readBoxBody(
   // this is always the narrower of the two.
   const allowed = new Set(alphabetOf(await loadSymbols(supabaseAdmin())));
   if (!withinAlphabet(secret, allowed)) return { error: "invalid_characters" };
-  if (!fundingIsValid(secret.length, fundingKobo)) {
-    return { error: "funding_too_low", minFundingKobo: minFundingKobo(secret.length) };
+
+  const ladder = await loadFundingLadder(supabaseAdmin());
+  const grandfathered =
+    existing && secret.length <= existing.length ? existing.fundingKobo : undefined;
+  if (!fundingIsValid(secret.length, fundingKobo, ladder, grandfathered)) {
+    return {
+      error: "funding_too_low",
+      minFundingKobo: Math.min(
+        minFundingKobo(secret.length, ladder),
+        grandfathered ?? Infinity
+      ),
+    };
   }
 
   return { title, blurb, secret, fundingKobo, design };

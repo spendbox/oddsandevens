@@ -15,23 +15,28 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, Search, X } from "lucide-react";
 import { Boxy } from "@/components/art/boxy";
-import { FAQ, FAQ_TOPICS, type FaqItem, type FaqTopic } from "@/lib/faq";
+import { FAQ_TOPICS, type FaqItem, type FaqTopic } from "@/lib/faq";
 import { plural } from "@/lib/plural";
 
-export function FaqBrowser() {
+/**
+ * `items` is handed in rather than imported: two of the answers print what a
+ * box costs to put up, an admin sets that, and this is a browser bundle. The
+ * page loads the ladder and builds the list on the server.
+ */
+export function FaqBrowser({ items }: { items: FaqItem[] }) {
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState<FaqTopic | null>(null);
   const [open, setOpen] = useState<string | null>(null);
 
   const results = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-    return FAQ.filter((item) => {
+    return items.filter((item) => {
       if (topic && item.topic !== topic) return false;
       if (words.length === 0) return true;
       const hay = `${item.topic} ${item.question} ${item.answer.join(" ")}`.toLowerCase();
       return words.every((word) => hay.includes(word));
     });
-  }, [query, topic]);
+  }, [items, query, topic]);
 
   // Grouped for display, in the canonical topic order rather than whatever
   // order the answers happen to be written in.

@@ -14,9 +14,11 @@ import { Boxy } from "@/components/art/boxy";
 import { SafeArt } from "@/components/safe/safe-art";
 import { MIN_LENGTH, PLATFORM_SHARE_PERCENT } from "@/lib/constants";
 import { formatNaira, minFundingKobo, splitFunding } from "@/lib/game/rewards";
+import { useFundingLadder } from "@/components/use-funding";
 
 export function BuildDialog({ onClose }: { onClose: () => void }) {
-  const floor = minFundingKobo(MIN_LENGTH);
+  // An admin sets the floor, so the pitch reads it rather than importing it.
+  const floor = minFundingKobo(MIN_LENGTH, useFundingLadder());
   const share = 100 - PLATFORM_SHARE_PERCENT;
 
   return (
