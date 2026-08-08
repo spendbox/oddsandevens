@@ -3,8 +3,8 @@
 // Cracking one safe, together, with the answer known in advance.
 //
 // Everything else in the tutorial is a description of the game. This is the
-// game — a real password (`B0x!`), the real scoring, and nineteen guesses that
-// happen to be the exact nineteen a good player would make. Nobody learns a
+// game — a real password (`B0x!`), the real scoring, and twenty guesses that
+// happen to be the exact twenty a good player would make. Nobody learns a
 // deduction puzzle by being told that deduction is possible; they learn it by
 // watching one number move and being told what the movement meant.
 //
@@ -20,12 +20,26 @@
 //   compute this live would publish them in a JavaScript bundle to anybody who
 //   opened the devtools. So the scores are written down here as constants. The
 //   cost is that they must be recomputed by hand if the weights ever change —
-//   which is the right trade, and the reason this comment exists.
+//   which is the right trade, and the reason this comment exists. To redo them,
+//   against the database and not by hand arithmetic:
+//
+//       select g.v, s.score_percent
+//         from (values ('000'), ('00000'), …) g(v)
+//         cross join lateral public.score_attempt('B0x!', g.v) s;
 //
 // The player types every guess themselves, exactly, including its case. That is
-// not busywork: `baaa` and `Baaa` are two different guesses two and a half times
-// apart, and typing both is how that stops being a sentence and starts being a
-// fact. There is a fill-it-in button for anybody who would rather watch.
+// not busywork: `baaa` and `Baaa` are two different guesses exactly twice apart,
+// and typing both is how that stops being a sentence and starts being a fact.
+// There is a fill-it-in button for anybody who would rather watch.
+//
+// One thing this must never do, and it is easy to do by accident: explain *why*
+// one character's numbers are larger than another's. 0051 gave every character
+// its own worth, so the `0` beats live down at one and a half percent while the
+// `B` beats are up in the forties. The tutorial reports both honestly and draws
+// no comparison between them, because the comparison is the price list and the
+// price list is the secret. Everything taught here is taught by watching a
+// *single* character's own number double or halve, which is a real, universal
+// rule and gives nothing away.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, CornerDownLeft, MoveDown, MoveUp, Target } from "lucide-react";
@@ -62,22 +76,29 @@ function Key({ children }: { children: ReactNode }) {
 }
 
 /*
- * The nineteen guesses, in four movements: how long is it, where is the digit,
+ * The twenty guesses, in four movements: how long is it, where is the digit,
  * what are the letters, and what is the symbol.
  *
- * Two of the beats teach the shape of the scale rather than a character, and
- * they are the two worth not cutting:
+ * Three of the beats teach the shape of the scale rather than a character, and
+ * they are the three worth not cutting:
  *
- *   The b-probe. `baaa` scores 10% where `abaa`, `aaba` and `aaab` all score
- *   5%, so the odd one out names the position — and the fact that 10% is still
- *   short of the 25% a placed character pays is what says the case is wrong
- *   before `Baaa` proves it. Two deductions from four cheap guesses.
+ *   The b-probe. `baaa`, `abaa`, `aaba` and `aaab` all score 20.42% — the same
+ *   number four times, from four different positions. That flatness is the
+ *   lesson: while the case is wrong the score will not tell you where the
+ *   character lives, and four guesses that all agree are four guesses saying
+ *   "you are wrong about something other than the position". `Baaa` then
+ *   doubles it, which names the case and the place in one move.
  *
- *   `aaax` and `aaXa`, which both score 10%. Wrong place with the right case
- *   and right place with the wrong case are worth exactly the same, so the
- *   score refuses to say which mistake you made. That is the clearest possible
- *   demonstration of why one number is hard to read, and it arrives right after
- *   the player has been using the numbers confidently.
+ *   `Baaaa`, immediately after that double. It is the only beat where the
+ *   player has real points to lose, which is the only moment a length penalty
+ *   means anything: 40.85% to 32.95% for one character of padding.
+ *
+ *   `aaax` and `aaXa`, which both score 13.38% — exactly half of `aaxa`. Wrong
+ *   place with the right case and right place with the wrong case are worth
+ *   exactly the same, so the score refuses to say which mistake you made. That
+ *   is the clearest possible demonstration of why one number is hard to read,
+ *   and it arrives right after the player has been using the numbers
+ *   confidently.
  */
 function beats(): Beat[] {
   return [
@@ -85,7 +106,7 @@ function beats(): Beat[] {
     {
       guess: "000",
       hint: "shorter",
-      score: 25,
+      score: 1.41,
       ask: (
         <>
           Nobody tells you how long a password is, so that is the first thing to
@@ -96,14 +117,15 @@ function beats(): Beat[] {
       learn: (
         <>
           <strong className="text-sky">Too short.</strong> Off by an unknown
-          amount, but we now know the password is longer than three.
+          amount, but we now know the password is longer than three. Ignore the
+          score for now — the arrow is doing all the work in this movement.
         </>
       ),
     },
     {
       guess: "00000",
       hint: "longer",
-      score: 20,
+      score: 1.39,
       ask: (
         <>
           Overshoot deliberately. Try <Key>00000</Key> — five of them.
@@ -111,10 +133,10 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          <strong className="text-sky">Too long.</strong> So it is four. And look
-          at the score: it went <em>down</em>, from 25% to 20%, on a guess with
-          more of the right stuff in it. Padding past the real length dilutes
-          every point you have. Long guesses are never free.
+          <strong className="text-sky">Too long.</strong> So it is four:
+          longer than three and shorter than five, and there is only one number
+          in between. Two guesses, and the length is settled without the score
+          being consulted once.
         </>
       ),
       mood: "sly",
@@ -122,7 +144,7 @@ function beats(): Beat[] {
     {
       guess: "0000",
       hint: "exact",
-      score: 25,
+      score: 1.41,
       ask: (
         <>
           Split the difference: <Key>0000</Key>.
@@ -131,8 +153,10 @@ function beats(): Beat[] {
       learn: (
         <>
           <strong className="text-mark-green">Right length — four characters.</strong>{" "}
-          Every guess from here is four long, and the 25% is telling us something
-          else as well: a <Key>0</Key> is in this password somewhere.
+          Every guess from here is four long — bar one, later, to show you what
+          happens if it isn&apos;t. And the score is telling us something as
+          well, quietly: it is not zero, so a <Key>0</Key> is in this password
+          somewhere.
         </>
       ),
       mood: "cheer",
@@ -162,7 +186,7 @@ function beats(): Beat[] {
     {
       guess: "0aaa",
       hint: "exact",
-      score: 10,
+      score: 0.7,
       ask: (
         <>
           Use the blank. One <Key>0</Key> at the front, padded out:{" "}
@@ -171,16 +195,17 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          10% — real, but small. The <Key>0</Key> is in the password and it is{" "}
-          <strong>not</strong> in the first position. A character in the wrong
-          place still scores; it just scores less.
+          0.7% — real, and lower than the 1.4% four of them scored. The{" "}
+          <Key>0</Key> is in the password and it is <strong>not</strong> in the
+          first position. A character in the wrong place still scores; it just
+          scores less.
         </>
       ),
     },
     {
       guess: "a0aa",
       hint: "exact",
-      score: 25,
+      score: 1.41,
       ask: (
         <>
           Move it one along: <Key>a0aa</Key>.
@@ -188,13 +213,15 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          <strong className="text-brass-bright">10% to 25%.</strong> Two and a
-          half times, from moving one character one place. That jump is what a
-          character landing in its <em>right</em> position looks like, and there
-          is nothing else it can be.
+          <strong className="text-brass-bright">0.7% to 1.4%.</strong> Exactly
+          double, from moving one character one place. That is the shape to
+          learn, and it is the same shape everywhere on the board:{" "}
+          <strong>a character in its right place pays twice what the same
+          character pays anywhere else.</strong>
           <br />
           <br />
-          The second character is <Key>0</Key>.
+          Never mind that the numbers are small — you are not comparing them to
+          anything but each other. The second character is <Key>0</Key>.
         </>
       ),
       mood: "cheer",
@@ -204,7 +231,7 @@ function beats(): Beat[] {
     {
       guess: "baaa",
       hint: "exact",
-      score: 10,
+      score: 20.42,
       ask: (
         <>
           Now walk a new character through the positions. Start with{" "}
@@ -220,7 +247,7 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          10%. Not nothing — so <Key>b</Key> <em>is</em> in the password. Hold
+          20.4%. Not nothing — so <Key>b</Key> <em>is</em> in the password. Hold
           that number; the next three guesses are what make it mean something.
         </>
       ),
@@ -228,29 +255,29 @@ function beats(): Beat[] {
     {
       guess: "abaa",
       hint: "exact",
-      score: 5,
+      score: 20.42,
       ask: (
         <>
           Same character, next position: <Key>abaa</Key>.
         </>
       ),
-      learn: <>5%. Lower than the first one. Keep going.</>,
+      learn: <>20.4%. Identical. Keep going.</>,
     },
     {
       guess: "aaba",
       hint: "exact",
-      score: 5,
+      score: 20.42,
       ask: (
         <>
           And again: <Key>aaba</Key>.
         </>
       ),
-      learn: <>5% again.</>,
+      learn: <>20.4% again. Not a flicker.</>,
     },
     {
       guess: "aaab",
       hint: "exact",
-      score: 5,
+      score: 20.42,
       ask: (
         <>
           Last position: <Key>aaab</Key>.
@@ -258,19 +285,19 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          5% a third time — and now the shape is clear.{" "}
+          20.4% a fourth time.{" "}
           <strong className="text-brass-bright">
-            Three positions score 5% and one scores 10%.
+            Four positions, one number, no doubling anywhere.
           </strong>
           <br />
           <br />
-          The odd one out is the answer. Getting the position right is always
-          worth something, so the probe that stood up is the one that found the
-          spot: <Key>b</Key> lives in position one.
+          We know what a character in its right place does — it doubles. Nothing
+          doubled, so on this evidence the <Key>b</Key> is in none of the four
+          positions. It is also definitely in the password. Both cannot be true.
           <br />
           <br />
-          But it isn&apos;t worth 25%, which is what a character in its right
-          place normally pays. Something about it is still wrong.
+          So the guess is wrong about something that isn&apos;t position, and
+          there is only one other thing a character can be wrong about.
         </>
       ),
       mood: "sly",
@@ -278,23 +305,49 @@ function beats(): Beat[] {
     {
       guess: "Baaa",
       hint: "exact",
-      score: 25,
+      score: 40.85,
       ask: (
         <>
-          Test it. Same position, capital letter: <Key>Baaa</Key>.
+          Test it. Back to the first position, capital letter: <Key>Baaa</Key>.
         </>
       ),
       learn: (
         <>
-          <strong className="text-brass-bright">10% to 25%.</strong> Two and a
-          half times, for holding down shift. The case was the only thing left
-          to be wrong about it.
+          <strong className="text-brass-bright">20.4% to 40.9%.</strong> Exactly
+          double, for holding down shift — and a double is a character standing
+          in its own position. It named the case and the place in one guess, and
+          it explains the flat run: with the case wrong, the score will not tell
+          you where a character lives. Fix the case first, then walk it.
           <br />
           <br />
           Two of four: the password starts <Key>B0</Key>.
         </>
       ),
       mood: "cheer",
+    },
+    {
+      guess: "Baaaa",
+      hint: "longer",
+      score: 32.95,
+      ask: (
+        <>
+          One detour, while there is finally something to lose. Add a single
+          character of padding to that same guess: <Key>Baaaa</Key>.
+        </>
+      ),
+      learn: (
+        <>
+          <strong className="text-berry">40.9% down to 33%.</strong> Nothing was
+          taken away — the <Key>B</Key> is still first and still correct — and
+          the score fell by a fifth. A score is a share of the whole guess, so
+          padding past the real length dilutes every point you are holding.
+          <br />
+          <br />
+          Long guesses are never free, and they get more expensive the better
+          you are doing. Back to four.
+        </>
+      ),
+      mood: "sly",
     },
 
     // ---- The rest of the letters ------------------------------------------
@@ -318,7 +371,7 @@ function beats(): Beat[] {
     {
       guess: "xxxx",
       hint: "exact",
-      score: 25,
+      score: 26.76,
       ask: (
         <>
           A little bird says skip ahead. <Key>xxxx</Key>.
@@ -326,7 +379,7 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          <strong className="text-brass-bright">25%.</strong> There is an{" "}
+          <strong className="text-brass-bright">26.8%.</strong> There is an{" "}
           <Key>x</Key> in there. We don&apos;t know where yet — four of them
           cover every position at once.
         </>
@@ -336,7 +389,7 @@ function beats(): Beat[] {
     {
       guess: "aaxa",
       hint: "exact",
-      score: 25,
+      score: 26.76,
       ask: (
         <>
           We already own positions one and two, so the <Key>x</Key> is in three
@@ -345,8 +398,8 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          25% — the same score, from a single <Key>x</Key> instead of four. One
-          character is doing all of that work, so it is in the right place.
+          26.8% — the same score, from a single <Key>x</Key> instead of four.
+          One character is doing all of that work. Hold the number.
         </>
       ),
       mood: "cheer",
@@ -354,7 +407,7 @@ function beats(): Beat[] {
     {
       guess: "aaax",
       hint: "exact",
-      score: 10,
+      score: 13.38,
       ask: (
         <>
           Prove it by breaking it. Move the <Key>x</Key> along one:{" "}
@@ -363,15 +416,16 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          Straight back down to 10% — the wrong-place score we already know.
-          Position three it is.
+          <strong className="text-brass-bright">Straight down to 13.4%</strong> —
+          exactly half. Halving is doubling read backwards: the character just
+          left its own position. Position three it is.
         </>
       ),
     },
     {
       guess: "aaXa",
       hint: "exact",
-      score: 10,
+      score: 13.38,
       ask: (
         <>
           One thing left to check about it. Capitalise it: <Key>aaXa</Key>.
@@ -379,10 +433,10 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          10% again — and that is worth noticing. Wrong place with the right
+          13.4% again — and that is worth noticing. Wrong place with the right
           case, and right place with the wrong case, are worth{" "}
           <em>exactly the same</em>. Both are one step away, so the score
-          refuses to tell you which step. Only the 25% was unique, so the
+          refuses to tell you which step. Only the 26.8% was unique, so the
           lowercase <Key>x</Key> in position three stands.
           <br />
           <br />
@@ -410,7 +464,7 @@ function beats(): Beat[] {
     {
       guess: "!!!!",
       hint: "exact",
-      score: 25,
+      score: 30.99,
       ask: (
         <>
           Try the loud one: <Key>!!!!</Key>.
@@ -418,8 +472,9 @@ function beats(): Beat[] {
       ),
       learn: (
         <>
-          <strong className="text-brass-bright">25%.</strong> There it is. And
-          there is only one position left for it to be in.
+          <strong className="text-brass-bright">31%.</strong> There it is. And
+          there is only one position left for it to be in, so there is nothing
+          left to walk.
         </>
       ),
       mood: "cheer",
@@ -643,7 +698,7 @@ export function TutorialPrize() {
         {formatNaira(PRIZE_KOBO)}
       </p>
       <p className="text-sm leading-relaxed text-zinc-300">
-        Nineteen guesses, no power-ups, and nothing spent. On a real safe that
+        Twenty guesses, no power-ups, and nothing spent. On a real safe that
         money is sent to your bank account{" "}
         <strong className="text-brass-bright">within 24 hours</strong>.
       </p>
