@@ -178,6 +178,22 @@ export function formatNaira(kobo: number): string {
 }
 
 /**
+ * A naira field, as it is typed: digits only, no leading zeros, and hard
+ * stopped at the ceiling.
+ *
+ * Clamping the *value* rather than the number of digits, because "10000001"
+ * and "99999999" are both eight characters and only one of them is over the
+ * line. Every money field on the site runs through this one function so that
+ * the build screen, the admin's own box and the prize dialog cannot drift into
+ * accepting three different things.
+ */
+export function capNaira(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, "").replace(/^0+(?=\d)/, "");
+  if (!digits) return "";
+  return String(Math.min(Number(digits), MAX_FUNDING_KOBO / KOBO));
+}
+
+/**
  * The reward as a player should read it.
  *
  * A box with nothing behind it isn't worth ₦0 — it's a challenge, and printing
