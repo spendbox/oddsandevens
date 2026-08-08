@@ -137,7 +137,10 @@ export async function POST(req: Request) {
   });
 }
 
-/** Withdraw a box from play. An unlocked box is already finished; leave it. */
+/**
+ * The three editorial things we can do to a box: put a prize in it, feature
+ * it, or withdraw it. An unlocked box is already finished; leave it.
+ */
 export async function PATCH(req: Request) {
   if (!(await getAdminUser())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -146,10 +149,76 @@ export async function PATCH(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     boxId?: string;
     featured?: boolean;
+    rewardKobo?: number;
   };
   if (!body.boxId) return NextResponse.json({ error: "invalid_box" }, { status: 400 });
 
   const db = supabaseAdmin();
+
+  // ---- The prize ----------------------------------------------------------
+  // The create form is not the only moment an admin decides what a box is
+  // worth. A box goes up as a pure challenge and earns a prize once people
+  // start attacking it; a headline number gets agreed the week after the safe
+  // was built. Both of those used to mean deleting the box and starting again,
+  // taking its hunters and its attempts with it.
+  //
+  // Two rules, and both are the ones already in force elsewhere:
+  //
+  //   Ours only. A contributor's reward is their funding minus our cut and
+  //   nothing else — `raise_reward` is how that number moves, against money
+  //   actually collected. Topping one up from here would advertise a reward
+  //   with nothing behind it.
+  //
+  //   Upwards only. A player deciding a box is worth weeks of lives has to be
+  //   able to trust the figure they read, which is exactly why `raise_reward`
+  //   refuses to lower a contributor's. The platform's own boxes are played
+  //   with the same lives and get the same guarantee. The remedy for a prize
+  //   typed wrong is the one it has always been: close the box.
+  if (body.rewardKobo !== undefined) {
+    const rewardKobo = Math.trunc(Number(body.rewardKobo));
+    if (!Number.isSafeInteger(rewardKobo) || rewardKobo < 0 || rewardKobo > MAX_FUNDING_KOBO) {
+      return NextResponse.json({ error: "invalid_reward" }, { status: 400 });
+    }
+
+    // One statement, so two admins raising at once cannot race each other into
+    // a lower number: `lte` is the "upwards only" rule, and it lets a repeat
+    // save of the same figure through as the no-op it is.
+    const { data } = await db
+      .from("boxes")
+      .update({ reward_kobo: rewardKobo })
+      .eq("id", body.boxId)
+      .eq("kind", "general")
+      .in("status", ["draft", "funding", "live"])
+      .lte("reward_kobo", rewardKobo)
+      .select(PUBLIC_BOX_COLUMNS)
+      .maybeSingle();
+
+    if (data) {
+      return NextResponse.json({ result: "priced", box: toPublicBox(data as BoxRow) });
+    }
+
+    // Nothing moved. Read the box back rather than guessing, because "that
+    // isn't ours", "that one is finished" and "that would lower it" are three
+    // different answers and only one of them is the admin's mistake.
+    const { data: current } = await db
+      .from("boxes")
+      .select("kind, status, reward_kobo")
+      .eq("id", body.boxId)
+      .maybeSingle();
+    const box = current as Pick<BoxRow, "kind" | "status" | "reward_kobo"> | null;
+
+    if (!box) return NextResponse.json({ error: "box_not_found" }, { status: 404 });
+    if (box.kind !== "general") {
+      return NextResponse.json({ error: "not_ours" }, { status: 409 });
+    }
+    if (!["draft", "funding", "live"].includes(box.status)) {
+      return NextResponse.json({ error: "box_not_open" }, { status: 409 });
+    }
+    return NextResponse.json(
+      { error: "would_lower", rewardKobo: Number(box.reward_kobo) },
+      { status: 409 }
+    );
+  }
 
   // ---- Featuring ----------------------------------------------------------
   // Editorial rather than structural: whichever boxes are worth the top of the

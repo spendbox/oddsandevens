@@ -36,7 +36,7 @@ import {
   MIN_LENGTH,
   TITLE_MAX,
 } from "@/lib/constants";
-import { formatNaira, rewardLabel } from "@/lib/game/rewards";
+import { capNaira, formatNaira, rewardLabel } from "@/lib/game/rewards";
 import { difficultyOf } from "@/lib/game/difficulty";
 import { DESIGNS, DESIGN_SPECS, DEFAULT_DESIGN, type Design } from "@/lib/game/designs";
 import { SafeArt } from "@/components/safe/safe-art";
@@ -51,6 +51,7 @@ import { GrantLives } from "@/components/admin/grant-lives";
 import { UsersPanel } from "@/components/admin/users-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
 import { SeedBoxDialog } from "@/components/admin/seed-box-dialog";
+import { PrizeDialog } from "@/components/admin/prize-dialog";
 import type { PublicBox } from "@/lib/types";
 
 const INPUT =
@@ -109,6 +110,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("money");
   const [deleting, setDeleting] = useState<{ id: string; title: string } | null>(null);
   const [seeding, setSeeding] = useState<string | null>(null);
+  const [pricing, setPricing] = useState<AdminBox | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/overview", { cache: "no-store" });
@@ -262,7 +264,10 @@ export default function AdminPage() {
             and cracking one clears it automatically.{" "}
             <strong className="text-zinc-300">Seed</strong> writes the history of
             one of our own boxes: its hunter and attempt counts, the names on its
-            chase, and whether it has already been cracked.
+            chase, and whether it has already been cracked. And{" "}
+            <strong className="text-zinc-300">the figure itself is a button</strong>{" "}
+            on our own boxes — a prize can be added or raised long after the box
+            went up, though never lowered.
           </p>
           <ul className="space-y-1.5">
             {boxes.map((box) => (
@@ -276,9 +281,25 @@ export default function AdminPage() {
                     {box.kind === "general" ? "ours" : (box.contributor ?? "a player")}
                   </span>
                 </span>
-                <span className="shrink-0 font-mono text-xs text-brass">
-                  {rewardLabel(box.rewardKobo)}
-                </span>
+                {/* The figure is the button on our own boxes: an admin who
+                    wants to change what a box is worth goes to what it is
+                    worth. A contributor's stays as it is — theirs moves with
+                    their funding and nothing else. */}
+                {box.kind === "general" &&
+                ["draft", "funding", "live"].includes(box.status) ? (
+                  <button
+                    type="button"
+                    onClick={() => setPricing(box)}
+                    aria-label={`Set the prize on ${box.title}`}
+                    className="shrink-0 rounded-lg px-1.5 py-1 font-mono text-xs text-brass underline decoration-brass/40 underline-offset-4 transition hover:bg-brass/10 active:translate-y-px"
+                  >
+                    {rewardLabel(box.rewardKobo)}
+                  </button>
+                ) : (
+                  <span className="shrink-0 font-mono text-xs text-brass">
+                    {rewardLabel(box.rewardKobo)}
+                  </span>
+                )}
                 <span className="shrink-0 text-xs text-zinc-500">{box.status}</span>
                 {box.status === "live" && (
                   <button
@@ -362,6 +383,16 @@ export default function AdminPage() {
           boxId={seeding}
           onClose={() => setSeeding(null)}
           onSeeded={() => void load()}
+        />
+      )}
+
+      {pricing && (
+        <PrizeDialog
+          boxId={pricing.id}
+          boxTitle={pricing.title}
+          rewardKobo={pricing.rewardKobo}
+          onClose={() => setPricing(null)}
+          onSaved={() => void load()}
         />
       )}
     </div>
@@ -694,7 +725,11 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
       {card === "reward" && (
         <CardDialog title="The reward" onClose={() => setCard(null)}>
           <div className="relative">
-            <span className="absolute inset-y-0 left-4 flex items-center text-zinc-400">₦</span>
+            {/* `pointer-events-none`: the mark is drawn over the field, so
+                without it the tap that lands on it focuses nothing. */}
+            <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-zinc-400">
+              ₦
+            </span>
             <input
               inputMode="numeric"
               autoFocus
@@ -848,13 +883,6 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
       )}
     </section>
   );
-}
-
-/** Digits only, never above the ceiling Paystack will actually transfer. */
-function capNaira(raw: string): string {
-  const digits = raw.replace(/[^\d]/g, "").replace(/^0+(?=\d)/, "");
-  if (!digits) return "";
-  return String(Math.min(Number(digits), MAX_FUNDING_KOBO / KOBO));
 }
 
 function AdminLogin({ onIn }: { onIn: () => void }) {

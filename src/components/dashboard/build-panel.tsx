@@ -37,6 +37,7 @@ import {
   TITLE_MAX,
 } from "@/lib/constants";
 import {
+  capNaira,
   formatNaira,
   fundingSchedule,
   minFundingKobo,
@@ -51,19 +52,6 @@ import { SafeArt } from "@/components/safe/safe-art";
 import { CharsetDialog, useAlphabet } from "@/components/charset-dialog";
 import { RevenueEstimate } from "./revenue-estimate";
 import { INPUT, Panel, PRIMARY } from "./shared";
-
-/**
- * Digits only, no leading zeros, never above the platform ceiling.
- *
- * Clamping the *value* rather than the number of digits, because "10000001" and
- * "99999999" are both eight characters and only one of them is over the line.
- */
-function capFunding(raw: string): string {
-  const digits = raw.replace(/[^\d]/g, "").replace(/^0+(?=\d)/, "");
-  if (!digits) return "";
-  const naira = Math.min(Number(digits), MAX_FUNDING_KOBO / KOBO);
-  return String(naira);
-}
 
 /** A suggested password. Generated in the browser: it's only a suggestion, and
  * the real one is whatever the contributor submits. Drawn from the alphabet in
@@ -276,7 +264,11 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
       {card === "reward" && (
         <CardDialog title="The reward" onClose={() => setCard(null)}>
           <div className="relative">
-            <span className="absolute inset-y-0 left-4 flex items-center text-zinc-400">₦</span>
+            {/* `pointer-events-none`: the mark is drawn over the field, so
+                without it the tap that lands on it focuses nothing. */}
+            <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-zinc-400">
+              ₦
+            </span>
             <input
               inputMode="numeric"
               autoFocus
@@ -285,7 +277,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
               // Paystack will not move more than ₦10,000,000 in one transfer,
               // so a figure above it is a box that can never pay out — better
               // refused at the keystroke than at the checkout.
-              onChange={(e) => setFundingNaira(capFunding(e.target.value))}
+              onChange={(e) => setFundingNaira(capNaira(e.target.value))}
               placeholder={String(Math.round(floor / KOBO))}
               className={`${INPUT} mt-1.5 pl-8 font-mono`}
             />

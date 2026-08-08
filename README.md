@@ -23,6 +23,16 @@ game. 0032 dropped that: what leads the front page is now whichever boxes an
 admin has *featured*, from either side, so there is no longer any reason for
 ours to be singular.
 
+Its prize is not fixed at the moment it is written. The create form asks for
+one, and the Boxes list will take one afterwards — the figure on one of our own
+rows is a button. A box can go up as a pure challenge and earn a prize once
+people start attacking it, without being deleted and rebuilt with a new slug
+and no history. Two rules hold: only ours, because a contributor's reward is
+their funding minus our cut and moves only when money is actually collected;
+and only upwards, which is the same guarantee `raise_reward` gives a
+contributor's box, because somebody is spending a fortnight of lives against
+the figure on that card. A prize typed wrong is a box to close.
+
 **A contributor box** is anyone else's. A contributor writes a password, puts
 money behind it, and shares the link. There is no business here: no trading name,
 no logo, no category, no verification. A contributor is a person who put money
