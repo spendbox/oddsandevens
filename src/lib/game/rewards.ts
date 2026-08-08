@@ -17,40 +17,90 @@ import {
 } from "@/lib/constants";
 
 /**
- * The minimum funding for a password of a given length, in kobo.
+ * What it costs, at the least, to put a password of a given length up.
  *
  * A three-character box is ₦10,000 to open. After that each extra character
  * costs more than the last — ₦50,000, then ₦100,000, ₦250,000, ₦500,000 —
  * until the step settles at ₦500,000 a character, because a longer password
- * is a harder box and a harder box has to be worth attacking. The schedule is
- * built so that the 26-character ceiling lands exactly on the ₦10,000,000 cap,
- * which is the largest single transfer Paystack will make.
+ * is a harder box and a harder box has to be worth attacking. The default
+ * schedule is built so that the 26-character ceiling lands exactly on the
+ * ₦10,000,000 cap, which is the largest single transfer Paystack will make.
+ *
+ * Those five numbers are a **default**, not the law: an admin sets them, the
+ * same way an admin sets what a life costs. So the ladder is a value that gets
+ * passed in rather than a constant in this file, and every function that reads
+ * it takes it as an argument — deliberately not an optional one. A caller that
+ * quietly fell back to the built-in numbers would be quoting one floor and
+ * enforcing another, which is the single thing this must never do.
  */
-const STEPS_NAIRA = [50_000, 100_000, 250_000, 500_000];
-const BASE_NAIRA = 10_000;
+export interface FundingLadder {
+  /** What a password of `MIN_LENGTH` characters costs, in kobo. */
+  baseKobo: number;
+  /**
+   * What each character past `MIN_LENGTH` adds, in kobo — one entry per step,
+   * the last of which repeats for every character beyond the list. Four numbers
+   * therefore describe all twenty-four lengths.
+   */
+  stepsKobo: number[];
+}
 
-function buildSchedule(): number[] {
-  // Index i holds the minimum for length (MIN_LENGTH + i), in kobo.
-  const schedule: number[] = [BASE_NAIRA * KOBO];
-  let naira = BASE_NAIRA;
+/**
+ * What an admin has changed about the ladder.
+ *
+ * A step is held per slot with `null` meaning "the built-in default for this
+ * slot", so clearing one field on the admin screen puts that one step back
+ * without disturbing the others — the same rule every other price there
+ * follows.
+ */
+export interface FundingOverrides {
+  baseKobo?: number;
+  stepsKobo?: (number | null)[];
+}
+
+export const DEFAULT_FUNDING_LADDER: FundingLadder = {
+  baseKobo: 10_000 * KOBO,
+  stepsKobo: [50_000, 100_000, 250_000, 500_000].map((naira) => naira * KOBO),
+};
+
+/** How many steps the ladder has. The last one repeats for every length after. */
+export const FUNDING_STEPS = DEFAULT_FUNDING_LADDER.stepsKobo.length;
+
+/** Overrides where they exist, the built-in numbers everywhere else. */
+export function resolveLadder(overrides?: FundingOverrides | null): FundingLadder {
+  return {
+    baseKobo: overrides?.baseKobo ?? DEFAULT_FUNDING_LADDER.baseKobo,
+    stepsKobo: DEFAULT_FUNDING_LADDER.stepsKobo.map((fallback, i) => {
+      const over = overrides?.stepsKobo?.[i];
+      return typeof over === "number" && Number.isFinite(over) ? over : fallback;
+    }),
+  };
+}
+
+/** Index i holds the minimum for length (MIN_LENGTH + i), in kobo. */
+function buildSchedule(ladder: FundingLadder): number[] {
+  const schedule: number[] = [Math.min(ladder.baseKobo, MAX_FUNDING_KOBO)];
+  let kobo = ladder.baseKobo;
   for (let length = MIN_LENGTH + 1; length <= MAX_LENGTH; length++) {
-    const step = STEPS_NAIRA[Math.min(length - MIN_LENGTH - 1, STEPS_NAIRA.length - 1)];
-    naira += step;
-    schedule.push(Math.min(naira * KOBO, MAX_FUNDING_KOBO));
+    const steps = ladder.stepsKobo;
+    const step = steps.length > 0
+      ? steps[Math.min(length - MIN_LENGTH - 1, steps.length - 1)]
+      : 0;
+    kobo += step;
+    schedule.push(Math.min(kobo, MAX_FUNDING_KOBO));
   }
   return schedule;
 }
 
-const SCHEDULE = buildSchedule();
-
-export function minFundingKobo(length: number): number {
+export function minFundingKobo(length: number, ladder: FundingLadder): number {
   const clamped = Math.min(Math.max(Math.trunc(length), MIN_LENGTH), MAX_LENGTH);
-  return SCHEDULE[clamped - MIN_LENGTH];
+  return buildSchedule(ladder)[clamped - MIN_LENGTH];
 }
 
 /** The whole ladder, for the Build screen's "what does this cost?" table. */
-export function fundingSchedule(): { length: number; minFundingKobo: number }[] {
-  return SCHEDULE.map((minFundingKobo, i) => ({
+export function fundingSchedule(
+  ladder: FundingLadder
+): { length: number; minFundingKobo: number }[] {
+  return buildSchedule(ladder).map((minFundingKobo, i) => ({
     length: MIN_LENGTH + i,
     minFundingKobo,
   }));
@@ -59,11 +109,23 @@ export function fundingSchedule(): { length: number; minFundingKobo: number }[] 
 /**
  * A contributor may always put up *more* than the minimum for a bigger
  * reward, but never more than the transfer cap.
+ *
+ * `floorKobo` is the floor already in force for this box, where there is one.
+ * A draft written when the ladder was cheaper keeps the price it was quoted:
+ * raising the ladder must not strand somebody mid-build, and it cannot be an
+ * accidental loophole either, because a draft's own funding is the only thing
+ * that can lower the bar and it can never be edited downwards past it.
  */
-export function fundingIsValid(length: number, fundingKobo: number): boolean {
+export function fundingIsValid(
+  length: number,
+  fundingKobo: number,
+  ladder: FundingLadder,
+  floorKobo?: number
+): boolean {
+  const floor = Math.min(minFundingKobo(length, ladder), floorKobo ?? Infinity);
   return (
     Number.isSafeInteger(fundingKobo) &&
-    fundingKobo >= minFundingKobo(length) &&
+    fundingKobo >= floor &&
     fundingKobo <= MAX_FUNDING_KOBO
   );
 }

@@ -14,13 +14,21 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Coins, RotateCcw } from "lucide-react";
-import { KOBO } from "@/lib/constants";
-import { formatNaira } from "@/lib/game/rewards";
+import { KOBO, MAX_FUNDING_KOBO, MIN_LENGTH } from "@/lib/constants";
+import {
+  formatNaira,
+  fundingSchedule,
+  FUNDING_STEPS,
+  resolveLadder,
+  type FundingLadder,
+  type FundingOverrides,
+} from "@/lib/game/rewards";
 
 interface Defaults {
   platformSharePercent: number;
   lifePriceKobo: number;
   lifeBankKobo: number;
+  funding: FundingLadder;
   powerUps: Record<string, { name: string; share: number; floorKobo: number }>;
 }
 
@@ -28,6 +36,7 @@ interface Overrides {
   platformSharePercent?: number;
   lifePriceKobo?: number;
   lifeBankKobo?: number;
+  funding?: FundingOverrides;
   powerUps?: Record<string, { share?: number; floorKobo?: number }>;
 }
 
@@ -122,6 +131,46 @@ export function PricingPanel() {
       </div>
 
       <h3 className="mb-2 mt-5 text-xs font-black uppercase tracking-wide text-zinc-500">
+        What a contributor pays
+      </h3>
+      <p className="mb-3 text-xs leading-relaxed text-zinc-500">
+        The least somebody may put behind a box. It is the price of the shortest
+        password plus one step for every character after it, and the last step
+        repeats — so these {1 + defaults.funding.stepsKobo.length} numbers set
+        the floor at every length. A step of 0 is allowed and means a longer
+        password costs no more. For a flat price per character, put that price
+        in every step and {MIN_LENGTH} × it in the base.
+      </p>
+      <p className="mb-3 text-xs leading-relaxed text-zinc-500">
+        <strong className="text-zinc-300">Nothing already built is touched.</strong>{" "}
+        A live box keeps its reward, a contributor can still raise one, and a
+        draft can still be funded and edited at the floor it was written under.
+        This is the price of putting a <em>new</em> box up.
+      </p>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Field
+          label={`Minimum at ${MIN_LENGTH} characters`}
+          hint={formatNaira(defaults.funding.baseKobo)}
+          prefix="₦"
+          value={draft["funding.baseKobo"] ?? ""}
+          onChange={set("funding.baseKobo")}
+        />
+        {defaults.funding.stepsKobo.map((step, i) => (
+          <Field
+            key={i}
+            label={stepLabel(i, defaults.funding.stepsKobo.length)}
+            hint={formatNaira(step)}
+            prefix="₦"
+            value={draft[`funding.step.${i}`] ?? ""}
+            onChange={set(`funding.step.${i}`)}
+          />
+        ))}
+      </div>
+
+      <FloorPreview ladder={resolveLadder(fromDraft(draft).funding)} />
+
+      <h3 className="mb-2 mt-5 text-xs font-black uppercase tracking-wide text-zinc-500">
         Power-ups
       </h3>
       <p className="mb-3 text-xs text-zinc-500">
@@ -174,6 +223,76 @@ export function PricingPanel() {
         </button>
       </div>
     </section>
+  );
+}
+
+/**
+ * Which character a step is for. The last one is written differently because it
+ * is the one that repeats, and an admin who reads it as "the 7th only" would
+ * set the top of the ladder by accident.
+ */
+function stepLabel(index: number, count: number): string {
+  const at = MIN_LENGTH + 1 + index;
+  return index === count - 1
+    ? `Each character from the ${ordinal(at)}`
+    : `The ${ordinal(at)} character adds`;
+}
+
+function ordinal(n: number): string {
+  const rest = n % 100;
+  if (rest >= 11 && rest <= 13) return `${n}th`;
+  return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+}
+
+/**
+ * What the base and the steps actually come to, at every length.
+ *
+ * Not decoration. A base and four steps compound into twenty-four floors and
+ * nobody can do that in their head — the ₦500,000 step in the defaults is
+ * exactly what makes a 26-character box land on the ₦10,000,000 transfer cap,
+ * and an admin halving it has no way of knowing what that did. It reads
+ * from the fields rather than from what is saved, so it answers "what would
+ * this do" before the button is pressed.
+ */
+function FloorPreview({ ladder }: { ladder: FundingLadder }) {
+  const rows = fundingSchedule(ladder);
+
+  return (
+    <details className="mt-2 rounded-xl bg-white/5 px-3 py-2.5">
+      <summary className="cursor-pointer text-xs font-semibold text-zinc-400">
+        What that comes to — {rows.length} lengths, from{" "}
+        <span className="font-mono text-zinc-300">
+          {formatNaira(rows[0].minFundingKobo)}
+        </span>{" "}
+        to{" "}
+        <span className="font-mono text-zinc-300">
+          {formatNaira(rows[rows.length - 1].minFundingKobo)}
+        </span>
+      </summary>
+      <div className="mt-2 max-h-64 overflow-y-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-zinc-500">
+              <th className="pb-1 font-medium">Characters</th>
+              <th className="pb-1 font-medium">Minimum funding</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono text-zinc-300">
+            {rows.map((row) => (
+              <tr key={row.length} className="border-t border-white/5">
+                <td className="py-1">{row.length}</td>
+                <td className="py-1">{formatNaira(row.minFundingKobo)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-xs text-zinc-500">
+        No floor ever exceeds the {formatNaira(MAX_FUNDING_KOBO)} transfer
+        ceiling, however steep the steps: a reward that cannot be paid out is
+        not a reward.
+      </p>
+    </details>
   );
 }
 
@@ -238,6 +357,14 @@ function toDraft(overrides: Overrides): Draft {
   if (overrides.lifeBankKobo !== undefined) {
     draft.lifeBankKobo = String(overrides.lifeBankKobo / KOBO);
   }
+  if (overrides.funding?.baseKobo !== undefined) {
+    draft["funding.baseKobo"] = String(overrides.funding.baseKobo / KOBO);
+  }
+  // A step is stored per slot with `null` for "untouched", which is a blank
+  // field rather than a zero — the two mean different things here.
+  (overrides.funding?.stepsKobo ?? []).forEach((step, i) => {
+    if (typeof step === "number") draft[`funding.step.${i}`] = String(step / KOBO);
+  });
   for (const [kind, spec] of Object.entries(overrides.powerUps ?? {})) {
     if (spec.share !== undefined) draft[`${kind}.share`] = String(round(spec.share * 100));
     if (spec.floorKobo !== undefined) {
@@ -253,16 +380,29 @@ function toDraft(overrides: Overrides): Draft {
  * An empty field is *omitted*, not sent as zero: omitted means "use the
  * default" and zero means "free", and confusing the two would hand the whole
  * shelf away.
+ *
+ * The funding steps are the one exception, and only in their shape. They are an
+ * *ordered list*, so a blank third step cannot be left out without the fourth
+ * sliding into its place — a blank slot is sent as `null`, which the server
+ * reads as "the built-in default for this step" and a zero as "this character
+ * is free". Same rule as everywhere else on the screen; different spelling,
+ * because a position in a list has to exist to be blank.
  */
 function fromDraft(draft: Draft): Overrides {
   const out: Overrides = {};
   const powerUps: Record<string, { share?: number; floorKobo?: number }> = {};
 
+  const steps = STEP_SLOTS.map((i) => stepKobo(draft[`funding.step.${i}`]));
+  if (steps.some((step) => step !== null)) out.funding = { stepsKobo: steps };
+
   for (const [key, raw] of Object.entries(draft)) {
+    if (key.startsWith("funding.step.")) continue;
     const value = Number(raw);
     if (raw.trim() === "" || !Number.isFinite(value)) continue;
 
-    if (key === "platformSharePercent") out.platformSharePercent = value;
+    if (key === "funding.baseKobo") {
+      out.funding = { ...out.funding, baseKobo: Math.round(value * KOBO) };
+    } else if (key === "platformSharePercent") out.platformSharePercent = value;
     else if (key === "lifePriceKobo") out.lifePriceKobo = Math.round(value * KOBO);
     else if (key === "lifeBankKobo") out.lifeBankKobo = Math.round(value * KOBO);
     else if (key.endsWith(".share")) {
@@ -282,3 +422,12 @@ function fromDraft(draft: Draft): Overrides {
 function round(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
+
+/** One step slot's field, in kobo — or null for a blank one. */
+function stepKobo(raw: string | undefined): number | null {
+  if (raw === undefined || raw.trim() === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? Math.round(value * KOBO) : null;
+}
+
+const STEP_SLOTS = Array.from({ length: FUNDING_STEPS }, (_, i) => i);

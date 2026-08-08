@@ -22,6 +22,7 @@ import { PowerUpArt } from "@/components/art/power-up-art";
 import { HeartArt } from "@/components/player/lives-badge";
 import { LIVES_MAX, MIN_LENGTH } from "@/lib/constants";
 import { formatNaira, minFundingKobo, splitFunding } from "@/lib/game/rewards";
+import { useFundingLadder } from "@/components/use-funding";
 
 export function HowItWorksButton({
   className = "",
@@ -50,7 +51,10 @@ export function HowItWorksButton({
 }
 
 export function HowItWorksDialog({ onClose }: { onClose: () => void }) {
-  const floor = minFundingKobo(MIN_LENGTH);
+  // What the cheapest box on the site costs is a setting, so it is asked for
+  // rather than imported.
+  const ladder = useFundingLadder();
+  const floor = minFundingKobo(MIN_LENGTH, ladder);
 
   return (
     <Modal

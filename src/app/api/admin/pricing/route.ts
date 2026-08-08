@@ -13,6 +13,12 @@ import { POWER_UP_KINDS, POWER_UPS } from "@/lib/game/power-ups";
  * default", and the default has to be on screen beside it for that to be a
  * usable answer.
  *
+ * `defaults.funding` is the built-in contributor floor: the price of the
+ * shortest password and what each character after it adds. It is the one price
+ * here that nothing is charged against directly — it is a *minimum*, checked
+ * when a box is created and never again, so changing it re-prices new boxes and
+ * leaves every existing one exactly as it was.
+ *
  * The PUT replaces the whole blob rather than merging, so clearing a field is
  * how a price goes back to its default. Everything is clamped by `sanitise`
  * before it is stored *and* again when it is read, so a bad number can neither

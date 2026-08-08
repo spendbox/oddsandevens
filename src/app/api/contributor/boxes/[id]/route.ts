@@ -48,13 +48,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const parsed = await readBoxBody(req);
-  if ("error" in parsed) return NextResponse.json(parsed, { status: 400 });
-
   const db = supabaseAdmin();
   if (await isPaidFor(db, id)) {
     return NextResponse.json({ error: "box_not_editable" }, { status: 409 });
   }
+
+  // Read before validating: what this draft already holds is its floor, so a
+  // raise to the funding ladder never strands a box somebody is mid-way
+  // through writing. See `readBoxBody`.
+  const { data: existing } = await db
+    .from("boxes")
+    .select("length, funding_kobo")
+    .eq("id", id)
+    .eq("contributor_id", contributor.id)
+    .in("status", UNPUBLISHED)
+    .maybeSingle();
+  if (!existing) return NextResponse.json({ error: "box_not_editable" }, { status: 409 });
+
+  const parsed = await readBoxBody(req, {
+    length: Number(existing.length),
+    fundingKobo: Number(existing.funding_kobo),
+  });
+  if ("error" in parsed) return NextResponse.json(parsed, { status: 400 });
 
   const split = splitFunding(parsed.fundingKobo);
   const { data, error } = await db

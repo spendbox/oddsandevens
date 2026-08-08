@@ -41,7 +41,9 @@ import {
   fundingSchedule,
   minFundingKobo,
   splitFunding,
+  type FundingLadder,
 } from "@/lib/game/rewards";
+import { useFundingLadder } from "@/components/use-funding";
 import { difficultyOf } from "@/lib/game/difficulty";
 import { DESIGNS, DESIGN_SPECS, DEFAULT_DESIGN, type Design } from "@/lib/game/designs";
 import { Modal } from "@/components/ui/modal";
@@ -99,9 +101,14 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
     [secret, allowed]
   );
 
+  // The floor is a setting too, so it is read rather than imported — what this
+  // screen quotes is what the create route will accept.
+  const ladder = useFundingLadder();
+
   const length = clean.length;
   const passwordOk = length >= MIN_LENGTH && length <= MAX_LENGTH && rejected.length === 0;
-  const floor = length >= MIN_LENGTH ? minFundingKobo(Math.min(length, MAX_LENGTH)) : 0;
+  const floor =
+    length >= MIN_LENGTH ? minFundingKobo(Math.min(length, MAX_LENGTH), ladder) : 0;
   const fundingKobo = Math.round(Number(fundingNaira || 0) * 100);
   const split = splitFunding(Math.max(fundingKobo, floor));
   const titleOk = title.trim().length > 0;
@@ -220,7 +227,7 @@ export function BuildPanel({ onBuilt }: { onBuilt: () => void }) {
         {busy ? "Saving…" : ready ? "Save as draft" : "Fill in the cards above"}
       </button>
 
-      <FundingLadder />
+      <FundingLadderTable ladder={ladder} />
 
       {card === "box" && (
         <CardDialog title="The box" onClose={() => setCard(null)}>
@@ -580,7 +587,7 @@ export function SplitTile({
 }
 
 /** The whole ladder, so the next step up is never a surprise at checkout. */
-function FundingLadder() {
+function FundingLadderTable({ ladder }: { ladder: FundingLadder }) {
   return (
     <details className="panel rounded-2xl p-5">
       <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-zinc-400">
@@ -596,7 +603,7 @@ function FundingLadder() {
             </tr>
           </thead>
           <tbody className="font-mono text-zinc-300">
-            {fundingSchedule().map((row) => (
+            {fundingSchedule(ladder).map((row) => (
               <tr key={row.length} className="border-t border-white/5">
                 <td className="py-1.5">{row.length}</td>
                 <td className="py-1.5">{formatNaira(row.minFundingKobo)}</td>

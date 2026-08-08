@@ -10,6 +10,8 @@ import {
   REFERRAL_MIN_LIVES,
 } from "@/lib/constants";
 import { formatNaira, minFundingKobo, splitFunding } from "@/lib/game/rewards";
+import { loadFundingLadder } from "@/lib/game/pricing";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { LegalPage } from "@/components/legal-page";
 
 export const metadata = {
@@ -18,10 +20,25 @@ export const metadata = {
 };
 
 const share = 100 - PLATFORM_SHARE_PERCENT;
-const floor = minFundingKobo(MIN_LENGTH);
-const ceiling = minFundingKobo(MAX_LENGTH);
 
-export default function TermsPage() {
+/**
+ * Rendered per request rather than prerendered.
+ *
+ * Nothing on this page touches a request-time API, so Next would build it once
+ * and serve that forever — and one of the figures in it is a setting now.
+ * A prerendered copy would state last deploy's floor as a term of the contract
+ * while the create route enforced a different one.
+ */
+export const dynamic = "force-dynamic";
+
+export default async function TermsPage() {
+  // "Where a figure appears here it is the same figure the software uses" is
+  // the promise this page opens with, and the floor is a setting now — so it
+  // is loaded on every render rather than baked in at build time.
+  const ladder = await loadFundingLadder(supabaseAdmin());
+  const floor = minFundingKobo(MIN_LENGTH, ladder);
+  const ceiling = minFundingKobo(MAX_LENGTH, ladder);
+
   return (
     <LegalPage
       title="Terms of use"

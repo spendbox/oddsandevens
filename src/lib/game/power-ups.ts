@@ -28,7 +28,7 @@
 
 import { randomInt } from "node:crypto";
 import { KOBO } from "@/lib/constants";
-import { splitSale } from "@/lib/game/rewards";
+import { splitSale, type FundingOverrides } from "@/lib/game/rewards";
 
 export const POWER_UP_KINDS = [
   "length_lock",
@@ -370,6 +370,8 @@ export interface PriceOverrides {
   lifePriceKobo?: number;
   /** A week of the raised life ceiling. */
   lifeBankKobo?: number;
+  /** The least a contributor may put behind a box, per password length. */
+  funding?: FundingOverrides;
 }
 
 /**

@@ -274,7 +274,7 @@ middle. Price is the axis a player is actually sorting by.
 
 **Every price is editable from `/admin`**, per power-up and globally: the share
 of the reward, the floor, what a life costs, what a week of Life Bank costs,
-and what Spendbox keeps of a sale. The constants above are defaults and stay
+what Spendbox keeps of a sale, and the ladder a contributor's box is priced on. The constants above are defaults and stay
 authoritative for anything nobody has touched — a missing settings row, an
 empty object and an untouched key all behave identically to a build with no
 settings at all. Overrides are clamped both when saved and when read, so a
@@ -405,6 +405,29 @@ harder box and a harder box has to be worth attacking:
 The steps are ₦50,000, then ₦100,000, ₦250,000, ₦500,000, settling at
 ₦500,000 a character. The schedule is built so the 26-character ceiling lands
 exactly on **₦10,000,000** — the largest single transfer Paystack will make.
+
+Those five numbers are **editable from `/admin`**, beside every other price:
+the minimum at three characters, and what each of the four steps adds. The
+table above is what an untouched install charges — a missing settings row, a
+blank field and an untouched step all behave identically to a build with no
+settings at all, and a step of `0` is a real answer meaning a longer password
+costs no more. Nothing may be set below ₦100, which Paystack will not take, and
+no floor ever exceeds the ₦10,000,000 transfer cap however steep the steps get.
+The panel prints the resulting ladder as you type it, because five numbers
+compound into twenty-four floors and nobody can do that in their head.
+
+**Changing them re-prices new boxes and nothing else.** The floor is a minimum,
+checked once when a box is created, and never consulted again: a live box keeps
+its reward, raising one is charged on its own funding, and a draft can still be
+funded — and edited — at the floor it was written under, so a raise cannot
+strand somebody mid-build. Lengthening a draft's password is the one edit that
+re-prices it, because the floor is a function of the length.
+
+Since the ladder is a setting rather than a constant, it is loaded rather than
+imported — `loadFundingLadder` on the server, `/api/funding` and
+`useFundingLadder` in a browser. `/terms` and `/faq` render per request for the
+same reason: both quote the floor, and a prerendered copy would be the last
+deploy's price list stated as fact.
 
 
 Rounding on the split goes to the platform, so the advertised reward is never a
@@ -928,12 +951,13 @@ player has no Supabase session to refresh.
 ```
 src/lib/constants.ts        the alphabet, lengths, life economy
 src/lib/game/feedback.ts    scoring a guess (pure, server-only)
-src/lib/game/rewards.ts     the funding ladder and the 70/30 split
+src/lib/game/rewards.ts     the funding ladder (a setting) and the 70/30 split
 src/lib/game/difficulty.ts  the tiers, and the model behind them
 src/lib/game/power-ups.ts   the catalogue, availability, and effects
 src/lib/game/revenue.ts     what a box is likely to earn, per 1,000 hunters
 src/lib/game/designs.ts     the six safes a contributor can pick from
 src/lib/faq.ts              every answer, computed from the same constants
+src/lib/game/pricing.ts     the prices an admin has changed, read per request
 src/lib/game/boxes.ts       reading boxes without reading passwords
 src/lib/game/view.ts        assembling what the play screen sees
 src/lib/game/settle.ts      turning a confirmed payment into the thing it bought
@@ -1011,8 +1035,10 @@ Point Paystack's webhook at `https://your-domain/api/paystack/webhook`.
 
 **The TypeScript half** — the funding ladder, the split, the difficulty model,
 power-up effects and availability — is checked by transpiling `src/lib/game/*`
-and asserting against hand-worked cases: that the ladder is monotonic and lands
-on ₦10,000,000 at 26 characters, that a split always reconciles to the funding,
+and asserting against hand-worked cases: that the default ladder is monotonic
+and lands on ₦10,000,000 at 26 characters, that an edited one is monotonic and
+capped too and that a raised one still admits a draft written under the old
+floor, that a split always reconciles to the funding,
 that X-Ray never names a character the password doesn't use, that a greyed-out
 power-up is never decided by the password.
 
