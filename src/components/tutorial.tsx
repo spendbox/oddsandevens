@@ -11,7 +11,7 @@
 //
 // Nobody learns a deduction puzzle from a description of deduction. So the
 // middle of this is a real safe with a real password (`B0x!`), and the player
-// cracks it themselves in nineteen guesses, with the reasoning said out loud
+// cracks it themselves in twenty guesses, with the reasoning said out loud
 // between each one. Everything on either side is framing: two cards before it so
 // the first guess makes sense, three after it so they know what they are
 // carrying into a box that hasn't been solved for them.

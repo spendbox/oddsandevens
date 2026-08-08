@@ -12,13 +12,18 @@ export type LengthHint = "shorter" | "longer" | "exact";
  *
  * A percentage of a perfect guess, where a perfect guess is the password
  * itself. **How it is arrived at is deliberately undocumented** — different
- * kinds of near-miss are worth different amounts, and a total that could have
- * come from several combinations is far harder to read than four labelled
- * counts. That opacity is the game.
+ * kinds of near-miss are worth different amounts, *and so are different
+ * characters*, so a total that could have come from several combinations is far
+ * harder to read than four labelled counts. That opacity is the game.
  *
- * 100% means solved and nothing else does: the score is measured against the
- * longer of the guess and the password, so padding a correct prefix out dilutes
- * it rather than being free.
+ * The second half of that is what stops a percentage being a character count in
+ * disguise. Characters are not interchangeable and nothing on the scale is a
+ * round fraction of anything, so "25%" says a quarter of this password's worth
+ * was found and refuses to say whether that was one character or three.
+ *
+ * 100% means solved and nothing else does: the score is measured against what
+ * the password is worth *plus* whatever an over-long guess padded it out with,
+ * so padding a correct prefix dilutes it rather than being free.
  */
 export interface Verdict {
   lengthHint: LengthHint;
@@ -35,13 +40,17 @@ export interface Verdict {
  * the wire for a hunt that hasn't bought them.
  *
  * Four rather than three, because place and case are independent questions and
- * a character can get either, both or neither right. The old shape folded the
- * two wrong-place outcomes together, which meant the breakdown could not
- * account for its own score — they are weighted differently.
+ * a character can get either, both or neither right. The two wrong-place
+ * outcomes currently earn the same, but they are still counted apart: which of
+ * them a character landed in is a different fact about the guess, and folding
+ * them together would throw that away for nothing.
  *
- * Knowing all four still doesn't give you the total: two of the weights are
- * equal, so several different breakdowns reach the same percentage. That is the
- * game, and it is why this is worth buying without being an answer key.
+ * Knowing all four still doesn't give you the total, and since characters
+ * stopped being interchangeable it isn't close. The counts say how many
+ * characters landed each way; they say nothing about *which*, and which is what
+ * the percentage is made of. Two attempts with identical breakdowns routinely
+ * score differently. That is the game, and it is why this is worth buying
+ * without being an answer key.
  */
 export interface Breakdown {
   /** Right character, right place, right case. */
@@ -50,7 +59,7 @@ export interface Breakdown {
   miscase: number;
   /** Right character, right case, sitting somewhere else in the password. */
   elsewhere: number;
-  /** Right letter, wrong case, sitting somewhere else. The cheapest hit. */
+  /** Right letter, wrong case, sitting somewhere else. */
   elsewhereMiscase: number;
 }
 

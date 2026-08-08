@@ -21,9 +21,32 @@ import { useCallback, useEffect, useState } from "react";
 import { Plus, Sprout, Trash2, Users } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 
+/** A row as the API sends and takes it. */
 interface Hunter {
   email: string;
   percent: number;
+}
+
+/**
+ * A row as this screen holds it, with the percentage still a string.
+ *
+ * It has to be. `box_seeds.percent` is `numeric(5, 2)` and always was, so a
+ * seeded rival could always sit at 62.55% — but a field that parses on every
+ * keystroke can never *receive* one. Typing "62." yields `Number("62.") === 62`,
+ * which renders back as "62" and eats the decimal point the moment it is typed;
+ * the same goes for a trailing zero in "62.50". The number only has to exist at
+ * the point it is sent, so the parse waits until then.
+ */
+interface Row {
+  email: string;
+  percent: string;
+}
+
+/** Two decimal places, which is what the column stores. */
+function readPercent(value: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(Math.min(100, Math.max(0, n)) * 100) / 100;
 }
 
 interface SeedState {
@@ -57,7 +80,7 @@ export function SeedBoxDialog({
   const [players, setPlayers] = useState("");
   const [winner, setWinner] = useState("");
   const [when, setWhen] = useState("");
-  const [hunters, setHunters] = useState<Hunter[]>([]);
+  const [hunters, setHunters] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -74,8 +97,8 @@ export function SeedBoxDialog({
     setWhen(body.box.crackedAt ? body.box.crackedAt.slice(0, 10) : "");
     setHunters(
       body.hunters.length > 0
-        ? body.hunters
-        : Array.from({ length: ROWS }, () => ({ email: "", percent: 0 }))
+        ? body.hunters.map((h) => ({ email: h.email, percent: String(h.percent) }))
+        : Array.from({ length: ROWS }, () => ({ email: "", percent: "" }))
     );
   }, [boxId]);
 
@@ -103,7 +126,9 @@ export function SeedBoxDialog({
         // A date with no time lands at midnight UTC, which is what somebody
         // typing a date means.
         crackedAt: when ? new Date(`${when}T12:00:00Z`).toISOString() : undefined,
-        hunters: hunters.filter((h) => h.email.trim().length > 0),
+        hunters: hunters
+          .filter((h) => h.email.trim().length > 0)
+          .map((h) => ({ email: h.email.trim(), percent: readPercent(h.percent) })),
       }),
     });
     setBusy(false);
@@ -119,7 +144,7 @@ export function SeedBoxDialog({
     onSeeded();
   }
 
-  const set = (i: number, patch: Partial<Hunter>) =>
+  const set = (i: number, patch: Partial<Row>) =>
     setHunters((rows) => rows.map((row, at) => (at === i ? { ...row, ...patch } : row)));
 
   return (
@@ -212,22 +237,20 @@ export function SeedBoxDialog({
                   />
                   <input
                     inputMode="decimal"
-                    value={row.percent ? String(row.percent) : ""}
+                    value={row.percent}
                     onChange={(e) =>
-                      set(i, {
-                        percent: Math.min(
-                          100,
-                          Math.max(0, Number(e.target.value.replace(/[^\d.]/g, "")) || 0)
-                        ),
-                      })
+                      // Digits and dots only, and nothing else is judged here —
+                      // clamping and rounding happen on the way out, so a
+                      // half-typed "62." survives long enough to become "62.55".
+                      set(i, { percent: e.target.value.replace(/[^\d.]/g, "") })
                     }
                     placeholder="%"
                     aria-label={`Percent for row ${i + 1}`}
-                    className={`${INPUT} w-16 shrink-0 text-center font-mono`}
+                    className={`${INPUT} w-20 shrink-0 text-center font-mono`}
                   />
                   <button
                     type="button"
-                    onClick={() => set(i, { email: "", percent: 0 })}
+                    onClick={() => set(i, { email: "", percent: "" })}
                     aria-label={`Clear row ${i + 1}`}
                     className="shrink-0 rounded-lg p-1.5 text-zinc-500 transition hover:bg-white/10 hover:text-berry"
                   >
@@ -239,7 +262,7 @@ export function SeedBoxDialog({
             {hunters.length < ROWS && (
               <button
                 type="button"
-                onClick={() => setHunters([...hunters, { email: "", percent: 0 }])}
+                onClick={() => setHunters([...hunters, { email: "", percent: "" }])}
                 className="mt-2 flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-zinc-400 transition hover:text-brass"
               >
                 <Plus className="size-3.5" aria-hidden />
