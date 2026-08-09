@@ -127,13 +127,13 @@ export const HANDLE_REGEX = SLUG_REGEX;
 export const ACCOUNT_NUMBER_REGEX = /^\d{10}$/;
 
 /**
- * Referrals, mirrored from `0029_referral_lives.sql`.
+ * What an invite is worth to each side, mirrored from
+ * `0052_invite_lives_on_join.sql`.
  *
- * The migration is the authority — the bonus is banked and spent by
- * `settle_life_purchase`, and nothing in the app grants a life. These exist so
- * copy can say "10" and "5" without a round trip, and must be changed together
- * with the functions of the same names.
+ * One number for both of them, because the terms are one line: somebody joins
+ * on your link and you both get this many lives, there and then. The migration
+ * is the authority — `claim_invite` grants them and nothing in the app mints a
+ * life — and this exists so copy can say "3" without a round trip. Change it
+ * with `referral_bonus_lives()`, never on its own.
  */
-export const REFERRAL_MIN_LIVES = 10;
-export const INVITER_BONUS_LIVES = 5;
-export const INVITEE_BONUS_LIVES = 5;
+export const REFERRAL_BONUS_LIVES = 3;

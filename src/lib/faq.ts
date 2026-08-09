@@ -11,15 +11,13 @@
 // this file, or anywhere else a player can reach.
 
 import {
-  INVITEE_BONUS_LIVES,
-  INVITER_BONUS_LIVES,
   LIFE_PRICE_KOBO,
   LIFE_REGEN_MINUTES,
   LIVES_MAX,
   MAX_LENGTH,
   MIN_LENGTH,
   PLATFORM_SHARE_PERCENT,
-  REFERRAL_MIN_LIVES,
+  REFERRAL_BONUS_LIVES,
   ALPHABET,
   MAX_FUNDING_KOBO,
 } from "@/lib/constants";
@@ -239,31 +237,32 @@ export function faqItems(ladder: FundingLadder): FaqItem[] {
       topic: "Invites",
       question: "How do invites work?",
       answer: [
-        `Every player has an invite link. If somebody joins on your link and later buys ${REFERRAL_MIN_LIVES} or more lives, you both get free lives — ${INVITER_BONUS_LIVES} for you and ${INVITEE_BONUS_LIVES} for them.`,
-        `For them that means buying ${REFERRAL_MIN_LIVES} and leaving with ${REFERRAL_MIN_LIVES + INVITEE_BONUS_LIVES}.`,
-        "You'll find your link on your own page.",
+        `Every player has an invite link. When somebody joins on your link, you both get ${REFERRAL_BONUS_LIVES} free lives.`,
+        "Nobody has to buy anything, and there's nothing to wait for.",
+        "You'll find your link on your own page, and in the buy-lives window.",
       ],
     },
     {
       topic: "Invites",
-      question: "When do the bonus lives arrive?",
+      question: "When do the free lives arrive?",
       answer: [
-        "On your next paid top-up, not immediately. They're added on top of whatever you buy, at no extra cost.",
-        "If you have bonus lives waiting, the buy dialog says so before you pay.",
+        "Immediately, on both accounts, the moment your friend verifies their address on your link.",
+        "They sit on top of your pool the same way bought lives do, so they can take you past your usual ceiling.",
       ],
     },
     {
       topic: "Invites",
       question: "Does it stack?",
       answer: [
-        `Yes, without limit. Ten people who join on your link and pay for ${REFERRAL_MIN_LIVES} lives each is ${INVITER_BONUS_LIVES * 10} free lives waiting on your next top-up.`,
+        `Yes, without limit. Ten people joining on your link is ${REFERRAL_BONUS_LIVES * 10} free lives for you, and ${REFERRAL_BONUS_LIVES} for each of them.`,
       ],
     },
     {
       topic: "Invites",
       question: "Can I invite myself?",
       answer: [
-        "No. A player can never be their own inviter, an inviter can only ever be attached once and never changed, and each invited person can qualify exactly once however many times they top up.",
+        "No. A player can never be their own inviter, and an inviter can only ever be attached once and never changed — so a link can pay out for a given player exactly once.",
+        "Making extra accounts to collect the bonus is against the terms, and the lives will be removed.",
       ],
     },
 

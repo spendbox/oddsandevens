@@ -16,15 +16,26 @@
 // on the power-up shelf until now, which was the wrong window entirely:
 // everything there is a fact about one password, and this changes the pool
 // every box is played from.
+//
+// There is a fourth answer that costs nothing, and it belongs here for the same
+// reason as the other three: somebody out of lives is the only person who ever
+// really wants their invite link. Sending it to a friend is three lives each,
+// immediately — so the share sits beside the free-refill note, above everything
+// with a price on it, instead of only on the profile screen.
 
 import { useState } from "react";
 import { isTransfer, openCheckout, type CheckoutStart } from "@/lib/checkout";
 import { PayMethodPicker } from "./pay-method";
 import { TransferSheet } from "./transfer-sheet";
 import type { PayMethod } from "@/lib/checkout-server";
-import { Heart, Infinity as InfinityIcon, Tag } from "lucide-react";
+import { Check, Heart, Infinity as InfinityIcon, Share2, Tag } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { LIFE_PURCHASE_MAX, LIVES_MAX } from "@/lib/constants";
+import {
+  LIFE_PURCHASE_MAX,
+  LIVES_MAX,
+  REFERRAL_BONUS_LIVES,
+} from "@/lib/constants";
+import { useInviteShare } from "./invite-share";
 import { LifeBankArt, PowerUpArt } from "@/components/art/power-up-art";
 import {
   discountedKobo,
@@ -80,6 +91,9 @@ export function BuyLivesDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<PayMethod>("transfer");
+  // The free way out of this dialog. Null until an address is verified, and
+  // there is nothing to share before then.
+  const { copied, share } = useInviteShare(player.inviteCode);
   /* Set once a transfer charge comes back; the sheet owns the rest. */
   const [transfer, setTransfer] = useState<{
     details: NonNullable<CheckoutStart["transfer"]>;
@@ -242,6 +256,34 @@ export function BuyLivesDialog({
             : ", and your pool is full right now."}
         </p>
 
+        {/*
+          The free alternative, stated before anything with a price on it. It
+          is one gesture — the share sheet on a phone, the clipboard everywhere
+          else — because a link that needs to be selected and copied by hand is
+          a link nobody sends mid-hunt.
+        */}
+        {player.inviteCode && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-brass/40 bg-brass/10 px-3 py-2.5">
+            <p className="min-w-0 flex-1 text-sm text-brass">
+              <strong>Or get lives free.</strong> Send a friend your link — when
+              they join, you both get {REFERRAL_BONUS_LIVES} lives, straight
+              away.
+            </p>
+            <button
+              type="button"
+              onClick={() => void share()}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-brass px-3 py-2 text-sm font-bold text-ink transition hover:bg-brass-bright"
+            >
+              {copied ? (
+                <Check className="size-4" aria-hidden />
+              ) : (
+                <Share2 className="size-4" aria-hidden />
+              )}
+              {copied ? "Copied" : "Share"}
+            </button>
+          </div>
+        )}
+
         {off > 0 && !wind && !bank && (
           <p className="flex items-center gap-2 rounded-xl border-2 border-sky/40 bg-sky/15 px-3 py-2.5 text-sm font-bold text-sky">
             <Tag className="size-4 shrink-0" aria-hidden />
@@ -255,7 +297,7 @@ export function BuyLivesDialog({
               +{player.bonusLivesPending} free{" "}
               {player.bonusLivesPending === 1 ? "life" : "lives"}
             </strong>{" "}
-            from your invites land with this one. You’ll get{" "}
+            banked from an earlier invite land with this one. You’ll get{" "}
             {quantity + player.bonusLivesPending} in total.
           </p>
         )}

@@ -153,26 +153,38 @@ need be. It's the only honest fix when something breaks on our side.
 
 ### Invites
 
-Every player has an invite code. When somebody who arrived on their link pays
-for **10 lives or more**, five free lives are banked for each of them. The
-inviter's stacks without limit — ten paying invitees is fifty lives — and for
-the invitee it means buying ten and leaving with fifteen.
+Every player has an invite code, and the terms are one line: **somebody joins
+on your link and you both get three lives, immediately.** Nothing to buy,
+nothing banked, nothing to come back for. The inviter's side stacks without
+limit — ten friends is thirty lives.
 
-Both land on the recipient's **next** paid top-up rather than immediately.
-That's the whole reason `bonus_lives_pending` is a column and not a credit: a
-bonus that appeared instantly would just be a discount, and one that lands next
-time is a reason to come back.
+It used to be three rules deep (buy ten lives or more, bonus banked rather than
+credited, landing only on a *later* top-up). Each was defensible and together
+they made a feature nobody could state in a sentence, with the reward arriving
+so far from the act that earned it that it stopped reading as a reward. 0052
+collapsed all of it into `claim_invite`, which now attaches the inviter *and*
+pays both sides in the same call.
+
+Paying twice is closed by the same write that attaches the inviter: the credit
+hangs off `update … where invited_by is null` affecting a row, so a replayed
+code — which is the normal case, since the browser retries whatever it stashed
+from a `?ref=` link — pays nobody. A player still can't be their own inviter
+(a check constraint), and an inviter once attached is never changed.
 
 Bonus lives are free lives. Nobody is charged for them, so they never enter a
-price and never see the 70/30 split.
+price and never see the 70/30 split. They land on top of the pool the way a
+bought life does, above the ceiling if that's where they fall.
 
-The ordering inside `settle_life_purchase` is the feature and is why it's one
-function rather than three calls: bonuses banked *before* a purchase are paid
-out with it, and the qualification that purchase might trigger is banked
-*after*, so a purchase can never qualify itself. Self-referral is closed three
-ways — a player can't be their own inviter (a check constraint), an inviter is
-attached once and never changed, and each invited player qualifies exactly
-once however often they top up.
+What this gives up is the paywall that used to sit in front of the bonus:
+farming yourself lives now costs an inbox rather than ₦1,500 an address. That's
+the price of terms a player can hold in their head, and the brakes are the ones
+already built — one account per person in the terms, `signup_ip_hash` (0043)
+recording where accounts are born, and lives being worth guesses rather than
+money. `referral_bonus_lives()` is the one lever if that ever stops holding.
+
+`bonus_lives_pending` survives as a column because balances banked under the
+old terms were promised on a next top-up. `settle_life_purchase` still pays
+them out; nothing adds to it any more, so it only drains.
 
 ---
 

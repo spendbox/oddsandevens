@@ -153,12 +153,12 @@ export async function settlePowerUp(
 /**
  * A paid top-up.
  *
- * `settle_life_purchase` rather than `credit_lives` because a top-up does
- * three things, not one: it credits what was bought, pays out any referral
- * bonus banked since last time, and — if this is the purchase that finally
- * qualifies the invite that brought this player here — banks the next one for
- * them and for whoever invited them. The ordering matters and lives in the
- * migration, where it can't be got wrong by a second caller.
+ * `settle_life_purchase` rather than `credit_lives` because a top-up does two
+ * things, not one: it credits what was bought, and it pays out any referral
+ * bonus still banked from the old invite terms, where the bonus waited for a
+ * purchase. Invites themselves no longer touch this path at all — since 0052
+ * they pay both sides the moment the link is claimed — so nothing here banks
+ * anything any more, and those balances only drain.
  */
 export async function settleLives(
   db: Db,
