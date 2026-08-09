@@ -7,7 +7,7 @@
 -- needed a paragraph, the FAQ needed four entries, and the reward arrived so
 -- far from the act that earned it that it stopped reading as a reward at all.
 --
--- The terms are now one line: **somebody joins on your link, you both get five
+-- The terms are now one line: **somebody joins on your link, you both get three
 -- lives, immediately.** No purchase, nothing banked, nothing to come back for.
 --
 -- What is deliberately kept from the old design:
@@ -16,11 +16,11 @@
 --   * an inviter is attached once and never changed, which is also what stops
 --     the lives below being paid twice — the credit hangs off the `UPDATE …
 --     where invited_by is null` affecting a row, not off a separate flag;
---   * the inviter's side stacks without limit. Ten friends is fifty lives.
+--   * the inviter's side stacks without limit. Ten friends is thirty lives.
 --
 -- What this gives up is the paywall that used to sit in front of the bonus.
 -- Under the old rules farming yourself lives cost ₦1,500 of real money per
--- throwaway address; now it costs an inbox, and two addresses is ten lives.
+-- throwaway address; now it costs an inbox, and two addresses is six lives.
 -- That is the price of terms a player can hold in their head, and the brakes
 -- on it are the ones already built: one account per person in the terms,
 -- `signup_ip_hash` (0043) recording where accounts are born, and lives being
@@ -35,7 +35,7 @@
 -- ---------------------------------------------------------------------------
 
 create or replace function public.referral_bonus_lives() returns int
-  language sql immutable as $$ select 5 $$;
+  language sql immutable as $$ select 3 $$;
 
 -- ---------------------------------------------------------------------------
 -- Claiming an invite, which is now also the payout
@@ -176,7 +176,7 @@ drop function if exists public.invitee_bonus_lives();
 -- ---------------------------------------------------------------------------
 
 -- `claim_invite` now mints lives directly, which makes reaching it over
--- PostgREST worth five lives a call to anybody who can guess a player id.
+-- PostgREST worth three lives a call to anybody who can guess a player id.
 -- `public` here is the pseudo-role that anon and authenticated inherit from.
 revoke execute on function
   public.claim_invite(uuid, text),

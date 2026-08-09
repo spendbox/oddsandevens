@@ -19,7 +19,7 @@
 //
 // There is a fourth answer that costs nothing, and it belongs here for the same
 // reason as the other three: somebody out of lives is the only person who ever
-// really wants their invite link. Sending it to a friend is five lives each,
+// really wants their invite link. Sending it to a friend is three lives each,
 // immediately — so the share sits beside the free-refill note, above everything
 // with a price on it, instead of only on the profile screen.
 

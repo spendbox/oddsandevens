@@ -154,9 +154,9 @@ need be. It's the only honest fix when something breaks on our side.
 ### Invites
 
 Every player has an invite code, and the terms are one line: **somebody joins
-on your link and you both get five lives, immediately.** Nothing to buy,
+on your link and you both get three lives, immediately.** Nothing to buy,
 nothing banked, nothing to come back for. The inviter's side stacks without
-limit — ten friends is fifty lives.
+limit — ten friends is thirty lives.
 
 It used to be three rules deep (buy ten lives or more, bonus banked rather than
 credited, landing only on a *later* top-up). Each was defensible and together

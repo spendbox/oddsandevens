@@ -133,7 +133,7 @@ export const ACCOUNT_NUMBER_REGEX = /^\d{10}$/;
  * One number for both of them, because the terms are one line: somebody joins
  * on your link and you both get this many lives, there and then. The migration
  * is the authority — `claim_invite` grants them and nothing in the app mints a
- * life — and this exists so copy can say "5" without a round trip. Change it
+ * life — and this exists so copy can say "3" without a round trip. Change it
  * with `referral_bonus_lives()`, never on its own.
  */
-export const REFERRAL_BONUS_LIVES = 5;
+export const REFERRAL_BONUS_LIVES = 3;
