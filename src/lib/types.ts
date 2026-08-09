@@ -94,7 +94,11 @@ export interface PlayerState {
   lifePriceKobo: number;
   /** Their own invite code. Null until they've verified an address. */
   inviteCode: string | null;
-  /** Bonus lives banked, which land free on their next paid top-up. */
+  /**
+   * Bonus lives banked under the old invite terms, which land free on their
+   * next paid top-up. An invite pays both sides immediately now, so this only
+   * ever counts down.
+   */
   bonusLivesPending: number;
   /**
    * Money off the next lives order, claimed from a drop and unspent.
@@ -110,15 +114,15 @@ export interface PlayerState {
 /** What the invite screen shows: the link, and what it has earned so far. */
 export interface ReferralState {
   inviteCode: string | null;
-  /** People who used the link and have since paid for a real top-up. */
-  qualified: number;
-  /** People who used the link at all. */
+  /** People who used the link. Each one paid `bonus` lives to both sides. */
   joined: number;
+  /**
+   * Free lives banked under the old rules, still owed on the next paid top-up.
+   * Nothing adds to this any more; it only drains.
+   */
   bonusLivesPending: number;
   /** The terms, so the copy is never out of step with the migration. */
-  minLives: number;
-  inviterBonus: number;
-  inviteeBonus: number;
+  bonus: number;
 }
 
 /**

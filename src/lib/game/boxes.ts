@@ -92,7 +92,10 @@ export interface PlayerRow {
   lives: number;
   lives_accrued_at: string;
   invite_code: string | null;
-  /** Referral bonus banked, waiting for their next paid top-up. */
+  /**
+   * Referral bonus banked under the pre-0052 terms, still waiting for a paid
+   * top-up. Invites pay out on the spot now, so nothing adds to this.
+   */
   bonus_lives_pending: number;
   /** Their own ceiling, once Life Bank has raised it. Null means the default. */
   lives_max: number | null;

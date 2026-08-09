@@ -1,13 +1,11 @@
 import {
-  INVITEE_BONUS_LIVES,
-  INVITER_BONUS_LIVES,
   LIFE_PRICE_KOBO,
   LIFE_REGEN_MINUTES,
   LIVES_MAX,
   MAX_LENGTH,
   MIN_LENGTH,
   PLATFORM_SHARE_PERCENT,
-  REFERRAL_MIN_LIVES,
+  REFERRAL_BONUS_LIVES,
 } from "@/lib/constants";
 import { formatNaira, minFundingKobo, splitFunding } from "@/lib/game/rewards";
 import { loadFundingLadder } from "@/lib/game/pricing";
@@ -75,7 +73,7 @@ export default async function TermsPage() {
         {
           heading: "Invites",
           paragraphs: [
-            `If somebody joins on your invite link and later pays for ${REFERRAL_MIN_LIVES} lives or more, ${INVITER_BONUS_LIVES} free lives are added to your next paid top-up and ${INVITEE_BONUS_LIVES} to theirs. The inviter bonus stacks; each invited player can qualify once.`,
+            `If somebody joins on your invite link, ${REFERRAL_BONUS_LIVES} free lives are credited to your account and ${REFERRAL_BONUS_LIVES} to theirs, immediately and with nothing to buy. The inviter's side stacks without limit; a given player can be invited once, and an inviter once attached is never changed.`,
             "Bonus lives are free. Nobody is charged for them, so no share is paid to anybody on them.",
             "Invite bonuses obtained through additional accounts, purchased traffic, or any arrangement whose purpose is to trigger the bonus rather than to bring a real player, will be removed. Persistent abuse ends your access.",
           ],

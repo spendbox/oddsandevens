@@ -99,6 +99,10 @@ export function PlayerProvider({
    * The server treats a stale, wrong or already-used code as a no-op, so this
    * doesn't have to be careful about firing twice — it just clears the key
    * once the round trip is done, whatever the answer was.
+   *
+   * A claim that lands now pays both sides their lives on the spot, so a
+   * successful one is followed by a re-read: the header would otherwise show
+   * the pool from a second ago and stay wrong until something else touched it.
    */
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("ref");
@@ -117,23 +121,28 @@ export function PlayerProvider({
 
     let cancelled = false;
     async function claim() {
+      let claimed = false;
       try {
-        await fetch("/api/player/invite", {
+        const res = await fetch("/api/player/invite", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code: pending }),
         });
+        const body = (await res.json().catch(() => ({}))) as { claimed?: boolean };
+        claimed = body.claimed === true;
       } catch {
         // Leave the key in place; the next page load tries again.
         return;
       }
-      if (!cancelled) window.localStorage.removeItem(REF_KEY);
+      if (cancelled) return;
+      window.localStorage.removeItem(REF_KEY);
+      if (claimed) await refresh();
     }
     void claim();
     return () => {
       cancelled = true;
     };
-  }, [player.email]);
+  }, [player.email, refresh]);
 
   /**
    * Lives arrive on the hour, so the header would otherwise sit on a stale

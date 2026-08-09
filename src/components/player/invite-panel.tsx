@@ -2,19 +2,20 @@
 
 // Bring somebody with you.
 //
-// Deliberately short. A player does not need the mechanics of who earns what
-// from whose spending — that's a contributor's business, and it's on the FAQ
-// for anyone curious. What a player needs is the link, the one condition, and
-// what they've got waiting.
+// Deliberately short, and shorter than it was: the terms are one sentence now,
+// so the panel is the sentence, the link, and what the link has brought in.
+// There is no longer a condition to explain — a friend joining *is* the payout
+// — which is what took a paragraph and three figures down to a line and two.
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, Gift, Share2 } from "lucide-react";
 import { plural } from "@/lib/plural";
+import { useInviteShare } from "./invite-share";
 import type { ReferralState } from "@/lib/types";
 
 export function InvitePanel() {
   const [referral, setReferral] = useState<ReferralState | null>(null);
-  const [copied, setCopied] = useState(false);
+  const { link, copied, share } = useInviteShare(referral?.inviteCode ?? null);
 
   const load = useCallback(async () => {
     try {
@@ -37,30 +38,6 @@ export function InvitePanel() {
 
   if (!referral?.inviteCode) return null;
 
-  const link = `${typeof window === "undefined" ? "" : window.location.origin}/?ref=${referral.inviteCode}`;
-
-  async function share() {
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({
-          title: "Spendbox",
-          text: "Guess a password, open a safe, keep what's inside.",
-          url: link,
-        });
-        return;
-      } catch {
-        // Cancelled, or no sheet — fall through to the clipboard.
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // The link is on screen anyway.
-    }
-  }
-
   return (
     <section className="panel space-y-3 rounded-2xl p-5">
       <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
@@ -69,12 +46,10 @@ export function InvitePanel() {
       </h2>
 
       <p className="text-sm text-zinc-400">
-        When someone who joins on your link buys{" "}
-        {plural(referral.minLives, "life", "lives")} or more, you both get free
-        lives on your next top-up —{" "}
-        <strong className="text-brass">{referral.inviterBonus} for you</strong>,{" "}
-        {referral.inviteeBonus} for them. It stacks: ten friends is{" "}
-        {referral.inviterBonus * 10} lives.
+        When someone joins on your link you{" "}
+        <strong className="text-brass">both get {referral.bonus} free lives</strong>
+        , straight away. Nothing to buy. It stacks: ten friends is{" "}
+        {referral.bonus * 10} lives.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -95,16 +70,24 @@ export function InvitePanel() {
         </button>
       </div>
 
-      <dl className="grid grid-cols-3 gap-2 text-center">
+      <dl className="grid grid-cols-2 gap-2 text-center">
         <Figure label="Joined" value={referral.joined} />
-        <Figure label="Paid up" value={referral.qualified} />
-        <Figure label="Lives waiting" value={referral.bonusLivesPending} accent />
+        <Figure
+          label="Lives earned"
+          value={referral.joined * referral.bonus}
+          accent
+        />
       </dl>
 
+      {/*
+        Only ever true for players who banked lives under the old terms, where
+        the bonus waited for a paid top-up. Nothing adds to it now, so this line
+        disappears for good once they spend it.
+      */}
       {referral.bonusLivesPending > 0 && (
         <p className="rounded-xl bg-brass/10 px-3 py-2 text-center text-xs text-brass">
-          {plural(referral.bonusLivesPending, "free life", "free lives")} land
-          automatically on your next top-up.
+          {plural(referral.bonusLivesPending, "free life", "free lives")} from
+          before land automatically on your next top-up.
         </p>
       )}
     </section>
