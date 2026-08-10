@@ -59,6 +59,7 @@ import { useDrops } from "./use-drops";
 import type { Rival } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
 import { ReportDialog, ReportIssueButton } from "@/components/report-issue";
+import { SponsorPrize } from "@/components/sponsor";
 import { ComingSoonDialog } from "./coming-soon";
 
 type Outcome = "open" | "won" | "pipped";
@@ -597,6 +598,7 @@ export function PlaySurface({
           difficulty={view.box.difficulty}
           title={view.box.title}
           blurb={view.box.blurb}
+          sponsor={view.box.sponsor}
           onClose={() => setSheet("none")}
         />
       )}
@@ -792,6 +794,21 @@ function Verdict({ outcome, view }: { outcome: Outcome; view: PlayView }) {
             </>
           )}
         </p>
+
+        {/*
+          The sponsor's reward, at the moment it is actually won.
+          Every other surface shows this to persuade somebody to start; this is
+          the one that shows it to somebody who has finished, which is the only
+          time the picture is of a thing that is now theirs. The heading says so
+          rather than repeating the sales line.
+        */}
+        {view.box.sponsor?.prize && (
+          <SponsorPrize
+            sponsor={view.box.sponsor}
+            heading="And this is yours too"
+            className="mt-4"
+          />
+        )}
       </div>
     );
   }
@@ -863,6 +880,24 @@ function Cracked({ view }: { view: PlayView }) {
                 }
               />
             </dl>
+
+            {/*
+              What the sponsor put in, on a box that is over.
+
+              Past tense in the heading, and shown to everybody rather than only
+              to the winner: this is the wall-of-cracked-safes argument in its
+              strongest form — somebody was paid, and somebody was also sent
+              this. A result screen that quietly dropped the sponsor would also
+              be the one screen where a business's placement disappears at the
+              exact moment the box is most convincing.
+            */}
+            {box.sponsor?.prize && (
+              <SponsorPrize
+                sponsor={box.sponsor}
+                heading="And this went with it"
+                className="mt-4"
+              />
+            )}
 
             <p className="mt-4 text-sm text-zinc-400">
               An opened safe can never be played again. Every reward on Spendbox

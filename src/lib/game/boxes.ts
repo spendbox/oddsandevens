@@ -7,6 +7,7 @@ import { maskEmail } from "@/lib/mask";
 import { difficultyOf } from "@/lib/game/difficulty";
 import { toDesign } from "@/lib/game/designs";
 import { isChallenge } from "@/lib/game/rewards";
+import { toSponsor, type SponsorRow } from "@/lib/game/sponsors";
 import type { PlayerState, PublicBox } from "@/lib/types";
 
 /**
@@ -18,10 +19,24 @@ import type { PlayerState, PublicBox } from "@/lib/types";
  * needs it to derive difficulty; `toPublicBox` is what makes sure it doesn't
  * travel any further.
  */
+/*
+ * One string literal, and it has to stay one.
+ *
+ * supabase-js parses this at the *type* level to work out the shape of what
+ * comes back, so a list built by concatenating constants together widens to
+ * `string` and every `select` using it starts returning `GenericStringError`.
+ * The six `sponsor_` columns (0053) are therefore spelled out here rather than
+ * spliced in from `sponsors.ts`, where the rest of that feature lives.
+ *
+ * They are on this list rather than fetched by the screens that draw them
+ * because "sponsored" is a fact about a box, not about one surface: a card that
+ * names a business next to a play screen that doesn't is a box somebody
+ * reasonably thinks they misread.
+ */
 export const PUBLIC_BOX_COLUMNS =
-  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, best_percent, published_at, unlocked_at, unlocked_by, unlocked_alias, contributor_id, featured_at, seeded_at";
+  "id, kind, slug, title, blurb, length, reward_kobo, design, status, attempts_count, players_count, best_percent, published_at, unlocked_at, unlocked_by, unlocked_alias, contributor_id, featured_at, seeded_at, sponsor_name, sponsor_logo_url, sponsor_prize_title, sponsor_prize_blurb, sponsor_prize_media_url, sponsor_prize_media_kind";
 
-export interface BoxRow {
+export interface BoxRow extends SponsorRow {
   id: string;
   kind: "general" | "contributor";
   slug: string;
@@ -83,6 +98,7 @@ export function toPublicBox(
         ? maskEmail(extras.winnerEmail)
         : null,
     featured: !!row.featured_at,
+    sponsor: toSponsor(row),
   };
 }
 

@@ -18,6 +18,7 @@ import { SafeLink } from "@/components/safe-link";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { ShareChip } from "@/components/share-safe";
 import { SafeArt } from "@/components/safe/safe-art";
+import { SponsorBand } from "@/components/sponsor";
 import { DESIGN_SPECS } from "@/lib/game/designs";
 import { rewardLabel } from "@/lib/game/rewards";
 import { compact } from "@/lib/plural";
@@ -72,6 +73,8 @@ export function Featured({ boxes }: { boxes: PublicBox[] }) {
 
   if (boxes.length === 0) return null;
 
+  const sponsored = boxes.some((box) => !!box.sponsor);
+
   return (
     <section className="relative">
       {/*
@@ -101,7 +104,16 @@ export function Featured({ boxes }: { boxes: PublicBox[] }) {
               "shrink-0 snap-center " + (boxes.length > 1 ? "w-[88%] sm:w-[92%]" : "w-full")
             }
           >
-            <FeaturedCard box={box} />
+            {/*
+              Every slide reserves the sponsor row as soon as *any* slide needs
+              one. A carousel whose slides are different heights jumps under
+              your thumb as you swipe — the same reason the description gets a
+              fixed slot whether or not there is one — and a sponsored box next
+              to an unsponsored one is exactly that difference. Reserving it
+              only when it is in use is what keeps a board with no sponsors on
+              it from carrying an empty band forever.
+            */}
+            <FeaturedCard box={box} reserveSponsor={sponsored} />
           </div>
         ))}
       </div>
@@ -157,7 +169,14 @@ export function Featured({ boxes }: { boxes: PublicBox[] }) {
  * every slide in the carousel is exactly as tall as every other and swiping
  * doesn't make the page jump.
  */
-function FeaturedCard({ box }: { box: PublicBox }) {
+function FeaturedCard({
+  box,
+  reserveSponsor,
+}: {
+  box: PublicBox;
+  /** Keep the sponsor band's height even on a slide that has no sponsor. */
+  reserveSponsor: boolean;
+}) {
   const spec = DESIGN_SPECS[box.design];
 
   return (
@@ -253,6 +272,18 @@ function FeaturedCard({ box }: { box: PublicBox }) {
           {rewardLabel(box.rewardKobo)}
         </p>
       </div>
+
+      {/* ---- the sponsor ------------------------------------------------ */}
+      {/*
+        Under the money and touching it, because the claim is that the two go
+        together. The band keeps its height on an unsponsored slide whenever any
+        slide in this carousel has a sponsor — see the note at the call site.
+      */}
+      {(box.sponsor || reserveSponsor) && (
+        <div className="relative z-10 flex h-[3.75rem] items-center border-b border-white/10 bg-grape/8 px-4 sm:px-7">
+          {box.sponsor && <SponsorBand sponsor={box.sponsor} />}
+        </div>
+      )}
 
       {/* ---- the terms -------------------------------------------------- */}
       {/*

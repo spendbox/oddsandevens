@@ -17,7 +17,9 @@ import { Coins } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { formatNaira } from "@/lib/game/rewards";
+import { SponsorChip, SponsorPrize } from "@/components/sponsor";
 import type { Difficulty } from "@/lib/game/difficulty";
+import type { Sponsor } from "@/lib/types";
 
 export function PotDialog({
   rewardKobo,
@@ -26,6 +28,7 @@ export function PotDialog({
   difficulty,
   title,
   blurb,
+  sponsor,
   onClose,
 }: {
   rewardKobo: number;
@@ -36,6 +39,15 @@ export function PotDialog({
   /** What the box is called, and whatever its author said about it. */
   title: string;
   blurb: string | null;
+  /**
+   * The business behind it, and what they are adding to the money.
+   *
+   * This is the sheet that answers "what is in this box", so it is the sheet
+   * where the whole of the answer belongs — the figure and the thing, in the
+   * order they are worth, on one screen. Everywhere else in the game the
+   * sponsor is a line; here it is the object.
+   */
+  sponsor: Sponsor | null;
   onClose: () => void;
 }) {
   return (
@@ -72,6 +84,23 @@ export function PotDialog({
               the code first.
             </p>
           </>
+        )}
+
+        {/*
+          And what the sponsor is adding, if there is one.
+
+          Under the money rather than above it, on a challenge box as much as on
+          a funded one — this is the second thing in the vault, and on a box with
+          no money in it, it is the only thing. `SponsorPrize` draws nothing when
+          the sponsorship is a name without a reward behind it, which is why the
+          lockup below is separate rather than folded into it.
+        */}
+        {sponsor?.prize && <SponsorPrize sponsor={sponsor} />}
+
+        {sponsor && !sponsor.prize && (
+          <div className="flex justify-center border-t border-white/10 pt-3">
+            <SponsorChip sponsor={sponsor} />
+          </div>
         )}
 
         {/* The other half of "is this worth my month": what it pays, and what

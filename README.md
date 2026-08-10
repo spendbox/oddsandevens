@@ -38,6 +38,116 @@ money behind it, and shares the link. There is no business here: no trading name
 no logo, no category, no verification. A contributor is a person who put money
 behind a password and wants people to attack it.
 
+### Sponsored
+
+One of ours can carry a business, and 0053 is what makes that a thing the
+schema knows rather than a note in the blurb. **A sponsor puts their name and
+logo on a safe we fund, and the winner gets something from them on top of the
+money.** Both, not either: the figure in gold is still paid, still within 24
+hours, still into a bank account. The sponsor's reward sits beside it.
+
+That is a trading name and a logo, which is the one thing the paragraph above
+says this platform does not have — and the restriction is what keeps the two
+statements from contradicting each other. **A sponsorship only goes on one of
+our own boxes**, refused on a contributor's by a check constraint as well as by
+the route. A contributor's reward is their funding minus our cut and nothing
+else; selling space on somebody else's safe is not ours to do, and a
+contributor is still a person rather than a brand.
+
+It has two levels and the nesting is deliberate:
+
+| | |
+| --- | --- |
+| A sponsor | a name, and optionally a logo. A business paying to be on a safe we fund is a real arrangement and the easy one to sell |
+| Their prize | a title, optionally a description, and optionally a picture or a film of it |
+
+A prize may never have no sponsor — a winner has to know who is sending them a
+thing, and "plus a mystery gift" reads as a keyring — so a title without a name
+is refused by the same constraint that refuses the whole thing on a
+contributor's box. Media travels the other way for the same reason: a URL with
+no kind beside it is a file nothing knows how to draw, so both columns are set
+together or neither is. Nothing sniffs a file extension anywhere; the upload
+route knows the content type for certain and records it, which is what decides
+between an `<img>` and a `<video>`.
+
+**Unlike the prize, a sponsorship can be taken away.** That looks like an
+inconsistency with `raise_reward` and isn't. A prize is a promise to somebody
+spending a fortnight of lives against the figure on the card. A sponsorship is
+a commercial relationship, and one that has lapsed has to be able to come off
+the board — emptying the name does it, and the box keeps its slug, its hunters,
+its attempts and its money.
+
+#### Where it shows
+
+Everywhere the box does, and the mark is chosen the same way each time —
+`SponsorMark` names the reward when there is one and falls back to the lockup
+when the sponsorship is a name on a safe.
+
+| Surface | What it carries |
+| --- | --- |
+| A lobby card | one line, under the figure, because it is about the figure |
+| The featured hero | a band of its own, under the money and touching it |
+| The resume strip | the name alone. That card answers "how far in am I" |
+| The rail, mid-hunt | a chip that opens the vault sheet — not a sheet of its own |
+| The vault sheet | the whole thing: picture or film, title, description |
+| Winning | the same panel, headed *And this is yours too* |
+| A cracked box | the same panel, past tense, shown to everybody |
+| The share card | appended to the description, never substituted for it |
+
+The picture is deliberately **not** on the front page. A carousel would mean
+loading a product still — or a film — for every slide before anybody has chosen
+anything, on a game played on mobile data by people already paying for lives.
+The showcase is one tap away, on the box, where somebody has asked for it. For
+the same reason a reward video never plays on its own and is loaded
+`preload="metadata"`.
+
+The colours are not the money's. Brass is what Spendbox pays; a sponsor's
+reward is grape, which is the palette's other prize colour and already means
+"value that is not a transfer". A sponsor's own mark is left alone entirely —
+the plate under a logo is neutral white, because a business's blue on our
+violet is their decision, and a logo drawn for paper is unreadable on a
+violet-night background without one.
+
+#### What it doesn't do
+
+**Nothing about play changes.** A sponsored box scores identically, costs the
+same lives, and pays the same money. This is drawn around a box, never into it.
+
+**There is no fulfilment ledger.** Our money moves through `reward_claims` and
+the payouts screen; a sponsor's reward does not, because it is a thing rather
+than a transfer and we are not the ones shipping it. How a winner receives it
+is what the prize description is for, which is why the admin form asks for
+"how it is delivered, what it covers, anything a winner would ask". If that
+ever needs tracking, it is a table, and it is not this one.
+
+**No sponsor money enters the split.** Nothing here is sold, so nothing here
+computes a 70%. What a sponsor pays us for the placement is a matter between
+us and them and never touches `life_orders`, a power-up sale or a subaccount.
+
+#### The files
+
+`sponsors` is a public storage bucket with no RLS policy on it, which is the
+whole of its security model: public on read because these are logos on a public
+landing page and signing them would mean a front page whose images go stale in
+an open tab, and writable by nothing but the service role because no policy
+grants anybody else. The browser never talks to storage — the upload goes to
+`/api/admin/sponsor/upload` behind `getAdminUser()`, and the file is renamed to
+a UUID on the way in, because an uploaded filename is attacker-controlled text
+that would otherwise end up in a public URL.
+
+**No SVG**, and that is not an oversight. An SVG is a document that can carry
+script, and one served back from our own origin is stored XSS wearing a logo.
+Next's image optimiser refuses them too unless `dangerouslyAllowSVG` is set,
+and the name of that flag is the argument. Images cap at 3MB and video at 25MB,
+checked at the route as well as at the bucket — the bucket's ceiling is the
+video's, and letting a 20MB PNG through it would put that PNG at the top of the
+front page.
+
+`next.config.ts` allows `next/image` to fetch from exactly one host, derived
+from `NEXT_PUBLIC_SUPABASE_URL` and narrowed to this bucket's path. It is
+wrapped so a missing variable yields a site whose sponsor images don't optimise
+rather than one that doesn't compile.
+
 ---
 
 ## Guessing
@@ -465,6 +575,13 @@ kobo short of what a winner is actually paid.
 | Anything bought against the public box | — | 100% |
 | Lives bought from `/me`, with no box in front of them | — | 100% |
 | Funding a contributor's box | becomes the reward (70%) | 30% |
+| A sponsor's reward | — | — |
+
+A sponsor's reward is not on this table in the way the others are, and the
+dashes are the point: nothing was sold, so there is no number to split. What a
+business pays us for the placement never touches `life_orders`, a power-up sale
+or a subaccount — and a sponsorship can only go on one of our own boxes, so
+there is no contributor whose 70% it could be computed against.
 
 A life is nominally attached to no box — buy one anywhere and it works
 everywhere. But the *decision* to buy one almost always is attached to a box:
@@ -981,6 +1098,8 @@ src/lib/game/designs.ts     the six safes a contributor can pick from
 src/lib/faq.ts              every answer, computed from the same constants
 src/lib/game/pricing.ts     the prices an admin has changed, read per request
 src/lib/game/boxes.ts       reading boxes without reading passwords
+src/lib/game/sponsors.ts    the business behind a box, in and out
+src/components/sponsor.tsx  and the one way it is drawn, on six surfaces
 src/lib/game/view.ts        assembling what the play screen sees
 src/lib/game/settle.ts      turning a confirmed payment into the thing it bought
 src/app/api/boxes/…         play: the box, the run, the guess, the power-up
@@ -1003,7 +1122,9 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             the whole gift rotation into Postgres, 0037 makes
                             the life ceiling a column Life Bank can raise, 0038
                             adds the contributor payout ledger, 0039 makes
-                            prices editable and Life Bank weekly
+                            prices editable and Life Bank weekly, 0053 puts a
+                            business behind one of our boxes and gives its
+                            logos and reward stills a bucket to live in
 ```
 
 ---

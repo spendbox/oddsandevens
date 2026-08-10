@@ -17,6 +17,7 @@ import {
   Check,
   Eye,
   EyeOff,
+  Handshake,
   Lock,
   Palette,
   ShieldCheck,
@@ -52,6 +53,14 @@ import { UsersPanel } from "@/components/admin/users-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
 import { SeedBoxDialog } from "@/components/admin/seed-box-dialog";
 import { PrizeDialog } from "@/components/admin/prize-dialog";
+import { SponsorDialog } from "@/components/admin/sponsor-dialog";
+import {
+  EMPTY_SPONSOR,
+  SponsorFields,
+  sponsorPayload,
+  sponsorSummary,
+  type SponsorDraft,
+} from "@/components/admin/sponsor-fields";
 import type { PublicBox } from "@/lib/types";
 
 const INPUT =
@@ -111,6 +120,7 @@ export default function AdminPage() {
   const [deleting, setDeleting] = useState<{ id: string; title: string } | null>(null);
   const [seeding, setSeeding] = useState<string | null>(null);
   const [pricing, setPricing] = useState<AdminBox | null>(null);
+  const [sponsoring, setSponsoring] = useState<AdminBox | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/overview", { cache: "no-store" });
@@ -267,7 +277,11 @@ export default function AdminPage() {
             chase, and whether it has already been cracked. And{" "}
             <strong className="text-zinc-300">the figure itself is a button</strong>{" "}
             on our own boxes — a prize can be added or raised long after the box
-            went up, though never lowered.
+            went up, though never lowered.{" "}
+            <strong className="text-zinc-300">Sponsor</strong> puts a business
+            behind one of ours: their name and logo on every surface the box
+            appears on, and a reward the winner gets from them on top of our
+            money. Emptying the name is how a deal that has ended comes off.
           </p>
           <ul className="space-y-1.5">
             {boxes.map((box) => (
@@ -342,6 +356,26 @@ export default function AdminPage() {
                     Close
                   </button>
                 )}
+                {/* Ours only, exactly as the prize and the history are: a
+                    sponsorship is a deal we sign, and a contributor's safe is
+                    not ours to sell space on. Available on a finished box too
+                    — an unlocked one still names who was behind it on its
+                    result screen, and its winner still has a reward coming. */}
+                {box.kind === "general" && (
+                  <button
+                    type="button"
+                    onClick={() => setSponsoring(box)}
+                    className={
+                      "flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold transition active:translate-y-px " +
+                      (box.sponsor
+                        ? "bg-grape text-white"
+                        : "bg-grape/15 text-grape hover:bg-grape/25")
+                    }
+                  >
+                    <Handshake className="size-3.5" aria-hidden />
+                    {box.sponsor?.name ?? "Sponsor"}
+                  </button>
+                )}
                 {/* Ours only: a contributor's history is not ours to write. */}
                 {box.kind === "general" && (
                   <button
@@ -392,6 +426,16 @@ export default function AdminPage() {
           boxTitle={pricing.title}
           rewardKobo={pricing.rewardKobo}
           onClose={() => setPricing(null)}
+          onSaved={() => void load()}
+        />
+      )}
+
+      {sponsoring && (
+        <SponsorDialog
+          boxId={sponsoring.id}
+          boxTitle={sponsoring.title}
+          sponsor={sponsoring.sponsor}
+          onClose={() => setSponsoring(null)}
           onSaved={() => void load()}
         />
       )}
@@ -466,9 +510,9 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
   const [secret, setSecret] = useState("");
   const [rewardNaira, setRewardNaira] = useState("");
   const [design, setDesign] = useState<Design>(DEFAULT_DESIGN);
-  const [card, setCard] = useState<"box" | "password" | "reward" | "design" | "history" | null>(
-    null
-  );
+  const [card, setCard] = useState<
+    "box" | "password" | "reward" | "design" | "history" | "sponsor" | null
+  >(null);
   const [chars, setChars] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -487,6 +531,17 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
   const [board, setBoard] = useState<{ email: string; percent: string }[]>(
     Array.from({ length: 5 }, () => ({ email: "", percent: "" }))
   );
+
+  /*
+   * The sponsor, filled in with the box rather than bolted on after it.
+   *
+   * Same argument as seeding: the second request is the one that gets
+   * forgotten, and a sponsored box that goes live for an hour with no business
+   * on it is an hour somebody paid for and didn't get. The Boxes list can still
+   * add or end one afterwards — deals are signed on their own schedule — and
+   * both routes go through the same function.
+   */
+  const [sponsor, setSponsor] = useState<SponsorDraft>(EMPTY_SPONSOR);
 
   // Not upper-cased. Case is part of a password now, and quietly folding it
   // would make an admin box the one kind nobody could crack. The alphabet is
@@ -520,6 +575,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         hunters: board
           .filter((row) => row.email.trim().length > 0)
           .map((row) => ({ email: row.email.trim(), percent: Number(row.percent || 0) })),
+        sponsor: sponsorPayload(sponsor),
       }),
     });
     setBusy(false);
@@ -534,6 +590,7 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
       setWinner("");
       setWhen("");
       setBoard(Array.from({ length: 5 }, () => ({ email: "", percent: "" })));
+      setSponsor(EMPTY_SPONSOR);
       onCreated();
       return;
     }
@@ -549,6 +606,8 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
         The same four decisions a contributor makes, in the same four cards —
         with no checkout at the end of them. We fund these, so there is nothing
         to collect and no split. Leave the reward blank for a pure challenge.
+        The last two cards are ours alone: a business behind the safe, and a
+        history for it to arrive with.
       </p>
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -583,7 +642,16 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
           art={<SafeArt design={design} className="size-9" />}
           onOpen={() => setCard("design")}
         />
-        {/* The fifth card, and the only optional one. */}
+        {/* The fifth card: a business behind it, and what they are adding to
+            what we pay. Optional, like the sixth. */}
+        <BuildCard
+          icon={<Handshake className="size-4" aria-hidden />}
+          label="The sponsor"
+          value={sponsorSummary(sponsor)}
+          done={sponsor.name.trim().length > 0}
+          onOpen={() => setCard("sponsor")}
+        />
+        {/* The sixth card, and the other optional one. */}
         <BuildCard
           icon={<Sprout className="size-4" aria-hidden />}
           label="Its history"
@@ -774,6 +842,18 @@ function GeneralBoxForm({ onCreated }: { onCreated: () => void }) {
             ))}
           </div>
           <p className="text-sm text-zinc-500">{DESIGN_SPECS[design].note}</p>
+        </CardDialog>
+      )}
+
+      {card === "sponsor" && (
+        <CardDialog title="The sponsor" onClose={() => setCard(null)}>
+          <p className="text-sm text-zinc-400">
+            A business behind this safe. Their name and logo go on every surface
+            the box appears on, and whatever they are giving the winner sits
+            alongside our money rather than replacing it — the reward above is
+            still paid in full, within 24 hours, exactly as on any other box.
+          </p>
+          <SponsorFields draft={sponsor} onChange={setSponsor} />
         </CardDialog>
       )}
 
