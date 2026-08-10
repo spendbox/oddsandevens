@@ -14,10 +14,18 @@ import type { NextConfig } from "next";
  * bucket this app does not draw, and an optimiser pointed at all of them is a
  * wider door than the feature needs.
  *
- * Wrapped, because a missing or malformed URL must not take the build with it:
- * `next build` runs in places where the Supabase variables are absent, and the
- * correct behaviour there is a site whose sponsor images don't optimise, not a
- * site that doesn't compile.
+ * Wrapped, because a missing or malformed URL must not take the build with it.
+ * Note what an empty list actually means, though: not "unoptimised images" but
+ * **no sponsor images at all**, because an unmatched remote URL is a 400 from
+ * the optimiser rather than a passthrough. So this variable has to be set
+ * wherever the config is evaluated — at build time on a platform that bakes
+ * it, at server start for a self-hosted `next start`.
+ *
+ * In practice that is already guaranteed: `NEXT_PUBLIC_SUPABASE_URL` is
+ * inlined into the browser bundle for the Supabase client, so a deployment
+ * missing it has no working database long before it has a missing logo. The
+ * guard is here so a config error degrades to one broken picture instead of a
+ * build that won't start.
  */
 function sponsorImages(): { protocol: "https" | "http"; hostname: string; pathname: string }[] {
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
