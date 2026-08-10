@@ -10,6 +10,42 @@ import type { Difficulty } from "@/lib/game/difficulty";
 export type BoxStatus = "draft" | "funding" | "live" | "unlocked" | "closed";
 
 /**
+ * A picture of the thing a sponsor is giving away, or a film of it.
+ *
+ * The kind is carried rather than inferred from the URL, because the choice
+ * between an `<img>` and a `<video>` cannot be a guess: getting it wrong draws
+ * a black rectangle where the reward should be, on the one surface that is
+ * selling the box.
+ */
+export interface SponsorMedia {
+  url: string;
+  kind: "image" | "video";
+}
+
+/**
+ * The business behind a box, and what they are putting in it.
+ *
+ * Two levels, and the nesting is the feature. A sponsor may have no prize —
+ * a name and a logo on a safe we fund is a real arrangement and the easy one
+ * to sell — but a prize may never have no sponsor. A winner has to know who
+ * is sending them a thing, and "plus a mystery gift" is worth less on a card
+ * than saying nothing at all.
+ *
+ * Nothing here affects play. A sponsored box scores identically, costs the
+ * same lives, and pays the same money; this is what is drawn around it.
+ */
+export interface Sponsor {
+  name: string;
+  logoUrl: string | null;
+  /** What the winner gets from them, on top of our money. */
+  prize: {
+    title: string;
+    blurb: string | null;
+    media: SponsorMedia | null;
+  } | null;
+}
+
+/**
  * A box as anyone may see it.
  *
  * Note what is missing: the password's length, and anything that would give it
@@ -57,6 +93,16 @@ export interface PublicBox {
    * left in it is a poor invitation.
    */
   featured: boolean;
+  /**
+   * The business behind it, when there is one.
+   *
+   * It rides on the box and travels with every `PublicBox` everywhere one
+   * goes, rather than being looked up by the screens that happen to want it.
+   * "Sponsored" is not a fact about one surface: a safe whose card names a
+   * business and whose play screen doesn't is a safe somebody reasonably
+   * thinks they misread.
+   */
+  sponsor: Sponsor | null;
 }
 
 /**
@@ -82,6 +128,17 @@ export interface InPlayHunt {
   /** The best anybody has managed, so yours has something to sit against. */
   boxBestPercent: number;
   lastAttemptAt: string | null;
+  /**
+   * The business behind it, when there is one — the name alone.
+   *
+   * Not the whole `Sponsor`, and that is the same reasoning as everything else
+   * on this shape: a resume card answers "how far in am I", so it carries the
+   * least that still keeps the box honest. A card that shows a figure in gold
+   * on a box whose reward is partly a thing would be understating it, and one
+   * word fixes that. The logo, the picture and the description are a tap away
+   * on the box itself, which is where somebody is going anyway.
+   */
+  sponsor: string | null;
 }
 
 /** The player's own life pool, as the header shows it. */

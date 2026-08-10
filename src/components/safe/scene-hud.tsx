@@ -25,6 +25,7 @@ import { visible } from "@/lib/constants";
 import { ChevronLeft, Coins, HelpCircle, Sparkles, Swords, Trophy, Users } from "lucide-react";
 import { compact } from "@/lib/plural";
 import { rewardLabel } from "@/lib/game/rewards";
+import { SponsorLogo } from "@/components/sponsor";
 import type { PublicBox } from "@/lib/types";
 
 /** Which stat a player has asked about. */
@@ -109,6 +110,46 @@ export function SceneRail({
           <HelpCircle className="size-4" aria-hidden />
         </button>
       </div>
+
+      {/*
+        A business behind this safe, if there is one.
+
+        It opens the vault sheet rather than a sheet of its own, and that is
+        deliberate: what a sponsor is giving the winner is part of the answer to
+        "what is in this box", not a separate subject. So the rail's two prize
+        controls lead to the same place, and the sheet shows the money and the
+        reward together — which is how they are actually paid.
+
+        On the rail rather than only in the sheet because a sponsorship nobody
+        sees is a sponsorship nobody bought. This is the surface a player looks
+        at for an hour.
+      */}
+      {box.sponsor && (
+        <button
+          type="button"
+          onClick={onReward}
+          aria-label={
+            box.sponsor.prize
+              ? `Also in this safe: ${box.sponsor.prize.title}, from ${box.sponsor.name}`
+              : `Sponsored by ${box.sponsor.name}`
+          }
+          className="flex w-full items-center gap-2 rounded-full border-2 border-grape/40 bg-background/85 py-1 pl-1 pr-3 text-left transition hover:border-grape"
+        >
+          <SponsorLogo sponsor={box.sponsor} className="size-6" />
+          <span className="min-w-0 flex-1 truncate text-xs font-bold leading-tight text-grape">
+            {box.sponsor.prize ? (
+              <>
+                plus <span className="font-black">{box.sponsor.prize.title}</span>
+              </>
+            ) : (
+              <>
+                Sponsored by{" "}
+                <span className="font-black">{box.sponsor.name}</span>
+              </>
+            )}
+          </span>
+        </button>
+      )}
 
       {/*
         Your best guess, in full, with what it scored on the end of it. It is

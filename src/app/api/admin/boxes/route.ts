@@ -12,6 +12,7 @@ import { getAdminUser } from "@/lib/admin-auth";
 import { toDesign } from "@/lib/game/designs";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
 import { applySeeding } from "@/lib/game/seeding";
+import { toSponsorColumns, type SponsorInput } from "@/lib/game/sponsors";
 
 /** Every box on the platform, whoever built it. */
 export async function GET() {
@@ -20,11 +21,15 @@ export async function GET() {
   }
 
   const db = supabaseAdmin();
-  const { data } = await db
+  const { data, error } = await db
     .from("boxes")
     .select(`${PUBLIC_BOX_COLUMNS}, funding_kobo, platform_fee_kobo, created_at`)
     .order("created_at", { ascending: false })
     .limit(200);
+
+  // An admin looking at an empty Boxes list needs to be able to find out why.
+  // Silently, this read answers "you have no boxes" to a schema mismatch.
+  if (error) console.error("[admin] box list failed to load:", error);
 
   const rows = (data ?? []) as (BoxRow & { funding_kobo: number; created_at: string })[];
   return NextResponse.json({
@@ -65,6 +70,8 @@ export async function POST(req: Request) {
     crackedBy?: string;
     crackedAt?: string;
     hunters?: unknown;
+    /** A business behind it, all optional. See 0053. */
+    sponsor?: SponsorInput;
   };
 
   const title = (body.title ?? "").trim();
@@ -95,6 +102,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_reward" }, { status: 400 });
   }
 
+  // A sponsor, if the form filled one in. Authored with the box rather than
+  // added afterwards where possible, for the same reason seeding is: the
+  // second request is the one that gets forgotten, and a box that goes live
+  // for an hour without the business's name on it is an hour the business paid
+  // for and didn't get. `PATCH` can still do it later — deals get signed after
+  // safes get built — and both go through the same function.
+  const sponsor = toSponsorColumns(body.sponsor ?? {});
+  if (!sponsor.ok) {
+    return NextResponse.json({ error: sponsor.error }, { status: 400 });
+  }
+
   // Publishing used to close every other live platform box first, because the
   // schema allowed exactly one and "the public game" was singular. Both halves
   // of that are gone — 0032 dropped the index, and featuring decides what sits
@@ -117,6 +135,7 @@ export async function POST(req: Request) {
       design,
       status: "live",
       published_at: new Date().toISOString(),
+      ...sponsor.columns,
     })
     .select(PUBLIC_BOX_COLUMNS)
     .single();
@@ -150,10 +169,64 @@ export async function PATCH(req: Request) {
     boxId?: string;
     featured?: boolean;
     rewardKobo?: number;
+    sponsor?: SponsorInput;
   };
   if (!body.boxId) return NextResponse.json({ error: "invalid_box" }, { status: 400 });
 
   const db = supabaseAdmin();
+
+  // ---- The sponsor --------------------------------------------------------
+  // Who is behind the box, and what they are giving the winner on top of our
+  // money. Editable for the same reason the prize is: a deal is signed the week
+  // after the safe went up as often as before it, and rebuilding the box to
+  // record one would take its slug, its hunters and its attempts with it.
+  //
+  // Three rules, and only the first is new.
+  //
+  //   Ours only, exactly as the prize is. A contributor's reward is their
+  //   funding minus our cut; a sponsorship is an arrangement between us and a
+  //   business, and it is not ours to attach to somebody else's safe. The check
+  //   constraint in 0053 says the same thing, and this is the half of it that
+  //   can explain itself.
+  //
+  //   Downwards is allowed, unlike the prize. That looks like an inconsistency
+  //   and isn't: a prize is a promise to a player who is spending lives against
+  //   the figure on the card, while a sponsorship is a commercial relationship
+  //   that can lapse. A business whose deal has ended has to be able to come
+  //   off the board, and the only way to express that is an empty name.
+  //
+  //   A finished box keeps its sponsor. There is no status filter here on
+  //   purpose — an `unlocked` box still shows who was behind it on the result
+  //   screen, and a winner still has a reward coming from them.
+  if (body.sponsor !== undefined) {
+    const sponsor = toSponsorColumns(body.sponsor);
+    if (!sponsor.ok) {
+      return NextResponse.json({ error: sponsor.error }, { status: 400 });
+    }
+
+    const { data } = await db
+      .from("boxes")
+      .update(sponsor.columns)
+      .eq("id", body.boxId)
+      .eq("kind", "general")
+      .select(PUBLIC_BOX_COLUMNS)
+      .maybeSingle();
+
+    if (data) {
+      return NextResponse.json({ result: "sponsored", box: toPublicBox(data as BoxRow) });
+    }
+
+    // Nothing moved, and "that box isn't ours" and "that box doesn't exist" are
+    // different answers to an admin looking at a list that contains both kinds.
+    const { data: current } = await db
+      .from("boxes")
+      .select("kind")
+      .eq("id", body.boxId)
+      .maybeSingle();
+
+    if (!current) return NextResponse.json({ error: "box_not_found" }, { status: 404 });
+    return NextResponse.json({ error: "not_ours" }, { status: 409 });
+  }
 
   // ---- The prize ----------------------------------------------------------
   // The create form is not the only moment an admin decides what a box is

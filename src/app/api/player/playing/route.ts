@@ -32,6 +32,7 @@ interface Row {
     reward_kobo: number;
     design: string;
     best_percent: string | number;
+    sponsor_name: string | null;
   } | null;
 }
 
@@ -50,7 +51,7 @@ export async function GET() {
   const { data } = await db
     .from("hunts")
     .select(
-      "attempts_count, best_percent, last_attempt_at, boxes!inner(slug, title, length, reward_kobo, design, best_percent, status)"
+      "attempts_count, best_percent, last_attempt_at, boxes!inner(slug, title, length, reward_kobo, design, best_percent, status, sponsor_name)"
     )
     .eq("player_id", player.id)
     .is("won_at", null)
@@ -72,6 +73,9 @@ export async function GET() {
       bestPercent: Number(row.best_percent ?? 0),
       boxBestPercent: Number(row.boxes.best_percent ?? 0),
       lastAttemptAt: row.last_attempt_at,
+      // The name alone. A resume card is about how far in you are; the rest of
+      // the sponsorship is on the box, which is where this card sends you.
+      sponsor: row.boxes.sponsor_name,
     }));
 
   return NextResponse.json({ hunts });

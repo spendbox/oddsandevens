@@ -113,6 +113,18 @@ function ResumeCard({ hunt, index }: { hunt: InPlayHunt; index: number }) {
             }
           >
             {rewardLabel(hunt.rewardKobo)}
+            {/*
+              A figure in gold on a sponsored box is understating what is in it,
+              and this card has room for exactly one word about that. The name
+              is the word — it says there is a business behind this safe and
+              sends you to the box to find out what they are giving, which is
+              where you were going anyway.
+            */}
+            {hunt.sponsor && (
+              <span className="ml-1 font-sans text-grape" title={`Sponsored by ${hunt.sponsor}`}>
+                +{hunt.sponsor}
+              </span>
+            )}
           </p>
         </div>
 

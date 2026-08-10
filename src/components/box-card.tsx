@@ -4,6 +4,7 @@ import { rewardLabel } from "@/lib/game/rewards";
 import { DifficultyBadge } from "@/components/difficulty-badge";
 import { SafeArt } from "@/components/safe/safe-art";
 import { ShareChip } from "@/components/share-safe";
+import { SponsorMark } from "@/components/sponsor";
 import { plural } from "@/lib/plural";
 import type { PublicBox } from "@/lib/types";
 
@@ -90,6 +91,14 @@ export function BoxCard({ box, index = 0 }: { box: PublicBox; index?: number }) 
             {box.unlockedBy && <> by <span className="font-mono">{box.unlockedBy}</span></>}
           </p>
         )}
+
+        {/*
+          Directly under the figure, because it is about the figure: what is on
+          this card in gold is not all of what the winner gets. One line and
+          only ever one — `SponsorMark` names the reward when there is one and
+          falls back to the lockup when the sponsorship is a name on a safe.
+        */}
+        {box.sponsor && <SponsorMark sponsor={box.sponsor} className="mt-2" />}
       </div>
 
       <div className="relative z-10">

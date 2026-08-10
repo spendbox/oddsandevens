@@ -6,6 +6,7 @@ import { playerEmail } from "@/lib/player-session";
 import { buildPlayView, findBox } from "@/lib/game/view";
 import { rewardLabel } from "@/lib/game/rewards";
 import { difficultyOf } from "@/lib/game/difficulty";
+import { toSponsor } from "@/lib/game/sponsors";
 import { PlayerProvider } from "@/components/player/player-context";
 import { PlaySurface } from "@/components/safe/play-surface";
 
@@ -21,11 +22,21 @@ export async function generateMetadata({
   // number derived from it. A share card is the most-read text on the site,
   // and an attempt estimate is a deterministic function of the length — it
   // would have handed over the first thing a player has to work out.
+  const sponsor = toSponsor(box);
+  const base =
+    box.blurb ?? `${difficultyOf(box.length)}. Guess the password and it's yours.`;
+
   return {
     title: `${box.title} — ${rewardLabel(box.reward_kobo)} behind a password`,
-    description:
-      box.blurb ??
-      `${difficultyOf(box.length)}. Guess the password and it's yours.`,
+    // A sponsored box says so on the share card, which is the most-read text on
+    // the site and the one surface a business is buying that nobody here ever
+    // sees. It is appended rather than substituted: the description still has
+    // to sell the safe, and what a sponsor adds is an addition there too.
+    description: sponsor?.prize
+      ? `${base} Plus ${sponsor.prize.title}, from ${sponsor.name}.`
+      : sponsor
+        ? `${base} Sponsored by ${sponsor.name}.`
+        : base,
   };
 }
 
