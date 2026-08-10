@@ -126,6 +126,22 @@ us and them and never touches `life_orders`, a power-up sale or a subaccount.
 
 #### The files
 
+**The bucket is a separate migration from the columns, and that split is not
+cosmetic.** `supabase db push` runs a migration file in one transaction, so a
+failure anywhere in it rolls the whole file back — and writing to
+`storage.buckets` is the one statement here that can fail for reasons unrelated
+to the SQL, because it depends on the role the migration runs as. With both in
+one file, a storage permission problem rolled back the six `sponsor_` columns;
+every box read selects those columns, so every read failed, and the lobby
+swallowed the error and rendered an empty board. A storage hiccup presented as
+*every box on the platform disappearing*. 0053 is now columns and constraints,
+0054 is the bucket, and 0054 catches a privilege error and warns rather than
+failing the push.
+
+The lobby, the boxes API and the admin list now log a failed read instead of
+treating it as an empty result. An empty board and an unreachable one are
+different facts.
+
 `sponsors` is a public storage bucket with no RLS policy on it, which is the
 whole of its security model: public on read because these are logos on a public
 landing page and signing them would mean a front page whose images go stale in

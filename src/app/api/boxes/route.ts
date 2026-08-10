@@ -13,19 +13,26 @@ const RECENT_UNLOCKS = 8;
 export async function GET() {
   const db = supabaseAdmin();
 
-  const [{ data: live }, { data: unlocked }] = await Promise.all([
-    db
-      .from("boxes")
-      .select(PUBLIC_BOX_COLUMNS)
-      .eq("status", "live")
-      .order("prize_kobo", { ascending: false }),
-    db
-      .from("boxes")
-      .select(PUBLIC_BOX_COLUMNS)
-      .eq("status", "unlocked")
-      .order("unlocked_at", { ascending: false })
-      .limit(RECENT_UNLOCKS),
-  ]);
+  const [{ data: live, error: liveError }, { data: unlocked, error: unlockedError }] =
+    await Promise.all([
+      db
+        .from("boxes")
+        .select(PUBLIC_BOX_COLUMNS)
+        .eq("status", "live")
+        .order("prize_kobo", { ascending: false }),
+      db
+        .from("boxes")
+        .select(PUBLIC_BOX_COLUMNS)
+        .eq("status", "unlocked")
+        .order("unlocked_at", { ascending: false })
+        .limit(RECENT_UNLOCKS),
+    ]);
+
+  // Logged rather than swallowed, for the reason written out at length on the
+  // lobby page: a query that fails and a board that is empty produce the same
+  // JSON from here, and only one of them is somebody's fault.
+  if (liveError) console.error("[boxes] live boxes failed to load:", liveError);
+  if (unlockedError) console.error("[boxes] cracked boxes failed to load:", unlockedError);
 
   const rows = [...((live ?? []) as BoxRow[]), ...((unlocked ?? []) as BoxRow[])];
   const names = await displayNames(db, rows);

@@ -31,20 +31,37 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const db = supabaseAdmin();
 
-  const [{ data: live }, { data: cracked }] = await Promise.all([
-    db
-      .from("boxes")
-      .select(PUBLIC_BOX_COLUMNS)
-      .eq("status", "live")
-      .order("featured_at", { ascending: false, nullsFirst: false })
-      .order("reward_kobo", { ascending: false }),
-    db
-      .from("boxes")
-      .select(PUBLIC_BOX_COLUMNS)
-      .eq("status", "unlocked")
-      .order("unlocked_at", { ascending: false })
-      .limit(RECENT_UNLOCKS),
-  ]);
+  const [{ data: live, error: liveError }, { data: cracked, error: crackedError }] =
+    await Promise.all([
+      db
+        .from("boxes")
+        .select(PUBLIC_BOX_COLUMNS)
+        .eq("status", "live")
+        .order("featured_at", { ascending: false, nullsFirst: false })
+        .order("reward_kobo", { ascending: false }),
+      db
+        .from("boxes")
+        .select(PUBLIC_BOX_COLUMNS)
+        .eq("status", "unlocked")
+        .order("unlocked_at", { ascending: false })
+        .limit(RECENT_UNLOCKS),
+    ]);
+
+  /*
+   * A board that fails to load must not look like a board with nothing on it.
+   *
+   * Both of these used to take `data` alone, so a rejected query became `null`,
+   * became `[]`, and rendered as an empty lobby with nothing written anywhere.
+   * That is how adding six columns to `PUBLIC_BOX_COLUMNS` ahead of the
+   * migration that creates them took every box off the front page silently:
+   * PostgREST was answering `column boxes.sponsor_name does not exist` on every
+   * request and the page was quietly agreeing that there were no safes.
+   *
+   * An empty board and an unreachable one are different facts and the server
+   * log is where the difference belongs.
+   */
+  if (liveError) console.error("[lobby] live boxes failed to load:", liveError);
+  if (crackedError) console.error("[lobby] cracked boxes failed to load:", crackedError);
 
   const rows = [...((live ?? []) as BoxRow[]), ...((cracked ?? []) as BoxRow[])];
   const names = await contributorNames(db, rows);

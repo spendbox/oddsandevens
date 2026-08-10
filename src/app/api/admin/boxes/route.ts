@@ -21,11 +21,15 @@ export async function GET() {
   }
 
   const db = supabaseAdmin();
-  const { data } = await db
+  const { data, error } = await db
     .from("boxes")
     .select(`${PUBLIC_BOX_COLUMNS}, funding_kobo, platform_fee_kobo, created_at`)
     .order("created_at", { ascending: false })
     .limit(200);
+
+  // An admin looking at an empty Boxes list needs to be able to find out why.
+  // Silently, this read answers "you have no boxes" to a schema mismatch.
+  if (error) console.error("[admin] box list failed to load:", error);
 
   const rows = (data ?? []) as (BoxRow & { funding_kobo: number; created_at: string })[];
   return NextResponse.json({
