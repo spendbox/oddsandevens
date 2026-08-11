@@ -72,9 +72,11 @@ export function SponsorDialog({
     setError(
       body.error === "not_ours"
         ? "That box belongs to a contributor. A sponsorship is ours to sign, so it can only go on one of our own boxes."
-        : body.error === "invalid_logo" || body.error === "invalid_media"
-          ? "That file isn't one of ours. Upload it again."
-          : "Couldn't save that. Try again in a moment."
+        : body.error === "invalid_email"
+          ? "That email address doesn't look right. Check it, or leave it blank to keep the one already on file."
+          : body.error === "invalid_logo" || body.error === "invalid_media"
+            ? "That file isn't one of ours. Upload it again."
+            : "Couldn't save that. Try again in a moment."
     );
   }
 
@@ -142,6 +144,11 @@ function toDraft(sponsor: Sponsor | null): SponsorDraft {
   if (!sponsor) return EMPTY_SPONSOR;
   return {
     name: sponsor.name,
+    // Never sent to a browser, so the dialog cannot prefill it — see 0055.
+    // Leaving it blank on an edit is correct rather than lossy: an empty
+    // address means "don't change who is on file", and the route only writes
+    // one when something was typed.
+    email: "",
     logoUrl: sponsor.logoUrl ?? "",
     prizeTitle: sponsor.prize?.title ?? "",
     prizeBlurb: sponsor.prize?.blurb ?? "",

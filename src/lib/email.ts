@@ -150,6 +150,85 @@ export async function sendBoxLiveEmail(params: {
   );
 }
 
+/**
+ * To the business behind a sponsored box, once it is live.
+ *
+ * A sponsorship is a thing somebody bought, and until this existed the only way
+ * they learned it had gone up was to be told by hand. It carries the two things
+ * that make the placement worth anything to them: the link, and artwork already
+ * the right shape for the places their customers are.
+ *
+ * The posters are linked rather than attached. An attachment is a few hundred
+ * kilobytes of PNG posted three times into an inbox that may bounce it, and it
+ * arrives as files somebody has to find again next week — while a link is a page
+ * they can return to, that redraws itself if the reward is raised, and that
+ * their designer can be forwarded. The images below are `src`d from the same
+ * routes, so the mail still *shows* all three.
+ */
+export async function sendSponsorKitEmail(params: {
+  to: string;
+  business: string;
+  title: string;
+  slug: string;
+  rewardKobo: number;
+  /** What they are giving the winner, when they are giving something. */
+  prizeTitle: string | null;
+}) {
+  const { to, business, title, slug, rewardKobo, prizeTitle } = params;
+  const base = appUrl();
+  const boxUrl = base ? `${base}/b/${slug}` : null;
+  const kitUrl = base ? `${base}/b/${slug}/kit` : null;
+
+  // Everything interpolated here is admin-entered rather than typed by a
+  // stranger, but it lands in an inbox we do not control and it costs nothing
+  // to escape it. The support-report mail makes the same argument at length.
+  const safeBusiness = escapeHtml(business);
+  const safeTitle = escapeHtml(title);
+
+  await send(
+    to,
+    `${safeTitle} is live — your share kit is ready`,
+    `<div ${WRAP}>
+      <h2>Your box is live</h2>
+      <p><strong>${safeTitle}</strong> is open to players, with
+      <strong>${rewardLabel(rewardKobo)}</strong> behind the password and
+      ${safeBusiness} on every screen it appears on.${
+        prizeTitle
+          ? ` Whoever cracks it also gets <strong>${escapeHtml(prizeTitle)}</strong> from you.`
+          : ""
+      }</p>
+
+      ${
+        boxUrl
+          ? `<p>Your link:<br><a href="${boxUrl}" style="font-weight:bold">${boxUrl}</a></p>`
+          : ""
+      }
+
+      <p>We have made three designs you can post as they are — one square, one
+      for stories and status, one wide. Save them from your kit page:</p>
+
+      ${
+        kitUrl
+          ? `<p><a href="${kitUrl}" style="display:inline-block;background:#ffc247;color:#150e2b;font-weight:bold;padding:12px 20px;border-radius:12px;text-decoration:none">Open your share kit</a></p>`
+          : ""
+      }
+
+      ${
+        base
+          ? `<p style="margin-top:24px">
+              <img src="${base}/api/share/${slug}/wide" alt="" width="440" style="max-width:100%;border-radius:12px">
+             </p>`
+          : ""
+      }
+
+      <p style="font-size:13px;color:#52525b;margin-top:24px">The designs
+      redraw themselves if the reward changes, so a link you sent last week
+      still shows the right figure. Playing is free — seven lives, one back
+      every hour — so there is nothing your customers have to buy.</p>
+    </div>`
+  );
+}
+
 /** To the winner, when an admin sends the transfer. */
 export async function sendRewardPaidEmail(params: {
   to: string;

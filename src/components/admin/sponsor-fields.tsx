@@ -28,9 +28,10 @@ import {
 
 const INPUT = "field px-4 py-3";
 
-/** The five answers, as the form holds them. Empty strings, never nulls. */
+/** The answers, as the form holds them. Empty strings, never nulls. */
 export interface SponsorDraft {
   name: string;
+  email: string;
   logoUrl: string;
   prizeTitle: string;
   prizeBlurb: string;
@@ -40,6 +41,7 @@ export interface SponsorDraft {
 
 export const EMPTY_SPONSOR: SponsorDraft = {
   name: "",
+  email: "",
   logoUrl: "",
   prizeTitle: "",
   prizeBlurb: "",
@@ -51,6 +53,7 @@ export const EMPTY_SPONSOR: SponsorDraft = {
 export function sponsorPayload(draft: SponsorDraft) {
   return {
     name: draft.name,
+    email: draft.email,
     logoUrl: draft.logoUrl,
     prizeTitle: draft.prizeTitle,
     prizeBlurb: draft.prizeBlurb,
@@ -98,6 +101,30 @@ export function SponsorFields({
             {draft.name.length}/{SPONSOR_NAME_MAX}
           </span>
         </span>
+      </label>
+
+      <label className="block">
+        <span className="text-sm font-bold text-zinc-300">Their email</span>
+        <input
+          type="email"
+          value={draft.email}
+          onChange={(e) => set("email", e.target.value)}
+          placeholder="marketing@thebusiness.com"
+          autoComplete="off"
+          spellCheck={false}
+          className={`${INPUT} mt-1.5`}
+          disabled={!named}
+        />
+        <p className="mt-1 text-xs text-zinc-500">
+          Optional. When the box goes live they get one email: their link, and
+          three ready-made designs — square, story and wide — to post to their
+          own customers.{" "}
+          <strong className="text-zinc-400">
+            Sent once per address, so editing anything else here won&rsquo;t
+            email them again.
+          </strong>{" "}
+          Never shown to players.
+        </p>
       </label>
 
       <AssetField

@@ -108,6 +108,68 @@ the plate under a logo is neutral white, because a business's blue on our
 violet is their decision, and a logo drawn for paper is unreadable on a
 violet-night background without one.
 
+#### The share kit
+
+A sponsorship is a thing somebody bought, and the placement is only half of
+what they are buying. The other half is reach they can use — so the sponsor
+form takes **their email**, and when the box goes live they get one message
+with the link and three ready-made designs.
+
+| | |
+| --- | --- |
+| Square | 1080×1080 — Instagram and Facebook feed, WhatsApp display picture |
+| Story | 1080×1920 — WhatsApp status, Instagram and Facebook stories |
+| Wide | 1200×630 — X, LinkedIn, link previews, a banner on their own site |
+
+One design in three crops rather than three designs, and the artwork is
+generated per request by `ImageResponse` at `/api/share/[slug]/[format]` rather
+than uploaded. That is what makes it self-healing: raise the prize and every
+poster a sponsor posted last week redraws itself with the right figure. The
+posters are public and unauthenticated on purpose — the point is a URL that
+WhatsApp, Instagram and X can all fetch, and nothing on one is not already on
+the box's own page.
+
+The email **links** the artwork rather than attaching it. An attachment is
+hundreds of kilobytes posted three times into an inbox that may bounce it, and
+it lands as files somebody has to find again next week; the kit page at
+`/b/[slug]/kit` is somewhere they can return to and forward to their designer.
+
+**Two things about this were only discovered by rendering it.**
+
+Satori's default font is Geist, and **Geist has no U+20A6 NAIRA SIGN** — every
+`₦` came out as a tofu box, on the largest element of the poster, on a product
+priced entirely in naira. `src/app/api/share/fonts/` is a 50KB subset of
+Liberation Sans that exists solely to carry that glyph. And Satori will not
+wrap, shrink or ellipsise a line to fit: it draws text at the size it is told
+and lets it run off the canvas silently. So the figure's size is computed from
+how wide the string actually is (`fitSize`), and the title and the reward strip
+wrap inside a bounded width. A blanket per-crop scale is what the first version
+used, and it overflowed the story crop every time — the story is taller than
+the square but exactly as wide.
+
+#### Sent once, to an address
+
+The kit goes out when the address is one we have not sent to — not "when the
+box is new", which would miss the common case of a deal signed after the safe
+went up, and not "whenever there is an address", which would post another email
+every time an admin re-uploaded a logo. `sponsor_kit_sent_to` stores the
+address rather than a flag, so correcting a typo'd one still counts as a
+business that has never been told.
+
+**`sponsor_email` is never on `PUBLIC_BOX_COLUMNS`.** Every other `sponsor_`
+column is on that list precisely so it reaches a browser; this one is a
+business's contact address. It is read explicitly by the admin routes that need
+it, it is not on the `Sponsor` type, and `toPublicBox` never sees it. A
+sponsorship is public; a sponsor's inbox is not.
+
+Which has one consequence worth stating, because it looks like a bug: **the
+sponsor dialog cannot prefill the address**, so every ordinary edit arrives with
+that field blank. A blank address therefore means "leave who is on file alone"
+rather than "remove it" — otherwise the first save that nudged a blurb would
+erase the address, and the save after that would look like a new one and post a
+second kit. Clearing is still expressible by the route that should express it:
+an empty *name* removes the whole sponsorship, including the address.
+
 #### What it doesn't do
 
 **Nothing about play changes.** A sponsored box scores identically, costs the
@@ -1116,6 +1178,9 @@ src/lib/game/pricing.ts     the prices an admin has changed, read per request
 src/lib/game/boxes.ts       reading boxes without reading passwords
 src/lib/game/sponsors.ts    the business behind a box, in and out
 src/components/sponsor.tsx  and the one way it is drawn, on six surfaces
+src/lib/game/share-kit.ts   the three crops a sponsor gets to post
+src/app/api/share/…         the posters, drawn per request, and the font
+                            that exists because Geist has no naira sign
 src/lib/game/view.ts        assembling what the play screen sees
 src/lib/game/settle.ts      turning a confirmed payment into the thing it bought
 src/app/api/boxes/…         play: the box, the run, the guess, the power-up
@@ -1139,8 +1204,10 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             the life ceiling a column Life Bank can raise, 0038
                             adds the contributor payout ledger, 0039 makes
                             prices editable and Life Bank weekly, 0053 puts a
-                            business behind one of our boxes and gives its
-                            logos and reward stills a bucket to live in
+                            business behind one of our boxes, 0054 gives its
+                            logos and reward stills a bucket to live in, and
+                            0055 records where to send that business their
+                            link and their artwork — once
 ```
 
 ---
