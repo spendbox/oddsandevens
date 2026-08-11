@@ -13,6 +13,7 @@
 // `null` rather than as an object with an empty name in it, because a card that
 // says "Sponsored by" and then stops is worse than a card that says nothing.
 
+import { EMAIL_REGEX } from "@/lib/constants";
 import type { Sponsor, SponsorMedia } from "@/lib/types";
 
 /**
@@ -118,10 +119,24 @@ export interface SponsorInput {
   prizeBlurb?: unknown;
   prizeMediaUrl?: unknown;
   prizeMediaKind?: unknown;
+  /** Where to send the share kit. Optional; a sponsorship works without one. */
+  email?: unknown;
 }
 
+/**
+ * What actually gets written, which is the six public columns plus the one
+ * that must never travel.
+ *
+ * `sponsor_email` is deliberately not on `SponsorRow`: that type is what
+ * `BoxRow` extends and therefore what every public read carries, and a
+ * business's contact address has no business in a browser. Keeping the write
+ * shape separate is what makes it impossible to leak by adding a field to the
+ * wrong interface.
+ */
+export type SponsorWriteColumns = SponsorRow & { sponsor_email: string | null };
+
 export type SponsorPatch =
-  | { ok: true; columns: SponsorRow }
+  | { ok: true; columns: SponsorWriteColumns }
   | { ok: false; error: string };
 
 /**
@@ -135,7 +150,8 @@ export type SponsorPatch =
  */
 export function toSponsorColumns(input: SponsorInput): SponsorPatch {
   const name = text(input.name);
-  const empty: SponsorRow = {
+  const empty: SponsorWriteColumns = {
+    sponsor_email: null,
     sponsor_name: null,
     sponsor_logo_url: null,
     sponsor_prize_title: null,
@@ -146,6 +162,18 @@ export function toSponsorColumns(input: SponsorInput): SponsorPatch {
 
   if (!name) return { ok: true, columns: empty };
   if (name.length > SPONSOR_NAME_MAX) return { ok: false, error: "sponsor_name_too_long" };
+
+  /*
+   * The address is lower-cased before it is stored or compared.
+   *
+   * The column is `citext`, so the database would treat two casings as one
+   * anyway — but "have we already emailed this address" is decided in
+   * TypeScript, by comparing what was sent against what is on the row, and
+   * that comparison is case-sensitive. Without this, correcting `Ada@` to
+   * `ada@` reads as a new address and posts a second kit.
+   */
+  const email = text(input.email)?.toLowerCase() ?? null;
+  if (email && !EMAIL_REGEX.test(email)) return { ok: false, error: "invalid_email" };
 
   const logoUrl = text(input.logoUrl);
   if (logoUrl && !isOurAsset(logoUrl)) return { ok: false, error: "invalid_logo" };
@@ -160,7 +188,10 @@ export function toSponsorColumns(input: SponsorInput): SponsorPatch {
   // video behind would leave the box carrying a film of something nobody is
   // being given.
   if (!prizeTitle) {
-    return { ok: true, columns: { ...empty, sponsor_name: name, sponsor_logo_url: logoUrl } };
+    return {
+      ok: true,
+      columns: { ...empty, sponsor_name: name, sponsor_logo_url: logoUrl, sponsor_email: email },
+    };
   }
 
   const prizeBlurb = text(input.prizeBlurb);
@@ -178,6 +209,7 @@ export function toSponsorColumns(input: SponsorInput): SponsorPatch {
   return {
     ok: true,
     columns: {
+      sponsor_email: email,
       sponsor_name: name,
       sponsor_logo_url: logoUrl,
       sponsor_prize_title: prizeTitle,

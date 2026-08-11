@@ -13,6 +13,7 @@ import { toDesign } from "@/lib/game/designs";
 import { PUBLIC_BOX_COLUMNS, slugify, toPublicBox, type BoxRow } from "@/lib/game/boxes";
 import { applySeeding } from "@/lib/game/seeding";
 import { toSponsorColumns, type SponsorInput } from "@/lib/game/sponsors";
+import { deliverSponsorKit, SPONSOR_KIT_COLUMNS, type KitBox } from "@/lib/game/sponsor-kit";
 
 /** Every box on the platform, whoever built it. */
 export async function GET() {
@@ -137,13 +138,20 @@ export async function POST(req: Request) {
       published_at: new Date().toISOString(),
       ...sponsor.columns,
     })
-    .select(PUBLIC_BOX_COLUMNS)
+    .select(`${PUBLIC_BOX_COLUMNS}, ${SPONSOR_KIT_COLUMNS}`)
     .single();
 
   if (error) {
     console.error("[admin] general box create failed:", error);
     return NextResponse.json({ error: "create_failed" }, { status: 500 });
   }
+
+  // The business gets their link and their artwork, if an address was given.
+  // Awaited rather than left dangling: a route handler that returns while an
+  // email is still in flight is a route handler whose email may be killed when
+  // the serverless invocation is frozen. `deliverSponsorKit` swallows its own
+  // failures, so this cannot fail the creation.
+  await deliverSponsorKit(db, data as unknown as KitBox);
 
   // Seeding, if any was asked for. A box authored as already-cracked is one
   // request rather than two, because the second one is the one you forget.
@@ -204,16 +212,42 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: sponsor.error }, { status: 400 });
     }
 
+    /*
+     * A blank address on an edit means "leave who is on file alone".
+     *
+     * `sponsor_email` never reaches a browser (0055), so the dialog cannot
+     * prefill it — which means every ordinary edit arrives with that field
+     * empty. Writing the null would erase the address on the first save that
+     * touched anything else, and the next save after that would look like a
+     * new address and post a second kit.
+     *
+     * Clearing is still expressible, and by the route that should express it:
+     * an empty *name* removes the whole sponsorship, and that path nulls all
+     * seven columns including this one.
+     */
+    const columns = { ...sponsor.columns };
+    if (columns.sponsor_name && columns.sponsor_email === null) {
+      delete (columns as Partial<typeof columns>).sponsor_email;
+    }
+
     const { data } = await db
       .from("boxes")
-      .update(sponsor.columns)
+      .update(columns)
       .eq("id", body.boxId)
       .eq("kind", "general")
-      .select(PUBLIC_BOX_COLUMNS)
+      .select(`${PUBLIC_BOX_COLUMNS}, ${SPONSOR_KIT_COLUMNS}`)
       .maybeSingle();
 
     if (data) {
-      return NextResponse.json({ result: "sponsored", box: toPublicBox(data as BoxRow) });
+      // Only if this address has not already had one. A deal signed a week
+      // after the safe went up is the common case, and so is an admin saving
+      // the same sponsorship twice — `deliverSponsorKit` tells them apart.
+      const kit = await deliverSponsorKit(db, data as unknown as KitBox);
+      return NextResponse.json({
+        result: "sponsored",
+        emailed: kit === "sent",
+        box: toPublicBox(data as BoxRow),
+      });
     }
 
     // Nothing moved, and "that box isn't ours" and "that box doesn't exist" are
