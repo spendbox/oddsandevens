@@ -51,6 +51,7 @@ import { LimitsPanel } from "@/components/admin/limits-panel";
 import { GrantLives } from "@/components/admin/grant-lives";
 import { UsersPanel } from "@/components/admin/users-panel";
 import { ActivityPanel } from "@/components/admin/activity-panel";
+import { PushPanel } from "@/components/admin/push-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
 import { SeedBoxDialog } from "@/components/admin/seed-box-dialog";
 import { PrizeDialog } from "@/components/admin/prize-dialog";
@@ -258,6 +259,7 @@ export default function AdminPage() {
           {/* Who is here, before who has spent: the list below answers a
               support email, this answers whether there is anybody to email. */}
           <ActivityPanel />
+          <PushPanel />
           <UsersPanel />
           <LimitsPanel />
         </>

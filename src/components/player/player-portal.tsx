@@ -29,6 +29,7 @@ import { PrizeOwed, type PayoutAccount, type Prize } from "./prize-claim-form";
 import { InvitePanel } from "./invite-panel";
 import { BankPanel } from "./bank-panel";
 import { SecurityPanel } from "./security-panel";
+import { PushToggle } from "./push-toggle";
 
 interface HistoryHunt {
   id: string;
@@ -278,6 +279,7 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
       {tab === "account" && (
         <div className="space-y-4">
           <BankPanel />
+          <PushToggle />
           <SecurityPanel />
 
           {/*

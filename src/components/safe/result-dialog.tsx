@@ -30,6 +30,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MoveDown, MoveUp, Target, TrendingUp, X } from "lucide-react";
 import { Portal } from "@/components/ui/portal";
+import { PushNudge } from "@/components/player/push-nudge";
 import { Boxy, type BoxyMood } from "@/components/art/boxy";
 import { CRACKS, cracksFor } from "@/lib/game/chase";
 import { formatScore, scoreBand } from "@/lib/game/feedback";
@@ -433,6 +434,13 @@ export function ResultDialog({
           >
             {won ? "Collect it" : "Keep going"}
           </button>
+
+          {/* Below the button, never above it: collecting the money is the only
+              thing this screen is for, and a permission prompt must not stand
+              between somebody and the thing they just won. */}
+          {won && (
+            <PushNudge reason="Want to know when a new safe this size goes up?" />
+          )}
 
 
         </div>

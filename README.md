@@ -731,7 +731,7 @@ Skip. A tutorial you cannot leave is an advertisement.
 | --- | --- | --- |
 | `/` | anyone | Featured safes, swipeable; the safes you have open; the locked and cracked boards behind a session |
 | `/b/[slug]` | anyone | A box, played — the vault scene. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
-| `/me` | a verified player | Lives, invites, attempts, and where a reward has got to. Not an account — there's no password here |
+| `/me` | a verified player | Lives, invites, attempts, where a reward has got to, and the notification switch. Not an account — there's no password here |
 | `/faq` | anyone | Every explanation the game screens deliberately don't give, searchable |
 | `/terms`, `/privacy` | anyone | The rules and what's collected, with the figures computed from the same constants the code uses |
 | `/signup` | a contributor | Email-first: known address asks for a password, new address emails a code |
@@ -924,6 +924,111 @@ light to work as a filled area on violet.
 The player list gains the same facts per person: last seen on the row itself,
 and last played, last logged in, first played, days active, guesses in the last
 7 and 30 days, and visits inside it — sorted by any of them.
+
+---
+
+## Telling somebody
+
+Every other way of reaching a player costs something. Email is cheap rather
+than free and, worse on this product, it is *rented*: it runs on a sending
+reputation that one bad campaign burns — and the same domain carries the
+six-digit codes people log in with. A win-back blast that lands in spam does
+not merely fail, it takes the front door with it. SMS costs real money per
+message. WhatsApp's Business API bills per conversation.
+
+Web push has none of that. No per-message price, ever. No domain to ruin. And
+the consent is held by the person who gave it, in a browser setting we cannot
+read or override — which makes "unsubscribe" a fact rather than a promise at
+the bottom of an email.
+
+**What it is not is a list you can build backwards.** A subscription can only
+be created by a browser that asked for one, so `push_subscriptions` starts
+empty on the day this ships and fills from there. Nobody who has already
+drifted away is in it until they come back once by some other means. It is the
+channel for keeping the players you have, not for recovering the ones you lost.
+
+### Where the ask happens
+
+Once, on the screen where somebody has just been told they won money — and
+*below* the Collect button, never above it, because a permission prompt must
+not stand between a person and the thing they just won. Dismissing it is
+permanent: a browser gives a site one honest chance and treats the second as
+grounds for blocking it outright. The switch in `/me` is the way back, and it
+is the only place the answer can be changed.
+
+There is no prompt on arrival. A site that asks a stranger for notification
+permission before it has done anything for them is the reason that button says
+"Block" as often as it does.
+
+### Four honest states
+
+A toggle that simply vanishes when push can't work is the worst version of
+this: somebody who has heard the feature exists goes looking, finds nothing,
+and concludes the site is broken. So the panel always renders, and says which
+of four things is true — ready, unsupported, blocked, or **iPhone**.
+
+The iPhone case is the one worth naming. Apple allows web push only from a site
+that has been added to the Home Screen; in an ordinary Safari tab the APIs are
+simply absent. There is nothing to prompt, so the honest answer is an
+instruction rather than a button — which is also why `manifest.webmanifest` and
+the icons beside it are load-bearing rather than decoration. Without them,
+notifications are a feature every iPhone quietly does not have.
+
+### Why the list stays honest
+
+A push list rots on its own. A cleared browser, a wiped phone, an uninstalled
+app all leave an endpoint behind that answers 410 for ever, and a sender that
+ignores that spends longer and longer doing nothing while its delivery figures
+drift away from the truth.
+
+So **404 and 410 delete the row on sight** — the push service is telling us the
+thing is gone. Everything else (a timeout, a 500, a bad minute at Google) only
+counts against it, and five in a row is what it takes to be dropped; deleting
+on the first would throw away live subscribers to punish somebody else's
+outage. The admin panel prints how many were pruned by a send rather than
+hiding it, because a big number there means it needed doing.
+
+The other half is `pushsubscriptionchange`, which is the single most-skipped
+part of a push implementation. A push service may retire an endpoint at any
+time; if nothing handles that event the subscription is silently lost while our
+table goes on believing it is live. The worker re-subscribes and names the
+endpoint it replaces. And because neither end can be trusted alone, every visit
+re-registers whatever the browser currently holds — an upsert on the endpoint,
+so it changes nothing almost every time.
+
+### The service worker caches nothing
+
+Deliberately. This is a game whose whole surface is live server state: a life
+count, a best score, whether a box is still open. A stale cached page would
+show somebody seven lives they do not have, or a safe that was cracked an hour
+ago. Offline support here would be a lie about the thing it is offline from, so
+`sw.js` handles notifications and nothing else.
+
+### Sending
+
+`/admin` → Players → **Notify players**. Four segments, the count on each chip,
+and the number of phones printed above the box you type into — because "1,400
+phones" and "12 phones" are not the same sentence, and on most tools that
+number lives on a different screen. A phone-shaped preview sits under the
+fields, since two lines of copy is a thing you judge by eye. Sending takes two
+presses, because there is no unsend.
+
+There is no scheduler, no campaign object and no history table, and that is the
+point of the first version: what makes push cheap is having no moving parts,
+and what makes it *expensive* is sending too much. Someone typing the words
+every time is a rate limit made of friction.
+
+### The keys
+
+`npm run vapid` prints a pair. The public half is `NEXT_PUBLIC_` because it is
+handed to every browser that subscribes; the private half signs each push and
+is server-only.
+
+**Do not rotate them casually.** A subscription is cryptographically bound to
+the public key that created it, so a new pair silently unsubscribes everybody
+who had opted in — no error, no bounce, just a channel that quietly stops
+working. Without keys at all the feature is simply off and every surface says
+so, exactly as email is without a Resend key.
 
 ---
 
@@ -1294,6 +1399,9 @@ src/app/api/contributor/…   profile, boxes, funding, attempts, earnings, payou
 src/app/api/admin/…         the public box, reward claims, revenue
 src/app/api/admin/activity/ daily actives, and the shape of a week
 src/lib/when.ts             "seen 4m ago", from one clock read per load
+src/lib/push.ts             sending a push, and pruning what can't receive one
+src/lib/push-client.ts      the browser half: register, subscribe, re-register
+public/sw.js                notifications, and deliberately no caching
 src/components/admin/activity-panel.tsx
                             who is here, day by day
 src/components/art/         the house style, Boxy, and the power-up objects
@@ -1317,7 +1425,8 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0055 records where to send that business their
                             link and their artwork — once, and 0056 writes
                             down when a player was last seen, last logged in
-                            and last played
+                            and last played, and 0057 remembers which browsers
+                            asked to be told things
 ```
 
 ---
@@ -1354,6 +1463,10 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (and/or `ADMIN_EMAILS`) — access `/admin`.
    - `PLAYER_SESSION_SECRET` — signs the player cookie. Falls back to the
      service-role key.
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` — notifications.
+     Generate a pair once with `npm run vapid`; without them the switch in
+     `/me` says notifications are unavailable and nothing is sent. Rotating
+     them silently unsubscribes everyone who had opted in.
    - `APP_URL` — canonical URL for Paystack callbacks behind a proxy.
 
 3. **Run**:
