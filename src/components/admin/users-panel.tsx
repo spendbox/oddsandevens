@@ -11,6 +11,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { formatNaira } from "@/lib/game/rewards";
+import { stamp, timeAgo } from "@/lib/when";
+import { plural } from "@/lib/plural";
 
 interface AdminUser {
   id: string;
@@ -29,16 +31,33 @@ interface AdminUser {
   attempts: number;
   wins: number;
   wonKobo: number;
+  spent30dKobo: number;
   createdAt: string;
-  lastSeen: string;
+
+  // Nullable on purpose: a null is "not since we started counting", which is a
+  // different fact from zero and is printed differently.
+  lastSeen: string | null;
+  lastLoginAt: string | null;
+  lastPlayedAt: string | null;
+  firstPlayedAt: string | null;
+  loginCount: number;
+  visits: number;
+  daysActive: number;
+  daysActive30: number;
+  attempts7d: number;
+  attempts30d: number;
 }
 
-type Sort = "spent" | "attempts" | "recent";
+type Sort = "recent" | "played" | "active" | "spent" | "attempts" | "login" | "joined";
 
 const SORTS: { id: Sort; label: string }[] = [
+  { id: "recent", label: "Recently seen" },
+  { id: "played", label: "Recently played" },
+  { id: "active", label: "Most days active" },
   { id: "spent", label: "Biggest spenders" },
   { id: "attempts", label: "Most attempts" },
-  { id: "recent", label: "Recently seen" },
+  { id: "login", label: "Recent logins" },
+  { id: "joined", label: "Newest" },
 ];
 
 const INPUT = "field px-4 py-2.5";
@@ -46,10 +65,17 @@ const INPUT = "field px-4 py-2.5";
 export function UsersPanel() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<Sort>("spent");
+  const [sort, setSort] = useState<Sort>("recent");
   const [open, setOpen] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [unmigrated, setUnmigrated] = useState(false);
+  /*
+   * The instant the list was fetched, which every "seen 4m ago" on the screen
+   * is measured from. Read once per load rather than once per row: a clock
+   * read during render is a different answer on every re-render, and thirty
+   * rows measured from thirty instants can disagree with each other.
+   */
+  const [readAt, setReadAt] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,7 +83,10 @@ export function UsersPanel() {
     if (query.trim()) params.set("q", query.trim());
     const res = await fetch(`/api/admin/users?${params}`, { cache: "no-store" });
     setUnmigrated(res.status === 503);
-    if (res.ok) setUsers(((await res.json()) as { users: AdminUser[] }).users);
+    if (res.ok) {
+      setUsers(((await res.json()) as { users: AdminUser[] }).users);
+      setReadAt(Date.now());
+    }
     setLoading(false);
   }, [query, sort]);
 
@@ -68,12 +97,24 @@ export function UsersPanel() {
   }, [load]);
 
   const totalSpent = users.reduce((sum, u) => sum + u.spentKobo, 0);
+  // Counted here rather than asked for: this is "of the people on screen",
+  // which is what somebody who has just typed a search wants to know. The
+  // platform-wide version of the same question is the Activity panel above.
+  const dayAgo = readAt - 24 * 60 * 60 * 1000;
+  const weekAgo = readAt - 7 * 24 * 60 * 60 * 1000;
+  const seenSince = (at: number) =>
+    users.filter((u) => u.lastSeen && new Date(u.lastSeen).getTime() > at).length;
 
   return (
     <section className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Figure label="Players listed" value={String(users.length)} />
         <Figure label="They've spent" value={formatNaira(totalSpent)} />
+        <Figure
+          label="Here today"
+          value={String(seenSince(dayAgo))}
+          hint={`${seenSince(weekAgo)} in the last week`}
+        />
         <Figure
           label="With an account"
           value={`${users.filter((u) => u.hasPassword).length}`}
@@ -144,7 +185,7 @@ export function UsersPanel() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-sm">{user.email}</span>
                   <span className="block text-xs text-zinc-500">
-                    {user.attempts} attempts · {user.hunts} safes
+                    {plural(user.attempts, "attempt")} · {plural(user.hunts, "safe")}
                     {user.wins > 0 && (
                       <span className="text-mint"> · {user.wins} cracked</span>
                     )}
@@ -154,7 +195,12 @@ export function UsersPanel() {
                   <span className="block font-mono font-black text-brass">
                     {formatNaira(user.spentKobo)}
                   </span>
-                  <span className="block text-[11px] text-zinc-500">spent</span>
+                  {/* The one figure worth a column of its own. Everything else
+                      on this screen says how much; this says whether they are
+                      still here, which is the first thing anybody asks. */}
+                  <span className="block text-[11px] text-zinc-500">
+                    seen {timeAgo(user.lastSeen, readAt)}
+                  </span>
                 </span>
               </button>
 
@@ -170,7 +216,32 @@ export function UsersPanel() {
                   />
                   <Detail label="Password set" value={user.hasPassword ? "yes" : "no"} />
                   <Detail label="Invited by someone" value={user.wasInvited ? "yes" : "no"} />
-                  <Detail label="Joined" value={new Date(user.createdAt).toLocaleDateString()} />
+                  <Detail label="Spent in 30 days" value={formatNaira(user.spent30dKobo)} />
+
+                  <p className="col-span-full mt-1 text-[11px] font-bold uppercase tracking-wide text-zinc-600">
+                    When
+                  </p>
+                  <Detail label="Last seen" value={stamp(user.lastSeen)} />
+                  <Detail label="Last played" value={stamp(user.lastPlayedAt)} />
+                  <Detail
+                    label="Last logged in"
+                    value={
+                      user.lastLoginAt
+                        ? `${stamp(user.lastLoginAt)} · ${user.loginCount}×`
+                        : "not recorded yet"
+                    }
+                  />
+                  <Detail label="First played" value={stamp(user.firstPlayedAt)} />
+                  <Detail label="Joined" value={stamp(user.createdAt)} />
+                  <Detail
+                    label="Days active"
+                    value={`${user.daysActive} · ${user.daysActive30} in 30`}
+                  />
+                  <Detail
+                    label="Guesses lately"
+                    value={`${user.attempts7d} in 7d · ${user.attempts30d} in 30d`}
+                  />
+                  <Detail label="Visits" value={user.visits > 0 ? String(user.visits) : "—"} />
                 </div>
               )}
             </li>

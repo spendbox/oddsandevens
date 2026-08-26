@@ -136,6 +136,29 @@ export async function ensurePlayer(
   return (row as PlayerRow | null) ?? null;
 }
 
+/**
+ * Note that a player logged in.
+ *
+ * A *sighting* is recorded inside `ensure_player`, where it costs no extra
+ * round trip and happens on every page that resolves a player. This is only
+ * for the one event that isn't a page load: verifying an address. A player is
+ * remembered for six months, so this fires roughly twice a year per person and
+ * is the only way to tell somebody who came back from somebody who never left.
+ *
+ * Failure is swallowed on purpose. Somebody who has just typed a correct code
+ * must not be told the login failed because a counter didn't move.
+ */
+export async function recordLogin(
+  db: { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ error: unknown }> },
+  playerId: string
+): Promise<void> {
+  const { error } = await db.rpc("touch_player", {
+    p_player_id: playerId,
+    p_kind: "login",
+  });
+  if (error) console.error("[player] login not recorded:", error);
+}
+
 export function toPlayerState(
   player: PlayerRow | null,
   email: string | null,

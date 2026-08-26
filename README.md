@@ -731,12 +731,12 @@ Skip. A tutorial you cannot leave is an advertisement.
 | --- | --- | --- |
 | `/` | anyone | Featured safes, swipeable; the safes you have open; the locked and cracked boards behind a session |
 | `/b/[slug]` | anyone | A box, played — the vault scene. Server-rendered with the run already in it, because a shared link is how nearly everyone arrives |
-| `/me` | a verified player | Lives, invites, attempts, and where a reward has got to. Not an account — there's no password here |
+| `/me` | a verified player | Lives, invites, attempts, where a reward has got to, and the notification switch. Not an account — there's no password here |
 | `/faq` | anyone | Every explanation the game screens deliberately don't give, searchable |
 | `/terms`, `/privacy` | anyone | The rules and what's collected, with the figures computed from the same constants the code uses |
 | `/signup` | a contributor | Email-first: known address asks for a password, new address emails a code |
 | `/dashboard` | a contributor | Boxes, Build, Attempts, Money |
-| `/admin` | the platform | The public box, rewards to send, and where the revenue came from |
+| `/admin` | the platform | The public box, rewards to send, where the revenue came from, and who is still here |
 
 A player never signs up. They verify an address once — because a reward has to
 be sent somewhere — and a signed cookie remembers them for six months.
@@ -820,6 +820,303 @@ outstanding checkout and drops it back to a draft, so a stale payment can never
 publish a password nobody agreed to. Once money has arrived, the password, the
 name and the safe are permanent, and the reward is the only thing that moves —
 upwards only.
+
+---
+
+## Who is here
+
+For a long time the admin list could say what a player had **spent** and
+nothing about **when they were last around**. `last_seen` was
+`max(hunts.last_attempt_at)`, which is not when somebody was last seen — it is
+when they last spent a life. Someone who opens the app every evening, reads the
+board and closes it again looked exactly like someone who left in March, and
+there was no way to tell a quiet week from a dead one.
+
+0056 writes three things down.
+
+| | When it fires | Where from |
+| --- | --- | --- |
+| **Seen** | any page that resolves a player | inside `ensure_player` |
+| **Logged in** | an address is verified | `/api/player/verify/complete` |
+| **Played** | a guess is scored | inside `spend_attempt` |
+
+**The sighting lives in `ensure_player`, and that placement is the whole
+design.** Every surface with a life count on it already resolves its player
+there — the lobby, a box, the safehouse, the state poll — so it fires for the
+visit that never becomes a guess, which is precisely the population the old
+`last_seen` could not see. It also costs nothing: the round trip was already
+being made. Putting it in a route instead would have meant finding every route,
+and missing one silently.
+
+**A visit is not a page load.** A sighting within five minutes of the last one
+is dropped entirely, and `visits` only increments when the gap is longer than
+thirty minutes — so it counts sittings rather than clicks, and a player
+hammering refresh writes one row every five minutes rather than one per
+navigation. A login or a play is never throttled: both are rare, and both are
+the answer to a support email.
+
+`player_days` is the spine — one row per player per day, holding
+`first_seen_at`, `last_seen_at`, `visits`, `logins` and `attempts`. Daily
+actives are then a range scan over an index rather than a `count(distinct)`
+over every attempt ever made, and the same row answers "how many were here"
+and "what did they do" without a second query.
+
+### The day is Lagos, not UTC
+
+`activity_zone()` returns `Africa/Lagos` and every bucket goes through it. A
+UTC day ends at 1am local, which puts the back half of an evening's play on
+tomorrow's bar — on a product priced in naira, paid through a Nigerian
+processor and read by people in Lagos, that is simply the wrong day. It is a
+function rather than a literal because a table default, two views and a
+backfill all have to agree about it forever.
+
+### What was reconstructed, and what wasn't
+
+Every attempt ever made carries its own timestamp, so the migration rebuilds
+`player_days` from `attempts` exactly rather than approximately, and the chart
+opens with real history instead of reading as a platform nobody has ever
+played. **Visits and logins are not backfilled**, because nothing ever recorded
+them — there is no timestamp to reconstruct from, and inventing one would put
+made-up bars next to measured ones.
+
+`last_login_at` is left **null** for everybody who already existed, and that is
+deliberate too. Their row was created by a verification, so `created_at` is *a*
+login — but it is the first one, and every login since went unwritten. A join
+date in a column headed "last login" is not an approximation, it is a wrong
+fact: an empty cell reads as "we don't know", and a date reads as truth. The
+screen prints `not recorded yet`.
+
+### The screen
+
+`/admin` → **Players** opens on activity rather than on the list, because the
+list answers a support email and this answers whether there is anybody to
+email. Four figures across the top — active today, this week, this month, and
+today ÷ month — then one chart.
+
+**One metric at a time, on one axis.** Active players, guesses, new players and
+revenue are a choice rather than an overlay: two measures of different scale
+shared between two y-axes is the single reliable way to make every number on a
+chart unreadable. The only chart with two series is Active, where they stack
+into a whole — **played** against **looked only**, which is the distinction the
+whole migration exists to make visible.
+
+The bars are HTML columns rather than an SVG plot. The panel is as wide as
+whatever is holding it, and an SVG that stretches to fit stretches its rounded
+corners with it; a flex row is responsive for free, keeps a 4px radius at
+any width, and gives every day a hit target the full height of the chart rather
+than the height of its bar. Quiet days draw a hairline rather than nothing —
+an empty column and a missing column are otherwise identical, and a chart that
+omits its quiet days draws a flat line through them and lies about the shape.
+
+Two things were only found by rendering it. The bars are drawn against
+`peak × 1.08` rather than the peak, because with no headroom the tallest bar
+fills the plot exactly and the label naming the top of the scale has nowhere to
+go but on top of it — `₦18,900` written across the ₦18,900 bar. And a column is
+capped at 46px and the row centred: seven days across the full width draws
+seven slabs, at which size the corner radius disappears and a bar reads as a
+block of colour rather than a measurement.
+
+Every fill was checked rather than chosen — in the mode's lightness band and
+clear of 3:1 against the panel it sits on. They are the product's own accents
+pulled down to that band, because the bright `--mint` a button wears is far too
+light to work as a filled area on violet.
+
+The player list gains the same facts per person: last seen on the row itself,
+and last played, last logged in, first played, days active, guesses in the last
+7 and 30 days, and visits inside it — sorted by any of them.
+
+---
+
+## A safe nobody wrote
+
+Every other box starts with somebody choosing a password. That is what makes
+"nobody at Spendbox can read it back to you" worth saying — and it is also
+what stops most people putting one up, because a box needs money behind it and
+money behind it needs a password worth attacking.
+
+A **promo safe** removes both. It sits in the Build tab beside a custom box,
+as a peer rather than an option inside the form, because they are two different
+decisions:
+
+| | Custom box | Promo safe |
+| --- | --- | --- |
+| Password | yours | drawn by the database, seen by nobody |
+| You pay | the whole reward, up front | a small fixed price |
+| Prize | what you funded, less 30% | ours |
+| Your cut | 70% of the shelf | 70% of the shelf |
+| How many | as many as you like | one at a time, out of a finite allocation |
+
+It is a **contributor's box in every way that matters after it goes live** —
+same play, same shelf, same subaccount, same Money tab. That is why the owner
+is a contributor rather than a player: the 70% then rides the Paystack split
+that already exists instead of accruing in a ledger somebody has to pay out by
+hand. 0058 got that wrong and 0059 corrects it.
+
+**The allocation is the offer.** A fixed number exist in total, the remaining
+count is on the chooser and on the panel, and the bar beside it is the clock.
+An offer with no end is a feature, and a feature nobody hurries for.
+
+### `gen_random_bytes` is not there
+
+0058 drew its password with `gen_random_bytes`, which is pgcrypto — and Supabase
+installs pgcrypto into the `extensions` schema. Every function here sets
+`search_path = public`, so the call resolved to nothing and **the first real
+attempt failed with 42883**. It passed locally only because the scratch harness
+created the extension into `public`, which is exactly the kind of difference a
+harness is supposed to not have.
+
+`random_hex` replaces it, built from `gen_random_uuid()` — core since
+PostgreSQL 13, backed by the platform's strong random source rather than the
+seeded PRNG behind `random()`. It keeps the property that mattered and depends
+on nothing that has to be installed.
+
+Letters and digits only, still, and published rather than hidden: the symbol
+half of the alphabet is admin-editable and a generated password has no author
+to remember it, so a symbol later removed would strand a real prize behind a
+box nobody could open. Paid back in length — the top of the Brutal band.
+
+### The password is drawn once
+
+It has to be held in a variable rather than generated inline, and that is not a
+style choice: `boxes_secret_length` requires `length` to equal
+`char_length(secret)`, and two calls to a volatile generator are two different
+passwords of two different lengths. The first version called it twice and
+inserted successfully **only when the two rolls happened to agree** — about half
+the time. One generation proved nothing; sixty did.
+
+### Paying for it is the path that already exists
+
+A promo box is created in `funding`, with the promo price on it as
+`funding_kobo` and the prize as `reward_kobo`. The ordinary fund route charges
+`funding_kobo`, and the ordinary funding settlement flips `funding` → `live`.
+There is deliberately no second payment path and no second way for a box to
+become playable.
+
+The per-contributor uniqueness covers `('funding','live')` rather than `live`
+alone, so an abandoned checkout still holds their slot — and the *global*
+allocation counts only paid boxes, so an abandoned checkout does not consume
+one nobody paid for.
+
+### You cannot win your own
+
+On a funded box this enforces itself: winning your own costs you the stake. A
+promo safe has no such brake, so `spend_attempt` refuses the maker outright,
+before a life is spent. It matches on `contributors.player_id` — the link 0032
+added when the two identities were merged — so it is the same person or it is
+not, rather than a name that happens to match.
+
+### What an administrator can see
+
+`promo_box_secret` is the one place in the product that reads a password back,
+and the filter to `kind = 'promo'` lives **inside the function** rather than in
+the route, so a mistake in a route cannot become a way to read a contributor's.
+Every reveal is written to the log. The promise elsewhere is about a password
+*somebody wrote*; nobody wrote these.
+
+---
+
+## Telling somebody
+
+Every other way of reaching a player costs something. Email is cheap rather
+than free and, worse on this product, it is *rented*: it runs on a sending
+reputation that one bad campaign burns — and the same domain carries the
+six-digit codes people log in with. A win-back blast that lands in spam does
+not merely fail, it takes the front door with it. SMS costs real money per
+message. WhatsApp's Business API bills per conversation.
+
+Web push has none of that. No per-message price, ever. No domain to ruin. And
+the consent is held by the person who gave it, in a browser setting we cannot
+read or override — which makes "unsubscribe" a fact rather than a promise at
+the bottom of an email.
+
+**What it is not is a list you can build backwards.** A subscription can only
+be created by a browser that asked for one, so `push_subscriptions` starts
+empty on the day this ships and fills from there. Nobody who has already
+drifted away is in it until they come back once by some other means. It is the
+channel for keeping the players you have, not for recovering the ones you lost.
+
+### Where the ask happens
+
+Once, on the screen where somebody has just been told they won money — and
+*below* the Collect button, never above it, because a permission prompt must
+not stand between a person and the thing they just won. Dismissing it is
+permanent: a browser gives a site one honest chance and treats the second as
+grounds for blocking it outright. The switch in `/me` is the way back, and it
+is the only place the answer can be changed.
+
+There is no prompt on arrival. A site that asks a stranger for notification
+permission before it has done anything for them is the reason that button says
+"Block" as often as it does.
+
+### Four honest states
+
+A toggle that simply vanishes when push can't work is the worst version of
+this: somebody who has heard the feature exists goes looking, finds nothing,
+and concludes the site is broken. So the panel always renders, and says which
+of four things is true — ready, unsupported, blocked, or **iPhone**.
+
+The iPhone case is the one worth naming. Apple allows web push only from a site
+that has been added to the Home Screen; in an ordinary Safari tab the APIs are
+simply absent. There is nothing to prompt, so the honest answer is an
+instruction rather than a button — which is also why `manifest.webmanifest` and
+the icons beside it are load-bearing rather than decoration. Without them,
+notifications are a feature every iPhone quietly does not have.
+
+### Why the list stays honest
+
+A push list rots on its own. A cleared browser, a wiped phone, an uninstalled
+app all leave an endpoint behind that answers 410 for ever, and a sender that
+ignores that spends longer and longer doing nothing while its delivery figures
+drift away from the truth.
+
+So **404 and 410 delete the row on sight** — the push service is telling us the
+thing is gone. Everything else (a timeout, a 500, a bad minute at Google) only
+counts against it, and five in a row is what it takes to be dropped; deleting
+on the first would throw away live subscribers to punish somebody else's
+outage. The admin panel prints how many were pruned by a send rather than
+hiding it, because a big number there means it needed doing.
+
+The other half is `pushsubscriptionchange`, which is the single most-skipped
+part of a push implementation. A push service may retire an endpoint at any
+time; if nothing handles that event the subscription is silently lost while our
+table goes on believing it is live. The worker re-subscribes and names the
+endpoint it replaces. And because neither end can be trusted alone, every visit
+re-registers whatever the browser currently holds — an upsert on the endpoint,
+so it changes nothing almost every time.
+
+### The service worker caches nothing
+
+Deliberately. This is a game whose whole surface is live server state: a life
+count, a best score, whether a box is still open. A stale cached page would
+show somebody seven lives they do not have, or a safe that was cracked an hour
+ago. Offline support here would be a lie about the thing it is offline from, so
+`sw.js` handles notifications and nothing else.
+
+### Sending
+
+`/admin` → Players → **Notify players**. Four segments, the count on each chip,
+and the number of phones printed above the box you type into — because "1,400
+phones" and "12 phones" are not the same sentence, and on most tools that
+number lives on a different screen. A phone-shaped preview sits under the
+fields, since two lines of copy is a thing you judge by eye. Sending takes two
+presses, because there is no unsend.
+
+There is no scheduler, no campaign object and no history table, and that is the
+point of the first version: what makes push cheap is having no moving parts,
+and what makes it *expensive* is sending too much. Someone typing the words
+every time is a rate limit made of friction.
+
+### The keys
+
+`npm run vapid` prints a pair. The public half is `NEXT_PUBLIC_` because it is
+handed to every browser that subscribes; the private half signs each push and
+is server-only.
+
+**Do not rotate them casually.** A subscription is cryptographically bound to
+the public key that created it, so a new pair silently unsubscribes everybody
+who had opted in — no error, no bounce, just a channel that quietly stops
+working. Without keys at all the feature is simply off and every surface says
+so, exactly as email is without a Resend key.
 
 ---
 
@@ -1188,6 +1485,15 @@ src/app/api/player/…        lives, verification, history, drops, reward claims
 src/components/in-play.tsx  the safes you have open, above the board
 src/app/api/contributor/…   profile, boxes, funding, attempts, earnings, payout
 src/app/api/admin/…         the public box, reward claims, revenue
+src/app/api/admin/activity/ daily actives, and the shape of a week
+src/lib/when.ts             "seen 4m ago", from one clock read per load
+src/lib/push.ts             sending a push, and pruning what can't receive one
+src/app/api/contributor/promo/
+                            take one out of the allocation
+src/lib/push-client.ts      the browser half: register, subscribe, re-register
+public/sw.js                notifications, and deliberately no caching
+src/components/admin/activity-panel.tsx
+                            who is here, day by day
 src/components/art/         the house style, Boxy, and the power-up objects
 src/components/safe/        the play screen: the chase, the field, the drops
                             and the sheets behind the dock
@@ -1207,7 +1513,12 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             business behind one of our boxes, 0054 gives its
                             logos and reward stills a bucket to live in, and
                             0055 records where to send that business their
-                            link and their artwork — once
+                            link and their artwork — once, and 0056 writes
+                            down when a player was last seen, last logged in
+                            and last played, 0057 remembers which browsers
+                            asked to be told things, 0058 adds a safe whose
+                            password nobody has ever seen and 0059 makes it a
+                            priced, finite promotion a contributor buys
 ```
 
 ---
@@ -1244,6 +1555,10 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (and/or `ADMIN_EMAILS`) — access `/admin`.
    - `PLAYER_SESSION_SECRET` — signs the player cookie. Falls back to the
      service-role key.
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` — notifications.
+     Generate a pair once with `npm run vapid`; without them the switch in
+     `/me` says notifications are unavailable and nothing is sent. Rotating
+     them silently unsubscribes everyone who had opted in.
    - `APP_URL` — canonical URL for Paystack callbacks behind a proxy.
 
 3. **Run**:

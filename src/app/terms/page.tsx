@@ -89,6 +89,18 @@ export default async function TermsPage() {
           ],
         },
         {
+          heading: "Promo safes",
+          paragraphs: [
+            "A promo safe is put up from the Build screen like any other box, for a fixed price shown before you pay. You do not choose the password and you never see it: it is drawn at random by our database and read by nobody. We fund the prize behind it, and the figure shown on the safe is the figure its winner is paid.",
+            "It is a limited promotion. Only a set number exist in total, the remaining count is shown before you take one, and when they are gone they are gone. We may change the price, the prize or the number on offer at any time; none of that changes a safe already live.",
+            "One at a time, and a safe you have reserved but not paid for counts as yours until you pay or it is withdrawn. Once yours is cracked you may take another if any are left.",
+            `You earn ${share}% of everything hunters spend on your promo safe, exactly as on a box you funded yourself, and it settles to your registered account the same way.`,
+            "You cannot win your own promo safe, and this one is enforced rather than promised: guesses from the account that put it up are refused before a life is spent. Neither may anyone acting with you. Where we find a reward has been collected on behalf of the person who put the safe up, we will reverse it.",
+            "The price buys the placement and the prize behind it — not an outcome. If nobody ever cracks your safe, nothing is refunded, exactly as with a box you funded yourself.",
+            "You are not responsible for the password, because you did not choose it — but you are responsible for how you share the safe. Do not misrepresent the odds, promise anybody a share of the prize, or advertise it somewhere you are not entitled to.",
+          ],
+        },
+        {
           heading: "What contributors earn",
           paragraphs: [
             `${share}% of everything hunters spend on your boxes — power-ups, and lives bought while playing them. Spendbox retains ${PLATFORM_SHARE_PERCENT}%.`,
@@ -108,8 +120,9 @@ export default async function TermsPage() {
         {
           heading: "The password stays hidden",
           paragraphs: [
-            "A password is compared inside the database and never enters our application. Nobody at Spendbox — support, administrators, or engineers — can read a password back to you.",
+            "A password is compared inside the database and never enters our application. Nobody at Spendbox — support, administrators, or engineers — can read back a password you wrote.",
             "That applies to whoever wrote it too. Keep your own copy before funding a box; we cannot recover it.",
+            "The exception, stated plainly: a promo safe's password was written by nobody. It is drawn at random by the database and shown to no one, including the person who put the safe up — and administrators can read it, because there is no person it could betray. Every password you choose yourself stays unreadable to us.",
           ],
         },
         {

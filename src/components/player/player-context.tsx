@@ -19,6 +19,7 @@ import {
 } from "react";
 import { LIVES_MAX, LIFE_PRICE_KOBO } from "@/lib/constants";
 import type { PlayerState } from "@/lib/types";
+import { refreshPush } from "@/lib/push-client";
 
 const ANONYMOUS: PlayerState = {
   email: null,
@@ -157,6 +158,20 @@ export function PlayerProvider({
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refresh]);
+
+  /*
+   * Re-register the push subscription this browser already holds, once a visit.
+   *
+   * Neither end can be trusted to stay correct on its own: a push service may
+   * rotate an endpoint without telling the browser's own records, and a failed
+   * send prunes our row without telling the browser at all. The browser is the
+   * one that knows the truth, so it says so on every visit — and because the
+   * write is an upsert on the endpoint, saying so changes nothing almost every
+   * time. This does nothing at all for anyone who has not opted in.
+   */
+  useEffect(() => {
+    void refreshPush();
+  }, []);
 
   const value = useMemo<PlayerContextValue>(
     () => ({

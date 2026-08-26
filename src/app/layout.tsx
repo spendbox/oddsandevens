@@ -26,6 +26,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   interactiveWidget: "resizes-content",
+  // Painted behind the status bar and the browser chrome, so an installed copy
+  // reads as one surface rather than a page inside a frame.
+  themeColor: "#17102e",
 };
 
 export const metadata: Metadata = {
@@ -33,6 +36,26 @@ export const metadata: Metadata = {
   title: "Spendbox — guess the password, open the safe",
   description:
     "Every spendbox is a password and a prize. Guess it, and the money is yours. Playing is free.",
+  /*
+   * The manifest is not decoration here — it is load-bearing.
+   *
+   * Apple allows web push only from a site that has been added to the Home
+   * Screen, and a site can only be added to the Home Screen usefully if it has
+   * a manifest with a `standalone` display mode and real icons. Without this
+   * file, notifications are a feature every iPhone quietly does not have.
+   */
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Spendbox",
+    // The status bar sits over the page, so the page's own violet shows
+    // through rather than a black band above it.
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({

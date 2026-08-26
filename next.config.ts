@@ -48,6 +48,31 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: sponsorImages(),
   },
+
+  /**
+   * The service worker must never be served from cache.
+   *
+   * A worker is the one asset that updates itself rather than being replaced by
+   * a new build: the browser re-fetches `/sw.js` and compares it byte for byte,
+   * and only installs a new version if it differs. Browsers do bypass the HTTP
+   * cache for that check — but only once the cached copy is more than 24 hours
+   * old, which means a stale worker can go on handling pushes for a day after
+   * it was fixed. `must-revalidate` closes that window to the next visit.
+   *
+   * The manifest gets the same treatment for a smaller reason: it is read when
+   * somebody adds the site to their Home Screen, which on iOS is the moment
+   * that decides whether notifications work at all.
+   */
+  async headers() {
+    return [
+      {
+        source: "/:file(sw.js|manifest.webmanifest)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

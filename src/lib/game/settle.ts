@@ -107,6 +107,7 @@ export async function markFailed(
  * re-verifying a reference replays the same answer instead of re-rolling a
  * random Sweep.
  */
+
 export async function settlePowerUp(
   db: Db,
   reference: string,

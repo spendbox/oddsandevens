@@ -23,7 +23,7 @@ import type {
 } from "@/lib/types";
 import { ProfileSetup } from "@/components/dashboard/profile-setup";
 import { BoxesPanel } from "@/components/dashboard/boxes-panel";
-import { BuildPanel } from "@/components/dashboard/build-panel";
+import { BuildChooser } from "@/components/dashboard/build-chooser";
 import { AttemptsPanel } from "@/components/dashboard/attempts-panel";
 import { EarningsPanel } from "@/components/dashboard/earnings-panel";
 import { PayoutPanel } from "@/components/dashboard/payout-panel";
@@ -213,7 +213,7 @@ export default function DashboardPage() {
           )}
 
           {tab === "build" && (
-            <BuildPanel
+            <BuildChooser
               onBuilt={() => {
                 void load();
                 setTab("boxes");

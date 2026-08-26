@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { EMAIL_REGEX } from "@/lib/constants";
 import { verifyCode } from "@/lib/verification";
 import { rememberPlayer } from "@/lib/player-session";
-import { ensurePlayer, toPlayerState } from "@/lib/game/boxes";
+import { ensurePlayer, recordLogin, toPlayerState } from "@/lib/game/boxes";
 import { newAccountAllowed, stampSignupIp } from "@/lib/game/limits";
 import { callerKey, tooMany } from "@/lib/rate-limit";
 
@@ -36,7 +36,12 @@ export async function POST(req: Request) {
   if (!ok) return NextResponse.json({ error: "invalid_code" }, { status: 400 });
 
   const player = await ensurePlayer(db, addr);
-  if (player) await stampSignupIp(db, req, player.id);
+  if (player) {
+    await stampSignupIp(db, req, player.id);
+    // The one moment in the product that is actually a login. Everything else
+    // is a cookie the server already trusts.
+    await recordLogin(db, player.id);
+  }
 
   await rememberPlayer(addr);
   return NextResponse.json({
