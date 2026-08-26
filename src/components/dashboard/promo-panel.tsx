@@ -16,6 +16,8 @@ import { formatNaira } from "@/lib/game/rewards";
 import { DESIGNS, DESIGN_SPECS, type Design } from "@/lib/game/designs";
 import { SafeArt } from "@/components/safe/safe-art";
 import { PayMethodPicker } from "@/components/player/pay-method";
+import { TransferSheet } from "@/components/player/transfer-sheet";
+import { isTransfer, openCheckout, type CheckoutStart } from "@/lib/checkout";
 import type { PayMethod } from "@/lib/checkout-server";
 
 interface Offer {
@@ -52,6 +54,10 @@ export function PromoPanel({ onBuilt }: { onBuilt: () => void }) {
   const [copied, setCopied] = useState(false);
   const [title, setTitle] = useState("");
   const [design, setDesign] = useState<Design>("midnight");
+  const [transfer, setTransfer] = useState<{
+    details: NonNullable<CheckoutStart["transfer"]>;
+    reference: string;
+  } | null>(null);
 
   const read = async () => {
     const res = await fetch("/api/contributor/promo", { cache: "no-store" });
@@ -85,6 +91,13 @@ export function PromoPanel({ onBuilt }: { onBuilt: () => void }) {
    * Pay button say "you already have one": it always drew a fresh safe first,
    * so the second half — the part that actually opens a checkout — was never
    * reached by anybody who had already reserved theirs.
+   *
+   * **A checkout has two shapes, not one.** `startCheckout` answers with a
+   * one-time account number for a transfer and with an authorization URL for a
+   * card, and transfer is the default here as it is everywhere else. Handling
+   * only the URL meant every attempt fell through to "the checkout didn't
+   * open" — which was true, and useless, because nothing had gone wrong except
+   * this function not knowing what it had been given.
    */
   const take = async (boxId?: string) => {
     setBusy(true);
@@ -104,19 +117,39 @@ export function PromoPanel({ onBuilt }: { onBuilt: () => void }) {
         }
         id = body.id;
       }
-      const paid = await fetch(`/api/contributor/boxes/${id}/fund`, {
+
+      const res = await fetch(`/api/contributor/boxes/${id}/fund`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ method }),
       });
-      const checkout = (await paid.json()) as { authorizationUrl?: string; error?: string };
-      if (checkout.authorizationUrl) {
-        window.location.href = checkout.authorizationUrl;
+      const body = (await res.json().catch(() => ({}))) as CheckoutStart & {
+        result?: string;
+        error?: string;
+      };
+
+      if (res.ok && isTransfer(body)) {
+        setTransfer({ details: body.transfer, reference: body.reference });
         return;
       }
-      // The box exists and is waiting to be paid for, which the panel will
-      // show on its next read — so this is "payment didn't open", not "lost".
-      setError("Your safe is reserved but the checkout didn’t open. Pay for it below.");
+      if (res.ok && (body.accessCode || body.authorizationUrl)) {
+        const outcome = await openCheckout(body, () => void read());
+        if (outcome === "redirected") return;
+        if (outcome === "failed") setError("Couldn’t open checkout. Try again in a moment.");
+        return;
+      }
+      if (body.result === "already_live") {
+        await read();
+        return;
+      }
+
+      // The safe is reserved either way, so say what actually went wrong
+      // rather than only that something did.
+      setError(
+        body.error === "payments_unavailable"
+          ? "Payments aren’t switched on yet. Your safe is reserved — pay for it here when they are."
+          : `Your safe is reserved, but the checkout didn’t open${body.error ? ` (${body.error})` : ""}. Try paying again below.`
+      );
       await read();
     } finally {
       setBusy(false);
@@ -205,6 +238,18 @@ export function PromoPanel({ onBuilt }: { onBuilt: () => void }) {
           </>
         )}
         {error && <p className="mt-2 text-sm text-berry">{error}</p>}
+        {transfer && (
+          <TransferSheet
+            transfer={transfer.details}
+            reference={transfer.reference}
+            what={box.title}
+            onPaid={() => {
+              setTransfer(null);
+              void read();
+            }}
+            onClose={() => setTransfer(null)}
+          />
+        )}
       </section>
     );
   }
@@ -291,7 +336,20 @@ export function PromoPanel({ onBuilt }: { onBuilt: () => void }) {
       </button>
 
       {error && <p className="mt-2 text-sm text-berry">{error}</p>}
-      <button type="button" onClick={onBuilt} className="hidden" aria-hidden />
+
+      {transfer && (
+        <TransferSheet
+          transfer={transfer.details}
+          reference={transfer.reference}
+          what={title.trim() || "your promo safe"}
+          onPaid={() => {
+            setTransfer(null);
+            void read();
+            onBuilt();
+          }}
+          onClose={() => setTransfer(null)}
+        />
+      )}
     </section>
   );
 }
