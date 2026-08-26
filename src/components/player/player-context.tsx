@@ -20,6 +20,7 @@ import {
 import { LIVES_MAX, LIFE_PRICE_KOBO } from "@/lib/constants";
 import type { PlayerState } from "@/lib/types";
 import { refreshPush } from "@/lib/push-client";
+import { StreakGate } from "@/components/player/streak-dialog";
 
 const ANONYMOUS: PlayerState = {
   email: null,
@@ -184,7 +185,20 @@ export function PlayerProvider({
     [player, ready, refresh]
   );
 
-  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
+  return (
+    <PlayerContext.Provider value={value}>
+      {children}
+      {/*
+       * The daily streak, mounted here rather than on a page.
+       *
+       * "First visit of the day" is not a route: somebody who arrives on a
+       * shared box link should get their day the same as somebody opening the
+       * lobby. It draws nothing at all for a stranger, or on a day already
+       * claimed.
+       */}
+      <StreakGate />
+    </PlayerContext.Provider>
+  );
 }
 
 export function usePlayer(): PlayerContextValue {

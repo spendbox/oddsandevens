@@ -16,12 +16,13 @@ import { Gift, Timer, X } from "lucide-react";
 import { POWER_UPS, secondWindLabel } from "@/lib/game/power-ups";
 import type { Drop } from "@/lib/types";
 
-/** The four things a crate can hold, and how each one is said. */
+/** The things a crate can hold, and how each one is said. */
 const TONES = {
   free_lives: { face: "bg-berry", lip: "var(--berry-deep)" },
   free_second_wind: { face: "bg-mint", lip: "var(--mint-deep)" },
   power_up_discount: { face: "bg-grape", lip: "var(--grape-deep)" },
   life_discount: { face: "bg-sky", lip: "var(--sky-deep)" },
+  free_power_up: { face: "bg-brass", lip: "var(--brass-deep)" },
 } as const;
 
 export function DropCrate({
@@ -44,9 +45,11 @@ export function DropCrate({
       ? `${drop.amount} free ${drop.amount === 1 ? "life" : "lives"}`
       : drop.kind === "free_second_wind"
         ? `Free Second Wind · ${secondWindLabel()}`
-        : drop.kind === "life_discount"
-          ? `${drop.amount}% off your next lives`
-          : `${drop.amount}% off ${name ?? "a power-up"}`;
+        : drop.kind === "free_power_up"
+          ? `${name ?? "A power-up"}, free — use it here`
+          : drop.kind === "life_discount"
+            ? `${drop.amount}% off your next lives`
+            : `${drop.amount}% off ${name ?? "a power-up"}`;
 
   return (
     <div
@@ -107,5 +110,12 @@ function remaining(iso: string): string {
   const ms = new Date(iso).getTime() - Date.now();
   if (ms <= 0) return "gone";
   const total = Math.round(ms / 1000);
+  // A minted crate lasts minutes and is counted down to the second, because
+  // the seconds are the pressure. A streak reward lasts a week and has none:
+  // counting a week down in minutes would read as "10079:58 left".
+  if (total >= 3600) {
+    const hours = Math.floor(total / 3600);
+    return hours >= 24 ? `${Math.floor(hours / 24)}d ${hours % 24}h left` : `${hours}h left`;
+  }
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")} left`;
 }

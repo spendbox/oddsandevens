@@ -1071,6 +1071,79 @@ halfway leaves the rest due tomorrow rather than silently spent.
 
 ---
 
+## Thirty days
+
+A streak pays for turning up, and **opening the app is what counts as a day** —
+not guessing, not paying. Miss one and the ladder starts again at day one; get
+past day thirty and it loops back to day one with the cycle number raised.
+
+The dialog opens once a day, on the first visit, over whatever the player was
+doing — it is the only screen in the product allowed to interrupt somebody, and
+three things earn that: what today gives, how far the run has got, and **what
+tomorrow gives**. The reward already taken is spent; the locked tile beside it
+is the only part of that screen still working after it closes.
+
+`StreakGate` is mounted by the player provider rather than by a page, because
+"the first visit of the day" is not a route: somebody arriving on a shared box
+link gets their day exactly as somebody opening the lobby does. It draws
+nothing at all for a stranger — the ladder belongs to an address.
+
+### What a day can give
+
+Six kinds, and each is granted the moment it is claimed:
+
+| Kind | What happens |
+| --- | --- |
+| `free_lives` | Credited on the spot, and allowed above the ceiling — clamping a gift to a cap is a way of taking part of it back |
+| `life_bank` | Days of a raised ceiling, through `grant_life_bank`, filled to the new ceiling immediately |
+| `life_discount` | Percent off the next lives order, minted **already claimed** and good for 24 hours |
+| `power_up_discount` | The same, against one named power-up |
+| `free_second_wind` | Left unclaimed and **without a box** |
+| `free_power_up` | The same, carrying the power-up's name |
+
+The last two are the interesting case. A crate's Second Wind is minted against
+the safe it fell on, so `player_offers_wind_needs_box` could insist on one. A
+streak's is won before any box is on screen, and "fifteen free minutes on
+whichever safe you like" is worth more than fifteen on whichever safe you
+happened to have open. So the constraint moved rather than went: an offer may
+float without a box while it is unclaimed, and must name one by the time it is
+spent. `attach_offer_box` fills it in and then calls `claim_offer` — the
+duration of a Second Wind is described in exactly one place either way.
+
+A floating reward shows up as an ordinary crate on the next live safe the
+player opens, which is what makes "spend it here" a decision rather than a
+notification. A free power-up is the one grant SQL cannot finish: what X-Ray
+reveals is described once, in TypeScript, by `apply` — so the route runs it
+against the chosen hunt, exactly as the paid path does when Paystack confirms.
+
+### The ladder is editable
+
+Thirty days of `{"day": n, "grants": [...]}` in `platform_settings`, read by
+`streak_ladder()` and rewritten from `/admin`. Storing nothing is how the
+built-in ladder comes back; the whole thing can also be switched off, which
+both refuses new claims and stops the dialog opening.
+
+Nothing the panel sends is trusted: a percentage cannot exceed a hundred, a
+`powerUp` must name one that exists, and a day outside 1–30 is dropped rather
+than clamped — there is no honest reading of "day 40". Free lives and Life Bank
+days are capped too, at 500 and 365, which is a ceiling on generosity rather
+than on correctness: a slipped zero is the realistic mistake, and 5,000 free
+lives cannot be undone.
+
+### Two claims of the same day
+
+The unique key on `(player_id, cycle, day)` decides it, not a check in a route.
+Which is why a broken streak **raises the cycle** as well as resetting the day:
+without that, a player whose run broke would collide with the day-one row they
+already have and could never claim again. The test that caught it is the same
+shape as the bug — reset, then claim.
+
+Every claim records an IP hash, and the admin list shows how many accounts
+share one, because thirty days of free lives is worth farming if you can run
+ten browsers at it.
+
+---
+
 ## Writing to players
 
 The one channel here that can damage something else. The domain that carries a
@@ -1608,7 +1681,8 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             password nobody has ever seen and 0059 makes it a
                             priced, finite promotion a contributor buys, and
                             0061 opens every hunt to an admin and gives email
-                            a way out of itself
+                            a way out of itself, and 0062 pays a player for
+                            turning up thirty days running
 ```
 
 ---
@@ -1807,8 +1881,6 @@ What it touches, from a read of the current code:
 ## Not in this version (deliberately)
 
 - **No leaderboards.** A box has one winner and then it's over.
-- **No streaks and no daily bonus.** Lives refill on a clock, and the only
-  other way to earn them is inviting somebody who then buys their own.
 - **No automated reward transfers.** A winner's bank details are checked with
   the bank, but the transfer itself is a human pressing a button in `/admin`.
 - **No cap on attempts.** Play as fast as you can afford to.

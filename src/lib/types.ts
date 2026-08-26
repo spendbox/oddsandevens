@@ -244,7 +244,9 @@ export type DropKind =
   | "free_lives"
   | "power_up_discount"
   | "free_second_wind"
-  | "life_discount";
+  | "life_discount"
+  /** Won on a streak day rather than minted mid-hunt, and free outright. */
+  | "free_power_up";
 
 export interface Drop {
   id: string;

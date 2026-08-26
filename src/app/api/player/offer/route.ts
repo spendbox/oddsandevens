@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { playerEmail } from "@/lib/player-session";
-import { POWER_UP_KINDS } from "@/lib/game/power-ups";
-import { findBox } from "@/lib/game/view";
+import { POWER_UP_KINDS, apply, isPowerUpKind, parseRevealed } from "@/lib/game/power-ups";
+import { findBox, findHunt } from "@/lib/game/view";
+import type { BoxRow } from "@/lib/game/boxes";
 import type { Drop } from "@/lib/types";
 
 /**
@@ -40,14 +41,44 @@ export async function POST(req: Request) {
 
   if (body.action === "claim") {
     if (!body.offerId) return NextResponse.json({ error: "invalid" }, { status: 400 });
-    const { data } = await db.rpc("claim_offer", {
-      p_email: email,
-      p_offer_id: body.offerId,
-    });
-    const result = (data ?? {}) as { result?: string; error?: string; lives?: number };
+
+    /*
+     * The box is named at the claim, not at the mint.
+     *
+     * A crate's offer already carries the safe it fell on, and for those this
+     * changes nothing. A streak's reward carries none — it was won the moment
+     * somebody opened the app — so the safe they are looking at when they
+     * spend it is the one it attaches to. `attach_offer_box` fills that in and
+     * then runs the ordinary claim, so there is still exactly one path.
+     */
+    const claimOn = body.slug ? await findBox(db, body.slug) : null;
+    const { data } = claimOn
+      ? await db.rpc("attach_offer_box", {
+          p_email: email,
+          p_offer_id: body.offerId,
+          p_box_id: claimOn.id,
+        })
+      : await db.rpc("claim_offer", { p_email: email, p_offer_id: body.offerId });
+
+    const result = (data ?? {}) as {
+      result?: string;
+      error?: string;
+      lives?: number;
+      kind?: string;
+      power_up?: string | null;
+    };
     if (result.result !== "claimed") {
       return NextResponse.json({ error: result.error ?? "offer_gone" }, { status: 409 });
     }
+
+    // A free power-up is the one grant SQL can't finish: what X-Ray reveals is
+    // described once, in TypeScript, by `apply` — the same function the paid
+    // path runs when Paystack confirms. This is that path without the money.
+    if (result.kind === "free_power_up" && claimOn) {
+      const note = await fire(db, claimOn, email, result.power_up);
+      return NextResponse.json({ ...result, note });
+    }
+
     return NextResponse.json(result);
   }
 
@@ -93,4 +124,46 @@ export async function POST(req: Request) {
       expiresAt: row.expires_at,
     } satisfies Drop,
   });
+}
+
+/**
+ * Run a won power-up against the safe the player chose.
+ *
+ * The same three steps `settlePowerUp` takes once Paystack confirms a payment —
+ * find the hunt, `apply` the effect to it, write the revealed state back — with
+ * no order and no money. A hunt is created if there isn't one: a streak reward
+ * spent before the first guess is a legitimate way to open a safe.
+ */
+async function fire(
+  db: ReturnType<typeof supabaseAdmin>,
+  box: BoxRow,
+  email: string,
+  powerUp: string | null | undefined
+): Promise<string | null> {
+  if (!powerUp || !isPowerUpKind(powerUp)) return null;
+
+  const { data: player } = await db.from("players").select("id").eq("email", email).maybeSingle();
+  if (!player) return null;
+  const playerId = (player as { id: string }).id;
+
+  let hunt = await findHunt(db, box.id, playerId);
+  if (!hunt) {
+    await db.from("hunts").insert({ box_id: box.id, player_id: playerId });
+    hunt = await findHunt(db, box.id, playerId);
+  }
+  // A hunt already won has nothing left to reveal into, and the reward is
+  // spent either way — the claim has already been recorded.
+  if (!hunt || hunt.won_at) return null;
+
+  const { data: secretRow } = await db
+    .from("boxes")
+    .select("secret")
+    .eq("id", box.id)
+    .maybeSingle();
+  const secret = (secretRow as { secret: string | null } | null)?.secret;
+  if (!secret) return null;
+
+  const { revealed, note } = apply(powerUp, secret, parseRevealed(hunt.revealed));
+  await db.from("hunts").update({ revealed }).eq("id", hunt.id);
+  return note;
 }

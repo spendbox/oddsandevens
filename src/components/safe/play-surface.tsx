@@ -513,6 +513,10 @@ export function PlaySurface({
                     setMessage(`+${got.amount} free ${got.amount === 1 ? "life" : "lives"}`);
                   } else if (got?.kind === "free_second_wind") {
                     setMessage(`Free run — guesses cost nothing for ${secondWindLabel()}`);
+                  } else if (got?.kind === "free_power_up") {
+                    // The note is what the power-up just revealed, so it says
+                    // the answer rather than that something happened.
+                    setMessage(got.note ?? "Your free power-up is on the shelf");
                   } else if (got) {
                     setMessage(`${got.amount}% off — it's on the shelf`);
                   }

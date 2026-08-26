@@ -53,6 +53,7 @@ import { UsersPanel } from "@/components/admin/users-panel";
 import { ActivityPanel } from "@/components/admin/activity-panel";
 import { PushPanel } from "@/components/admin/push-panel";
 import { PromoBoxesPanel } from "@/components/admin/promo-boxes-panel";
+import { StreaksPanel } from "@/components/admin/streaks-panel";
 import { AttemptsPanel } from "@/components/admin/attempts-panel";
 import { EmailPanel } from "@/components/admin/email-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
@@ -264,6 +265,7 @@ export default function AdminPage() {
           <ActivityPanel />
           <AttemptsPanel />
           <PromoBoxesPanel />
+          <StreaksPanel />
           <PushPanel />
           <EmailPanel />
           <UsersPanel />

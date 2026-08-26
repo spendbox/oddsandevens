@@ -94,17 +94,21 @@ export function useDrops({
   const claim = useCallback(async (): Promise<{
     kind: Drop["kind"];
     amount: number;
+    /** What a free power-up just revealed. Null for every other kind. */
+    note?: string | null;
   } | null> => {
     if (!drop) return null;
     setDrop(null);
     const res = await fetch("/api/player/offer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "claim", offerId: drop.id }),
+      // The box goes with the claim, not with the mint: a streak reward is won
+      // before any safe is on screen and is spent on whichever one they pick.
+      body: JSON.stringify({ action: "claim", offerId: drop.id, slug }),
     });
     if (!res.ok) return null;
-    return (await res.json()) as { kind: Drop["kind"]; amount: number };
-  }, [drop]);
+    return (await res.json()) as { kind: Drop["kind"]; amount: number; note?: string | null };
+  }, [drop, slug]);
 
   useEffect(() => {
     if (!enabled || drop) return;
