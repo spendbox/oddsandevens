@@ -53,6 +53,9 @@ import { UsersPanel } from "@/components/admin/users-panel";
 import { ActivityPanel } from "@/components/admin/activity-panel";
 import { PushPanel } from "@/components/admin/push-panel";
 import { PromoBoxesPanel } from "@/components/admin/promo-boxes-panel";
+import { StreaksPanel } from "@/components/admin/streaks-panel";
+import { AttemptsPanel } from "@/components/admin/attempts-panel";
+import { EmailPanel } from "@/components/admin/email-panel";
 import { DeleteBoxDialog } from "@/components/admin/delete-box-dialog";
 import { SeedBoxDialog } from "@/components/admin/seed-box-dialog";
 import { PrizeDialog } from "@/components/admin/prize-dialog";
@@ -260,8 +263,11 @@ export default function AdminPage() {
           {/* Who is here, before who has spent: the list below answers a
               support email, this answers whether there is anybody to email. */}
           <ActivityPanel />
+          <AttemptsPanel />
           <PromoBoxesPanel />
+          <StreaksPanel />
           <PushPanel />
+          <EmailPanel />
           <UsersPanel />
           <LimitsPanel />
         </>

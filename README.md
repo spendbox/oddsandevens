@@ -1015,6 +1015,165 @@ Every reveal is written to the log. The promise elsewhere is about a password
 
 ---
 
+## Seeing every hunt
+
+A contributor sees their own boxes. A player sees their own hunts. Nobody could
+see the whole board — which is the one view that answers *is anything about to
+be won*, and that is worth knowing before it happens rather than when the
+payout screen tells you.
+
+`admin_best_attempts` is one row per **hunt**, not per attempt, and that grain
+is the point: `attempts` has a row per guess and a popular safe has thousands,
+while the question anybody actually asks is how close the closest person is —
+which is `hunts.best_percent`, already maintained by `spend_attempt` and
+already indexed.
+
+The score leads the row, coloured by how close it is, because it is the only
+reason to open the screen. Beside it sits **what they have paid to learn**: a
+94% that came with nine power-ups reads very differently from a 94% that came
+with none, and putting the shelf spend next to the score is the cheapest way to
+tell those apart.
+
+Addresses are not masked here, the same decision the players list makes and for
+the same reason: it is behind the admin session, and the question it answers is
+a support question.
+
+---
+
+## Your lives are back
+
+The pool refills on a clock whether or not anybody is watching. A full pool is
+therefore the moment a lapsed player has the most to come back to and the least
+reason to know it, which is the entire notification.
+
+One Vercel cron a day hits `/api/cron/lives-full`, and **who it skips is the
+design**:
+
+| Skipped | Why |
+| --- | --- |
+| Seen in the last 2 days | They know what their life count is. Telling them is how a useful notification becomes one people switch off |
+| Told in the last 20 hours | Checked in SQL, not trusted from the scheduler — a scheduler firing twice is a normal thing for a scheduler to do |
+| No push subscription | Nothing to send to |
+| Pool not actually full | `life_cap(p)`, not `p.lives_max` — see below |
+
+**`lives_max` is nullable, and null is the normal state.** It means "the
+platform default"; only a Life Bank purchase ever writes a number into it. The
+first version compared `lives >= lives_max`, which is null for almost
+everybody — and a job whose only condition is never true is a job that silently
+does nothing forever. `life_cap` is the function `sync_lives` and
+`grant_life_bank` already use, so "full" here means what it means everywhere
+else. The test caught it; nothing else would have.
+
+The message is grouped by life count so it can say *their* number. "Your 7
+lives are back" is a fact about them; "your lives are back" is a template. And
+only the players a push actually reached are stamped, so a run that fails
+halfway leaves the rest due tomorrow rather than silently spent.
+
+---
+
+## Thirty days
+
+A streak pays for turning up, and **opening the app is what counts as a day** —
+not guessing, not paying. Miss one and the ladder starts again at day one; get
+past day thirty and it loops back to day one with the cycle number raised.
+
+The dialog opens once a day, on the first visit, over whatever the player was
+doing — it is the only screen in the product allowed to interrupt somebody, and
+three things earn that: what today gives, how far the run has got, and **what
+tomorrow gives**. The reward already taken is spent; the locked tile beside it
+is the only part of that screen still working after it closes.
+
+`StreakGate` is mounted by the player provider rather than by a page, because
+"the first visit of the day" is not a route: somebody arriving on a shared box
+link gets their day exactly as somebody opening the lobby does. It draws
+nothing at all for a stranger — the ladder belongs to an address.
+
+### What a day can give
+
+Six kinds, and each is granted the moment it is claimed:
+
+| Kind | What happens |
+| --- | --- |
+| `free_lives` | Credited on the spot, and allowed above the ceiling — clamping a gift to a cap is a way of taking part of it back |
+| `life_bank` | Days of a raised ceiling, through `grant_life_bank`, filled to the new ceiling immediately |
+| `life_discount` | Percent off the next lives order, minted **already claimed** and good for 24 hours |
+| `power_up_discount` | The same, against one named power-up |
+| `free_second_wind` | Left unclaimed and **without a box** |
+| `free_power_up` | The same, carrying the power-up's name |
+
+The last two are the interesting case. A crate's Second Wind is minted against
+the safe it fell on, so `player_offers_wind_needs_box` could insist on one. A
+streak's is won before any box is on screen, and "fifteen free minutes on
+whichever safe you like" is worth more than fifteen on whichever safe you
+happened to have open. So the constraint moved rather than went: an offer may
+float without a box while it is unclaimed, and must name one by the time it is
+spent. `attach_offer_box` fills it in and then calls `claim_offer` — the
+duration of a Second Wind is described in exactly one place either way.
+
+A floating reward shows up as an ordinary crate on the next live safe the
+player opens, which is what makes "spend it here" a decision rather than a
+notification. A free power-up is the one grant SQL cannot finish: what X-Ray
+reveals is described once, in TypeScript, by `apply` — so the route runs it
+against the chosen hunt, exactly as the paid path does when Paystack confirms.
+
+### The ladder is editable
+
+Thirty days of `{"day": n, "grants": [...]}` in `platform_settings`, read by
+`streak_ladder()` and rewritten from `/admin`. Storing nothing is how the
+built-in ladder comes back; the whole thing can also be switched off, which
+both refuses new claims and stops the dialog opening.
+
+Nothing the panel sends is trusted: a percentage cannot exceed a hundred, a
+`powerUp` must name one that exists, and a day outside 1–30 is dropped rather
+than clamped — there is no honest reading of "day 40". Free lives and Life Bank
+days are capped too, at 500 and 365, which is a ceiling on generosity rather
+than on correctness: a slipped zero is the realistic mistake, and 5,000 free
+lives cannot be undone.
+
+### Two claims of the same day
+
+The unique key on `(player_id, cycle, day)` decides it, not a check in a route.
+Which is why a broken streak **raises the cycle** as well as resetting the day:
+without that, a player whose run broke would collide with the day-one row they
+already have and could never claim again. The test that caught it is the same
+shape as the bug — reset, then claim.
+
+Every claim records an IP hash, and the admin list shows how many accounts
+share one, because thirty days of free lives is worth farming if you can run
+ten browsers at it.
+
+---
+
+## Writing to players
+
+The one channel here that can damage something else. The domain that carries a
+campaign is the domain that carries the six-digit codes people sign in with, so
+a badly-judged send does not merely fail — it takes the front door with it.
+
+Which is why the unsubscribe came first, and why it is **one click**: a plain
+GET link, no login, no confirmation step, no survey. Every step between
+somebody and leaving is a step towards them hitting "report spam" instead,
+which costs the whole platform. `List-Unsubscribe` goes in the headers too, so
+Gmail and Outlook surface their own control at the top of the message — where
+somebody who has decided to leave actually looks.
+
+`admin_email_targets` excludes anybody who has unsubscribed, and that check
+lives **in the view** rather than in a route, so a future sender cannot forget
+it. The unsubscribe token is random per player rather than a signature over the
+address: a leaked link unsubscribes exactly one person and reveals nothing, and
+it keeps working if the signing secret is ever rotated.
+
+The sender caps a press at 200, offers a **test send to one real address** as a
+first-class button rather than a workaround, and prints the running
+unsubscribed count beside the reach — a number going up there is the earliest
+warning anybody gets. Two presses to send, because there is no unsend.
+
+The body is plain text, escaped by the same `escapeHtml` the issue-report mail
+uses. An administrator is trusted; a body that becomes markup is one paste away
+from a broken email regardless.
+
+---
+
 ## Telling somebody
 
 Every other way of reaching a player costs something. Email is cheap rather
@@ -1306,8 +1465,7 @@ a chase where only your car ever shoots is not a chase.
 
 The two places a player quits a hard box are the same two every time: out of
 lives, and a run of guesses that went nowhere. So a crate floats in at those
-moments — five cold guesses, or two lives left — carrying one of four things,
-and it is gone in ten minutes.
+moments — five cold guesses, or two lives left — carrying one of four things.
 
 | Gift | What it is |
 | --- | --- |
@@ -1315,6 +1473,21 @@ and it is gone in ten minutes.
 | Free Second Wind | 15 minutes on this box with no lives spent |
 | Power-up discount | 20–50% off one named power-up |
 | Life discount | 20–50% off your next lives, anywhere |
+
+**A crate applies itself.** It used to be a button, and a gift with a button on
+it is a gift you can lose by not noticing: a 40% discount that hung for two
+minutes over somebody typing a guess and then expired unclaimed was worth
+nothing to them and nothing to us. There was never a decision in that tap —
+nobody declines free lives — so the claim happens the moment the crate arrives
+and what lands on screen is an announcement rather than an offer: what they now
+have, and how long they have it. It takes itself away when that runs out, or
+after seven seconds for the gifts that have no clock.
+
+The one thing still waiting to be pressed is a **floating** reward — a Second
+Wind or a power-up won on a streak, which carries no safe (`box_id` is null).
+That one *is* a decision, and the decision is which safe to spend it on, so it
+keeps its tap and says "use it here". `Drop.floating` is what tells the two
+apart, and it is read off the row rather than guessed at from the kind.
 
 **One gift every ninety minutes**, of any kind, and the floor is in SQL. It
 started at ninety *seconds*, with eight minutes between crates on a calm hunt,
@@ -1343,16 +1516,18 @@ candidate:
 
 The two clocks measure different things on purpose. The ninety-minute floor
 counts `created_at`, so a crate somebody ignored still spends it — the limit is
-on how often a player is *interrupted*, and an interruption they declined still
-happened. The daily cap counts `claimed_at`, because that limit is on how many
-lives leave the building.
+on how often a player is *interrupted*. The daily cap counts `claimed_at`,
+because that limit is on how many lives leave the building. Since a crate
+applies itself the two now almost always agree; they still measure different
+things, and a crate minted for somebody who closed the tab before it landed is
+the case where they part.
 
 A discount is a row that the checkout reads (`discount_for` for a power-up,
 `life_discount_for` for lives) and burns afterwards, because a discount the
 client names is a discount the client can name itself. **Its ten minutes run
-from the claim, not from the mint** — a coupon taken at 12:09 out of a window
-that opened at 12:00 used to arrive with forty seconds on it, and no way to
-tell. The play screen carries it as a chip with the countdown on it, the shelf
+from the claim, not from the mint** — which, now that a crate claims itself on
+arrival, is the same instant. It stays written that way because it is still
+true of a floating reward, claimed days after it was won. The play screen carries it as a chip with the countdown on it, the shelf
 strikes through the old price on the one power-up it applies to, and a life
 discount rides on `PlayerState` so the lives dialog shows the same price
 whether it opens from the game, the header or the profile. A discount visible
@@ -1490,6 +1665,8 @@ src/lib/when.ts             "seen 4m ago", from one clock read per load
 src/lib/push.ts             sending a push, and pruning what can't receive one
 src/app/api/contributor/promo/
                             take one out of the allocation
+src/app/api/cron/lives-full/ the daily "your lives are back"
+src/app/unsubscribe/        one click, and it is done before the page renders
 src/lib/push-client.ts      the browser half: register, subscribe, re-register
 public/sw.js                notifications, and deliberately no caching
 src/components/admin/activity-panel.tsx
@@ -1518,7 +1695,10 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             and last played, 0057 remembers which browsers
                             asked to be told things, 0058 adds a safe whose
                             password nobody has ever seen and 0059 makes it a
-                            priced, finite promotion a contributor buys
+                            priced, finite promotion a contributor buys, and
+                            0061 opens every hunt to an admin and gives email
+                            a way out of itself, and 0062 pays a player for
+                            turning up thirty days running
 ```
 
 ---
@@ -1717,8 +1897,6 @@ What it touches, from a read of the current code:
 ## Not in this version (deliberately)
 
 - **No leaderboards.** A box has one winner and then it's over.
-- **No streaks and no daily bonus.** Lives refill on a clock, and the only
-  other way to earn them is inviting somebody who then buys their own.
 - **No automated reward transfers.** A winner's bank details are checked with
   the bank, but the transfer itself is a human pressing a button in `/admin`.
 - **No cap on attempts.** Play as fast as you can afford to.
