@@ -122,6 +122,9 @@ export async function POST(req: Request) {
       amount: row.amount,
       powerUp: row.power_up,
       expiresAt: row.expires_at,
+      // `mint_gift` always mints against the safe it was asked about, so a
+      // crate is never floating. Only a streak reward is.
+      floating: false,
     } satisfies Drop,
   });
 }

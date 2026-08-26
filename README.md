@@ -1465,8 +1465,7 @@ a chase where only your car ever shoots is not a chase.
 
 The two places a player quits a hard box are the same two every time: out of
 lives, and a run of guesses that went nowhere. So a crate floats in at those
-moments — five cold guesses, or two lives left — carrying one of four things,
-and it is gone in ten minutes.
+moments — five cold guesses, or two lives left — carrying one of four things.
 
 | Gift | What it is |
 | --- | --- |
@@ -1474,6 +1473,21 @@ and it is gone in ten minutes.
 | Free Second Wind | 15 minutes on this box with no lives spent |
 | Power-up discount | 20–50% off one named power-up |
 | Life discount | 20–50% off your next lives, anywhere |
+
+**A crate applies itself.** It used to be a button, and a gift with a button on
+it is a gift you can lose by not noticing: a 40% discount that hung for two
+minutes over somebody typing a guess and then expired unclaimed was worth
+nothing to them and nothing to us. There was never a decision in that tap —
+nobody declines free lives — so the claim happens the moment the crate arrives
+and what lands on screen is an announcement rather than an offer: what they now
+have, and how long they have it. It takes itself away when that runs out, or
+after seven seconds for the gifts that have no clock.
+
+The one thing still waiting to be pressed is a **floating** reward — a Second
+Wind or a power-up won on a streak, which carries no safe (`box_id` is null).
+That one *is* a decision, and the decision is which safe to spend it on, so it
+keeps its tap and says "use it here". `Drop.floating` is what tells the two
+apart, and it is read off the row rather than guessed at from the kind.
 
 **One gift every ninety minutes**, of any kind, and the floor is in SQL. It
 started at ninety *seconds*, with eight minutes between crates on a calm hunt,
@@ -1502,16 +1516,18 @@ candidate:
 
 The two clocks measure different things on purpose. The ninety-minute floor
 counts `created_at`, so a crate somebody ignored still spends it — the limit is
-on how often a player is *interrupted*, and an interruption they declined still
-happened. The daily cap counts `claimed_at`, because that limit is on how many
-lives leave the building.
+on how often a player is *interrupted*. The daily cap counts `claimed_at`,
+because that limit is on how many lives leave the building. Since a crate
+applies itself the two now almost always agree; they still measure different
+things, and a crate minted for somebody who closed the tab before it landed is
+the case where they part.
 
 A discount is a row that the checkout reads (`discount_for` for a power-up,
 `life_discount_for` for lives) and burns afterwards, because a discount the
 client names is a discount the client can name itself. **Its ten minutes run
-from the claim, not from the mint** — a coupon taken at 12:09 out of a window
-that opened at 12:00 used to arrive with forty seconds on it, and no way to
-tell. The play screen carries it as a chip with the countdown on it, the shelf
+from the claim, not from the mint** — which, now that a crate claims itself on
+arrival, is the same instant. It stays written that way because it is still
+true of a floating reward, claimed days after it was won. The play screen carries it as a chip with the countdown on it, the shelf
 strikes through the old price on the one power-up it applies to, and a life
 discount rides on `PlayerState` so the lives dialog shows the same price
 whether it opens from the game, the header or the profile. A discount visible

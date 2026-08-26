@@ -230,7 +230,7 @@ async function rivalsOn(db: Db, boxId: string, meId: string | null): Promise<Riv
 async function liveOffer(db: Db, playerId: string): Promise<Drop | null> {
   const { data } = await db
     .from("player_offers")
-    .select("id, kind, amount, power_up, expires_at")
+    .select("id, kind, amount, power_up, expires_at, box_id")
     .eq("player_id", playerId)
     .is("claimed_at", null)
     .gt("expires_at", new Date().toISOString())
@@ -245,6 +245,7 @@ async function liveOffer(db: Db, playerId: string): Promise<Drop | null> {
     amount: number;
     power_up: string | null;
     expires_at: string;
+    box_id: string | null;
   };
   return {
     id: row.id,
@@ -252,6 +253,7 @@ async function liveOffer(db: Db, playerId: string): Promise<Drop | null> {
     amount: row.amount,
     powerUp: row.power_up,
     expiresAt: row.expires_at,
+    floating: row.box_id === null,
   };
 }
 

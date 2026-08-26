@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { LIVES_MAX } from "@/lib/constants";
-import { EMPTY_REVEALED, POWER_UPS, secondWindLabel } from "@/lib/game/power-ups";
+import { EMPTY_REVEALED, POWER_UPS } from "@/lib/game/power-ups";
 import { formatNaira } from "@/lib/game/rewards";
 import type { AttemptRecord, AttemptResult, PlayView } from "@/lib/types";
 import { Modal } from "@/components/ui/modal";
@@ -54,8 +54,8 @@ import { GuessDialog } from "./guess-dialog";
 import { PotDialog } from "./pot-dialog";
 import { StatDialog } from "./stat-dialog";
 import { ResultCard, ResultDialog } from "./result-dialog";
-import { DropCrate } from "./drop-crate";
-import { useDrops } from "./use-drops";
+import { DropApplied, DropCrate } from "./drop-crate";
+import { useDrops, type Applied } from "./use-drops";
 import type { Rival } from "@/lib/types";
 import { Boxy } from "@/components/art/boxy";
 import { ReportDialog, ReportIssueButton } from "@/components/report-issue";
@@ -95,6 +95,8 @@ export function PlaySurface({
   const [outcome, setOutcome] = useState<Outcome>("open");
   const [sheet, setSheet] = useState<Sheet>("none");
   const [message, setMessage] = useState<string | null>(null);
+  /** The last crate to apply itself, while its banner is still up. */
+  const [applied, setApplied] = useState<Applied | null>(null);
   // `was` is their best before this guess; `before` is the guess immediately
   // before it. Both, because "up on your best" and "up on your last" are
   // different pieces of news and the reaction wants the second one.
@@ -169,6 +171,27 @@ export function PlaySurface({
   const bestAttempt = bestOf(attempts);
   const secondWind = view.powerUps.find((p) => p.kind === "second_wind") ?? null;
 
+  const reload = useCallback(async () => {
+    const res = await fetch(`/api/boxes/${slug}`, { cache: "no-store" });
+    if (res.ok) setView((await res.json()) as PlayView);
+    await refresh();
+  }, [slug, refresh]);
+
+  /**
+   * A crate applied itself. Show what it was, and re-read.
+   *
+   * The re-read is what puts the discount chip and its countdown on screen —
+   * the thing that used to be the reward for tapping the crate is now simply
+   * there, which is the whole point of not asking.
+   */
+  const onApplied = useCallback(
+    (got: Applied) => {
+      setApplied(got);
+      void reload();
+    },
+    [reload]
+  );
+
   const drops = useDrops({
     slug,
     lives: view.player.lives,
@@ -178,13 +201,8 @@ export function PlaySurface({
     powerUps: view.powerUps.filter((p) => p.available).map((p) => p.kind),
     initial: view.offer,
     enabled: verified && open && !won,
+    onApplied,
   });
-
-  const reload = useCallback(async () => {
-    const res = await fetch(`/api/boxes/${slug}`, { cache: "no-store" });
-    if (res.ok) setView((await res.json()) as PlayView);
-    await refresh();
-  }, [slug, refresh]);
 
   const drop = drops.drop;
   useEffect(() => {
@@ -195,7 +213,7 @@ export function PlaySurface({
       el.scrollTop = el.scrollHeight;
     });
     return () => window.cancelAnimationFrame(id);
-  }, [drop, result, outcome]);
+  }, [drop, applied, result, outcome]);
 
   /*
    * The golden chip takes itself away.
@@ -503,25 +521,24 @@ export function PlaySurface({
         >
           {outcome !== "open" && <Verdict outcome={outcome} view={view} />}
 
+          {/* A crate that has already applied itself. Nothing to press. */}
+          {applied && (
+            <DropApplied
+              applied={applied}
+              onDone={() => setApplied(null)}
+              className="mx-auto w-fit"
+            />
+          )}
+
+          {/* And the one kind that still waits: a reward won on a streak,
+              which carries no safe until its owner picks one. */}
           {drop && (
             <DropCrate
               drop={drop}
               onDismiss={drops.dismiss}
               onClaim={() => {
                 void drops.claim().then((got) => {
-                  if (got?.kind === "free_lives") {
-                    setMessage(`+${got.amount} free ${got.amount === 1 ? "life" : "lives"}`);
-                  } else if (got?.kind === "free_second_wind") {
-                    setMessage(`Free run — guesses cost nothing for ${secondWindLabel()}`);
-                  } else if (got?.kind === "free_power_up") {
-                    // The note is what the power-up just revealed, so it says
-                    // the answer rather than that something happened.
-                    setMessage(got.note ?? "Your free power-up is on the shelf");
-                  } else if (got) {
-                    setMessage(`${got.amount}% off — it's on the shelf`);
-                  }
-                  void refresh();
-                  void reload();
+                  if (got) onApplied(got);
                 });
               }}
               className="mx-auto w-fit"

@@ -256,6 +256,14 @@ export interface Drop {
   /** Which power-up a discount applies to. Null for every other kind. */
   powerUp: string | null;
   expiresAt: string;
+  /**
+   * Won without a safe attached — a streak reward rather than a crate.
+   *
+   * This is the whole difference between a gift and a decision. A crate is
+   * minted against the safe in front of you and applies itself; a floating
+   * reward is worth "on whichever safe you like", so it waits to be spent.
+   */
+  floating: boolean;
 }
 
 /**
