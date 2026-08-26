@@ -39,6 +39,14 @@ export default function PrivacyPage() {
           ],
         },
         {
+          heading: "Email and notifications",
+          paragraphs: [
+            "Some email is unavoidable and always will be: a sign-in code, a reward on its way to you, a receipt. Those are the point of having your address and you cannot turn them off without losing the account.",
+            "Anything else — news about a new safe, a nudge that yours is still open — carries a one-click unsubscribe at the bottom, and one click is all it is. No login, no confirmation step, no survey. It stops every message of that kind and touches nothing else: your lives, your safes and anything you have won are unaffected.",
+            "Notifications in your browser are separate and are held by your browser, not by us. We cannot switch them on, and once you have switched them off there is nothing on our side to ask you again with. Turning them off in your browser settings, or from the switch on your own page, is final.",
+          ],
+        },
+        {
           heading: "Cookies and local storage",
           paragraphs: [
             "One signed cookie remembers a verified player for six months, so you are not re-verifying an address every visit. Contributors have a session cookie for the dashboard.",

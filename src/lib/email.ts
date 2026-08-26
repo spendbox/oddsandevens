@@ -44,6 +44,69 @@ const WRAP = 'style="font-family:sans-serif;max-width:480px"';
 const CODE_STYLE =
   "font-size:32px;letter-spacing:8px;font-weight:bold;background:#f4f4f5;padding:14px 16px;border-radius:8px;text-align:center";
 
+/**
+ * A message an administrator wrote, to a segment of players.
+ *
+ * The only email here that is not transactional, which is why it is the only
+ * one carrying an unsubscribe link — and why that link is a plain URL rather
+ * than a form: one click, no login, no confirmation step. Anything more is a
+ * dark pattern with a legal opinion attached.
+ *
+ * Whatever an administrator typed is escaped by the same `escapeHtml` the
+ * issue-report mail uses: an admin is trusted, but a body that becomes markup
+ * is one paste away from a broken email at best.
+ *
+ * `List-Unsubscribe` is sent as well as the visible link. Gmail and Outlook
+ * surface it as their own one-click control at the top of the message, which
+ * is where somebody who has decided to leave actually looks — and a sender
+ * whose recipients hit "report spam" instead of unsubscribing is a sender
+ * whose verification codes stop arriving.
+ */
+export async function sendPlayerBroadcastEmail(params: {
+  to: string;
+  subject: string;
+  /** Plain text. Line breaks become paragraphs; nothing else is interpreted. */
+  body: string;
+  unsubscribeUrl: string;
+}) {
+  const { to, subject, body, unsubscribeUrl } = params;
+  const paragraphs = body
+    .split(/\n{2,}/)
+    .map((part) => `<p>${escapeHtml(part).replace(/\n/g, "<br />")}</p>`)
+    .join("");
+
+  const client = resend();
+  const html = `<div ${WRAP}>
+      ${paragraphs}
+      <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0" />
+      <p style="font-size:12px;color:#71717a">
+        You're getting this because you have a Spendbox account.
+        <a href="${unsubscribeUrl}">Unsubscribe</a> and we won't email you again
+        — your lives, safes and rewards are untouched either way.
+      </p>
+    </div>`;
+
+  if (!client) {
+    console.log(`[email:dev] broadcast to=${to} subject="${subject}"`);
+    return;
+  }
+  try {
+    const { error } = await client.emails.send({
+      from: FROM,
+      to,
+      subject,
+      html,
+      headers: {
+        "List-Unsubscribe": `<${unsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+    if (error) console.error("[email] broadcast failed:", error);
+  } catch (err) {
+    console.error("[email] broadcast failed:", err);
+  }
+}
+
 /** One-time 6-digit code for signup, a reset, verification, or a deletion. */
 export async function sendVerificationCodeEmail(params: {
   to: string;

@@ -1015,6 +1015,92 @@ Every reveal is written to the log. The promise elsewhere is about a password
 
 ---
 
+## Seeing every hunt
+
+A contributor sees their own boxes. A player sees their own hunts. Nobody could
+see the whole board — which is the one view that answers *is anything about to
+be won*, and that is worth knowing before it happens rather than when the
+payout screen tells you.
+
+`admin_best_attempts` is one row per **hunt**, not per attempt, and that grain
+is the point: `attempts` has a row per guess and a popular safe has thousands,
+while the question anybody actually asks is how close the closest person is —
+which is `hunts.best_percent`, already maintained by `spend_attempt` and
+already indexed.
+
+The score leads the row, coloured by how close it is, because it is the only
+reason to open the screen. Beside it sits **what they have paid to learn**: a
+94% that came with nine power-ups reads very differently from a 94% that came
+with none, and putting the shelf spend next to the score is the cheapest way to
+tell those apart.
+
+Addresses are not masked here, the same decision the players list makes and for
+the same reason: it is behind the admin session, and the question it answers is
+a support question.
+
+---
+
+## Your lives are back
+
+The pool refills on a clock whether or not anybody is watching. A full pool is
+therefore the moment a lapsed player has the most to come back to and the least
+reason to know it, which is the entire notification.
+
+One Vercel cron a day hits `/api/cron/lives-full`, and **who it skips is the
+design**:
+
+| Skipped | Why |
+| --- | --- |
+| Seen in the last 2 days | They know what their life count is. Telling them is how a useful notification becomes one people switch off |
+| Told in the last 20 hours | Checked in SQL, not trusted from the scheduler — a scheduler firing twice is a normal thing for a scheduler to do |
+| No push subscription | Nothing to send to |
+| Pool not actually full | `life_cap(p)`, not `p.lives_max` — see below |
+
+**`lives_max` is nullable, and null is the normal state.** It means "the
+platform default"; only a Life Bank purchase ever writes a number into it. The
+first version compared `lives >= lives_max`, which is null for almost
+everybody — and a job whose only condition is never true is a job that silently
+does nothing forever. `life_cap` is the function `sync_lives` and
+`grant_life_bank` already use, so "full" here means what it means everywhere
+else. The test caught it; nothing else would have.
+
+The message is grouped by life count so it can say *their* number. "Your 7
+lives are back" is a fact about them; "your lives are back" is a template. And
+only the players a push actually reached are stamped, so a run that fails
+halfway leaves the rest due tomorrow rather than silently spent.
+
+---
+
+## Writing to players
+
+The one channel here that can damage something else. The domain that carries a
+campaign is the domain that carries the six-digit codes people sign in with, so
+a badly-judged send does not merely fail — it takes the front door with it.
+
+Which is why the unsubscribe came first, and why it is **one click**: a plain
+GET link, no login, no confirmation step, no survey. Every step between
+somebody and leaving is a step towards them hitting "report spam" instead,
+which costs the whole platform. `List-Unsubscribe` goes in the headers too, so
+Gmail and Outlook surface their own control at the top of the message — where
+somebody who has decided to leave actually looks.
+
+`admin_email_targets` excludes anybody who has unsubscribed, and that check
+lives **in the view** rather than in a route, so a future sender cannot forget
+it. The unsubscribe token is random per player rather than a signature over the
+address: a leaked link unsubscribes exactly one person and reveals nothing, and
+it keeps working if the signing secret is ever rotated.
+
+The sender caps a press at 200, offers a **test send to one real address** as a
+first-class button rather than a workaround, and prints the running
+unsubscribed count beside the reach — a number going up there is the earliest
+warning anybody gets. Two presses to send, because there is no unsend.
+
+The body is plain text, escaped by the same `escapeHtml` the issue-report mail
+uses. An administrator is trusted; a body that becomes markup is one paste away
+from a broken email regardless.
+
+---
+
 ## Telling somebody
 
 Every other way of reaching a player costs something. Email is cheap rather
@@ -1490,6 +1576,8 @@ src/lib/when.ts             "seen 4m ago", from one clock read per load
 src/lib/push.ts             sending a push, and pruning what can't receive one
 src/app/api/contributor/promo/
                             take one out of the allocation
+src/app/api/cron/lives-full/ the daily "your lives are back"
+src/app/unsubscribe/        one click, and it is done before the page renders
 src/lib/push-client.ts      the browser half: register, subscribe, re-register
 public/sw.js                notifications, and deliberately no caching
 src/components/admin/activity-panel.tsx
@@ -1518,7 +1606,9 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             and last played, 0057 remembers which browsers
                             asked to be told things, 0058 adds a safe whose
                             password nobody has ever seen and 0059 makes it a
-                            priced, finite promotion a contributor buys
+                            priced, finite promotion a contributor buys, and
+                            0061 opens every hunt to an admin and gives email
+                            a way out of itself
 ```
 
 ---
