@@ -1,11 +1,12 @@
 "use client";
 
-// Free safes, and what they are costing.
+// Promo safes, and what they are costing.
 //
-// Every live one is a real ₦100,000 that Spendbox has promised and nobody has
-// paid for, so the first thing on this panel is the exposure rather than the
-// list. The three settings under it are the only brakes there are: how big the
-// pot is, how many may exist at once, and whether generation is on at all.
+// Every live one is a real prize Spendbox has promised against a small fee the
+// maker paid, so the first thing on this panel is the exposure rather than the
+// list. The settings under it are the only brakes there are: the size of the
+// pot, what one costs, how many exist in the whole promotion, and whether it
+// is running at all.
 
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
@@ -21,10 +22,9 @@ interface Safe {
   attempts: number;
   hunters: number;
   bestPercent: number;
-  creatorEmail: string | null;
+  creatorName: string | null;
   winnerEmail: string | null;
-  earnedKobo: number;
-  owedKobo: number;
+  fundingKobo: number;
 }
 
 interface Body {
@@ -34,14 +34,21 @@ interface Body {
     total: number;
     atRiskKobo: number;
     paidOutKobo: number;
-    creatorsOwedKobo: number;
+    awaitingPayment: number;
+    collectedKobo: number;
     attempts: number;
   };
-  config: { enabled: boolean; potKobo: number; maxLive: number; creatorSharePercent: number };
+  config: {
+    enabled: boolean;
+    potKobo: number;
+    priceKobo: number;
+    maxTotal: number;
+    creatorSharePercent: number;
+  };
   safes: Safe[];
 }
 
-export function FreeSafesPanel() {
+export function PromoBoxesPanel() {
   const [body, setBody] = useState<Body | null>(null);
   const [unmigrated, setUnmigrated] = useState(false);
   const [secrets, setSecrets] = useState<Record<string, string>>({});
@@ -52,7 +59,7 @@ export function FreeSafesPanel() {
   useEffect(() => {
     let live = true;
     void (async () => {
-      const res = await fetch("/api/admin/free-safes", { cache: "no-store" });
+      const res = await fetch("/api/admin/promo", { cache: "no-store" });
       if (!live) return;
       setUnmigrated(res.status === 503);
       if (res.ok) {
@@ -78,7 +85,7 @@ export function FreeSafesPanel() {
     }
     setRevealing(id);
     try {
-      const res = await fetch(`/api/admin/free-safes?reveal=${id}`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/promo?reveal=${id}`, { cache: "no-store" });
       if (res.ok) {
         const { secret } = (await res.json()) as { secret: string };
         setSecrets((s) => ({ ...s, [id]: secret }));
@@ -92,7 +99,7 @@ export function FreeSafesPanel() {
     if (!draft) return;
     setSaving(true);
     try {
-      await fetch("/api/admin/free-safes", {
+      await fetch("/api/admin/promo", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "settings", ...draft }),
@@ -105,7 +112,7 @@ export function FreeSafesPanel() {
   if (unmigrated) {
     return (
       <div className="panel rounded-2xl px-4 py-8 text-center">
-        <p className="font-black tracking-tight">Free safes need a migration.</p>
+        <p className="font-black tracking-tight">Promo safes need a migration.</p>
         <p className="mt-1 text-sm text-zinc-400">
           Run <code className="font-mono">npx supabase db push</code>.
         </p>
@@ -119,30 +126,34 @@ export function FreeSafesPanel() {
   return (
     <section className="panel rounded-2xl p-5">
       <h2 className="mb-1 text-sm font-black uppercase tracking-wide text-zinc-300">
-        Free safes
+        Promo safes
       </h2>
       <p className="mb-3 text-xs text-zinc-500">
-        We fund the prize on every one of these. The figure below is what it
-        would cost if all of them were cracked tomorrow.
+        We fund the prize on every one of these; the maker pays a fixed price to put one up. “At risk” is what it would cost if every live one were cracked tomorrow.
       </p>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Figure label="Live" value={String(exposure.live)} hint={`of ${draft.maxLive} allowed`} />
+        <Figure label="Live" value={String(exposure.live)} hint={`${exposure.awaitingPayment} awaiting payment`} />
         <Figure label="At risk" value={formatNaira(exposure.atRiskKobo)} hint="if all are cracked" tone="text-berry" />
         <Figure label="Paid out" value={formatNaira(exposure.paidOutKobo)} hint={`${exposure.cracked} cracked`} />
-        <Figure label="Owed to creators" value={formatNaira(exposure.creatorsOwedKobo)} hint="their 70%" />
+        <Figure label="Collected" value={formatNaira(exposure.collectedKobo)} hint="promo fees taken" tone="text-mint" />
       </div>
 
-      <div className="mt-3 grid gap-2 rounded-2xl bg-black/25 p-3 sm:grid-cols-4">
+      <div className="mt-3 grid gap-2 rounded-2xl bg-black/25 p-3 sm:grid-cols-5">
         <Field
           label="Pot (₦)"
           value={String(Math.round(draft.potKobo / 100))}
           onChange={(v) => setDraft({ ...draft, potKobo: Number(v || 0) * 100 })}
         />
         <Field
-          label="Max live"
-          value={String(draft.maxLive)}
-          onChange={(v) => setDraft({ ...draft, maxLive: Number(v || 0) })}
+          label="Total allocation"
+          value={String(draft.maxTotal)}
+          onChange={(v) => setDraft({ ...draft, maxTotal: Number(v || 0) })}
+        />
+        <Field
+          label="Price (₦)"
+          value={String(Math.round(draft.priceKobo / 100))}
+          onChange={(v) => setDraft({ ...draft, priceKobo: Number(v || 0) * 100 })}
         />
         <Field
           label="Creator %"
@@ -185,7 +196,7 @@ export function FreeSafesPanel() {
                     </span>
                   </span>
                   <span className="block truncate text-xs text-zinc-500">
-                    {safe.creatorEmail ?? "creator gone"} · {safe.length} chars ·{" "}
+                    {safe.creatorName ?? "unknown maker"} · {safe.length} chars ·{" "}
                     {safe.attempts.toLocaleString()} attempts · best{" "}
                     {Math.round(safe.bestPercent)}%
                     {safe.winnerEmail && (

@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   const db = supabaseAdmin();
 
   if (reveal) {
-    const { data, error } = await db.rpc("free_safe_secret", { p_box_id: reveal });
+    const { data, error } = await db.rpc("promo_box_secret", { p_box_id: reveal });
     if (error) {
       console.error("[admin] reveal failed:", error);
       return NextResponse.json({ error: "query_failed" }, { status: 500 });
@@ -35,19 +35,19 @@ export async function GET(req: Request) {
     // Logged rather than silent. Reading a password is the one privileged act
     // here that leaves no trace in the data, so it leaves one in the log —
     // who, which box, when.
-    console.warn(`[admin] free safe password revealed: box=${reveal} by=${admin.email}`);
-    if (data == null) return NextResponse.json({ error: "not_a_free_safe" }, { status: 404 });
+    console.warn(`[admin] promo safe password revealed: box=${reveal} by=${admin.email}`);
+    if (data == null) return NextResponse.json({ error: "not_a_promo_safe" }, { status: 404 });
     return NextResponse.json({ secret: String(data) });
   }
 
   const [list, exposure, config] = await Promise.all([
     db
-      .from("admin_free_safes")
+      .from("admin_promo_boxes")
       .select("*")
       .order("published_at", { ascending: false })
       .limit(200),
-    db.from("admin_free_safe_exposure").select("*").maybeSingle(),
-    db.rpc("free_safe_config"),
+    db.from("admin_promo_exposure").select("*").maybeSingle(),
+    db.rpc("promo_config"),
   ]);
 
   const failure = list.error ?? exposure.error;
@@ -71,13 +71,14 @@ export async function GET(req: Request) {
       total: Number(e.total ?? 0),
       atRiskKobo: Number(e.at_risk_kobo ?? 0),
       paidOutKobo: Number(e.paid_out_kobo ?? 0),
-      creatorsOwedKobo: Number(e.creators_owed_kobo ?? 0),
+      awaitingPayment: Number(e.awaiting_payment ?? 0),
+      collectedKobo: Number(e.collected_kobo ?? 0),
       attempts: Number(e.attempts ?? 0),
     },
     config: {
       enabled: Boolean(cfg?.enabled ?? true),
       potKobo: Number(cfg?.pot_kobo ?? 0),
-      maxLive: Number(cfg?.max_live ?? 0),
+      maxTotal: Number(cfg?.max_live ?? 0),
       creatorSharePercent: Number(cfg?.creator_share_percent ?? 70),
     },
     safes: ((list.data ?? []) as Record<string, unknown>[]).map((row) => ({
@@ -90,10 +91,9 @@ export async function GET(req: Request) {
       attempts: Number(row.attempts_count ?? 0),
       hunters: Number(row.players_count ?? 0),
       bestPercent: Number(row.best_percent ?? 0),
-      creatorEmail: (row.creator_email as string | null) ?? null,
       winnerEmail: (row.winner_email as string | null) ?? null,
-      earnedKobo: Number(row.creator_earned_kobo ?? 0),
-      owedKobo: Number(row.creator_owed_kobo ?? 0),
+      fundingKobo: Number(row.funding_kobo ?? 0),
+      creatorName: (row.creator_name as string | null) ?? null,
       publishedAt: row.published_at ? String(row.published_at) : null,
     })),
   });
@@ -105,34 +105,14 @@ export async function POST(req: Request) {
   if (!admin) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = (await req.json().catch(() => ({}))) as {
-    action?: "settings" | "pay";
+    action?: "settings";
     enabled?: boolean;
     potKobo?: number;
-    maxLive?: number;
+    maxTotal?: number;
     creatorSharePercent?: number;
-    boxId?: string;
-    kobo?: number;
+    priceKobo?: number;
   };
   const db = supabaseAdmin();
-
-  if (body.action === "pay") {
-    if (!body.boxId || !body.kobo || body.kobo <= 0) {
-      return NextResponse.json({ error: "bad_payout" }, { status: 400 });
-    }
-    const { data, error } = await db.rpc("pay_free_safe", {
-      p_box_id: body.boxId,
-      p_kobo: body.kobo,
-    });
-    if (error) {
-      console.error("[admin] free safe payout failed:", error);
-      return NextResponse.json({ error: "query_failed" }, { status: 500 });
-    }
-    const verdict = (data ?? {}) as { result?: string; error?: string };
-    if (verdict.result !== "paid") {
-      return NextResponse.json({ error: verdict.error ?? "refused" }, { status: 409 });
-    }
-    return NextResponse.json({ result: "paid" });
-  }
 
   // Sent whole, like every other settings blob here: what the screen is
   // showing is what gets stored, so clearing a field is how it goes back to
@@ -140,12 +120,13 @@ export async function POST(req: Request) {
   const value: Record<string, unknown> = {};
   if (typeof body.enabled === "boolean") value.enabled = body.enabled;
   if (typeof body.potKobo === "number") value.potKobo = Math.max(0, Math.trunc(body.potKobo));
-  if (typeof body.maxLive === "number") value.maxLive = Math.max(0, Math.trunc(body.maxLive));
+  if (typeof body.maxTotal === "number") value.maxTotal = Math.max(0, Math.trunc(body.maxTotal));
+  if (typeof body.priceKobo === "number") value.priceKobo = Math.max(0, Math.trunc(body.priceKobo));
   if (typeof body.creatorSharePercent === "number") {
     value.creatorSharePercent = Math.max(0, Math.min(100, Math.trunc(body.creatorSharePercent)));
   }
 
-  const { error } = await db.rpc("set_free_safe_settings", { p_value: value, p_by: admin.email });
+  const { error } = await db.rpc("set_promo_settings", { p_value: value, p_by: admin.email });
   if (error) {
     console.error("[admin] free safe settings failed:", error);
     return NextResponse.json({ error: "save_failed" }, { status: 500 });

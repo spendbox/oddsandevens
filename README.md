@@ -931,85 +931,87 @@ and last played, last logged in, first played, days active, guesses in the last
 
 Every other box starts with somebody choosing a password. That is what makes
 "nobody at Spendbox can read it back to you" worth saying — and it is also
-what stops a player putting one up, because a box needs money behind it and
+what stops most people putting one up, because a box needs money behind it and
 money behind it needs a password worth attacking.
 
-A generated safe removes both. The player brings the audience, Spendbox brings
-the prize, and the password is drawn by Postgres and read by nobody.
+A **promo safe** removes both. It sits in the Build tab beside a custom box,
+as a peer rather than an option inside the form, because they are two different
+decisions:
 
-| | |
-| --- | --- |
-| **Prize** | ₦100,000, actually funded by us. The figure on the card is the figure a winner is paid |
-| **Creator's cut** | 70% of every power-up and life bought against it, like a contributor |
-| **Difficulty** | The top of the Brutal band, 20–21 characters |
-| **How many** | One live safe per player, and a platform-wide ceiling |
+| | Custom box | Promo safe |
+| --- | --- | --- |
+| Password | yours | drawn by the database, seen by nobody |
+| You pay | the whole reward, up front | a small fixed price |
+| Prize | what you funded, less 30% | ours |
+| Your cut | 70% of the shelf | 70% of the shelf |
+| How many | as many as you like | one at a time, out of a finite allocation |
 
-The economics are a real cost, not a trick, and the README should say so: the
-exposure is *live safes × pot*. Three settings bound it rather than hope —
-the pot, the ceiling, and whether generation is on at all — and all three are
-in `/admin` beside every other price.
+It is a **contributor's box in every way that matters after it goes live** —
+same play, same shelf, same subaccount, same Money tab. That is why the owner
+is a contributor rather than a player: the 70% then rides the Paystack split
+that already exists instead of accruing in a ledger somebody has to pay out by
+hand. 0058 got that wrong and 0059 corrects it.
 
-**Difficulty is the brake.** A generated password is hundreds of attempts of
-grinding, which is what stands between a free prize and a free giveaway. It is
-also why these are worth hunting: a Brutal safe with a real ₦100,000 behind it
-is the most attractive thing on the board.
+**The allocation is the offer.** A fixed number exist in total, the remaining
+count is on the chooser and on the panel, and the bar beside it is the clock.
+An offer with no end is a feature, and a feature nobody hurries for.
 
-### Letters and digits only, and published
+### `gen_random_bytes` is not there
 
-The symbol half of the alphabet is admin-editable (0040); the letters and
-digits deliberately are not, because "an admin removing them would break the
-game rather than tune it". A generated password has no author to remember it —
-so if it contained a symbol that were later removed from the alphabet, every
-guess containing that character would be refused and a real ₦100,000 would be
-stranded behind a box nobody could ever open. Drawing only from the part that
-cannot be edited makes that impossible.
+0058 drew its password with `gen_random_bytes`, which is pgcrypto — and Supabase
+installs pgcrypto into the `extensions` schema. Every function here sets
+`search_path = public`, so the call resolved to nothing and **the first real
+attempt failed with 42883**. It passed locally only because the scratch harness
+created the extension into `public`, which is exactly the kind of difference a
+harness is supposed to not have.
 
-The cost is 62 candidates per position rather than 111, and it is paid back in
-length: these are drawn at the top of the Brutal band rather than the bottom.
-It is *published* rather than hidden, on the safe itself. A rule everybody is
-told is not a leak; a rule some people work out is.
+`random_hex` replaces it, built from `gen_random_uuid()` — core since
+PostgreSQL 13, backed by the platform's strong random source rather than the
+seeded PRNG behind `random()`. It keeps the property that mattered and depends
+on nothing that has to be installed.
 
-`gen_random_bytes` rather than `random()`, too. This is the one string on the
-platform that a real ₦100,000 depends on, and `random()` is a seeded PRNG.
+Letters and digits only, still, and published rather than hidden: the symbol
+half of the alphabet is admin-editable and a generated password has no author
+to remember it, so a symbol later removed would strand a real prize behind a
+box nobody could open. Paid back in length — the top of the Brutal band.
 
 ### The password is drawn once
 
-It has to be held in a plpgsql variable rather than generated inline, and that
-is not a style choice: `boxes_secret_length` requires `length` to equal
+It has to be held in a variable rather than generated inline, and that is not a
+style choice: `boxes_secret_length` requires `length` to equal
 `char_length(secret)`, and two calls to a volatile generator are two different
 passwords of two different lengths. The first version called it twice and
-inserted successfully **only when the two rolls happened to agree** — about
-half the time. One generation proved nothing; sixty did.
+inserted successfully **only when the two rolls happened to agree** — about half
+the time. One generation proved nothing; sixty did.
 
-It is never returned. That variable is the only scope the string exists in
-outside the column, the function is `security definer`, and it is revoked from
-every role a browser can reach.
+### Paying for it is the path that already exists
+
+A promo box is created in `funding`, with the promo price on it as
+`funding_kobo` and the prize as `reward_kobo`. The ordinary fund route charges
+`funding_kobo`, and the ordinary funding settlement flips `funding` → `live`.
+There is deliberately no second payment path and no second way for a box to
+become playable.
+
+The per-contributor uniqueness covers `('funding','live')` rather than `live`
+alone, so an abandoned checkout still holds their slot — and the *global*
+allocation counts only paid boxes, so an abandoned checkout does not consume
+one nobody paid for.
 
 ### You cannot win your own
 
-On a funded box this is a term, and it enforces itself: winning your own box
-costs you the stake you put behind it. A free safe has no such brake — the
-creator paid nothing, so grinding their own safe for ₦100,000 is simply a good
-idea unless something stops it. They do not know the password, but they can
-guess like anybody else, so `spend_attempt` refuses them outright, before a
-life is spent, with an error the screen can explain.
-
-### One at a time, decided by an index
-
-A partial unique index on `(creator_player_id) where kind = 'free' and status =
-'live'`, not a count in a route. Two taps on a slow connection are two
-requests, and a `select count(*)` followed by an `insert` is a race that hands
-somebody two safes. Cracking one frees the slot.
+On a funded box this enforces itself: winning your own costs you the stake. A
+promo safe has no such brake, so `spend_attempt` refuses the maker outright,
+before a life is spent. It matches on `contributors.player_id` — the link 0032
+added when the two identities were merged — so it is the same person or it is
+not, rather than a name that happens to match.
 
 ### What an administrator can see
 
-`free_safe_secret` is the one place in the product that reads a password back,
-and the shape is deliberate. The promise elsewhere is about a password
-*somebody wrote*; nobody wrote these, so reading one discloses nothing about
-any person. The filter to `kind = 'free'` lives **inside the function** rather
-than in the route, so a mistake in a route cannot become a way to read a
-contributor's. Every reveal is written to the log — who, which box, when —
-because it is the one privileged read that leaves no trace in the data.
+`promo_box_secret` is the one place in the product that reads a password back,
+and the filter to `kind = 'promo'` lives **inside the function** rather than in
+the route, so a mistake in a route cannot become a way to read a contributor's.
+Every reveal is written to the log. The promise elsewhere is about a password
+*somebody wrote*; nobody wrote these.
 
 ---
 
@@ -1486,8 +1488,8 @@ src/app/api/admin/…         the public box, reward claims, revenue
 src/app/api/admin/activity/ daily actives, and the shape of a week
 src/lib/when.ts             "seen 4m ago", from one clock read per load
 src/lib/push.ts             sending a push, and pruning what can't receive one
-src/app/api/player/free-safe/
-                            put one up, and watch what it earns
+src/app/api/contributor/promo/
+                            take one out of the allocation
 src/lib/push-client.ts      the browser half: register, subscribe, re-register
 public/sw.js                notifications, and deliberately no caching
 src/components/admin/activity-panel.tsx
@@ -1514,8 +1516,9 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             link and their artwork — once, and 0056 writes
                             down when a player was last seen, last logged in
                             and last played, 0057 remembers which browsers
-                            asked to be told things, and 0058 lets a player put
-                            up a safe whose password nobody has ever seen
+                            asked to be told things, 0058 adds a safe whose
+                            password nobody has ever seen and 0059 makes it a
+                            priced, finite promotion a contributor buys
 ```
 
 ---

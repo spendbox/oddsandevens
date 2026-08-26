@@ -30,7 +30,6 @@ import { InvitePanel } from "./invite-panel";
 import { BankPanel } from "./bank-panel";
 import { SecurityPanel } from "./security-panel";
 import { PushToggle } from "./push-toggle";
-import { FreeSafePanel } from "./free-safe-panel";
 
 interface HistoryHunt {
   id: string;
@@ -219,12 +218,7 @@ export function PlayerPortal({ pendingReference }: { pendingReference: string | 
         ))}
       </div>
 
-      {tab === "hunts" && (
-        <>
-          <FreeSafePanel />
-          <Hunts hunts={hunts} />
-        </>
-      )}
+      {tab === "hunts" && <Hunts hunts={hunts} />}
 
       {tab === "rewards" && (
         <div className="space-y-4">
