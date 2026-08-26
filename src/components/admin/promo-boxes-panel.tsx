@@ -9,7 +9,8 @@
 // is running at all.
 
 import { useEffect, useState } from "react";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Trash2 } from "lucide-react";
+import { DeleteBoxDialog } from "./delete-box-dialog";
 import { formatNaira } from "@/lib/game/rewards";
 
 interface Safe {
@@ -54,6 +55,8 @@ export function PromoBoxesPanel() {
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const [revealing, setRevealing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<{ id: string; title: string } | null>(null);
   const [draft, setDraft] = useState<Body["config"] | null>(null);
 
   useEffect(() => {
@@ -95,15 +98,40 @@ export function PromoBoxesPanel() {
     }
   };
 
+  const load = async () => {
+    const res = await fetch("/api/admin/promo", { cache: "no-store" });
+    setUnmigrated(res.status === 503);
+    if (res.ok) {
+      const next = (await res.json()) as Body;
+      setBody(next);
+      setDraft(next.config);
+    }
+  };
+
+  /*
+   * Save, then read back what was actually stored.
+   *
+   * Both halves matter. Without the check a failed write looked exactly like a
+   * successful one; without the re-read the screen went on showing what was
+   * typed rather than what the clamps in `promo_config` accepted — and a price
+   * silently floored to ₦100 is worth seeing.
+   */
   const save = async () => {
     if (!draft) return;
     setSaving(true);
+    setSaid(null);
     try {
-      await fetch("/api/admin/promo", {
+      const res = await fetch("/api/admin/promo", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "settings", ...draft }),
       });
+      if (!res.ok) {
+        setSaid("That didn't save.");
+        return;
+      }
+      await load();
+      setSaid("Saved.");
     } finally {
       setSaving(false);
     }
@@ -180,6 +208,11 @@ export function PromoBoxesPanel() {
       >
         {saving ? "Saving…" : "Save limits"}
       </button>
+      {said && (
+        <span className={"ml-2 text-sm " + (said === "Saved." ? "text-mint" : "text-berry")}>
+          {said}
+        </span>
+      )}
 
       {body.safes.length === 0 ? (
         <p className="mt-4 text-center text-sm text-zinc-500">Nobody has put one up yet.</p>
@@ -204,6 +237,19 @@ export function PromoBoxesPanel() {
                     )}
                   </span>
                 </span>
+                {/* A promo safe is the one kind we may reasonably need to
+                    take back: nobody wrote its password, so there is no author
+                    whose work is being erased. It goes through the same
+                    two-step dialog as any other box, which makes you read how
+                    many hunters you are about to erase. */}
+                <button
+                  type="button"
+                  onClick={() => setDeleting({ id: safe.id, title: safe.title })}
+                  aria-label="Delete this promo safe"
+                  className="shrink-0 rounded-lg bg-white/8 p-2 text-zinc-500 transition hover:bg-berry/15 hover:text-berry"
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </button>
                 <button
                   type="button"
                   onClick={() => void reveal(safe.id)}
@@ -230,6 +276,17 @@ export function PromoBoxesPanel() {
             </li>
           ))}
         </ul>
+      )}
+      {deleting && (
+        <DeleteBoxDialog
+          boxId={deleting.id}
+          boxTitle={deleting.title}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            setDeleting(null);
+            void load();
+          }}
+        />
       )}
     </section>
   );

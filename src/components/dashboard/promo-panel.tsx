@@ -13,6 +13,8 @@
 import { useEffect, useState } from "react";
 import { Loader2, Sparkles, Share2, Check } from "lucide-react";
 import { formatNaira } from "@/lib/game/rewards";
+import { DESIGNS, DESIGN_SPECS, type Design } from "@/lib/game/designs";
+import { SafeArt } from "@/components/safe/safe-art";
 import { PayMethodPicker } from "@/components/player/pay-method";
 import type { PayMethod } from "@/lib/checkout-server";
 
@@ -31,6 +33,7 @@ interface Offer {
     rewardKobo: number;
     priceKobo: number;
     length: number;
+    design: Design;
   } | null;
 }
 
@@ -47,6 +50,8 @@ export function PromoPanel({ onBuilt }: { onBuilt: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<PayMethod>("transfer");
   const [copied, setCopied] = useState(false);
+  const [title, setTitle] = useState("");
+  const [design, setDesign] = useState<Design>("midnight");
 
   const read = async () => {
     const res = await fetch("/api/contributor/promo", { cache: "no-store" });
@@ -73,17 +78,33 @@ export function PromoPanel({ onBuilt }: { onBuilt: () => void }) {
    * fund route charges exactly it and the ordinary settlement puts the box
    * live. Nothing here is a second payment path.
    */
-  const take = async () => {
+  /**
+   * Take one, or pay for the one already taken.
+   *
+   * `boxId` is what tells those apart, and getting it wrong is what made the
+   * Pay button say "you already have one": it always drew a fresh safe first,
+   * so the second half — the part that actually opens a checkout — was never
+   * reached by anybody who had already reserved theirs.
+   */
+  const take = async (boxId?: string) => {
     setBusy(true);
     setError(null);
     try {
-      const created = await fetch("/api/contributor/promo", { method: "POST" });
-      const body = (await created.json()) as { error?: string; id?: string };
-      if (!created.ok || !body.id) {
-        setError(REFUSALS[body.error ?? ""] ?? "That didn’t work. Try again.");
-        return;
+      let id = boxId;
+      if (!id) {
+        const created = await fetch("/api/contributor/promo", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ title, design }),
+        });
+        const body = (await created.json()) as { error?: string; id?: string };
+        if (!created.ok || !body.id) {
+          setError(REFUSALS[body.error ?? ""] ?? "That didn’t work. Try again.");
+          return;
+        }
+        id = body.id;
       }
-      const paid = await fetch(`/api/contributor/boxes/${body.id}/fund`, {
+      const paid = await fetch(`/api/contributor/boxes/${id}/fund`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ method }),
@@ -155,7 +176,7 @@ export function PromoPanel({ onBuilt }: { onBuilt: () => void }) {
             </div>
             <button
               type="button"
-              onClick={() => void take()}
+              onClick={() => void take(box.id)}
               disabled={busy}
               style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
               className="btn-chunky mt-3 w-full rounded-2xl bg-brass px-4 py-3.5 text-ink disabled:opacity-60"
@@ -203,6 +224,48 @@ export function PromoPanel({ onBuilt }: { onBuilt: () => void }) {
         <li>· You keep 70% of everything hunters spend on it, like any box of yours.</li>
         <li>· One at a time, and you can’t win your own.</li>
       </ul>
+
+      <label className="mt-3 block">
+        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+          Call it
+        </span>
+        <input
+          value={title}
+          maxLength={70}
+          placeholder="Ada’s big safe"
+          onChange={(e) => setTitle(e.target.value)}
+          className="field w-full px-4 py-2.5"
+        />
+        <span className="mt-1 block text-[11px] text-zinc-600">
+          This is the name on the card and in the link. Leave it blank and we’ll
+          pick one.
+        </span>
+      </label>
+
+      <div className="mt-3">
+        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+          Which safe
+        </span>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {DESIGNS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setDesign(key)}
+              aria-pressed={design === key}
+              title={DESIGN_SPECS[key].name}
+              className={
+                "rounded-xl border-2 p-1.5 transition " +
+                (design === key
+                  ? "border-brass bg-brass/10"
+                  : "border-white/10 hover:border-white/25")
+              }
+            >
+              <SafeArt design={key} className="mx-auto size-10" />
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="mt-3">
         <PayMethodPicker value={method} onPick={setMethod} disabled={busy} />

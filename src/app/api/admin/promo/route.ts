@@ -78,7 +78,12 @@ export async function GET(req: Request) {
     config: {
       enabled: Boolean(cfg?.enabled ?? true),
       potKobo: Number(cfg?.pot_kobo ?? 0),
-      maxTotal: Number(cfg?.max_live ?? 0),
+      // `promo_config()` returns max_total and price_kobo. Reading the wrong
+      // column here did not merely display a zero — the panel sent that zero
+      // straight back on the next save, which set the allocation to nothing
+      // and made every promo safe report itself sold out.
+      maxTotal: Number(cfg?.max_total ?? 0),
+      priceKobo: Number(cfg?.price_kobo ?? 0),
       creatorSharePercent: Number(cfg?.creator_share_percent ?? 70),
     },
     safes: ((list.data ?? []) as Record<string, unknown>[]).map((row) => ({
@@ -128,7 +133,7 @@ export async function POST(req: Request) {
 
   const { error } = await db.rpc("set_promo_settings", { p_value: value, p_by: admin.email });
   if (error) {
-    console.error("[admin] free safe settings failed:", error);
+    console.error("[admin] promo settings failed:", error);
     return NextResponse.json({ error: "save_failed" }, { status: 500 });
   }
   return NextResponse.json({ result: "saved" });

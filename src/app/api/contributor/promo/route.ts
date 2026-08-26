@@ -22,7 +22,7 @@ export async function GET() {
     db.rpc("promo_availability"),
     db
       .from("boxes")
-      .select("id, slug, title, status, reward_kobo, funding_kobo, length")
+      .select("id, slug, title, status, reward_kobo, funding_kobo, length, design")
       .eq("kind", "promo")
       .eq("contributor_id", contributor.id)
       .in("status", ["funding", "live"])
@@ -58,18 +58,26 @@ export async function GET() {
           rewardKobo: Number(current.reward_kobo ?? 0),
           priceKobo: Number(current.funding_kobo ?? 0),
           length: Number(current.length ?? 0),
+          design: String(current.design ?? "midnight"),
         }
       : null,
   });
 }
 
 /** Draw one. It lands unpaid; the client takes it to the funding checkout. */
-export async function POST() {
+export async function POST(req: Request) {
   const { contributor } = await getAuthedContributor();
   if (!contributor) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  const body = (await req.json().catch(() => ({}))) as { title?: string; design?: string };
+
   const { data, error } = await supabaseAdmin().rpc("create_promo_box", {
     p_contributor_id: contributor.id,
+    // The name and the safe's colours are the maker's; only the password is
+    // drawn. Both are validated in SQL, so a bad value comes back as a sane
+    // default rather than a constraint violation.
+    p_title: (body.title ?? "").trim().slice(0, 70) || null,
+    p_design: body.design ?? "midnight",
   });
 
   if (error) {
