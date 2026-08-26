@@ -135,8 +135,8 @@ $$;
  * Four conditions, and the last two are the difference between a useful
  * notification and a nuisance:
  *
- *   * the pool is actually full — `lives >= lives_max`, which respects a Life
- *     Bank ceiling rather than assuming seven;
+ *   * the pool is actually full — measured with `life_cap`, so a Life Bank
+ *     ceiling is respected and nothing assumes seven;
  *   * they have a browser subscribed to push at all;
  *   * we have not told them inside the window, so a scheduler firing twice
  *     does not buzz anybody twice;
