@@ -13,6 +13,14 @@ import webpush from "web-push";
 
 const { publicKey, privateKey } = webpush.generateVAPIDKeys();
 
+// `npm run vapid -- mailto:someone@example.com` to set the contact address in
+// the output directly, rather than printing a placeholder to be edited later.
+const subject = process.argv[2] ?? "mailto:spendbox@gmail.com";
+if (!/^(mailto:|https:)/.test(subject)) {
+  console.error(`\nVAPID_SUBJECT must start with mailto: or https: — got "${subject}"\n`);
+  process.exit(1);
+}
+
 console.log(`
 Add these to your environment (and to Vercel, for the deployed one):
 
@@ -25,5 +33,5 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=${publicKey}
 VAPID_PRIVATE_KEY=${privateKey}
 
 # Where a push service should complain if we misbehave. mailto: or https: only.
-VAPID_SUBJECT=mailto:hello@spendbox.site
+VAPID_SUBJECT=${subject}
 `);

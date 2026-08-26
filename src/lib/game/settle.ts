@@ -107,6 +107,62 @@ export async function markFailed(
  * re-verifying a reference replays the same answer instead of re-rolling a
  * random Sweep.
  */
+
+/**
+ * Pay a free safe's creator their share of a sale against it.
+ *
+ * Called only on the call that actually flipped the order to paid, so a
+ * replayed webhook cannot credit twice — the same property the rest of
+ * settlement relies on.
+ *
+ * The order row is corrected at the same time. Both sales tables record a
+ * split at checkout, and a free safe has no `contributor_id`, so that split
+ * said the platform kept everything. It doesn't: 70% is owed to the player who
+ * put the safe up. Writing it back here keeps the revenue screens — which sum
+ * those columns — from reporting money we don't have.
+ *
+ * Everything is swallowed. The player has paid and been given what they bought
+ * by the time this runs; a bookkeeping failure must not turn that into an
+ * error they can see, and the ledger can be reconciled from the orders.
+ */
+async function creditFreeSafe(
+  db: Db,
+  table: "power_up_orders" | "life_orders",
+  reference: string,
+  boxId: string | null,
+  priceKobo: number
+): Promise<void> {
+  if (!boxId || priceKobo <= 0) return;
+  try {
+    const { data: box } = await db
+      .from("boxes")
+      .select("kind")
+      .eq("id", boxId)
+      .maybeSingle();
+    if (!box || box.kind !== "free") return;
+
+    const { data: cfg } = await db.rpc("free_safe_config");
+    const row = (Array.isArray(cfg) ? cfg[0] : cfg) as
+      | { creator_share_percent?: number }
+      | null;
+    const share = Math.max(0, Math.min(100, Number(row?.creator_share_percent ?? 70)));
+
+    // Rounded the same direction as every other split on the platform: the odd
+    // kobo goes to the platform, so two splits can never disagree by a rule.
+    const platformKobo = Math.ceil((priceKobo * (100 - share)) / 100);
+    const creatorKobo = priceKobo - platformKobo;
+    if (creatorKobo <= 0) return;
+
+    await db.rpc("credit_free_safe", { p_box_id: boxId, p_kobo: creatorKobo });
+    await db
+      .from(table)
+      .update({ contributor_kobo: creatorKobo, platform_kobo: platformKobo })
+      .eq("reference", reference);
+  } catch (err) {
+    console.error("[settle] free safe credit failed:", err);
+  }
+}
+
 export async function settlePowerUp(
   db: Db,
   reference: string,
@@ -121,6 +177,14 @@ export async function settlePowerUp(
       note: (row.note as string | null) ?? null,
     };
   }
+
+  await creditFreeSafe(
+    db,
+    "power_up_orders",
+    reference,
+    (row.box_id as string | null) ?? null,
+    owedKobo("power_up_orders", row)
+  );
 
   const kind = String(row.kind);
   if (!isPowerUpKind(kind)) return { settled: true, note: null };
@@ -173,6 +237,14 @@ export async function settleLives(
   // has to infer intent from a zero.
   const bank = reference.startsWith("bank_");
   if (!claimed) return { settled: row.status === "paid", quantity, bonus: 0, bank };
+
+  await creditFreeSafe(
+    db,
+    "life_orders",
+    reference,
+    (row.box_id as string | null) ?? null,
+    owedKobo("life_orders", row)
+  );
 
   if (bank) {
     await db.rpc("grant_life_bank", {

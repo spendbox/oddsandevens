@@ -927,6 +927,92 @@ and last played, last logged in, first played, days active, guesses in the last
 
 ---
 
+## A safe nobody wrote
+
+Every other box starts with somebody choosing a password. That is what makes
+"nobody at Spendbox can read it back to you" worth saying — and it is also
+what stops a player putting one up, because a box needs money behind it and
+money behind it needs a password worth attacking.
+
+A generated safe removes both. The player brings the audience, Spendbox brings
+the prize, and the password is drawn by Postgres and read by nobody.
+
+| | |
+| --- | --- |
+| **Prize** | ₦100,000, actually funded by us. The figure on the card is the figure a winner is paid |
+| **Creator's cut** | 70% of every power-up and life bought against it, like a contributor |
+| **Difficulty** | The top of the Brutal band, 20–21 characters |
+| **How many** | One live safe per player, and a platform-wide ceiling |
+
+The economics are a real cost, not a trick, and the README should say so: the
+exposure is *live safes × pot*. Three settings bound it rather than hope —
+the pot, the ceiling, and whether generation is on at all — and all three are
+in `/admin` beside every other price.
+
+**Difficulty is the brake.** A generated password is hundreds of attempts of
+grinding, which is what stands between a free prize and a free giveaway. It is
+also why these are worth hunting: a Brutal safe with a real ₦100,000 behind it
+is the most attractive thing on the board.
+
+### Letters and digits only, and published
+
+The symbol half of the alphabet is admin-editable (0040); the letters and
+digits deliberately are not, because "an admin removing them would break the
+game rather than tune it". A generated password has no author to remember it —
+so if it contained a symbol that were later removed from the alphabet, every
+guess containing that character would be refused and a real ₦100,000 would be
+stranded behind a box nobody could ever open. Drawing only from the part that
+cannot be edited makes that impossible.
+
+The cost is 62 candidates per position rather than 111, and it is paid back in
+length: these are drawn at the top of the Brutal band rather than the bottom.
+It is *published* rather than hidden, on the safe itself. A rule everybody is
+told is not a leak; a rule some people work out is.
+
+`gen_random_bytes` rather than `random()`, too. This is the one string on the
+platform that a real ₦100,000 depends on, and `random()` is a seeded PRNG.
+
+### The password is drawn once
+
+It has to be held in a plpgsql variable rather than generated inline, and that
+is not a style choice: `boxes_secret_length` requires `length` to equal
+`char_length(secret)`, and two calls to a volatile generator are two different
+passwords of two different lengths. The first version called it twice and
+inserted successfully **only when the two rolls happened to agree** — about
+half the time. One generation proved nothing; sixty did.
+
+It is never returned. That variable is the only scope the string exists in
+outside the column, the function is `security definer`, and it is revoked from
+every role a browser can reach.
+
+### You cannot win your own
+
+On a funded box this is a term, and it enforces itself: winning your own box
+costs you the stake you put behind it. A free safe has no such brake — the
+creator paid nothing, so grinding their own safe for ₦100,000 is simply a good
+idea unless something stops it. They do not know the password, but they can
+guess like anybody else, so `spend_attempt` refuses them outright, before a
+life is spent, with an error the screen can explain.
+
+### One at a time, decided by an index
+
+A partial unique index on `(creator_player_id) where kind = 'free' and status =
+'live'`, not a count in a route. Two taps on a slow connection are two
+requests, and a `select count(*)` followed by an `insert` is a race that hands
+somebody two safes. Cracking one frees the slot.
+
+### What an administrator can see
+
+`free_safe_secret` is the one place in the product that reads a password back,
+and the shape is deliberate. The promise elsewhere is about a password
+*somebody wrote*; nobody wrote these, so reading one discloses nothing about
+any person. The filter to `kind = 'free'` lives **inside the function** rather
+than in the route, so a mistake in a route cannot become a way to read a
+contributor's. Every reveal is written to the log — who, which box, when —
+because it is the one privileged read that leaves no trace in the data.
+
+---
+
 ## Telling somebody
 
 Every other way of reaching a player costs something. Email is cheap rather
@@ -1400,6 +1486,8 @@ src/app/api/admin/…         the public box, reward claims, revenue
 src/app/api/admin/activity/ daily actives, and the shape of a week
 src/lib/when.ts             "seen 4m ago", from one clock read per load
 src/lib/push.ts             sending a push, and pruning what can't receive one
+src/app/api/player/free-safe/
+                            put one up, and watch what it earns
 src/lib/push-client.ts      the browser half: register, subscribe, re-register
 public/sw.js                notifications, and deliberately no caching
 src/components/admin/activity-panel.tsx
@@ -1425,8 +1513,9 @@ supabase/migrations/        append-only; 0024 rebuilt it, 0025 made it hard,
                             0055 records where to send that business their
                             link and their artwork — once, and 0056 writes
                             down when a player was last seen, last logged in
-                            and last played, and 0057 remembers which browsers
-                            asked to be told things
+                            and last played, 0057 remembers which browsers
+                            asked to be told things, and 0058 lets a player put
+                            up a safe whose password nobody has ever seen
 ```
 
 ---

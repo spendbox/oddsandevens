@@ -78,7 +78,7 @@ function configure(): boolean {
   webpush.setVapidDetails(
     // A contact for the push service to shout at if we misbehave. It must be a
     // mailto: or an https: URL — the spec says so and Firefox enforces it.
-    process.env.VAPID_SUBJECT ?? "mailto:hello@spendbox.site",
+    process.env.VAPID_SUBJECT ?? "mailto:spendbox@gmail.com",
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
     process.env.VAPID_PRIVATE_KEY!
   );

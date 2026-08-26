@@ -89,6 +89,16 @@ export default async function TermsPage() {
           ],
         },
         {
+          heading: "Free safes",
+          paragraphs: [
+            "Anyone who has verified an address can generate a free safe. You do not choose the password and you never see it: it is drawn at random by our database and read by nobody. We fund the prize behind it, and the figure shown on the safe is the figure its winner is paid.",
+            "One at a time. Once yours is cracked — or if we withdraw it — you may generate another. We may limit how many exist at once, change the prize on new ones, or stop offering them, and none of that changes a safe already live.",
+            `You earn ${share}% of everything hunters spend on your free safe, exactly as a contributor does, and it is paid to the bank account on your profile. Money spent before you added one is not lost; it waits.`,
+            "You cannot win your own free safe, and this one is enforced rather than promised: guesses from the player who generated it are refused before a life is spent. Neither may anyone acting with you. Where we find a reward has been collected on behalf of the creator, we will reverse it.",
+            "You are not responsible for the password, because you did not choose it — but you are responsible for how you share the safe. Do not misrepresent the odds, promise anybody a share of the prize, or advertise it somewhere you are not entitled to.",
+          ],
+        },
+        {
           heading: "What contributors earn",
           paragraphs: [
             `${share}% of everything hunters spend on your boxes — power-ups, and lives bought while playing them. Spendbox retains ${PLATFORM_SHARE_PERCENT}%.`,
@@ -108,8 +118,9 @@ export default async function TermsPage() {
         {
           heading: "The password stays hidden",
           paragraphs: [
-            "A password is compared inside the database and never enters our application. Nobody at Spendbox — support, administrators, or engineers — can read a password back to you.",
+            "A password is compared inside the database and never enters our application. Nobody at Spendbox — support, administrators, or engineers — can read back a password you wrote.",
             "That applies to whoever wrote it too. Keep your own copy before funding a box; we cannot recover it.",
+            "The exception, stated plainly: a free safe's password was written by nobody. It is drawn at random by the database and shown to no one, including the player who generated it — and administrators can read it, because there is no person it could betray. Every password you choose yourself stays unreadable to us.",
           ],
         },
         {
