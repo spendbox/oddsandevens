@@ -7,7 +7,7 @@ import { paystackConfigured } from "@/lib/paystack";
 import { payMethod, startCheckout } from "@/lib/checkout-server";
 import { ensurePlayer, newReference } from "@/lib/game/boxes";
 import { splitSale } from "@/lib/game/rewards";
-import { discountedKobo } from "@/lib/game/power-ups";
+import { discountedKobo, MIN_PRICE_KOBO, minLifeQuantity } from "@/lib/game/power-ups";
 import { loadPricing, resolved } from "@/lib/game/pricing";
 import { findBox } from "@/lib/game/view";
 
@@ -47,7 +47,8 @@ export async function POST(req: Request) {
   const quantity = Math.trunc(Number(body.quantity ?? 0));
   // The floor is a rule about what may be sold, so it is checked here and not
   // only in the dialog: a life an hour arrives free, and a card fee against a
-  // single guess is a worse deal than waiting for the clock.
+  // single guess is a worse deal than waiting for the clock. What that floor
+  // is worth in naira is checked further down, once the discount is known.
   if (
     !bank &&
     (!Number.isFinite(quantity) ||
@@ -85,6 +86,32 @@ export async function POST(req: Request) {
     : await db.rpc("life_discount_for", { p_player_id: player.id });
   const discount = Math.max(0, Math.min(100, Number(off ?? 0)));
   const priceKobo = discountedKobo(full, discount);
+
+  /*
+   * Paystack's floor, checked against the number actually being charged.
+   *
+   * A life may now be priced below ₦100 — what has to clear the floor is the
+   * order, and the smallest order is `LIFE_PURCHASE_MIN` of them. That makes
+   * the arithmetic checkable only here, at the end, because the discount is
+   * read from the database and a cheap life with a discount against it is
+   * exactly the combination that falls through: five at ₦20 is the floor to
+   * the naira, and half off five at ₦20 is not.
+   *
+   * Before `spend_life_discount`, which is the whole reason it is a check and
+   * not an assertion: a refusal must not burn a one-use coupon on an order
+   * that was never created.
+   */
+  if (priceKobo < MIN_PRICE_KOBO) {
+    return NextResponse.json(
+      {
+        error: "below_minimum",
+        minimumKobo: MIN_PRICE_KOBO,
+        minimumQuantity: minLifeQuantity(money.lifePriceKobo, discount),
+      },
+      { status: 400 }
+    );
+  }
+
   if (discount > 0) {
     await db.rpc("spend_life_discount", { p_player_id: player.id });
   }

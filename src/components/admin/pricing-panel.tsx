@@ -14,7 +14,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Coins, RotateCcw } from "lucide-react";
-import { KOBO, MAX_FUNDING_KOBO, MIN_LENGTH } from "@/lib/constants";
+import { KOBO, LIFE_PURCHASE_MIN, MAX_FUNDING_KOBO, MIN_LENGTH } from "@/lib/constants";
+import { MIN_LIFE_PRICE_KOBO, MIN_PRICE_KOBO } from "@/lib/game/power-ups";
 import {
   formatNaira,
   fundingSchedule,
@@ -120,6 +121,7 @@ export function PricingPanel() {
           prefix="₦"
           value={draft.lifePriceKobo ?? ""}
           onChange={set("lifePriceKobo")}
+          note={`Down to ${formatNaira(MIN_LIFE_PRICE_KOBO)}. Lives are sold ${LIFE_PURCHASE_MIN} at a time, so it is the order that has to clear the ${formatNaira(MIN_PRICE_KOBO)} Paystack will not go below — not the life.`}
         />
         <Field
           label="Life Bank, a week"
@@ -304,6 +306,7 @@ function Field({
   suffix,
   value,
   onChange,
+  note,
 }: {
   label: string;
   hint: string;
@@ -311,6 +314,12 @@ function Field({
   suffix?: string;
   value: string;
   onChange: (next: string) => void;
+  /**
+   * The bounds, where they are not obvious. Every field here is silently
+   * clamped on save, and a number that comes back different from the one that
+   * was typed with no explanation reads as the screen having lost it.
+   */
+  note?: string;
 }) {
   return (
     <label className="block">
@@ -341,6 +350,7 @@ function Field({
           </span>
         )}
       </span>
+      {note && <span className="mt-1 block text-xs leading-snug text-zinc-500">{note}</span>}
     </label>
   );
 }

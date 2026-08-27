@@ -6,6 +6,7 @@ import {
 } from "@/lib/constants";
 import {
   isPowerUpKind,
+  MIN_LIFE_PRICE_KOBO,
   MIN_PRICE_KOBO,
   type PowerUpKind,
   type PriceOverrides,
@@ -90,8 +91,21 @@ export function sanitise(raw: unknown): PriceOverrides {
   const percent = num(value.platformSharePercent);
   if (percent !== null) out.platformSharePercent = clamp(percent, 0, 90);
 
+  /*
+   * A life is floored lower than everything else here, and deliberately.
+   *
+   * Every other price on this screen is a whole payment: a power-up, a week of
+   * Life Bank, the least a contributor may fund. Paystack's ₦100 is a floor on
+   * a payment, so for those the two numbers are the same one. Lives are sold
+   * `LIFE_PURCHASE_MIN` at a time, so the payment is five of them — and holding
+   * each life to ₦100 held the cheapest possible top-up to ₦500. The floor that
+   * matters is on the order, and `MIN_LIFE_PRICE_KOBO` is that floor divided by
+   * the smallest order.
+   */
   const life = num(value.lifePriceKobo);
-  if (life !== null) out.lifePriceKobo = clamp(Math.round(life), MIN_PRICE_KOBO, 1_000_000_00);
+  if (life !== null) {
+    out.lifePriceKobo = clamp(Math.round(life), MIN_LIFE_PRICE_KOBO, 1_000_000_00);
+  }
 
   const bank = num(value.lifeBankKobo);
   if (bank !== null) out.lifeBankKobo = clamp(Math.round(bank), MIN_PRICE_KOBO, 1_000_000_00);
