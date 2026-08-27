@@ -118,12 +118,20 @@ export function sanitise(raw: unknown): PriceOverrides {
       const one = spec as Record<string, unknown>;
       const share = num(one.share);
       const floor = num(one.floorKobo);
-      const entry: { share?: number; floorKobo?: number } = {};
+      const cap = num(one.capKobo);
+      const entry: { share?: number; floorKobo?: number; capKobo?: number } = {};
       // A share is a fraction, never a percentage: 0.5 is half the reward and
       // is already absurd, so the ceiling is well under it.
       if (share !== null) entry.share = clamp(share, 0, 0.5);
       if (floor !== null) entry.floorKobo = clamp(Math.round(floor), MIN_PRICE_KOBO, 5_000_000_00);
-      if (entry.share !== undefined || entry.floorKobo !== undefined) {
+      // Clamped like a price rather than against the floor: a cap under the
+      // floor is a deliberate flat price, and `priceKobo` reads it as one.
+      if (cap !== null) entry.capKobo = clamp(Math.round(cap), MIN_PRICE_KOBO, 5_000_000_00);
+      if (
+        entry.share !== undefined ||
+        entry.floorKobo !== undefined ||
+        entry.capKobo !== undefined
+      ) {
         kinds[kind as PowerUpKind] = entry;
       }
     }
