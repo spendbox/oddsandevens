@@ -57,6 +57,11 @@ export function PushToggle() {
     try {
       if (state === "on") {
         await disablePush();
+        // Off means off, including a pending "tell me when my lives are full".
+        // The watch could not be delivered without a subscription anyway, but
+        // leaving it would honour it if push were switched back on weeks later,
+        // for a pool somebody stopped waiting on long ago.
+        await fetch("/api/player/lives/watch", { method: "DELETE" }).catch(() => {});
       } else {
         const ok = await enablePush();
         // A refusal is not an error and gets no message: the browser has just

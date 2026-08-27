@@ -37,6 +37,7 @@ import {
   REFERRAL_BONUS_LIVES,
 } from "@/lib/constants";
 import { useInviteShare } from "./invite-share";
+import { LivesWatchDialog, livesPushOffered } from "./lives-watch-dialog";
 import { LifeBankArt, PowerUpArt } from "@/components/art/power-up-art";
 import {
   discountedKobo,
@@ -117,6 +118,9 @@ export function BuyLivesDialog({
     details: NonNullable<CheckoutStart["transfer"]>;
     reference: string;
   } | null>(null);
+  /* Set when this dialog is being dismissed by somebody with nothing left to
+     spend, and hands over to the offer below rather than closing. */
+  const [offerWatch, setOfferWatch] = useState(false);
 
   /*
    * They arrived.
@@ -168,6 +172,29 @@ export function BuyLivesDialog({
           : LIFE_PURCHASE_MIN
       )
     );
+  }
+
+  /*
+   * Closing without buying.
+   *
+   * Somebody dismissing this dialog with an empty pool has just decided to
+   * wait, and the one useful thing left to offer them is a notification when
+   * the wait is over. It goes here, on the way out, rather than beside the
+   * three prices — a free alternative standing next to them is an argument
+   * against all three, and after the decision is made it competes with
+   * nothing. `livesPushOffered` is what keeps it to once, ever, and to
+   * browsers where there is anything to ask for.
+   *
+   * Only the dismissal routes through here. Every path that ends in a payment
+   * closes outright: somebody who has just bought lives is not waiting for
+   * any, and the offer would be nonsense.
+   */
+  async function leave() {
+    if (player.lives === 0 && !windRunning && (await livesPushOffered())) {
+      setOfferWatch(true);
+      return;
+    }
+    onClose();
   }
 
   async function checkout() {
@@ -260,6 +287,8 @@ export function BuyLivesDialog({
   const livesTotal = discountedKobo(livesFull, off);
   const total = wind && secondWind ? secondWind.priceKobo : bank ? lifeBankKobo : livesTotal;
 
+  if (offerWatch) return <LivesWatchDialog onClose={onClose} />;
+
   if (transfer) {
     return (
       <TransferSheet
@@ -281,7 +310,7 @@ export function BuyLivesDialog({
       subtitle={`Buy guesses, ${secondWindLabel()} of them, or somewhere to keep more.`}
       icon={<Heart className="size-5 fill-brass text-brass" aria-hidden />}
       width="sm"
-      onClose={onClose}
+      onClose={() => void leave()}
       footer={
         <button
           type="button"
