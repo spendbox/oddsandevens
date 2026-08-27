@@ -271,16 +271,23 @@ function BoxRow({ box, onChanged }: { box: OwnedBox; onChanged: () => void }) {
             {box.status === "live" && (
               <>
                 <ShareButton slug={box.slug} title={box.title} />
-                <button
-                  type="button"
-                  onClick={() => setRaising((r) => !r)}
-                  className={GHOST}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <TrendingUp className="size-4" aria-hidden />
-                    Raise reward
-                  </span>
-                </button>
+                {/* Not on a promo safe. Its pot is ours rather than 70% of
+                    what was paid for it, so there is nothing here to raise —
+                    the funding route refuses one regardless, and offering a
+                    button that opens a checkout only to be turned down is
+                    worse than not offering it. */}
+                {box.kind !== "promo" && (
+                  <button
+                    type="button"
+                    onClick={() => setRaising((r) => !r)}
+                    className={GHOST}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <TrendingUp className="size-4" aria-hidden />
+                      Raise reward
+                    </span>
+                  </button>
+                )}
               </>
             )}
           </>

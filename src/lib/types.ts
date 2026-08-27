@@ -58,7 +58,13 @@ export interface Sponsor {
  */
 export interface PublicBox {
   slug: string;
-  kind: "general" | "contributor";
+  /**
+   * 'promo' has been reaching every surface that reads this since 0059 — it is
+   * a contributor's box whose password was drawn rather than written — and was
+   * missing from this union, so a screen asking whether a box is a promo safe
+   * was told the comparison could never be true.
+   */
+  kind: "general" | "contributor" | "promo";
   title: string;
   blurb: string | null;
   rewardKobo: number;

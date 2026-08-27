@@ -42,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const db = supabaseAdmin();
   const { data: box } = await db
     .from("boxes")
-    .select("id, slug, title, status, funding_kobo")
+    .select("id, kind, slug, title, status, funding_kobo")
     .eq("id", id)
     .eq("contributor_id", contributor.id)
     .maybeSingle();
@@ -54,6 +54,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let raisesTo: number | null = null;
 
   if (raiseTo !== null) {
+    // A promo safe cannot be raised, and it has to be refused *here* rather
+    // than left to `raise_reward`: the checkout opens before the settlement
+    // runs, so a refusal further down the path is one that arrives after the
+    // money. The reason it is refused at all is that raising re-derives the
+    // reward as 70% of the new total, and a promo safe's pot is ours and
+    // unrelated to its price — so a raise would take the advertised pot and
+    // cut it to a fraction of a few thousand naira.
+    if (box.kind === "promo") {
+      return NextResponse.json({ error: "promo_not_raisable" }, { status: 409 });
+    }
     if (box.status !== "live" && box.status !== "funding") {
       return NextResponse.json({ error: "box_not_open" }, { status: 409 });
     }

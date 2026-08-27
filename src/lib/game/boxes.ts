@@ -38,7 +38,7 @@ export const PUBLIC_BOX_COLUMNS =
 
 export interface BoxRow extends SponsorRow {
   id: string;
-  kind: "general" | "contributor";
+  kind: "general" | "contributor" | "promo";
   slug: string;
   title: string;
   blurb: string | null;
