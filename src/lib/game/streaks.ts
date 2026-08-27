@@ -99,3 +99,92 @@ export function headlineGrant(day: StreakDay | undefined): Grant | null {
 export function isMilestone(day: number): boolean {
   return MILESTONES.includes(day);
 }
+
+// ---------------------------------------------------------------------------
+// Where a claimed reward is actually spent
+// ---------------------------------------------------------------------------
+
+/**
+ * The control that lights up after a claim.
+ *
+ * "Go and spend it" was the whole of the guidance, and it named neither the
+ * thing nor the place: a 30% discount on a Breakdown is spent on the power-up
+ * shelf, inside a safe, which is two taps and a screen away from the dialog
+ * that announced it. A reward nobody can find is a reward nobody takes.
+ */
+export type SpendTarget = "lives" | "power-ups";
+
+export interface SpendGuide {
+  /** Which control glows, or null when there is nothing to go and do. */
+  target: SpendTarget | null;
+  /** Where it is spent, in one line, addressed to the player. */
+  where: string;
+  /** What the button that closes the dialog should say. */
+  cta: string;
+}
+
+/**
+ * Which till a grant is spent at.
+ *
+ * Lives and Life Bank are not here because they are not spent at a till at
+ * all: both land in the pool at the moment of claiming, and the only thing
+ * left to do with them is play.
+ */
+const SPENDS_AT: Record<GrantKind, SpendTarget | null> = {
+  power_up_discount: "power-ups",
+  free_power_up: "power-ups",
+  free_second_wind: "power-ups",
+  life_discount: "lives",
+  free_lives: null,
+  life_bank: null,
+};
+
+/**
+ * What to tell somebody who has just claimed, and what to light up.
+ *
+ * A milestone hands over three things at once and they are not spent in the
+ * same place, so one of them has to lead. The shelf wins over the lives
+ * counter for the same reason `WEIGHT` orders the tiles: a free X-Ray is the
+ * part somebody would go out of their way for, and a discount on lives is
+ * still there afterwards. Where nothing needs spending the guidance says so
+ * rather than sending them looking for a till that has nothing for them.
+ */
+export function spendGuide(grants: Grant[]): SpendGuide {
+  const targets = new Set(grants.map((g) => SPENDS_AT[g.kind]));
+
+  if (targets.has("power-ups")) {
+    const free = grants.find((g) => g.kind === "free_power_up" || g.kind === "free_second_wind");
+    return {
+      target: "power-ups",
+      where: free
+        ? "Open any safe and take it from the Power-ups shelf."
+        : "Open any safe — the discount is on the Power-ups shelf.",
+      cta: "Show me where",
+    };
+  }
+
+  if (targets.has("lives")) {
+    return {
+      target: "lives",
+      where: "Tap your lives, up in the corner, to spend it before it expires.",
+      cta: "Show me where",
+    };
+  }
+
+  // Nothing to find, so nothing is promised: this one is already done, and
+  // saying which way it is done is more use than sending them looking.
+  const lives = grants.some((g) => g.kind === "free_lives");
+  const headroom = grants.some((g) => g.kind === "life_bank");
+  return {
+    target: null,
+    where:
+      lives && headroom
+        ? "Already yours — the lives are in your pool, and it holds more of them now."
+        : lives
+          ? "They're in your pool already. Go and spend them on a password."
+          : headroom
+            ? "Your pool holds more now. Nothing to collect — go and fill it."
+            : "Nothing to collect. Go and spend a life on a password.",
+    cta: "Back to the hunt",
+  };
+}

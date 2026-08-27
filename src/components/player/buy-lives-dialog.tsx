@@ -23,7 +23,7 @@
 // immediately — so the share sits beside the free-refill note, above everything
 // with a price on it, instead of only on the profile screen.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { isTransfer, openCheckout, type CheckoutStart } from "@/lib/checkout";
 import { PayMethodPicker } from "./pay-method";
 import { TransferSheet } from "./transfer-sheet";
@@ -32,6 +32,7 @@ import { Check, Heart, Infinity as InfinityIcon, Share2, Tag } from "lucide-reac
 import { Modal } from "@/components/ui/modal";
 import {
   LIFE_PURCHASE_MAX,
+  LIFE_PURCHASE_MIN,
   LIVES_MAX,
   REFERRAL_BONUS_LIVES,
 } from "@/lib/constants";
@@ -47,7 +48,14 @@ import { formatNaira } from "@/lib/game/rewards";
 import { usePlayer } from "./player-context";
 import { countdown, useNow } from "./lives-badge";
 
-const QUICK_PICKS = [1, 3, 5, 10];
+/**
+ * The picks, starting at the floor.
+ *
+ * They used to start at one, which is a life the clock hands over free within
+ * the hour — paying a card fee to skip the last few minutes of a wait is not a
+ * deal anybody should be offered. Five is the smallest sale.
+ */
+const QUICK_PICKS = [LIFE_PURCHASE_MIN, 10, 20, 50];
 
 /**
  * What a week of Life Bank costs when nothing has told us otherwise.
@@ -79,14 +87,24 @@ export function BuyLivesDialog({
   /** A week of the raised ceiling. Admin-set; this is only the fallback. */
   lifeBankKobo?: number;
 }) {
-  const { player, refresh } = usePlayer();
+  const { player, refresh, arrivedAt } = usePlayer();
   // Off the player rather than a prop: this dialog opens from the game, the
   // header and the profile, and only one of those has a box in front of it.
   const lifeDiscount = player.lifeDiscount;
   // The discount's clock first: it is the shorter of the two and the only one
   // that costs the player money to miss.
   const now = useNow(lifeDiscount?.expiresAt ?? player.nextLifeAt);
-  const [quantity, setQuantity] = useState(3);
+  /*
+   * What is in the field, as a string, and not as the number it will become.
+   *
+   * Holding a number here meant the field could never be empty: every
+   * keystroke was parsed, `|| 1` turned an empty field into a 1, and the 1 was
+   * written straight back into the input. Somebody wanting fifty had to type
+   * the 5 and the 0 *in front of* a one they could not delete, and ended up
+   * buying 501 lives or giving up. A string can be empty while somebody is
+   * mid-thought, which is the whole fix.
+   */
+  const [typed, setTyped] = useState(String(LIFE_PURCHASE_MIN));
   const [buying, setBuying] = useState<Buying>("lives");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +118,19 @@ export function BuyLivesDialog({
     reference: string;
   } | null>(null);
 
+  /*
+   * They arrived.
+   *
+   * A streak reward spent on lives points at the counter in the corner, and
+   * this dialog is what that counter opens — so the ring comes off here rather
+   * than on the tap, which also covers the ways in that are not a tap: the
+   * profile screen, and the sheet the game throws up on a guess with no lives
+   * left to spend.
+   */
+  useEffect(() => {
+    arrivedAt("lives");
+  }, [arrivedAt]);
+
   const windRunning =
     !!secondWind?.activeUntil && new Date(secondWind.activeUntil).getTime() > now;
   const canWind = !!secondWind && !!slug && secondWind.available && !windRunning;
@@ -110,8 +141,40 @@ export function BuyLivesDialog({
   const bank = buying === "bank";
   const bankRunning = player.livesMax > LIVES_MAX;
 
+  /*
+   * The number, or null while the field does not name a sellable one.
+   *
+   * Nothing is corrected as they type — a half-typed number is not a mistake,
+   * and rewriting it under the cursor is what made the old field unusable. The
+   * button goes quiet instead and says what is wrong; `settle` below tidies up
+   * once they are done, on blur.
+   */
+  const wanted = Math.trunc(Number(typed));
+  const quantity =
+    typed.trim() !== "" &&
+    Number.isFinite(wanted) &&
+    wanted >= LIFE_PURCHASE_MIN &&
+    wanted <= LIFE_PURCHASE_MAX
+      ? wanted
+      : null;
+
+  /** On blur, snap an unsellable field to the nearest number that is. */
+  function settle() {
+    if (quantity !== null) return;
+    setTyped(
+      String(
+        Number.isFinite(wanted) && wanted > LIFE_PURCHASE_MAX
+          ? LIFE_PURCHASE_MAX
+          : LIFE_PURCHASE_MIN
+      )
+    );
+  }
+
   async function checkout() {
     if (wind && secondWind && slug) return buyWind();
+    // The button is disabled in this state; this is the belt to its braces,
+    // and it keeps `quantity` a number for the request below.
+    if (!bank && quantity === null) return;
     setBusy(true);
     setError(null);
     const res = await fetch("/api/player/lives", {
@@ -193,7 +256,7 @@ export function BuyLivesDialog({
     lifeDiscount && new Date(lifeDiscount.expiresAt).getTime() > now
       ? lifeDiscount.amount
       : 0;
-  const livesFull = quantity * player.lifePriceKobo;
+  const livesFull = (quantity ?? 0) * player.lifePriceKobo;
   const livesTotal = discountedKobo(livesFull, off);
   const total = wind && secondWind ? secondWind.priceKobo : bank ? lifeBankKobo : livesTotal;
 
@@ -202,7 +265,7 @@ export function BuyLivesDialog({
       <TransferSheet
         transfer={transfer.details}
         reference={transfer.reference}
-        what={wind ? secondWindLabel() : bank ? "Life Bank, one week" : `${quantity} lives`}
+        what={wind ? secondWindLabel() : bank ? "Life Bank, one week" : `${quantity ?? 0} lives`}
         onPaid={() => {
           void refresh();
           onClose();
@@ -222,7 +285,7 @@ export function BuyLivesDialog({
       footer={
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || (!wind && !bank && quantity === null)}
           onClick={() => void checkout()}
           style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
           className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
@@ -233,6 +296,13 @@ export function BuyLivesDialog({
             `Take the ${secondWindLabel()} · ${formatNaira(total)}`
           ) : bank ? (
             `${bankRunning ? "Another week" : "Take the week"} · ${formatNaira(total)}`
+          ) : quantity === null ? (
+            /* A price is not shown for a number that cannot be bought — ₦0 on
+               an empty field reads as a free order rather than an unfinished
+               one. The button says what would make it work instead. */
+            wanted > LIFE_PURCHASE_MAX
+              ? `${LIFE_PURCHASE_MAX} lives at a time`
+              : `At least ${LIFE_PURCHASE_MIN} lives`
           ) : (
             <>
               Pay{" "}
@@ -298,7 +368,7 @@ export function BuyLivesDialog({
               {player.bonusLivesPending === 1 ? "life" : "lives"}
             </strong>{" "}
             banked from an earlier invite land with this one. You’ll get{" "}
-            {quantity + player.bonusLivesPending} in total.
+            {(quantity ?? 0) + player.bonusLivesPending} in total.
           </p>
         )}
 
@@ -371,7 +441,7 @@ export function BuyLivesDialog({
             <button
               key={n}
               type="button"
-              onClick={() => setQuantity(n)}
+              onClick={() => setTyped(String(n))}
               className={
                 "rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition " +
                 (quantity === n
@@ -379,25 +449,44 @@ export function BuyLivesDialog({
                   : "border-white/12 bg-white/5 text-zinc-300 hover:border-white/30")
               }
             >
-              {n} {n === 1 ? "life" : "lives"}
+              {n} lives
             </button>
           ))}
         </div>
 
+        {/*
+          The typed number.
+
+          `onFocus` selects what is already there, so the first digit typed
+          replaces the number rather than joining it — on a phone, tapping this
+          field and typing 50 used to produce 550 or 505 depending on where the
+          caret landed. Selected-on-focus means what you type is what you get,
+          and the field can also simply be emptied and re-typed, which is the
+          other half of the same problem.
+        */}
         <label className={"block " + (wind || bank ? "hidden" : "")}>
-          <span className="text-sm text-zinc-500">Or pick a number</span>
+          <span className="text-sm text-zinc-500">
+            Or pick a number — {LIFE_PURCHASE_MIN} to {LIFE_PURCHASE_MAX}
+          </span>
           <input
             type="number"
-            min={1}
+            inputMode="numeric"
+            min={LIFE_PURCHASE_MIN}
             max={LIFE_PURCHASE_MAX}
-            value={quantity}
-            onChange={(e) =>
-              setQuantity(
-                Math.min(Math.max(Math.trunc(Number(e.target.value) || 1), 1), LIFE_PURCHASE_MAX)
-              )
-            }
+            value={typed}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => setTyped(e.target.value)}
+            onBlur={settle}
+            aria-invalid={quantity === null}
             className="field mt-1.5 px-4 py-3"
           />
+          {quantity === null && (
+            <span className="mt-1.5 block text-sm font-bold text-berry">
+              {wanted > LIFE_PURCHASE_MAX
+                ? `${LIFE_PURCHASE_MAX} lives is the most in one go.`
+                : `${LIFE_PURCHASE_MIN} lives is the smallest top-up — the pool refills free below that.`}
+            </span>
+          )}
         </label>
 
         <PayMethodPicker value={method} onPick={setMethod} disabled={busy} />

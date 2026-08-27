@@ -87,7 +87,7 @@ export function PlaySurface({
   slug: string;
   pendingReference: string | null;
 }) {
-  const { refresh, verified } = usePlayer();
+  const { refresh, verified, spendHint, arrivedAt } = usePlayer();
   const router = useRouter();
   const [view, setView] = useState(initial);
   const [typed, setTyped] = useState("");
@@ -214,6 +214,18 @@ export function PlaySurface({
     });
     return () => window.cancelAnimationFrame(id);
   }, [drop, applied, result, outcome]);
+
+  /*
+   * They arrived at the shelf.
+   *
+   * A streak reward spent on a power-up points at the dock button, and this is
+   * the sheet that button opens — so the ring comes off when the shelf is on
+   * screen, whether they got here by the glowing tab, by the discount pill
+   * beside the lives, or by browsing.
+   */
+  useEffect(() => {
+    if (sheet === "power-ups") arrivedAt("power-ups");
+  }, [sheet, arrivedAt]);
 
   /*
    * The golden chip takes itself away.
@@ -577,6 +589,7 @@ export function PlaySurface({
                 powerUps={view.powerUps.filter((p) => p.available).length}
                 onAttempts={() => setSheet("attempts")}
                 onPowerUps={() => setSheet("power-ups")}
+                beckoning={spendHint?.target === "power-ups"}
               />
             </div>
           ) : (

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { LIFE_PURCHASE_MAX } from "@/lib/constants";
+import { LIFE_PURCHASE_MAX, LIFE_PURCHASE_MIN } from "@/lib/constants";
 import { playerEmail } from "@/lib/player-session";
 import { appBaseUrl } from "@/lib/base-url";
 import { paystackConfigured } from "@/lib/paystack";
@@ -45,8 +45,19 @@ export async function POST(req: Request) {
   const method = payMethod(body.method);
   const bank = body.lifeBank === true;
   const quantity = Math.trunc(Number(body.quantity ?? 0));
-  if (!bank && (!Number.isFinite(quantity) || quantity < 1 || quantity > LIFE_PURCHASE_MAX)) {
-    return NextResponse.json({ error: "invalid_quantity" }, { status: 400 });
+  // The floor is a rule about what may be sold, so it is checked here and not
+  // only in the dialog: a life an hour arrives free, and a card fee against a
+  // single guess is a worse deal than waiting for the clock.
+  if (
+    !bank &&
+    (!Number.isFinite(quantity) ||
+      quantity < LIFE_PURCHASE_MIN ||
+      quantity > LIFE_PURCHASE_MAX)
+  ) {
+    return NextResponse.json(
+      { error: "invalid_quantity", minimum: LIFE_PURCHASE_MIN, maximum: LIFE_PURCHASE_MAX },
+      { status: 400 }
+    );
   }
 
   const db = supabaseAdmin();

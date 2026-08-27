@@ -12,7 +12,7 @@
 // It opens once per day, on the first visit, over whatever they were doing.
 
 import { useEffect, useState } from "react";
-import { Flame, Loader2, Lock, Check } from "lucide-react";
+import { ArrowRight, Flame, Loader2, Lock, Check } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Boxy } from "@/components/art/boxy";
 import { usePlayer } from "@/components/player/player-context";
@@ -21,6 +21,7 @@ import {
   grantLabel,
   headlineGrant,
   isMilestone,
+  spendGuide,
   STREAK_DAYS,
   type Grant,
   type StreakDay,
@@ -38,6 +39,7 @@ export function StreakDialog({
   onClose: () => void;
   onClaimed: () => void;
 }) {
+  const { guideTo } = usePlayer();
   const [phase, setPhase] = useState<Phase>("grid");
   const [won, setWon] = useState<{ day: number; grants: Grant[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +79,17 @@ export function StreakDialog({
 
   if (phase === "won" && won) {
     const big = isMilestone(won.day);
+    /*
+     * Where this is spent, and the control that will be glowing when they get
+     * there. "Go and spend it" was the whole of the guidance and it named no
+     * place: a discount on a Breakdown is two taps and a screen away, on a
+     * shelf inside a safe, and a reward nobody can find is one nobody takes.
+     */
+    const guide = spendGuide(won.grants);
+    const leave = () => {
+      if (guide.target) guideTo(guide.target, guide.where);
+      onClose();
+    };
     return (
       <Modal
         above={
@@ -102,15 +115,16 @@ export function StreakDialog({
         }
         icon={<Flame className="size-5 text-brass" aria-hidden />}
         width="sm"
-        onClose={onClose}
+        onClose={leave}
         footer={
           <button
             type="button"
-            onClick={onClose}
+            onClick={leave}
             style={{ "--btn-lip": "var(--brass-deep)" } as React.CSSProperties}
-            className="btn-chunky w-full rounded-2xl bg-brass px-4 py-3.5 text-ink"
+            className="btn-chunky flex w-full items-center justify-center gap-2 rounded-2xl bg-brass px-4 py-3.5 text-ink"
           >
-            Go and spend it
+            {guide.cta}
+            {guide.target && <ArrowRight className="size-4" aria-hidden />}
           </button>
         }
       >
@@ -125,6 +139,16 @@ export function StreakDialog({
             </li>
           ))}
         </ul>
+
+        {/*
+          What to do with it, in the same breath as what it is. The button
+          underneath promises to show them where; this is the sentence that
+          makes the promise specific, and the glow it leaves behind on the
+          lives counter or the shelf is the other half of it.
+        */}
+        <p className="mt-3 rounded-2xl border-2 border-brass/30 bg-brass/10 px-3 py-2.5 text-center text-sm text-brass">
+          {guide.where}
+        </p>
 
         <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-zinc-500">
           <Lock className="size-3" aria-hidden />

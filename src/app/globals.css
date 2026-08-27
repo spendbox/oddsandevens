@@ -435,6 +435,38 @@ option {
   }
 }
 
+/*
+ * "It is over here."
+ *
+ * Put on the one control a just-claimed reward is spent at — the lives
+ * counter, or the power-up shelf's tab — for the half hour after somebody
+ * takes a daily reward. A gift is only a gift once it has been found, and the
+ * till it is spent at is usually a screen away from the dialog that announced
+ * it.
+ *
+ * The ring is an `outline` and the halo is a `filter`, neither of which is
+ * `box-shadow`: every control this lands on is a `btn-chunky`, whose lip *is*
+ * a box-shadow, and an animation on that property would flatten the button for
+ * as long as it glowed. The ring is also the whole of the effect for anybody
+ * who has asked their system to stop moving things — the reduced-motion rule
+ * in this file stops the pulse, and a static gold ring still says "this one".
+ */
+@utility beacon {
+  outline: 2px solid var(--beacon, var(--brass));
+  outline-offset: 3px;
+  animation: beacon-pulse 1.7s ease-in-out infinite;
+}
+
+@keyframes beacon-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgb(255 194 71 / 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 9px rgb(255 194 71 / 0.85));
+  }
+}
+
 /* Gold text with a lit top edge — the money figure, and nothing else. */
 @utility brass-text {
   background: linear-gradient(180deg, var(--brass-bright) 12%, var(--brass) 55%, var(--brass-deep) 100%);
