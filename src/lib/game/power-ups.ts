@@ -27,7 +27,7 @@
 // *result* of a purchase and never the password.
 
 import { randomInt } from "node:crypto";
-import { KOBO } from "@/lib/constants";
+import { KOBO, LIFE_PURCHASE_MAX, LIFE_PURCHASE_MIN } from "@/lib/constants";
 import { splitSale, type FundingOverrides } from "@/lib/game/rewards";
 
 export const POWER_UP_KINDS = [
@@ -339,8 +339,23 @@ export const POWER_UPS: Record<PowerUpKind, PowerUpSpec> = {
  * What a power-up costs on a given box.
  *
  * A share of the reward, floored so that a box with nothing behind it — the
- * platform's own challenges — still has something to sell. Rounded to the
- * nearest naira, because a price ending in kobo looks like a mistake.
+ * platform's own challenges — still has something to sell, and capped where an
+ * admin has said what it may never exceed. Rounded to the nearest naira,
+ * because a price ending in kobo looks like a mistake.
+ *
+ * **The cap is the last word, and that is the point of it.** Floor and share
+ * could only ever push a price *up*: on any box where the share already
+ * cleared the floor, editing the floor changed nothing, so an admin trying to
+ * make something cheaper typed a number, saved it, and watched the shelf carry
+ * on charging what it charged before. Second Wind is where that bit hardest —
+ * a fixed window of free guesses has no natural relationship to the size of
+ * the prize, so a flat price is the obvious thing to want and was the one
+ * thing the two fields could not express. Setting the cap and the floor to the
+ * same number is that flat price.
+ *
+ * A cap below the floor is not a contradiction to resolve, it is somebody
+ * saying "never more than this" second and meaning it. Only `MIN_PRICE_KOBO`
+ * outranks it, and only because Paystack will refuse anything under it.
  */
 export function priceKobo(
   kind: PowerUpKind,
@@ -351,7 +366,9 @@ export function priceKobo(
   const spec = POWER_UPS[kind];
   const over = prices?.powerUps?.[kind];
   const share = Math.round((rewardKobo * (over?.share ?? spec.share)) / KOBO) * KOBO;
-  return Math.max(MIN_PRICE_KOBO, over?.floorKobo ?? spec.floorKobo, share);
+  const asked = Math.max(over?.floorKobo ?? spec.floorKobo, share);
+  const capped = over?.capKobo === undefined ? asked : Math.min(asked, over.capKobo);
+  return Math.max(MIN_PRICE_KOBO, capped);
 }
 
 /**
@@ -364,7 +381,21 @@ export function priceKobo(
  * load the overrides and hand them in.
  */
 export interface PriceOverrides {
-  powerUps?: Partial<Record<PowerUpKind, { share?: number; floorKobo?: number }>>;
+  powerUps?: Partial<
+    Record<
+      PowerUpKind,
+      {
+        share?: number;
+        floorKobo?: number;
+        /**
+         * The most it may cost, whatever the share of a big reward comes to.
+         * Absent by default — there is no built-in ceiling, only the one an
+         * admin puts on. Set equal to the floor for a flat price.
+         */
+        capKobo?: number;
+      }
+    >
+  >;
   /** What Spendbox keeps of every sale. */
   platformSharePercent?: number;
   lifePriceKobo?: number;
@@ -395,6 +426,46 @@ export const MIN_PRICE_KOBO = 100 * KOBO;
 export function discountedKobo(fullKobo: number, percentOff: number): number {
   const off = Math.max(0, Math.min(100, percentOff));
   return Math.max(1, Math.round((fullKobo * (100 - off)) / 100));
+}
+
+/**
+ * The least one life may be priced at.
+ *
+ * `MIN_PRICE_KOBO` is a floor on a *payment*, and a power-up is one payment of
+ * one price — so for the shelf the two numbers are the same. A life is not:
+ * nobody has been able to buy fewer than `LIFE_PURCHASE_MIN` of them since the
+ * floor on top-ups went in, so the smallest payment anybody can make is five
+ * lives, and holding each individual life to ₦100 held the smallest order to
+ * ₦500 for no reason at all. What has to clear Paystack is the order.
+ *
+ * Rounded up, so five of them are never a naira short of the floor.
+ */
+export const MIN_LIFE_PRICE_KOBO = Math.ceil(MIN_PRICE_KOBO / LIFE_PURCHASE_MIN);
+
+/**
+ * The fewest lives that can actually be sold at a given price.
+ *
+ * Usually `LIFE_PURCHASE_MIN` and nothing more. It rises when a cheap enough
+ * life meets a discount — five lives at ₦20 with half off is a ₦50 charge, and
+ * Paystack will not take it — and it rises to a number rather than refusing,
+ * because "ten lives, then" is an answer somebody can act on where "we can't
+ * process that" is not.
+ *
+ * Counted rather than divided, so it agrees with `discountedKobo` exactly at
+ * the boundary instead of disagreeing with it by a naira of rounding. The loop
+ * is at most `LIFE_PURCHASE_MAX` steps and stops there: a price that cannot
+ * clear the floor at any quantity is a misconfiguration, and the cap is what
+ * makes it a refused order rather than a hung browser.
+ */
+export function minLifeQuantity(unitKobo: number, percentOff = 0): number {
+  let quantity = LIFE_PURCHASE_MIN;
+  while (
+    quantity < LIFE_PURCHASE_MAX &&
+    discountedKobo(quantity * unitKobo, percentOff) < MIN_PRICE_KOBO
+  ) {
+    quantity++;
+  }
+  return quantity;
 }
 
 export function isPowerUpKind(value: string): value is PowerUpKind {

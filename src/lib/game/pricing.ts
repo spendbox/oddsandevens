@@ -6,6 +6,7 @@ import {
 } from "@/lib/constants";
 import {
   isPowerUpKind,
+  MIN_LIFE_PRICE_KOBO,
   MIN_PRICE_KOBO,
   type PowerUpKind,
   type PriceOverrides,
@@ -90,8 +91,21 @@ export function sanitise(raw: unknown): PriceOverrides {
   const percent = num(value.platformSharePercent);
   if (percent !== null) out.platformSharePercent = clamp(percent, 0, 90);
 
+  /*
+   * A life is floored lower than everything else here, and deliberately.
+   *
+   * Every other price on this screen is a whole payment: a power-up, a week of
+   * Life Bank, the least a contributor may fund. Paystack's ₦100 is a floor on
+   * a payment, so for those the two numbers are the same one. Lives are sold
+   * `LIFE_PURCHASE_MIN` at a time, so the payment is five of them — and holding
+   * each life to ₦100 held the cheapest possible top-up to ₦500. The floor that
+   * matters is on the order, and `MIN_LIFE_PRICE_KOBO` is that floor divided by
+   * the smallest order.
+   */
   const life = num(value.lifePriceKobo);
-  if (life !== null) out.lifePriceKobo = clamp(Math.round(life), MIN_PRICE_KOBO, 1_000_000_00);
+  if (life !== null) {
+    out.lifePriceKobo = clamp(Math.round(life), MIN_LIFE_PRICE_KOBO, 1_000_000_00);
+  }
 
   const bank = num(value.lifeBankKobo);
   if (bank !== null) out.lifeBankKobo = clamp(Math.round(bank), MIN_PRICE_KOBO, 1_000_000_00);
@@ -104,12 +118,20 @@ export function sanitise(raw: unknown): PriceOverrides {
       const one = spec as Record<string, unknown>;
       const share = num(one.share);
       const floor = num(one.floorKobo);
-      const entry: { share?: number; floorKobo?: number } = {};
+      const cap = num(one.capKobo);
+      const entry: { share?: number; floorKobo?: number; capKobo?: number } = {};
       // A share is a fraction, never a percentage: 0.5 is half the reward and
       // is already absurd, so the ceiling is well under it.
       if (share !== null) entry.share = clamp(share, 0, 0.5);
       if (floor !== null) entry.floorKobo = clamp(Math.round(floor), MIN_PRICE_KOBO, 5_000_000_00);
-      if (entry.share !== undefined || entry.floorKobo !== undefined) {
+      // Clamped like a price rather than against the floor: a cap under the
+      // floor is a deliberate flat price, and `priceKobo` reads it as one.
+      if (cap !== null) entry.capKobo = clamp(Math.round(cap), MIN_PRICE_KOBO, 5_000_000_00);
+      if (
+        entry.share !== undefined ||
+        entry.floorKobo !== undefined ||
+        entry.capKobo !== undefined
+      ) {
         kinds[kind as PowerUpKind] = entry;
       }
     }

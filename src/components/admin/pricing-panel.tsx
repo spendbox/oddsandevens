@@ -14,7 +14,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Coins, RotateCcw } from "lucide-react";
-import { KOBO, MAX_FUNDING_KOBO, MIN_LENGTH } from "@/lib/constants";
+import { KOBO, LIFE_PURCHASE_MIN, MAX_FUNDING_KOBO, MIN_LENGTH } from "@/lib/constants";
+import {
+  isPowerUpKind,
+  MIN_LIFE_PRICE_KOBO,
+  MIN_PRICE_KOBO,
+  priceKobo,
+  type PriceOverrides,
+} from "@/lib/game/power-ups";
 import {
   formatNaira,
   fundingSchedule,
@@ -37,7 +44,7 @@ interface Overrides {
   lifePriceKobo?: number;
   lifeBankKobo?: number;
   funding?: FundingOverrides;
-  powerUps?: Record<string, { share?: number; floorKobo?: number }>;
+  powerUps?: Record<string, { share?: number; floorKobo?: number; capKobo?: number }>;
 }
 
 /** What the fields hold: strings, because a half-typed number is a string. */
@@ -94,6 +101,10 @@ export function PricingPanel() {
   const set = (key: string) => (value: string) =>
     setDraft((current) => ({ ...current, [key]: value.replace(/[^\d.]/g, "") }));
 
+  // What the fields currently add up to, parsed once: both previews below read
+  // it, and one of them is drawn twelve times.
+  const pending = fromDraft(draft);
+
   return (
     <section className="panel rounded-2xl p-5">
       <h2 className="mb-1 flex items-center gap-2 text-sm font-black uppercase tracking-wide text-zinc-300">
@@ -120,6 +131,7 @@ export function PricingPanel() {
           prefix="₦"
           value={draft.lifePriceKobo ?? ""}
           onChange={set("lifePriceKobo")}
+          note={`Down to ${formatNaira(MIN_LIFE_PRICE_KOBO)}. Lives are sold ${LIFE_PURCHASE_MIN} at a time, so it is the order that has to clear the ${formatNaira(MIN_PRICE_KOBO)} Paystack will not go below — not the life.`}
         />
         <Field
           label="Life Bank, a week"
@@ -168,22 +180,36 @@ export function PricingPanel() {
         ))}
       </div>
 
-      <FloorPreview ladder={resolveLadder(fromDraft(draft).funding)} />
+      <FloorPreview ladder={resolveLadder(pending.funding)} />
 
       <h3 className="mb-2 mt-5 text-xs font-black uppercase tracking-wide text-zinc-500">
         Power-ups
       </h3>
-      <p className="mb-3 text-xs text-zinc-500">
+      <p className="mb-2 text-xs leading-relaxed text-zinc-500">
         Each is a share of the box&apos;s reward, with a floor so a small box still
-        has a shelf. Nothing is ever charged below {formatNaira(100 * KOBO)} —
-        Paystack refuses it.
+        has a shelf and a ceiling where one has been set. The price on a box is{" "}
+        <span className="font-mono text-zinc-400">
+          min(most, max(floor, share × reward))
+        </span>
+        , never below {formatNaira(MIN_PRICE_KOBO)} — Paystack refuses it.
+      </p>
+      <p className="mb-3 text-xs leading-relaxed text-zinc-500">
+        <strong className="text-zinc-300">
+          Floor and share can only push a price up.
+        </strong>{" "}
+        On a box where the share already beats the floor, raising the floor is
+        the only thing either of them can do — which is why lowering a floor
+        used to look like it had done nothing. <strong className="text-zinc-300">
+        Most</strong> is what makes something cheaper, and putting the same
+        number in <em>floor</em> and <em>most</em> is a flat price at every
+        reward. The row under each one shows what it comes to.
       </p>
 
       <div className="space-y-2">
         {Object.entries(defaults.powerUps).map(([kind, spec]) => (
           <div key={kind} className="rounded-xl bg-white/5 px-3 py-2.5">
             <p className="mb-2 text-sm font-semibold text-zinc-200">{spec.name}</p>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-3">
               <Field
                 label="Share"
                 hint={`${round(spec.share * 100)}%`}
@@ -198,7 +224,15 @@ export function PricingPanel() {
                 value={draft[`${kind}.floorKobo`] ?? ""}
                 onChange={set(`${kind}.floorKobo`)}
               />
+              <Field
+                label="Most"
+                hint="no cap"
+                prefix="₦"
+                value={draft[`${kind}.capKobo`] ?? ""}
+                onChange={set(`${kind}.capKobo`)}
+              />
             </div>
+            <PricePreview kind={kind} overrides={pending} />
           </div>
         ))}
       </div>
@@ -254,6 +288,37 @@ function ordinal(n: number): string {
  * from the fields rather than from what is saved, so it answers "what would
  * this do" before the button is pressed.
  */
+/**
+ * What one power-up costs, on three boxes.
+ *
+ * The three fields interact — a share against a reward, held above a floor and
+ * under a ceiling — and no admin should have to work out which of them is
+ * winning by saving and then going to look at a safe. Priced through
+ * `priceKobo` itself rather than by repeating the formula here, so what this
+ * prints is what a player will be charged.
+ *
+ * The rewards are picked to straddle the crossover on a typical shelf: small
+ * enough that the floor rules, and large enough that the share does.
+ */
+const PREVIEW_REWARDS_KOBO = [10_000 * KOBO, 100_000 * KOBO, 1_000_000 * KOBO];
+
+function PricePreview({ kind, overrides }: { kind: string; overrides: Overrides }) {
+  if (!isPowerUpKind(kind)) return null;
+  const prices = { powerUps: overrides.powerUps } as PriceOverrides;
+  return (
+    <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-zinc-500">
+      {PREVIEW_REWARDS_KOBO.map((reward) => (
+        <span key={reward}>
+          {formatNaira(reward)} box{" "}
+          <span className="font-mono text-zinc-300">
+            {formatNaira(priceKobo(kind, reward, prices))}
+          </span>
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function FloorPreview({ ladder }: { ladder: FundingLadder }) {
   const rows = fundingSchedule(ladder);
 
@@ -304,6 +369,7 @@ function Field({
   suffix,
   value,
   onChange,
+  note,
 }: {
   label: string;
   hint: string;
@@ -311,6 +377,12 @@ function Field({
   suffix?: string;
   value: string;
   onChange: (next: string) => void;
+  /**
+   * The bounds, where they are not obvious. Every field here is silently
+   * clamped on save, and a number that comes back different from the one that
+   * was typed with no explanation reads as the screen having lost it.
+   */
+  note?: string;
 }) {
   return (
     <label className="block">
@@ -341,6 +413,7 @@ function Field({
           </span>
         )}
       </span>
+      {note && <span className="mt-1 block text-xs leading-snug text-zinc-500">{note}</span>}
     </label>
   );
 }
@@ -370,6 +443,9 @@ function toDraft(overrides: Overrides): Draft {
     if (spec.floorKobo !== undefined) {
       draft[`${kind}.floorKobo`] = String(spec.floorKobo / KOBO);
     }
+    if (spec.capKobo !== undefined) {
+      draft[`${kind}.capKobo`] = String(spec.capKobo / KOBO);
+    }
   }
   return draft;
 }
@@ -390,7 +466,7 @@ function toDraft(overrides: Overrides): Draft {
  */
 function fromDraft(draft: Draft): Overrides {
   const out: Overrides = {};
-  const powerUps: Record<string, { share?: number; floorKobo?: number }> = {};
+  const powerUps: Record<string, { share?: number; floorKobo?: number; capKobo?: number }> = {};
 
   const steps = STEP_SLOTS.map((i) => stepKobo(draft[`funding.step.${i}`]));
   if (steps.some((step) => step !== null)) out.funding = { stepsKobo: steps };
@@ -411,6 +487,9 @@ function fromDraft(draft: Draft): Overrides {
     } else if (key.endsWith(".floorKobo")) {
       const kind = key.slice(0, -".floorKobo".length);
       powerUps[kind] = { ...powerUps[kind], floorKobo: Math.round(value * KOBO) };
+    } else if (key.endsWith(".capKobo")) {
+      const kind = key.slice(0, -".capKobo".length);
+      powerUps[kind] = { ...powerUps[kind], capKobo: Math.round(value * KOBO) };
     }
   }
 

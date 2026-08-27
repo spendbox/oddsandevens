@@ -42,6 +42,8 @@ import { LifeBankArt, PowerUpArt } from "@/components/art/power-up-art";
 import {
   discountedKobo,
   LIFE_BANK_MAX,
+  MIN_PRICE_KOBO,
+  minLifeQuantity,
   secondWindLabel,
   type Offering,
 } from "@/lib/game/power-ups";
@@ -50,13 +52,20 @@ import { usePlayer } from "./player-context";
 import { countdown, useNow } from "./lives-badge";
 
 /**
- * The picks, starting at the floor.
+ * The picks above the floor, whatever the floor turns out to be.
  *
  * They used to start at one, which is a life the clock hands over free within
  * the hour — paying a card fee to skip the last few minutes of a wait is not a
- * deal anybody should be offered. Five is the smallest sale.
+ * deal anybody should be offered. Five is the smallest sale, and can be more
+ * than five when a discount meets a cheap enough life, so the floor leads and
+ * these are what follow it.
  */
-const QUICK_PICKS = [LIFE_PURCHASE_MIN, 10, 20, 50];
+const QUICK_PICKS = [10, 20, 50];
+
+/** Four buttons: the smallest order, then the round numbers above it. */
+function quickPicks(floor: number): number[] {
+  return [floor, ...QUICK_PICKS.filter((n) => n > floor)].slice(0, 4);
+}
 
 /**
  * What a week of Life Bank costs when nothing has told us otherwise.
@@ -95,6 +104,28 @@ export function BuyLivesDialog({
   // The discount's clock first: it is the shorter of the two and the only one
   // that costs the player money to miss.
   const now = useNow(lifeDiscount?.expiresAt ?? player.nextLifeAt);
+
+  // The discount applies to lives and not to Second Wind — that one is a
+  // power-up and settles through the power-up till, where the other kind of
+  // drop lives.
+  const off =
+    lifeDiscount && new Date(lifeDiscount.expiresAt).getTime() > now
+      ? lifeDiscount.amount
+      : 0;
+
+  /*
+   * The smallest order that can actually be paid for.
+   *
+   * `LIFE_PURCHASE_MIN` almost always, and read from the price rather than
+   * assumed, because the price is an admin setting and a life may now be
+   * cheaper than the ₦100 Paystack will not go below. Five of them at ₦20 is
+   * exactly the floor; five at ₦20 with a discount on top is under it, and the
+   * honest answer to that is a bigger minimum rather than a checkout that
+   * opens and fails.
+   */
+  const floor = minLifeQuantity(player.lifePriceKobo, off);
+  const picks = quickPicks(floor);
+
   /*
    * What is in the field, as a string, and not as the number it will become.
    *
@@ -105,7 +136,7 @@ export function BuyLivesDialog({
    * buying 501 lives or giving up. A string can be empty while somebody is
    * mid-thought, which is the whole fix.
    */
-  const [typed, setTyped] = useState(String(LIFE_PURCHASE_MIN));
+  const [typed, setTyped] = useState(() => String(floor));
   const [buying, setBuying] = useState<Buying>("lives");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,7 +188,7 @@ export function BuyLivesDialog({
   const quantity =
     typed.trim() !== "" &&
     Number.isFinite(wanted) &&
-    wanted >= LIFE_PURCHASE_MIN &&
+    wanted >= floor &&
     wanted <= LIFE_PURCHASE_MAX
       ? wanted
       : null;
@@ -167,9 +198,7 @@ export function BuyLivesDialog({
     if (quantity !== null) return;
     setTyped(
       String(
-        Number.isFinite(wanted) && wanted > LIFE_PURCHASE_MAX
-          ? LIFE_PURCHASE_MAX
-          : LIFE_PURCHASE_MIN
+        Number.isFinite(wanted) && wanted > LIFE_PURCHASE_MAX ? LIFE_PURCHASE_MAX : floor
       )
     );
   }
@@ -213,6 +242,7 @@ export function BuyLivesDialog({
     });
     const body = (await res.json().catch(() => ({}))) as CheckoutStart & {
       error?: string;
+      minimumQuantity?: number;
     };
     if (res.ok && isTransfer(body)) {
       setBusy(false);
@@ -232,6 +262,21 @@ export function BuyLivesDialog({
       return;
     }
     setBusy(false);
+    if (body.error === "below_minimum") {
+      /*
+       * The server priced the order under Paystack's floor when the dialog
+       * thought otherwise — an admin changed the price of a life, or a
+       * discount was claimed in another tab, while this was open. It is not a
+       * failure the player caused, so the field is corrected for them and the
+       * message says what to press.
+       */
+      const least = Math.max(body.minimumQuantity ?? floor, floor);
+      setTyped(String(least));
+      setError(
+        `Payments start at ${formatNaira(MIN_PRICE_KOBO)} — that's ${least} lives at today's price. Try again.`
+      );
+      return;
+    }
     setError(
       body.error === "payments_unavailable"
         ? "Payments aren't switched on yet. Your lives will still refill on their own."
@@ -276,13 +321,6 @@ export function BuyLivesDialog({
     );
   }
 
-  // The discount applies to lives and not to Second Wind — that one is a
-  // power-up and settles through the power-up till, where the other kind of
-  // drop lives.
-  const off =
-    lifeDiscount && new Date(lifeDiscount.expiresAt).getTime() > now
-      ? lifeDiscount.amount
-      : 0;
   const livesFull = (quantity ?? 0) * player.lifePriceKobo;
   const livesTotal = discountedKobo(livesFull, off);
   const total = wind && secondWind ? secondWind.priceKobo : bank ? lifeBankKobo : livesTotal;
@@ -331,7 +369,7 @@ export function BuyLivesDialog({
                one. The button says what would make it work instead. */
             wanted > LIFE_PURCHASE_MAX
               ? `${LIFE_PURCHASE_MAX} lives at a time`
-              : `At least ${LIFE_PURCHASE_MIN} lives`
+              : `At least ${floor} lives`
           ) : (
             <>
               Pay{" "}
@@ -466,7 +504,7 @@ export function BuyLivesDialog({
         )}
 
         <div className={"flex flex-wrap gap-2 " + (wind || bank ? "hidden" : "")}>
-          {QUICK_PICKS.map((n) => (
+          {picks.map((n) => (
             <button
               key={n}
               type="button"
@@ -495,12 +533,12 @@ export function BuyLivesDialog({
         */}
         <label className={"block " + (wind || bank ? "hidden" : "")}>
           <span className="text-sm text-zinc-500">
-            Or pick a number — {LIFE_PURCHASE_MIN} to {LIFE_PURCHASE_MAX}
+            Or pick a number — {floor} to {LIFE_PURCHASE_MAX}
           </span>
           <input
             type="number"
             inputMode="numeric"
-            min={LIFE_PURCHASE_MIN}
+            min={floor}
             max={LIFE_PURCHASE_MAX}
             value={typed}
             onFocus={(e) => e.currentTarget.select()}
@@ -513,7 +551,14 @@ export function BuyLivesDialog({
             <span className="mt-1.5 block text-sm font-bold text-berry">
               {wanted > LIFE_PURCHASE_MAX
                 ? `${LIFE_PURCHASE_MAX} lives is the most in one go.`
-                : `${LIFE_PURCHASE_MIN} lives is the smallest top-up — the pool refills free below that.`}
+                : floor > LIFE_PURCHASE_MIN
+                  ? /* Raised by the price, or by a discount against a cheap
+                       one. Said as a payment floor rather than a rule about
+                       lives, because that is what it is. */
+                    `${floor} lives is the smallest order at this price — payments start at ${formatNaira(
+                      MIN_PRICE_KOBO
+                    )}.`
+                  : `${LIFE_PURCHASE_MIN} lives is the smallest top-up — the pool refills free below that.`}
             </span>
           )}
         </label>
