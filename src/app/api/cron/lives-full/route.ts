@@ -4,21 +4,38 @@ import { getAdminUser } from "@/lib/admin-auth";
 import { pushConfigured, sendPush, type PushTarget } from "@/lib/push";
 
 /**
- * Once a day: tell the people whose lives are full and who aren't here.
+ * Tell the people whose lives are full: the ones who asked, and the ones who
+ * have drifted away and don't know.
  *
  * The pool refills on a clock whether or not anybody is watching, so a full
  * pool is the moment a lapsed player has the most to come back to and the
  * least reason to know it. That is the whole notification.
  *
- * **Who it skips is the design.** `players_due_lives_push` refuses anybody
- * seen in the last two days: somebody playing today knows what their life
- * count is, and telling them is how a useful notification becomes a nuisance
- * people switch off. It also refuses anybody told inside the last twenty
- * hours, in SQL rather than by trusting the scheduler — a scheduler firing
- * twice is a normal thing for a scheduler to do.
+ * **Two lists, and the difference between them is consent.**
  *
- * Only stamped for the players a push actually went to, so a run that fails
- * halfway leaves the rest due tomorrow rather than silently spent.
+ *  - `players_watching_lives_full` is people who stood at an empty pool,
+ *    declined to buy anything, and asked to be told when it filled. They are
+ *    served first and the idle rule does not apply to them: somebody who ran
+ *    out this evening is by definition here today, and refusing an invited
+ *    notification for that reason would refuse it to everybody who ever asks.
+ *    A watch is spent by the push it earns.
+ *  - `players_due_lives_push` is the uninvited nudge, and who it skips is the
+ *    design: anybody seen in the last two days, because somebody playing today
+ *    knows what their life count is, and anybody told inside the last twenty
+ *    hours. Both are enforced in SQL rather than by trusting the scheduler —
+ *    a scheduler firing twice is a normal thing for a scheduler to do, and
+ *    those windows are what make this route safe to run as often as it likes.
+ *
+ * **It runs once a day**, which is why the dialog that takes the request says
+ * so rather than promising the moment the pool fills. A watch survives being
+ * served late: the condition is "full now", so somebody who came back and
+ * spent the lives in the meantime is simply not sent anything, and their watch
+ * waits for the next time the pool is actually full.
+ *
+ * The two lists are disjoint by construction, so nobody is sent the same
+ * notification twice in one run. Bookkeeping happens last and only for players
+ * a push actually reached, so a run that fails halfway leaves the rest due on
+ * the next one rather than silently spent.
  */
 
 /** Vercel calls cron routes with `Authorization: Bearer $CRON_SECRET`. */
@@ -39,14 +56,31 @@ export async function GET(req: Request) {
   }
 
   const db = supabaseAdmin();
-  const { data, error } = await db.rpc("players_due_lives_push");
-  if (error) {
-    console.error("[cron] lives-full due list failed:", error);
+  const [watching, drifted] = await Promise.all([
+    db.rpc("players_watching_lives_full"),
+    db.rpc("players_due_lives_push"),
+  ]);
+  const failure = watching.error ?? drifted.error;
+  if (failure) {
+    console.error("[cron] lives-full due list failed:", failure);
+    // A deployment that has not run 0064 yet still has the daily nudge; it is
+    // the watch list that is missing, and saying so beats a bare 500.
+    if (failure.code === "PGRST202" || failure.code === "PGRST205") {
+      return NextResponse.json({ error: "not_migrated" }, { status: 503 });
+    }
     return NextResponse.json({ error: "query_failed" }, { status: 500 });
   }
 
-  const due = (data ?? []) as { player_id: string; lives: number; lives_max: number }[];
-  if (due.length === 0) return NextResponse.json({ due: 0, sent: 0, gone: 0 });
+  type Due = { player_id: string; lives: number; lives_max: number };
+  const asked = (watching.data ?? []) as Due[];
+  const askedIds = new Set(asked.map((d) => d.player_id));
+  // Belt and braces: the two queries already exclude each other, and a player
+  // in both lists would otherwise be two entries in the same count bucket and
+  // so two identical pushes to the same browser.
+  const due = [...asked, ...((drifted.data ?? []) as Due[]).filter((d) => !askedIds.has(d.player_id))];
+  if (due.length === 0) {
+    return NextResponse.json({ due: 0, asked: 0, sent: 0, gone: 0 });
+  }
 
   const ids = due.map((d) => d.player_id);
   const { data: subs, error: subError } = await db
@@ -100,11 +134,28 @@ export async function GET(req: Request) {
     }
   }
 
-  // Stamped last, and only for players a push went to.
+  /*
+   * Bookkeeping last, and only for players a push went to.
+   *
+   * A watch is spent rather than stamped — `clear_lives_watch` does both, so a
+   * player who asked is not then picked up by the uninvited nudge tomorrow —
+   * and everybody else is stamped as told.
+   */
   if (reached.size > 0) {
-    await db.rpc("mark_lives_push", { p_player_ids: [...reached] });
+    const spent = [...reached].filter((id) => askedIds.has(id));
+    const nudged = [...reached].filter((id) => !askedIds.has(id));
+    if (spent.length > 0) await db.rpc("clear_lives_watch", { p_player_ids: spent });
+    if (nudged.length > 0) await db.rpc("mark_lives_push", { p_player_ids: nudged });
   }
 
-  console.log(`[cron] lives-full: ${due.length} due, ${sent} sent, ${gone} pruned`);
-  return NextResponse.json({ due: due.length, sent, gone, notified: reached.size });
+  console.log(
+    `[cron] lives-full: ${due.length} due (${asked.length} asked), ${sent} sent, ${gone} pruned`
+  );
+  return NextResponse.json({
+    due: due.length,
+    asked: asked.length,
+    sent,
+    gone,
+    notified: reached.size,
+  });
 }

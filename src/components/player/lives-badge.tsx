@@ -66,7 +66,7 @@ export function LivesBadge({
   onBuy?: () => void;
   secondWindUntil?: string | null;
 }) {
-  const { player, ready, verified, refresh } = usePlayer();
+  const { player, ready, verified, refresh, spendHint } = usePlayer();
   const now = useNow(secondWindUntil ?? player.nextLifeAt);
 
   // When the countdown runs out, the server is the one that decides a life has
@@ -84,6 +84,15 @@ export function LivesBadge({
 
   const windRunning = !!secondWindUntil && new Date(secondWindUntil).getTime() > now;
   const empty = player.lives === 0 && !windRunning;
+
+  /*
+   * A reward claimed minutes ago that is spent here.
+   *
+   * Only when there is somewhere to go: on a screen where this pill is a
+   * readout rather than a button — no `onBuy` — a ring around it would be
+   * pointing at nothing.
+   */
+  const beckoning = !!onBuy && spendHint?.target === "lives";
 
   /*
    * Three faces, and which one shows is the whole point of this control.
@@ -114,14 +123,17 @@ export function LivesBadge({
           : empty
             ? "bg-berry text-ink"
             : "bg-surface-high text-foreground") +
-        (onBuy ? " cursor-pointer" : " cursor-default")
+        (onBuy ? " cursor-pointer" : " cursor-default") +
+        (beckoning ? " beacon" : "")
       }
       title={
-        windRunning
-          ? "Guesses are free right now"
-          : onBuy
-            ? "Buy more lives"
-            : undefined
+        beckoning
+          ? spendHint.where
+          : windRunning
+            ? "Guesses are free right now"
+            : onBuy
+              ? "Buy more lives"
+              : undefined
       }
     >
       {windRunning ? (

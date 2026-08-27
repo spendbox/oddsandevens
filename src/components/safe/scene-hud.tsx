@@ -240,11 +240,19 @@ export function SceneDock({
   powerUps,
   onAttempts,
   onPowerUps,
+  beckoning = false,
 }: {
   /** How many power-ups are still buyable. Drives the badge. */
   powerUps: number;
   onAttempts: () => void;
   onPowerUps: () => void;
+  /**
+   * A reward claimed on the streak dialog that is spent on the shelf — a free
+   * power-up, a Second Wind, a discount on one of them. The tab rings until
+   * it is opened, because the dialog that handed it over closed on a different
+   * screen entirely and named this button without being able to point at it.
+   */
+  beckoning?: boolean;
   className?: string;
 }) {
   return (
@@ -262,6 +270,7 @@ export function SceneDock({
         label="Power-ups"
         badge={powerUps > 0 ? powerUps : null}
         tone="grape"
+        beckoning={beckoning}
         icon={<Sparkles className="size-4" aria-hidden />}
       />
     </div>
@@ -293,12 +302,15 @@ function DockButton({
   badge,
   icon,
   tone,
+  beckoning = false,
 }: {
   onClick: () => void;
   label: string;
   badge?: number | null;
   icon: ReactNode;
   tone: keyof typeof TONES;
+  /** Something claimed elsewhere is waiting behind this one. */
+  beckoning?: boolean;
 }) {
   const { face, lip } = TONES[tone];
   return (
@@ -306,7 +318,10 @@ function DockButton({
       type="button"
       onClick={onClick}
       style={{ "--btn-lip": lip } as React.CSSProperties}
-      className={`btn-chunky flex min-w-0 items-center justify-center gap-1.5 rounded-2xl px-2.5 py-3 text-ink ${face}`}
+      className={
+        `btn-chunky flex min-w-0 items-center justify-center gap-1.5 rounded-2xl px-2.5 py-3 text-ink ${face}` +
+        (beckoning ? " beacon" : "")
+      }
     >
       {icon}
       <span className="truncate text-[13px] font-black leading-none">{label}</span>

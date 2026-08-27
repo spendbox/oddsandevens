@@ -96,6 +96,20 @@ export const PLATFORM_SHARE_PERCENT = 30;
  * to credit, the whole thing is platform revenue.
  */
 export const LIFE_PRICE_KOBO = 150 * KOBO;
+
+/**
+ * The smallest top-up, and the largest.
+ *
+ * One life was buyable and should not have been: a single guess is what the
+ * clock hands out free every hour, so paying for one is paying to skip a wait
+ * that is about to end anyway — and a checkout, a card and a transfer fee for
+ * one guess is a bad deal dressed as a cheap one. Five is the smallest number
+ * that is worth interrupting a hunt for.
+ *
+ * The floor is enforced on the route as well as in the dialog. It is a rule
+ * about what may be sold, not a default in a form.
+ */
+export const LIFE_PURCHASE_MIN = 5;
 export const LIFE_PURCHASE_MAX = 100;
 
 // ---------------------------------------------------------------------------

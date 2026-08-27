@@ -106,6 +106,8 @@ interface Claim {
 interface Overview {
   revenue: {
     fundingCutKobo: number;
+    promoKobo: number;
+    promoSold: number;
     powerUpPlatformKobo: number;
     lifeKobo: number;
     lifeGrossKobo: number;
@@ -196,8 +198,11 @@ export default function AdminPage() {
 
       {tab === "money" && (
         <>
+          {/* Five figures: the total, and the four streams under it. Two
+              across on a phone rather than four in a row that has to shrink a
+              seven-figure sum to fit. */}
           {overview && (
-            <section className="grid gap-2 sm:grid-cols-4">
+            <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
               <Figure label="Platform revenue" value={formatNaira(overview.revenue.totalKobo)} />
               <Figure
                 label="From lives"
@@ -213,6 +218,14 @@ export default function AdminPage() {
                 label="From funding"
                 value={formatNaira(overview.revenue.fundingCutKobo)}
                 hint={`${overview.boxes.live} live`}
+              />
+              {/* Ours in full, not a cut: what a promo safe is sold for buys
+                  no part of the pot behind it. The pot itself is on the
+                  promo panel, as exposure rather than as a cost here. */}
+              <Figure
+                label="From promo safes"
+                value={formatNaira(overview.revenue.promoKobo)}
+                hint={`${overview.revenue.promoSold} paid for`}
               />
             </section>
           )}

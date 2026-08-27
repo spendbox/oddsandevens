@@ -15,12 +15,21 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { LIVES_MAX, LIFE_PRICE_KOBO } from "@/lib/constants";
 import type { PlayerState } from "@/lib/types";
 import { refreshPush } from "@/lib/push-client";
 import { StreakGate } from "@/components/player/streak-dialog";
+import {
+  arrivedAt,
+  getServerSnapshot,
+  getSnapshot,
+  guideTo,
+  subscribe,
+  type SpendHint,
+} from "@/components/player/spend-hint";
 
 const ANONYMOUS: PlayerState = {
   email: null,
@@ -44,6 +53,15 @@ interface PlayerContextValue {
   refresh: () => Promise<void>;
   /** Called by the verify dialog once an address is proved. */
   adopt: (player: PlayerState) => void;
+  /**
+   * The control a just-claimed reward is spent at, while it is still unspent.
+   * Null almost always — this is the exception, not a standing state.
+   */
+  spendHint: SpendHint | null;
+  /** Point at a till. Called by the streak dialog as it closes. */
+  guideTo: typeof guideTo;
+  /** They arrived. Clears the hint if it was pointing here, and nothing if not. */
+  arrivedAt: typeof arrivedAt;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -66,6 +84,17 @@ export function PlayerProvider({
   const [player, setPlayer] = useState<PlayerState>(initial ?? ANONYMOUS);
   // Ready immediately when the server told us: there is nothing to wait for.
   const [ready, setReady] = useState(!!initial);
+  /*
+   * Where a just-claimed reward is spent, if one is still unspent.
+   *
+   * Read from a store outside React (see `spend-hint.ts`) rather than held
+   * here: this provider is mounted per page, and the hint's whole job is to
+   * survive the walk from the dialog that handed the reward over to the screen
+   * it is spent on. `getServerSnapshot` is null because there is no session
+   * storage on the server — so the markup and the first paint agree, and the
+   * glow appears a beat later on the client.
+   */
+  const spendHint = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const refresh = useCallback(async () => {
     try {
@@ -181,8 +210,13 @@ export function PlayerProvider({
       verified: !!player.email,
       refresh,
       adopt: setPlayer,
+      spendHint,
+      // Module functions, not state: they never change identity, so they are
+      // not dependencies of anything.
+      guideTo,
+      arrivedAt,
     }),
-    [player, ready, refresh]
+    [player, ready, refresh, spendHint]
   );
 
   return (

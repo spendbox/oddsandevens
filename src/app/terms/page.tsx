@@ -1,5 +1,7 @@
 import {
   LIFE_PRICE_KOBO,
+  LIFE_PURCHASE_MAX,
+  LIFE_PURCHASE_MIN,
   LIFE_REGEN_MINUTES,
   LIVES_MAX,
   MAX_LENGTH,
@@ -64,7 +66,7 @@ export default async function TermsPage() {
         {
           heading: "Lives and power-ups",
           paragraphs: [
-            `Extra lives cost ${formatNaira(LIFE_PRICE_KOBO)} each and are added to your pool once payment is confirmed. Power-ups are priced per box and take effect once payment is confirmed. Nothing is revealed and nothing is charged if a payment is abandoned.`,
+            `Extra lives cost ${formatNaira(LIFE_PRICE_KOBO)} each, are bought ${LIFE_PURCHASE_MIN} to ${LIFE_PURCHASE_MAX} at a time, and are added to your pool once payment is confirmed. Power-ups are priced per box and take effect once payment is confirmed. Nothing is revealed and nothing is charged if a payment is abandoned.`,
             "Lives and power-ups are digital goods delivered immediately, so purchases are not refundable once they have been applied. If something is charged and not delivered, tell us and we will fix it — an administrator can grant lives directly.",
             "Lives, power-ups and any bonus have no cash value and cannot be transferred, sold or withdrawn.",
             "We may change what power-ups exist and what they cost. Anything you have already bought keeps working on the terms it was bought under.",
