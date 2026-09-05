@@ -4,7 +4,27 @@
 -- accounts (every one of them uses the password `commons123`) so the app has
 -- people, progress and conversation in it from the first minute.
 
-set search_path = public;
+-- Supabase keeps pgcrypto in its own `extensions` schema rather than in public,
+-- so crypt() and gen_salt() are only reachable if that schema is on the path.
+set search_path = public, extensions;
+
+-- Running this twice should not fail on the second go. Every demo row uses a
+-- fixed id, so clearing them by id is exact: it removes the demo data and
+-- nothing a real person has created. Deleting a pursuit or a user cascades to
+-- their posts, needs, resources and events.
+delete from public.pursuits where id in (
+  '22222222-2222-2222-2222-222222222201', '22222222-2222-2222-2222-222222222202',
+  '22222222-2222-2222-2222-222222222203', '22222222-2222-2222-2222-222222222204',
+  '22222222-2222-2222-2222-222222222205', '22222222-2222-2222-2222-222222222206'
+);
+delete from auth.users where id in (
+  '11111111-1111-1111-1111-111111111101', '11111111-1111-1111-1111-111111111102',
+  '11111111-1111-1111-1111-111111111103', '11111111-1111-1111-1111-111111111104',
+  '11111111-1111-1111-1111-111111111105', '11111111-1111-1111-1111-111111111106',
+  '11111111-1111-1111-1111-111111111107', '11111111-1111-1111-1111-111111111108',
+  '11111111-1111-1111-1111-111111111109', '11111111-1111-1111-1111-111111111110',
+  '11111111-1111-1111-1111-111111111111', '11111111-1111-1111-1111-111111111112'
+);
 
 -- A demo account, complete with the auth row Supabase would normally create.
 -- The on_auth_user_created trigger fills in the profile; we enrich it after.
@@ -13,6 +33,8 @@ create or replace function public.seed_person(
   p_headline text, p_location text, p_bio text, p_skills text[]
 ) returns uuid
 language plpgsql
+-- Pinned on the function too, so it works whatever the caller's path is.
+set search_path = public, extensions
 as $$
 begin
   insert into auth.users (
