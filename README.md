@@ -86,8 +86,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 Both are safe to expose in a browser — row level security is what protects the
 data, not the key.
 
-In **Authentication → Providers → Email**, turn *Confirm email* off while you are
-testing, so new accounts can sign in immediately.
+**Turn off email confirmation.** This one is not optional — without it nobody can
+sign in. In Supabase go to **Authentication → Sign In / Providers → Email**,
+untick **Confirm email**, and save. New accounts then work immediately, with no
+email involved anywhere.
 
 ### 3. Run it
 

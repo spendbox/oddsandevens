@@ -74,7 +74,10 @@ export async function requireProfile(): Promise<{ profile: Profile; userId: stri
     typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '',
   )
 
-  if (!created) redirect('/login')
+  // Without a profile there is nothing to render, and sending this person to
+  // /login would bounce them straight back to /home — a loop with no
+  // explanation. Land on a page that says what happened instead.
+  if (!created) redirect('/login?problem=profile')
 
   return { profile: created, userId: user.id }
 }
