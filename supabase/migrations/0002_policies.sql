@@ -72,10 +72,21 @@ begin
 end;
 $$;
 
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
+-- Attaching a trigger to auth.users needs rights the SQL editor does not have
+-- on every Supabase project. If it is refused, say so and carry on: the app
+-- creates a missing profile on first sign-in anyway, so this is an
+-- optimisation, not a requirement. Letting it abort here would roll back the
+-- entire migration and leave the database with no tables.
+do $$
+begin
+  drop trigger if exists on_auth_user_created on auth.users;
+  create trigger on_auth_user_created
+    after insert on auth.users
+    for each row execute function public.handle_new_user();
+exception
+  when insufficient_privilege or undefined_table then
+    raise notice 'Skipped the auth.users profile trigger (%). The app creates profiles on first sign-in, so nothing is broken.', sqlerrm;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- Counter triggers
