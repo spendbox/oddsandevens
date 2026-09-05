@@ -8,6 +8,15 @@
 -- so crypt() and gen_salt() are only reachable if that schema is on the path.
 set search_path = public, extensions;
 
+-- Fail with something a person can act on, rather than "relation does not exist".
+do $$
+begin
+  if to_regclass('public.pursuits') is null then
+    raise exception
+      'The Commons tables are missing. Run the three files in supabase/migrations first — 0001_init.sql, then 0002_policies.sql, then 0003_grants.sql — and check each one reports Success before running this seed.';
+  end if;
+end $$;
+
 -- Running this twice should not fail on the second go. Every demo row uses a
 -- fixed id, so clearing them by id is exact: it removes the demo data and
 -- nothing a real person has created. Deleting a pursuit or a user cascades to
