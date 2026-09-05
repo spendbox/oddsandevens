@@ -49,7 +49,7 @@ export default async function Discussions(props: PageProps<'/p/[slug]/discussion
     postIds.length
       ? supabase
           .from('replies')
-          .select('*, author:profiles(*)')
+          .select('*, author:profiles!replies_author_id_fkey(*)')
           .in('post_id', postIds)
           .order('created_at')
       : Promise.resolve({ data: [] as never[] }),

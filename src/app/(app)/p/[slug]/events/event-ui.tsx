@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { createEvent, toggleRsvp } from '../actions'
 
 const KINDS = [
@@ -14,6 +14,7 @@ const KINDS = [
 export function EventComposer({ slug, pursuitId }: { slug: string; pursuitId: string }) {
   const [open, setOpen] = useState(false)
   const [kind, setKind] = useState('challenge')
+  const eventForm = useRef<HTMLFormElement>(null)
 
   if (!open) {
     return (
@@ -28,7 +29,15 @@ export function EventComposer({ slug, pursuitId }: { slug: string; pursuitId: st
   }
 
   return (
-    <form action={createEvent} className="card p-4">
+    <form
+      ref={eventForm}
+      action={async (formData) => {
+        await createEvent(formData)
+        eventForm.current?.reset()
+        setOpen(false)
+      }}
+      className="card p-4"
+    >
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="pursuit_id" value={pursuitId} />
       <input type="hidden" name="kind" value={kind} />

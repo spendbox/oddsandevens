@@ -88,7 +88,7 @@ export async function updateProgress(formData: FormData) {
   })
 
   if (movedStage || jumped) {
-    await notifyPeopleBehind(pursuitId, userId, stageId || existing.stage_id, slug)
+    await notifyPeopleBehind(pursuitId, userId, stageId || existing.stage_id)
   }
 
   refresh(slug)
@@ -100,12 +100,7 @@ export async function updateProgress(formData: FormData) {
  * is now one step ahead — which is the moment a pursuit starts helping people
  * rather than just holding them.
  */
-async function notifyPeopleBehind(
-  pursuitId: string,
-  userId: string,
-  stageId: string | null,
-  slug: string,
-) {
+async function notifyPeopleBehind(pursuitId: string, userId: string, stageId: string | null) {
   const supabase = await supabaseServer()
 
   const [{ data: mover }, { data: stages }] = await Promise.all([

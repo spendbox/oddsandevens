@@ -80,7 +80,7 @@ export async function pursuitPosts(pursuitId: string, kind?: string) {
   const supabase = await supabaseServer()
   let query = supabase
     .from('posts')
-    .select('*, author:profiles(*)')
+    .select('*, author:profiles!posts_author_id_fkey(*)')
     .eq('pursuit_id', pursuitId)
     .order('created_at', { ascending: false })
     .limit(50)
@@ -95,7 +95,7 @@ export async function pursuitAsks(pursuitId: string) {
   const supabase = await supabaseServer()
   const { data } = await supabase
     .from('asks')
-    .select('*, author:profiles(*)')
+    .select('*, author:profiles!asks_user_id_fkey(*)')
     .eq('pursuit_id', pursuitId)
     .eq('status', 'open')
     .order('created_at', { ascending: false })
@@ -108,7 +108,7 @@ export async function pursuitResources(pursuitId: string) {
   const supabase = await supabaseServer()
   const { data } = await supabase
     .from('resources')
-    .select('*, author:profiles(*)')
+    .select('*, author:profiles!resources_user_id_fkey(*)')
     .eq('pursuit_id', pursuitId)
     .order('vote_count', { ascending: false })
     .limit(80)
@@ -133,7 +133,7 @@ export async function pursuitProgressFeed(pursuitId: string) {
   const supabase = await supabaseServer()
   const { data } = await supabase
     .from('progress_updates')
-    .select('*, author:profiles(*)')
+    .select('*, author:profiles!progress_updates_user_id_fkey(*)')
     .eq('pursuit_id', pursuitId)
     .order('created_at', { ascending: false })
     .limit(25)

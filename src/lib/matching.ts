@@ -269,12 +269,14 @@ export function suggestPursuits<T extends { id: string; tags: string[]; title: s
       return {
         pursuit,
         score,
+        // No reason at all beats a fabricated one: the card already prints the
+        // member count, and repeating it reads as a match that is not there.
         reason:
           shared.length > 0
             ? `Matches your ${list(shared.slice(0, 2))}`
             : titleHit.length > 0
               ? `Close to your ${list(titleHit.slice(0, 1))} work`
-              : `${pursuit.member_count.toLocaleString()} people pursuing this`,
+              : '',
       }
     })
     .sort((a, b) => b.score - a.score)

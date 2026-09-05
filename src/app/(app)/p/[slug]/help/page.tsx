@@ -51,7 +51,7 @@ export default async function Help(props: PageProps<'/p/[slug]/help'>) {
   const { data: responseRows } = asks.length
     ? await supabase
         .from('ask_responses')
-        .select('ask_id, user_id, body, author:profiles(*)')
+        .select('ask_id, user_id, body, author:profiles!ask_responses_user_id_fkey(*)')
         .in(
           'ask_id',
           asks.map((ask) => ask.id),

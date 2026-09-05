@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Avatar } from '@/components/avatar'
 import type { Profile } from '@/lib/types'
 import { createAsk, respondToAsk } from '../actions'
@@ -15,6 +15,7 @@ export function AskComposer({
   profile: Profile
 }) {
   const [kind, setKind] = useState<'need' | 'offer' | null>(null)
+  const askForm = useRef<HTMLFormElement>(null)
 
   if (!kind) {
     return (
@@ -36,7 +37,15 @@ export function AskComposer({
   }
 
   return (
-    <form action={createAsk} className="card p-4">
+    <form
+      ref={askForm}
+      action={async (formData) => {
+        await createAsk(formData)
+        askForm.current?.reset()
+        setKind(null)
+      }}
+      className="card p-4"
+    >
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="pursuit_id" value={pursuitId} />
       <input type="hidden" name="kind" value={kind} />
@@ -98,6 +107,7 @@ export function RespondForm({
   kind: 'need' | 'offer'
 }) {
   const [open, setOpen] = useState(false)
+  const respondForm = useRef<HTMLFormElement>(null)
 
   if (!open) {
     return (
@@ -112,7 +122,15 @@ export function RespondForm({
   }
 
   return (
-    <form action={respondToAsk} className="mt-3.5">
+    <form
+      ref={respondForm}
+      action={async (formData) => {
+        await respondToAsk(formData)
+        respondForm.current?.reset()
+        setOpen(false)
+      }}
+      className="mt-3.5"
+    >
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="ask_id" value={askId} />
       <textarea

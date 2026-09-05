@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { Avatar } from '@/components/avatar'
 import type { Profile, Stage } from '@/lib/types'
 import { createPost, createReply, toggleUseful } from '../actions'
@@ -31,6 +31,7 @@ export function Composer({
 }) {
   const [open, setOpen] = useState(false)
   const [kind, setKind] = useState('update')
+  const postForm = useRef<HTMLFormElement>(null)
 
   if (!open) {
     return (
@@ -46,7 +47,15 @@ export function Composer({
   }
 
   return (
-    <form action={createPost} className="card p-4">
+    <form
+      ref={postForm}
+      action={async (formData) => {
+        await createPost(formData)
+        postForm.current?.reset()
+        setOpen(false)
+      }}
+      className="card p-4"
+    >
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="pursuit_id" value={pursuitId} />
       <input type="hidden" name="kind" value={kind} />
@@ -189,6 +198,7 @@ export function PostActions({
 
 export function ReplyForm({ slug, postId }: { slug: string; postId: string }) {
   const [open, setOpen] = useState(false)
+  const replyForm = useRef<HTMLFormElement>(null)
 
   if (!open) {
     return (
@@ -203,7 +213,15 @@ export function ReplyForm({ slug, postId }: { slug: string; postId: string }) {
   }
 
   return (
-    <form action={createReply} className="mt-3">
+    <form
+      ref={replyForm}
+      action={async (formData) => {
+        await createReply(formData)
+        replyForm.current?.reset()
+        setOpen(false)
+      }}
+      className="mt-3"
+    >
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="post_id" value={postId} />
       <textarea

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import type { Stage } from '@/lib/types'
 import { addResource, voteResource } from '../actions'
 
@@ -16,6 +16,7 @@ export function ResourceComposer({
   stages: Stage[]
 }) {
   const [open, setOpen] = useState(false)
+  const resourceForm = useRef<HTMLFormElement>(null)
 
   if (!open) {
     return (
@@ -30,7 +31,15 @@ export function ResourceComposer({
   }
 
   return (
-    <form action={addResource} className="card p-4">
+    <form
+      ref={resourceForm}
+      action={async (formData) => {
+        await addResource(formData)
+        resourceForm.current?.reset()
+        setOpen(false)
+      }}
+      className="card p-4"
+    >
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="pursuit_id" value={pursuitId} />
 

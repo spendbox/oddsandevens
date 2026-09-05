@@ -65,7 +65,7 @@ export default async function HomePage() {
               action={memberships.length > 0 ? { label: 'View all', href: '/pursuits' } : undefined}
             />
             {memberships.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
                 {memberships.slice(0, 4).map((membership) => (
                   <IntentionCard
                     key={membership.id}
@@ -233,7 +233,7 @@ async function RecentActivity({ userId, joinedIds }: { userId: string; joinedIds
   const supabase = await supabaseServer()
   const { data } = await supabase
     .from('progress_updates')
-    .select('*, author:profiles(*), pursuit:pursuits(slug, title)')
+    .select('*, author:profiles!progress_updates_user_id_fkey(*), pursuit:pursuits(slug, title)')
     .in('pursuit_id', joinedIds)
     .neq('user_id', userId)
     .order('created_at', { ascending: false })

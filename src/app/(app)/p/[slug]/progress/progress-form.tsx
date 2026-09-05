@@ -37,7 +37,13 @@ export function ProgressForm({
   }
 
   return (
-    <form action={updateProgress} className="card p-4">
+    <form
+      action={async (formData) => {
+        await updateProgress(formData)
+        setOpen(false)
+      }}
+      className="card p-4"
+    >
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="pursuit_id" value={pursuitId} />
 
