@@ -181,13 +181,23 @@ export function scorePerson(viewer: Person, candidate: Person, stages: Stage[]):
   if (signals.length === 0) return null
 
   signals.sort((a, b) => b.weight - a.weight)
-  const top = signals[0]
+
+  // Two of your needs matching the same offer produce the same sentence twice.
+  // Keep the strongest of each, so a card never repeats itself back at you.
+  const seen = new Set<string>()
+  const distinct = signals.filter((signal) => {
+    if (seen.has(signal.text)) return false
+    seen.add(signal.text)
+    return true
+  })
+
+  const top = distinct[0]
 
   return {
     profile: candidate.profile,
-    score: signals.reduce((total, signal, index) => total + signal.weight / (index + 1), 0),
+    score: distinct.reduce((total, signal, index) => total + signal.weight / (index + 1), 0),
     reason: top.text,
-    signals: signals.map((signal) => signal.text),
+    signals: distinct.map((signal) => signal.text),
     relation: top.relation ?? 'peer',
   }
 }
