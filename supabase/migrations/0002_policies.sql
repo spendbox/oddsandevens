@@ -244,146 +244,197 @@ alter table public.messages         enable row level security;
 alter table public.notifications    enable row level security;
 
 -- Profiles: everyone signed in can see everyone. Finding people is the point.
+drop policy if exists "profiles readable" on public.profiles;
 create policy "profiles readable" on public.profiles
   for select to authenticated using (true);
+drop policy if exists "own profile insert" on public.profiles;
 create policy "own profile insert" on public.profiles
   for insert to authenticated with check (id = auth.uid());
+drop policy if exists "own profile update" on public.profiles;
 create policy "own profile update" on public.profiles
   for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 
 -- Pursuits and their shape are readable by any signed-in member of the site;
 -- writing is limited to whoever set the pursuit up.
+drop policy if exists "pursuits readable" on public.pursuits;
 create policy "pursuits readable" on public.pursuits
   for select to authenticated using (true);
+drop policy if exists "pursuits create" on public.pursuits;
 create policy "pursuits create" on public.pursuits
   for insert to authenticated with check (created_by = auth.uid());
+drop policy if exists "pursuits update" on public.pursuits;
 create policy "pursuits update" on public.pursuits
   for update to authenticated using (public.is_steward(id)) with check (public.is_steward(id));
 
+drop policy if exists "stages readable" on public.stages;
 create policy "stages readable" on public.stages
   for select to authenticated using (true);
+drop policy if exists "stages write" on public.stages;
 create policy "stages write" on public.stages
   for all to authenticated
   using (public.is_steward(pursuit_id)) with check (public.is_steward(pursuit_id));
 
+drop policy if exists "memberships readable" on public.memberships;
 create policy "memberships readable" on public.memberships
   for select to authenticated using (true);
+drop policy if exists "join a pursuit" on public.memberships;
 create policy "join a pursuit" on public.memberships
   for insert to authenticated with check (user_id = auth.uid());
+drop policy if exists "update own membership" on public.memberships;
 create policy "update own membership" on public.memberships
   for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "leave a pursuit" on public.memberships;
 create policy "leave a pursuit" on public.memberships
   for delete to authenticated using (user_id = auth.uid());
 
 -- Contributions: readable by anyone signed in, writable only by members of the
 -- pursuit, editable only by the person who wrote them.
+drop policy if exists "posts readable" on public.posts;
 create policy "posts readable" on public.posts
   for select to authenticated using (true);
+drop policy if exists "posts create" on public.posts;
 create policy "posts create" on public.posts
   for insert to authenticated
   with check (author_id = auth.uid() and public.is_member(pursuit_id));
+drop policy if exists "posts update own" on public.posts;
 create policy "posts update own" on public.posts
   for update to authenticated using (author_id = auth.uid()) with check (author_id = auth.uid());
+drop policy if exists "posts delete own" on public.posts;
 create policy "posts delete own" on public.posts
   for delete to authenticated using (author_id = auth.uid() or public.is_steward(pursuit_id));
 
+drop policy if exists "replies readable" on public.replies;
 create policy "replies readable" on public.replies
   for select to authenticated using (true);
+drop policy if exists "replies create" on public.replies;
 create policy "replies create" on public.replies
   for insert to authenticated with check (author_id = auth.uid());
+drop policy if exists "replies delete own" on public.replies;
 create policy "replies delete own" on public.replies
   for delete to authenticated using (author_id = auth.uid());
 
+drop policy if exists "useful readable" on public.post_useful;
 create policy "useful readable" on public.post_useful
   for select to authenticated using (true);
+drop policy if exists "useful toggle" on public.post_useful;
 create policy "useful toggle" on public.post_useful
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+drop policy if exists "progress readable" on public.progress_updates;
 create policy "progress readable" on public.progress_updates
   for select to authenticated using (true);
+drop policy if exists "progress create" on public.progress_updates;
 create policy "progress create" on public.progress_updates
   for insert to authenticated
   with check (user_id = auth.uid() and public.is_member(pursuit_id));
 
+drop policy if exists "asks readable" on public.asks;
 create policy "asks readable" on public.asks
   for select to authenticated using (true);
+drop policy if exists "asks create" on public.asks;
 create policy "asks create" on public.asks
   for insert to authenticated
   with check (user_id = auth.uid() and public.is_member(pursuit_id));
+drop policy if exists "asks update own" on public.asks;
 create policy "asks update own" on public.asks
   for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "asks delete own" on public.asks;
 create policy "asks delete own" on public.asks
   for delete to authenticated using (user_id = auth.uid());
 
+drop policy if exists "ask responses readable" on public.ask_responses;
 create policy "ask responses readable" on public.ask_responses
   for select to authenticated using (true);
+drop policy if exists "ask responses create" on public.ask_responses;
 create policy "ask responses create" on public.ask_responses
   for insert to authenticated with check (user_id = auth.uid());
+drop policy if exists "ask responses delete own" on public.ask_responses;
 create policy "ask responses delete own" on public.ask_responses
   for delete to authenticated using (user_id = auth.uid());
 
+drop policy if exists "resources readable" on public.resources;
 create policy "resources readable" on public.resources
   for select to authenticated using (true);
+drop policy if exists "resources create" on public.resources;
 create policy "resources create" on public.resources
   for insert to authenticated
   with check (user_id = auth.uid() and public.is_member(pursuit_id));
+drop policy if exists "resources update own" on public.resources;
 create policy "resources update own" on public.resources
   for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "resources delete own" on public.resources;
 create policy "resources delete own" on public.resources
   for delete to authenticated using (user_id = auth.uid() or public.is_steward(pursuit_id));
 
+drop policy if exists "resource votes readable" on public.resource_votes;
 create policy "resource votes readable" on public.resource_votes
   for select to authenticated using (true);
+drop policy if exists "resource votes toggle" on public.resource_votes;
 create policy "resource votes toggle" on public.resource_votes
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+drop policy if exists "events readable" on public.events;
 create policy "events readable" on public.events
   for select to authenticated using (true);
+drop policy if exists "events create" on public.events;
 create policy "events create" on public.events
   for insert to authenticated
   with check (created_by = auth.uid() and public.is_member(pursuit_id));
+drop policy if exists "events update own" on public.events;
 create policy "events update own" on public.events
   for update to authenticated
   using (created_by = auth.uid() or public.is_steward(pursuit_id))
   with check (created_by = auth.uid() or public.is_steward(pursuit_id));
+drop policy if exists "events delete own" on public.events;
 create policy "events delete own" on public.events
   for delete to authenticated using (created_by = auth.uid() or public.is_steward(pursuit_id));
 
+drop policy if exists "rsvps readable" on public.event_rsvps;
 create policy "rsvps readable" on public.event_rsvps
   for select to authenticated using (true);
+drop policy if exists "rsvps toggle" on public.event_rsvps;
 create policy "rsvps toggle" on public.event_rsvps
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- Connections are private to the two people involved.
+drop policy if exists "connections visible to both" on public.connections;
 create policy "connections visible to both" on public.connections
   for select to authenticated
   using (requester_id = auth.uid() or addressee_id = auth.uid());
+drop policy if exists "connections request" on public.connections;
 create policy "connections request" on public.connections
   for insert to authenticated with check (requester_id = auth.uid());
+drop policy if exists "connections answer" on public.connections;
 create policy "connections answer" on public.connections
   for update to authenticated
   using (addressee_id = auth.uid() or requester_id = auth.uid())
   with check (addressee_id = auth.uid() or requester_id = auth.uid());
+drop policy if exists "connections withdraw" on public.connections;
 create policy "connections withdraw" on public.connections
   for delete to authenticated using (requester_id = auth.uid());
 
+drop policy if exists "conversations of mine" on public.conversations;
 create policy "conversations of mine" on public.conversations
   for select to authenticated using (user_a = auth.uid() or user_b = auth.uid());
+drop policy if exists "conversations create" on public.conversations;
 create policy "conversations create" on public.conversations
   for insert to authenticated with check (user_a = auth.uid() or user_b = auth.uid());
 
+drop policy if exists "messages in my conversations" on public.messages;
 create policy "messages in my conversations" on public.messages
   for select to authenticated
   using (exists (
     select 1 from public.conversations c
     where c.id = conversation_id and (c.user_a = auth.uid() or c.user_b = auth.uid())
   ));
+drop policy if exists "messages send" on public.messages;
 create policy "messages send" on public.messages
   for insert to authenticated
   with check (sender_id = auth.uid() and exists (
     select 1 from public.conversations c
     where c.id = conversation_id and (c.user_a = auth.uid() or c.user_b = auth.uid())
   ));
+drop policy if exists "messages mark read" on public.messages;
 create policy "messages mark read" on public.messages
   for update to authenticated
   using (exists (
@@ -391,9 +442,12 @@ create policy "messages mark read" on public.messages
     where c.id = conversation_id and (c.user_a = auth.uid() or c.user_b = auth.uid())
   ));
 
+drop policy if exists "own notifications" on public.notifications;
 create policy "own notifications" on public.notifications
   for select to authenticated using (user_id = auth.uid());
+drop policy if exists "own notifications update" on public.notifications;
 create policy "own notifications update" on public.notifications
   for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "notifications create" on public.notifications;
 create policy "notifications create" on public.notifications
   for insert to authenticated with check (true);
