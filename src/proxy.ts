@@ -55,7 +55,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && (pathname === '/login' || pathname === '/signup')) {
+  // A signed-in person normally has no business on the login page — unless they
+  // were sent there because something is wrong, in which case bouncing them
+  // back is the loop we are trying to avoid.
+  const reportingProblem = request.nextUrl.searchParams.has('problem')
+
+  if (user && !reportingProblem && (pathname === '/login' || pathname === '/signup')) {
     const url = request.nextUrl.clone()
     url.pathname = '/home'
     url.search = ''
