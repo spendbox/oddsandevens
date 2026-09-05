@@ -11,7 +11,7 @@ create extension if not exists "pgcrypto";
 -- People
 -- ---------------------------------------------------------------------------
 
-create table public.profiles (
+create table if not exists public.profiles (
   id           uuid primary key references auth.users on delete cascade,
   handle       text unique not null,
   full_name    text not null default '',
@@ -25,14 +25,14 @@ create table public.profiles (
   created_at   timestamptz not null default now()
 );
 
-create index profiles_skills_idx on public.profiles using gin (skills);
-create index profiles_handle_idx on public.profiles (handle);
+create index if not exists profiles_skills_idx on public.profiles using gin (skills);
+create index if not exists profiles_handle_idx on public.profiles (handle);
 
 -- ---------------------------------------------------------------------------
 -- Pursuits
 -- ---------------------------------------------------------------------------
 
-create table public.pursuits (
+create table if not exists public.pursuits (
   id           uuid primary key default gen_random_uuid(),
   slug         text unique not null,
   title        text not null,
@@ -48,8 +48,8 @@ create table public.pursuits (
   created_at   timestamptz not null default now()
 );
 
-create index pursuits_category_idx on public.pursuits (category);
-create index pursuits_tags_idx on public.pursuits using gin (tags);
+create index if not exists pursuits_category_idx on public.pursuits (category);
+create index if not exists pursuits_tags_idx on public.pursuits using gin (tags);
 
 -- Full text search over title/tagline/tags, so "build a profitable saas
 -- company" finds the pursuit even when the wording differs.
@@ -60,20 +60,25 @@ create or replace function public.words(p_tags text[])
 returns text language sql immutable parallel safe
 as $$ select array_to_string(coalesce(p_tags, '{}'), ' ') $$;
 
-alter table public.pursuits add column search tsvector
-  generated always as (
-    setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(tagline, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(description, '')), 'C') ||
-    setweight(to_tsvector('english', public.words(tags)), 'B')
-  ) stored;
+do $$
+begin
+  alter table public.pursuits add column search tsvector
+    generated always as (
+      setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+      setweight(to_tsvector('english', coalesce(tagline, '')), 'B') ||
+      setweight(to_tsvector('english', coalesce(description, '')), 'C') ||
+      setweight(to_tsvector('english', public.words(tags)), 'B')
+    ) stored;
+exception
+  when duplicate_column then null;
+end $$;
 
-create index pursuits_search_idx on public.pursuits using gin (search);
+create index if not exists pursuits_search_idx on public.pursuits using gin (search);
 
 -- The journey everyone in a pursuit is walking. Ordered, named by the pursuit
 -- itself, so "Build a SaaS" can have IDEA→VALIDATING→BUILDING→BETA→LAUNCHED
 -- while "Run a marathon" has something else entirely.
-create table public.stages (
+create table if not exists public.stages (
   id          uuid primary key default gen_random_uuid(),
   pursuit_id  uuid not null references public.pursuits on delete cascade,
   name        text not null,
@@ -82,9 +87,9 @@ create table public.stages (
   unique (pursuit_id, position)
 );
 
-create index stages_pursuit_idx on public.stages (pursuit_id, position);
+create index if not exists stages_pursuit_idx on public.stages (pursuit_id, position);
 
-create table public.memberships (
+create table if not exists public.memberships (
   id           uuid primary key default gen_random_uuid(),
   pursuit_id   uuid not null references public.pursuits on delete cascade,
   user_id      uuid not null references public.profiles on delete cascade,
@@ -96,14 +101,14 @@ create table public.memberships (
   unique (pursuit_id, user_id)
 );
 
-create index memberships_pursuit_idx on public.memberships (pursuit_id);
-create index memberships_user_idx on public.memberships (user_id);
+create index if not exists memberships_pursuit_idx on public.memberships (pursuit_id);
+create index if not exists memberships_user_idx on public.memberships (user_id);
 
 -- ---------------------------------------------------------------------------
 -- 2. DISCUSS — structured, not a feed
 -- ---------------------------------------------------------------------------
 
-create table public.posts (
+create table if not exists public.posts (
   id           uuid primary key default gen_random_uuid(),
   pursuit_id   uuid not null references public.pursuits on delete cascade,
   author_id    uuid not null references public.profiles on delete cascade,
@@ -117,10 +122,10 @@ create table public.posts (
   created_at   timestamptz not null default now()
 );
 
-create index posts_pursuit_idx on public.posts (pursuit_id, created_at desc);
-create index posts_author_idx on public.posts (author_id);
+create index if not exists posts_pursuit_idx on public.posts (pursuit_id, created_at desc);
+create index if not exists posts_author_idx on public.posts (author_id);
 
-create table public.replies (
+create table if not exists public.replies (
   id         uuid primary key default gen_random_uuid(),
   post_id    uuid not null references public.posts on delete cascade,
   author_id  uuid not null references public.profiles on delete cascade,
@@ -128,11 +133,11 @@ create table public.replies (
   created_at timestamptz not null default now()
 );
 
-create index replies_post_idx on public.replies (post_id, created_at);
+create index if not exists replies_post_idx on public.replies (post_id, created_at);
 
 -- "This was useful" rather than "like". The distinction matters: it is the
 -- signal the knowledge base is built from.
-create table public.post_useful (
+create table if not exists public.post_useful (
   post_id uuid not null references public.posts on delete cascade,
   user_id uuid not null references public.profiles on delete cascade,
   primary key (post_id, user_id)
@@ -142,7 +147,7 @@ create table public.post_useful (
 -- 3. PROGRESS — where everyone actually is
 -- ---------------------------------------------------------------------------
 
-create table public.progress_updates (
+create table if not exists public.progress_updates (
   id          uuid primary key default gen_random_uuid(),
   pursuit_id  uuid not null references public.pursuits on delete cascade,
   user_id     uuid not null references public.profiles on delete cascade,
@@ -154,13 +159,13 @@ create table public.progress_updates (
   created_at  timestamptz not null default now()
 );
 
-create index progress_updates_pursuit_idx on public.progress_updates (pursuit_id, created_at desc);
+create index if not exists progress_updates_pursuit_idx on public.progress_updates (pursuit_id, created_at desc);
 
 -- ---------------------------------------------------------------------------
 -- 4. HELP — the marketplace of needs and capabilities
 -- ---------------------------------------------------------------------------
 
-create table public.asks (
+create table if not exists public.asks (
   id          uuid primary key default gen_random_uuid(),
   pursuit_id  uuid not null references public.pursuits on delete cascade,
   user_id     uuid not null references public.profiles on delete cascade,
@@ -172,10 +177,10 @@ create table public.asks (
   created_at  timestamptz not null default now()
 );
 
-create index asks_pursuit_idx on public.asks (pursuit_id, kind, status, created_at desc);
-create index asks_tags_idx on public.asks using gin (tags);
+create index if not exists asks_pursuit_idx on public.asks (pursuit_id, kind, status, created_at desc);
+create index if not exists asks_tags_idx on public.asks using gin (tags);
 
-create table public.ask_responses (
+create table if not exists public.ask_responses (
   id         uuid primary key default gen_random_uuid(),
   ask_id     uuid not null references public.asks on delete cascade,
   user_id    uuid not null references public.profiles on delete cascade,
@@ -188,7 +193,7 @@ create table public.ask_responses (
 -- 5. LEARN — collective knowledge, so 8,000 people stop asking the same thing
 -- ---------------------------------------------------------------------------
 
-create table public.resources (
+create table if not exists public.resources (
   id           uuid primary key default gen_random_uuid(),
   pursuit_id   uuid not null references public.pursuits on delete cascade,
   user_id      uuid references public.profiles on delete set null,
@@ -202,9 +207,9 @@ create table public.resources (
   created_at   timestamptz not null default now()
 );
 
-create index resources_pursuit_idx on public.resources (pursuit_id, vote_count desc);
+create index if not exists resources_pursuit_idx on public.resources (pursuit_id, vote_count desc);
 
-create table public.resource_votes (
+create table if not exists public.resource_votes (
   resource_id uuid not null references public.resources on delete cascade,
   user_id     uuid not null references public.profiles on delete cascade,
   primary key (resource_id, user_id)
@@ -214,7 +219,7 @@ create table public.resource_votes (
 -- 6. DO — challenges, meetups, sessions
 -- ---------------------------------------------------------------------------
 
-create table public.events (
+create table if not exists public.events (
   id           uuid primary key default gen_random_uuid(),
   pursuit_id   uuid not null references public.pursuits on delete cascade,
   created_by   uuid references public.profiles on delete set null,
@@ -231,9 +236,9 @@ create table public.events (
   created_at   timestamptz not null default now()
 );
 
-create index events_pursuit_idx on public.events (pursuit_id, starts_at);
+create index if not exists events_pursuit_idx on public.events (pursuit_id, starts_at);
 
-create table public.event_rsvps (
+create table if not exists public.event_rsvps (
   event_id uuid not null references public.events on delete cascade,
   user_id  uuid not null references public.profiles on delete cascade,
   created_at timestamptz not null default now(),
@@ -244,7 +249,7 @@ create table public.event_rsvps (
 -- Connections and messages
 -- ---------------------------------------------------------------------------
 
-create table public.connections (
+create table if not exists public.connections (
   id           uuid primary key default gen_random_uuid(),
   requester_id uuid not null references public.profiles on delete cascade,
   addressee_id uuid not null references public.profiles on delete cascade,
@@ -257,10 +262,10 @@ create table public.connections (
   check (requester_id <> addressee_id)
 );
 
-create index connections_addressee_idx on public.connections (addressee_id, status);
-create index connections_requester_idx on public.connections (requester_id, status);
+create index if not exists connections_addressee_idx on public.connections (addressee_id, status);
+create index if not exists connections_requester_idx on public.connections (requester_id, status);
 
-create table public.conversations (
+create table if not exists public.conversations (
   id         uuid primary key default gen_random_uuid(),
   user_a     uuid not null references public.profiles on delete cascade,
   user_b     uuid not null references public.profiles on delete cascade,
@@ -270,7 +275,7 @@ create table public.conversations (
   check (user_a < user_b)
 );
 
-create table public.messages (
+create table if not exists public.messages (
   id              uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.conversations on delete cascade,
   sender_id       uuid not null references public.profiles on delete cascade,
@@ -279,9 +284,9 @@ create table public.messages (
   created_at      timestamptz not null default now()
 );
 
-create index messages_conversation_idx on public.messages (conversation_id, created_at);
+create index if not exists messages_conversation_idx on public.messages (conversation_id, created_at);
 
-create table public.notifications (
+create table if not exists public.notifications (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references public.profiles on delete cascade,
   kind       text not null,
@@ -293,4 +298,4 @@ create table public.notifications (
   created_at timestamptz not null default now()
 );
 
-create index notifications_user_idx on public.notifications (user_id, created_at desc);
+create index if not exists notifications_user_idx on public.notifications (user_id, created_at desc);
