@@ -1,9 +1,12 @@
--- Commons: an intent network.
+-- Forge: a platform for making digital tools.
 --
--- The core object is a Pursuit: an outcome a group of people are all trying to
--- reach. A pursuit is deliberately not a chat room. It is six surfaces around
--- one outcome — discussion, progress, people, needs/offers, resources, events —
--- and the schema below is shaped so each of those is first class.
+-- Somebody describes the tool they want, Claude builds it, they edit it, and
+-- they publish it at a link. The link works for anyone — signed in or not —
+-- because distribution is the whole point.
+--
+-- The shape of every tool lives in one jsonb column, `spec`, validated in the
+-- application against the schema its engine defines. That is deliberate: adding
+-- a new kind of tool means adding an engine, not migrating the database.
 
 create extension if not exists "pgcrypto";
 
@@ -15,268 +18,152 @@ create table if not exists public.profiles (
   id           uuid primary key references auth.users on delete cascade,
   handle       text unique not null,
   full_name    text not null default '',
-  headline     text not null default '',
   bio          text not null default '',
-  location     text not null default '',
   avatar_url   text,
-  skills       text[] not null default '{}',
-  interests    text[] not null default '{}',
-  onboarded    boolean not null default false,
+  -- Where a creator's earnings go. Paystack splits to this automatically when
+  -- somebody pays for one of their tools.
+  paystack_subaccount text,
   created_at   timestamptz not null default now()
 );
 
-create index if not exists profiles_skills_idx on public.profiles using gin (skills);
-create index if not exists profiles_handle_idx on public.profiles (handle);
-
 -- ---------------------------------------------------------------------------
--- Pursuits
+-- Tools
 -- ---------------------------------------------------------------------------
 
-create table if not exists public.pursuits (
-  id           uuid primary key default gen_random_uuid(),
-  slug         text unique not null,
-  title        text not null,
-  tagline      text not null default '',
-  description  text not null default '',
-  category     text not null default 'other',
-  emoji        text not null default '🎯',
-  accent       text not null default 'violet',
-  tags         text[] not null default '{}',
-  is_private   boolean not null default false,
-  created_by   uuid references public.profiles on delete set null,
-  member_count integer not null default 0,
-  created_at   timestamptz not null default now()
-);
-
-create index if not exists pursuits_category_idx on public.pursuits (category);
-create index if not exists pursuits_tags_idx on public.pursuits using gin (tags);
-
--- Full text search over title/tagline/tags, so "build a profitable saas
--- company" finds the pursuit even when the wording differs.
---
--- array_to_string is only marked stable, which a generated column will not
--- accept, so the tags are flattened through an immutable wrapper.
-create or replace function public.words(p_tags text[])
-returns text language sql immutable parallel safe
-as $$ select array_to_string(coalesce(p_tags, '{}'), ' ') $$;
-
-do $$
-begin
-  alter table public.pursuits add column search tsvector
-    generated always as (
-      setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-      setweight(to_tsvector('english', coalesce(tagline, '')), 'B') ||
-      setweight(to_tsvector('english', coalesce(description, '')), 'C') ||
-      setweight(to_tsvector('english', public.words(tags)), 'B')
-    ) stored;
-exception
-  when duplicate_column then null;
-end $$;
-
-create index if not exists pursuits_search_idx on public.pursuits using gin (search);
-
--- The journey everyone in a pursuit is walking. Ordered, named by the pursuit
--- itself, so "Build a SaaS" can have IDEA→VALIDATING→BUILDING→BETA→LAUNCHED
--- while "Run a marathon" has something else entirely.
-create table if not exists public.stages (
+create table if not exists public.tools (
   id          uuid primary key default gen_random_uuid(),
-  pursuit_id  uuid not null references public.pursuits on delete cascade,
-  name        text not null,
-  description text not null default '',
-  position    integer not null,
-  unique (pursuit_id, position)
-);
+  owner_id    uuid not null references public.profiles on delete cascade,
+  slug        text unique not null,
 
-create index if not exists stages_pursuit_idx on public.stages (pursuit_id, position);
+  -- Which engine runs this tool. The six the platform launches with.
+  engine      text not null check (engine in
+                ('calculator', 'quiz', 'generator', 'tracker', 'directory', 'assistant')),
 
-create table if not exists public.memberships (
-  id           uuid primary key default gen_random_uuid(),
-  pursuit_id   uuid not null references public.pursuits on delete cascade,
-  user_id      uuid not null references public.profiles on delete cascade,
-  stage_id     uuid references public.stages on delete set null,
-  intent       text not null default '',
-  role         text not null default 'member' check (role in ('member', 'steward')),
-  joined_at    timestamptz not null default now(),
-  unique (pursuit_id, user_id)
-);
-
-create index if not exists memberships_pursuit_idx on public.memberships (pursuit_id);
-create index if not exists memberships_user_idx on public.memberships (user_id);
-
--- ---------------------------------------------------------------------------
--- 2. DISCUSS — structured, not a feed
--- ---------------------------------------------------------------------------
-
-create table if not exists public.posts (
-  id           uuid primary key default gen_random_uuid(),
-  pursuit_id   uuid not null references public.pursuits on delete cascade,
-  author_id    uuid not null references public.profiles on delete cascade,
-  kind         text not null default 'update'
-                 check (kind in ('question', 'update', 'insight', 'win')),
-  title        text not null default '',
-  body         text not null,
-  stage_id     uuid references public.stages on delete set null,
-  reply_count  integer not null default 0,
-  useful_count integer not null default 0,
-  created_at   timestamptz not null default now()
-);
-
-create index if not exists posts_pursuit_idx on public.posts (pursuit_id, created_at desc);
-create index if not exists posts_author_idx on public.posts (author_id);
-
-create table if not exists public.replies (
-  id         uuid primary key default gen_random_uuid(),
-  post_id    uuid not null references public.posts on delete cascade,
-  author_id  uuid not null references public.profiles on delete cascade,
-  body       text not null,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists replies_post_idx on public.replies (post_id, created_at);
-
--- "This was useful" rather than "like". The distinction matters: it is the
--- signal the knowledge base is built from.
-create table if not exists public.post_useful (
-  post_id uuid not null references public.posts on delete cascade,
-  user_id uuid not null references public.profiles on delete cascade,
-  primary key (post_id, user_id)
-);
-
--- ---------------------------------------------------------------------------
--- 4. HELP — the marketplace of needs and capabilities
--- ---------------------------------------------------------------------------
-
-create table if not exists public.asks (
-  id          uuid primary key default gen_random_uuid(),
-  pursuit_id  uuid not null references public.pursuits on delete cascade,
-  user_id     uuid not null references public.profiles on delete cascade,
-  kind        text not null check (kind in ('need', 'offer')),
   title       text not null,
-  body        text not null default '',
-  tags        text[] not null default '{}',
-  status      text not null default 'open' check (status in ('open', 'matched', 'closed')),
-  created_at  timestamptz not null default now()
+  tagline     text not null default '',
+  description text not null default '',
+  emoji       text not null default '🛠️',
+  accent      text not null default 'indigo',
+
+  -- The tool itself: inputs, formulas, questions, fields, instructions.
+  -- Shaped by the engine; parsed before use, never trusted raw.
+  spec        jsonb not null default '{}'::jsonb,
+
+  -- What the creator originally asked for. Kept so a tool can be rebuilt or
+  -- improved later without the person having to remember how they phrased it.
+  brief       text not null default '',
+
+  status      text not null default 'draft' check (status in ('draft', 'published')),
+
+  -- Price in the smallest unit — kobo for naira. Zero means free.
+  price_kobo  integer not null default 0 check (price_kobo >= 0),
+  currency    text not null default 'NGN',
+
+  view_count  integer not null default 0,
+  run_count   integer not null default 0,
+
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
 );
 
-create index if not exists asks_pursuit_idx on public.asks (pursuit_id, kind, status, created_at desc);
-create index if not exists asks_tags_idx on public.asks using gin (tags);
+create index if not exists tools_owner_idx on public.tools (owner_id, updated_at desc);
+create index if not exists tools_published_idx on public.tools (status, run_count desc);
+create index if not exists tools_engine_idx on public.tools (engine);
 
-create table if not exists public.ask_responses (
+create or replace function public.touch_tool()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists tools_touch on public.tools;
+create trigger tools_touch before update on public.tools
+  for each row execute function public.touch_tool();
+
+-- ---------------------------------------------------------------------------
+-- Rows a creator curates — the directory engine
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.tool_records (
   id         uuid primary key default gen_random_uuid(),
-  ask_id     uuid not null references public.asks on delete cascade,
-  user_id    uuid not null references public.profiles on delete cascade,
-  body       text not null,
-  created_at timestamptz not null default now(),
-  unique (ask_id, user_id)
-);
-
--- ---------------------------------------------------------------------------
--- 5. LEARN — collective knowledge, so 8,000 people stop asking the same thing
--- ---------------------------------------------------------------------------
-
-create table if not exists public.resources (
-  id           uuid primary key default gen_random_uuid(),
-  pursuit_id   uuid not null references public.pursuits on delete cascade,
-  user_id      uuid references public.profiles on delete set null,
-  kind         text not null default 'link'
-                 check (kind in ('book', 'tool', 'template', 'course', 'link', 'experience')),
-  title        text not null,
-  url          text,
-  description  text not null default '',
-  stage_id     uuid references public.stages on delete set null,
-  vote_count   integer not null default 0,
-  created_at   timestamptz not null default now()
-);
-
-create index if not exists resources_pursuit_idx on public.resources (pursuit_id, vote_count desc);
-
-create table if not exists public.resource_votes (
-  resource_id uuid not null references public.resources on delete cascade,
-  user_id     uuid not null references public.profiles on delete cascade,
-  primary key (resource_id, user_id)
-);
-
--- ---------------------------------------------------------------------------
--- 6. DO — challenges, meetups, sessions
--- ---------------------------------------------------------------------------
-
-create table if not exists public.events (
-  id           uuid primary key default gen_random_uuid(),
-  pursuit_id   uuid not null references public.pursuits on delete cascade,
-  created_by   uuid references public.profiles on delete set null,
-  kind         text not null default 'meetup'
-                 check (kind in ('meetup', 'workshop', 'challenge', 'ama', 'session')),
-  title        text not null,
-  description  text not null default '',
-  starts_at    timestamptz not null,
-  ends_at      timestamptz,
-  location     text not null default '',
-  is_virtual   boolean not null default true,
-  url          text,
-  rsvp_count   integer not null default 0,
-  created_at   timestamptz not null default now()
-);
-
-create index if not exists events_pursuit_idx on public.events (pursuit_id, starts_at);
-
-create table if not exists public.event_rsvps (
-  event_id uuid not null references public.events on delete cascade,
-  user_id  uuid not null references public.profiles on delete cascade,
-  created_at timestamptz not null default now(),
-  primary key (event_id, user_id)
-);
-
--- ---------------------------------------------------------------------------
--- Connections and messages
--- ---------------------------------------------------------------------------
-
-create table if not exists public.connections (
-  id           uuid primary key default gen_random_uuid(),
-  requester_id uuid not null references public.profiles on delete cascade,
-  addressee_id uuid not null references public.profiles on delete cascade,
-  status       text not null default 'pending'
-                 check (status in ('pending', 'accepted', 'declined')),
-  reason       text not null default '',
-  pursuit_id   uuid references public.pursuits on delete set null,
-  created_at   timestamptz not null default now(),
-  unique (requester_id, addressee_id),
-  check (requester_id <> addressee_id)
-);
-
-create index if not exists connections_addressee_idx on public.connections (addressee_id, status);
-create index if not exists connections_requester_idx on public.connections (requester_id, status);
-
-create table if not exists public.conversations (
-  id         uuid primary key default gen_random_uuid(),
-  user_a     uuid not null references public.profiles on delete cascade,
-  user_b     uuid not null references public.profiles on delete cascade,
-  last_message_at timestamptz not null default now(),
-  created_at timestamptz not null default now(),
-  unique (user_a, user_b),
-  check (user_a < user_b)
-);
-
-create table if not exists public.messages (
-  id              uuid primary key default gen_random_uuid(),
-  conversation_id uuid not null references public.conversations on delete cascade,
-  sender_id       uuid not null references public.profiles on delete cascade,
-  body            text not null,
-  read_at         timestamptz,
-  created_at      timestamptz not null default now()
-);
-
-create index if not exists messages_conversation_idx on public.messages (conversation_id, created_at);
-
-create table if not exists public.notifications (
-  id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null references public.profiles on delete cascade,
-  kind       text not null,
-  title      text not null,
-  body       text not null default '',
-  href       text,
-  actor_id   uuid references public.profiles on delete set null,
-  read_at    timestamptz,
+  tool_id    uuid not null references public.tools on delete cascade,
+  data       jsonb not null default '{}'::jsonb,
+  position   integer not null default 0,
   created_at timestamptz not null default now()
 );
 
-create index if not exists notifications_user_idx on public.notifications (user_id, created_at desc);
+create index if not exists tool_records_tool_idx on public.tool_records (tool_id, position);
+
+-- ---------------------------------------------------------------------------
+-- Rows an end user keeps — the tracker engine
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.tool_entries (
+  id         uuid primary key default gen_random_uuid(),
+  tool_id    uuid not null references public.tools on delete cascade,
+  user_id    uuid not null references public.profiles on delete cascade,
+  data       jsonb not null default '{}'::jsonb,
+  entry_date date not null default current_date,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists tool_entries_idx on public.tool_entries (tool_id, user_id, entry_date desc);
+
+-- ---------------------------------------------------------------------------
+-- One use of a tool — a calculation, a quiz result, a generated document
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.tool_runs (
+  id         uuid primary key default gen_random_uuid(),
+  tool_id    uuid not null references public.tools on delete cascade,
+  user_id    uuid references public.profiles on delete set null,
+  input      jsonb not null default '{}'::jsonb,
+  output     jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists tool_runs_tool_idx on public.tool_runs (tool_id, created_at desc);
+create index if not exists tool_runs_user_idx on public.tool_runs (user_id, created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- Paying for a tool
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.purchases (
+  id          uuid primary key default gen_random_uuid(),
+  tool_id     uuid not null references public.tools on delete cascade,
+  buyer_id    uuid not null references public.profiles on delete cascade,
+  reference   text unique not null,
+  amount_kobo integer not null,
+  currency    text not null default 'NGN',
+  status      text not null default 'pending' check (status in ('pending', 'paid', 'failed')),
+  created_at  timestamptz not null default now(),
+  paid_at     timestamptz
+);
+
+create index if not exists purchases_buyer_idx on public.purchases (buyer_id, tool_id);
+create unique index if not exists purchases_one_paid
+  on public.purchases (tool_id, buyer_id) where status = 'paid';
+
+-- Has this person paid for this tool? Security definer so the check does not
+-- depend on the caller being able to read the purchases table.
+create or replace function public.has_access(p_tool uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select
+    -- Free tools are open to everyone.
+    coalesce((select price_kobo from public.tools where id = p_tool), 0) = 0
+    -- So is your own tool.
+    or exists (select 1 from public.tools where id = p_tool and owner_id = auth.uid())
+    -- Otherwise you have to have paid for it.
+    or exists (
+      select 1 from public.purchases
+      where tool_id = p_tool and buyer_id = auth.uid() and status = 'paid'
+    );
+$$;

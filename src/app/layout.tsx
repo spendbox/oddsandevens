@@ -2,22 +2,16 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: {
-    default: 'Commons — find people pursuing what you are pursuing',
-    template: '%s · Commons',
-  },
+  title: { default: 'Forge — describe a tool, get a tool', template: '%s · Forge' },
   description:
-    'An intent network. Join a pursuit, see where everyone is, and meet the people who can help you get there.',
-  applicationName: 'Commons',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Commons' },
-  formatDetection: { telephone: false },
+    'Describe the tool you want. Forge builds it, you edit it, and you share it at a link — free or paid.',
+  applicationName: 'Forge',
 }
 
 export const viewport: Viewport = {
   themeColor: '#ffffff',
   width: 'device-width',
   initialScale: 1,
-  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

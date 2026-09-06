@@ -2,14 +2,13 @@ import { redirect } from 'next/navigation'
 import { supabaseServer } from './supabase/server'
 import type { Profile } from './types'
 
-/** A handle from an email address: ada.lovelace@x.com becomes adalovelace. */
 function handleFrom(email: string | undefined): string {
   const base = (email ?? '').split('@')[0].replace(/[^a-z0-9]/gi, '').toLowerCase()
-  return base.slice(0, 20) || 'member'
+  return base.slice(0, 20) || 'maker'
 }
 
 /**
- * Create the profile row for someone who does not have one yet.
+ * Create the profile for someone who does not have one yet.
  *
  * Normally the database trigger on auth.users has already done this. Some
  * Supabase projects will not let the SQL editor attach that trigger, so the app
@@ -29,13 +28,9 @@ async function createProfile(userId: string, email: string | undefined, name: st
       .maybeSingle()
 
     if (data) return data as Profile
-
-    // 23505 is a duplicate handle — try the next one. Anything else is real.
     if (error?.code !== '23505') break
   }
 
-  // A duplicate on the id itself means the trigger created it between our read
-  // and our write, which is a success by another route.
   const { data: existing } = await supabase
     .from('profiles')
     .select('*')
@@ -45,20 +40,14 @@ async function createProfile(userId: string, email: string | undefined, name: st
   return (existing as Profile) ?? null
 }
 
-/**
- * The signed-in person and their profile.
- *
- * Always getUser() rather than getSession(): the proxy's check is optimistic,
- * and anything that reads or writes data needs a user the auth server has
- * actually verified.
- */
+/** The signed-in person. Always getUser(): the proxy's check is optimistic. */
 export async function requireProfile(): Promise<{ profile: Profile; userId: string }> {
   const supabase = await supabaseServer()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) redirect('/login')
+  if (!user) redirect('/signin')
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -74,17 +63,27 @@ export async function requireProfile(): Promise<{ profile: Profile; userId: stri
     typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '',
   )
 
-  // Without a profile there is nothing to render, and sending this person to
-  // /login would bounce them straight back to /home — a loop with no
-  // explanation. Land on a page that says what happened instead.
-  if (!created) redirect('/login?problem=profile')
+  // Without a profile there is nothing to render, and /signin would bounce
+  // straight back here. Land somewhere that explains itself instead.
+  if (!created) redirect('/signin?problem=profile')
 
   return { profile: created, userId: user.id }
 }
 
-/** Same, but sends people who have not finished onboarding to finish it. */
-export async function requireOnboardedProfile() {
-  const session = await requireProfile()
-  if (!session.profile.onboarded) redirect('/onboarding')
-  return session
+/** The signed-in person, or null. For pages that work either way. */
+export async function optionalProfile(): Promise<{ profile: Profile | null; userId: string | null }> {
+  const supabase = await supabaseServer()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { profile: null, userId: null }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  return { profile: (profile as Profile) ?? null, userId: user.id }
 }

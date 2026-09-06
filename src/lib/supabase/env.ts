@@ -1,18 +1,17 @@
 /**
- * The two settings Commons needs, checked once and reported in words.
+ * The settings Forge needs, checked once and reported in words.
  *
- * Supabase's own failure for a missing URL is "Invalid supabaseUrl: Must be a
- * valid HTTP or HTTPS URL", which names neither the setting nor where to put
- * it. Anyone deploying this hits that message before they hit anything else,
- * so it is worth answering properly.
+ * Supabase's own failure for a missing URL is "Invalid supabaseUrl", which
+ * names neither the setting nor where it goes. Anyone deploying hits that
+ * before anything else, so it is worth answering properly.
  */
 function missing(name: string): never {
   throw new Error(
-    `Commons cannot start: ${name} is not set.\n\n` +
-      'Add both NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY — ' +
-      'in Vercel under Settings → Environment Variables, or in a .env.local file ' +
-      'when running locally. Find the values in Supabase under ' +
-      'Project Settings → API (use the "anon"/"publishable" key, never the secret one).\n\n' +
+    `Forge cannot start: ${name} is not set.\n\n` +
+      'Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY — in Vercel under ' +
+      'Settings → Environment Variables, or in a .env.local file when running locally. ' +
+      'The values are in Supabase under Project Settings → API (use the "anon"/"publishable" ' +
+      'key, never the secret one).\n\n' +
       'On Vercel these are read when the site is built, so redeploy after adding them.',
   )
 }
@@ -26,9 +25,9 @@ function tidyUrl(raw: string): string {
     new URL(withScheme)
   } catch {
     throw new Error(
-      `Commons cannot start: NEXT_PUBLIC_SUPABASE_URL is not a valid address (got "${raw}").\n\n` +
-        'It should look like https://abcdefghijkl.supabase.co — copy it from ' +
-        'Supabase under Project Settings → API, as "Project URL".',
+      `Forge cannot start: NEXT_PUBLIC_SUPABASE_URL is not a valid address (got "${raw}").\n\n` +
+        'It should look like https://abcdefghijkl.supabase.co — copy it from Supabase under ' +
+        'Project Settings → API, as "Project URL".',
     )
   }
 
