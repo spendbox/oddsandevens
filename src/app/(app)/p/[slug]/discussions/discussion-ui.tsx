@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRef, useState, useTransition } from 'react'
 import { Avatar } from '@/components/avatar'
 import type { Profile, Stage } from '@/lib/types'
-import { createPost, createReply, toggleUseful } from '../actions'
+import { createPost, createReply, toggleReplyUseful, toggleUseful } from '../actions'
 
 const KINDS = [
   { value: 'update', label: 'An update', hint: 'Where you have got to.' },
@@ -241,5 +241,46 @@ export function ReplyForm({ slug, postId }: { slug: string; postId: string }) {
         </button>
       </div>
     </form>
+  )
+}
+
+/** Marking a reply useful — a comment can earn its author standing too. */
+export function ReplyUseful({
+  slug,
+  replyId,
+  count,
+  marked,
+}: {
+  slug: string
+  replyId: string
+  count: number
+  marked: boolean
+}) {
+  const [pending, startTransition] = useTransition()
+
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() =>
+        startTransition(() => {
+          void toggleReplyUseful(slug, replyId)
+        })
+      }
+      className={`mt-1.5 flex items-center gap-1 text-[11px] font-medium transition-colors ${
+        marked ? 'text-accent' : 'text-ink-faint hover:text-ink-muted'
+      }`}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1zm0 0 4.5-7.5a2 2 0 0 1 3.6 1.5L14 9h5a2 2 0 0 1 2 2.4l-1.4 7A2 2 0 0 1 17.6 20H7"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+      </svg>
+      {marked ? 'Useful' : 'Mark useful'}
+      {count > 0 ? <span className="tabular-nums">· {count}</span> : null}
+    </button>
   )
 }

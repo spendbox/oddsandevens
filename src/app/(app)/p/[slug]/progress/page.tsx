@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Avatar } from '@/components/avatar'
-import { EmptyState, SectionHeader, timeAgo } from '@/components/ui'
+import { Chip, EmptyState, SectionHeader, timeAgo } from '@/components/ui'
 import { accent } from '@/lib/accent'
 import { peopleYouCouldHelp, type Person } from '@/lib/matching'
 import {
   asksByUser,
+  myCompletions,
   myMembership,
   pursuitBySlug,
   pursuitMembers,
@@ -14,7 +15,7 @@ import {
   pursuitStages,
 } from '@/lib/queries'
 import { requireOnboardedProfile } from '@/lib/session'
-import { ProgressForm } from './progress-form'
+import { CompleteStage } from './complete-stage'
 
 export default async function Progress(props: PageProps<'/p/[slug]/progress'>) {
   const { slug } = await props.params
@@ -23,24 +24,29 @@ export default async function Progress(props: PageProps<'/p/[slug]/progress'>) {
   const pursuit = await pursuitBySlug(slug)
   if (!pursuit) notFound()
 
-  const [membership, stages, progress, feed, members, askIndex] = await Promise.all([
+  const [membership, stages, progress, feed, members, askIndex, completions] = await Promise.all([
     myMembership(pursuit.id, userId),
     pursuitStages(pursuit.id),
     pursuitProgress(pursuit.id),
     pursuitProgressFeed(pursuit.id),
     pursuitMembers(pursuit.id),
     asksByUser(pursuit.id),
+    myMembership(pursuit.id, userId).then(() => myCompletions(pursuit.id, userId)),
   ])
 
   const tone = accent(pursuit.accent)
-  const total = members.length || 1
+  const done = new Set(completions.map((completion) => completion.stage_id))
 
-  // People at each stage, so you can see who is standing where.
+  // Where everyone stands. A member is "at" the first stage they have not
+  // finished, which is exactly what their membership row already says.
   const byStage = new Map<string, typeof members>()
   for (const member of members) {
     if (!member.stage_id) continue
     byStage.set(member.stage_id, [...(byStage.get(member.stage_id) ?? []), member])
   }
+
+  const currentStage = stages.find((stage) => stage.id === membership?.stage_id) ?? null
+  const finishedAll = membership !== null && done.size === stages.length && stages.length > 0
 
   let couldHelp: ReturnType<typeof peopleYouCouldHelp> = []
   if (membership) {
@@ -57,55 +63,79 @@ export default async function Progress(props: PageProps<'/p/[slug]/progress'>) {
 
   return (
     <div className="space-y-8">
-      {membership ? (
-        <ProgressForm
+      {membership && currentStage && !finishedAll ? (
+        <CompleteStage
           slug={slug}
           pursuitId={pursuit.id}
-          stages={stages}
-          currentStageId={membership.stage_id}
-          currentProgress={membership.progress}
+          stage={currentStage}
+          position={done.size + 1}
+          total={stages.length}
         />
+      ) : null}
+
+      {finishedAll ? (
+        <div className="card bg-lift-soft p-5">
+          <p className="text-sm font-semibold text-lift">🏁 You finished every stage of this pursuit</p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-ink-soft">
+            Everything you wrote on the way through is still here, and the people behind you are
+            reading it. The most useful thing you can do now is answer them.
+          </p>
+        </div>
       ) : null}
 
       <section>
         <SectionHeader
           title="The journey"
-          hint={`${progress.collective}% collective progress across ${pursuit.member_count.toLocaleString()} people`}
+          hint={`${progress.collective}% collective progress across ${pursuit.member_count.toLocaleString()} ${
+            pursuit.member_count === 1 ? 'person' : 'people'
+          }`}
         />
 
-        <div className="space-y-2.5">
-          {progress.stages.map((stage) => {
-            const people = byStage.get(stage.stage_id) ?? []
-            const share = (stage.people / total) * 100
-            const mine = membership?.stage_id === stage.stage_id
+        <ol className="space-y-2.5">
+          {stages.map((stage) => {
+            const people = byStage.get(stage.id) ?? []
+            const finished = done.has(stage.id)
+            const current = membership?.stage_id === stage.id && !finishedAll
+            const counted = progress.stages.find((row) => row.stage_id === stage.id)
 
             return (
-              <div
-                key={stage.stage_id}
-                className={`card p-4 ${mine ? 'border-accent-line bg-accent-soft/40' : ''}`}
+              <li
+                key={stage.id}
+                className={`card p-4 ${current ? 'border-accent-line bg-accent-soft/40' : ''}`}
               >
-                <div className="flex items-baseline justify-between gap-4">
-                  <h3 className="text-[13px] font-semibold tracking-wide text-ink uppercase">
-                    {stage.stage_name}
-                    {mine ? <span className="ml-2 text-accent lowercase">· you are here</span> : null}
-                  </h3>
-                  <p className="shrink-0 text-[13px] font-medium text-ink tabular-nums">
-                    {stage.people.toLocaleString()}
-                    <span className="ml-1 text-[11px] font-normal text-ink-muted">
-                      {stage.people === 1 ? 'person' : 'people'}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                        finished
+                          ? 'bg-lift text-white'
+                          : current
+                            ? `${tone.bar} text-white`
+                            : 'bg-mist text-ink-faint'
+                      }`}
+                    >
+                      {finished ? '✓' : stage.position}
                     </span>
+                    <div className="min-w-0">
+                      <h3 className="text-[13px] font-semibold tracking-wide text-ink uppercase">
+                        {stage.name}
+                        {current ? (
+                          <span className="ml-2 text-accent lowercase">· you are here</span>
+                        ) : finished ? (
+                          <span className="ml-2 text-lift lowercase">· done</span>
+                        ) : null}
+                      </h3>
+                      <p className="mt-0.5 text-[12px] text-ink-muted">{stage.description}</p>
+                    </div>
+                  </div>
+                  <p className="shrink-0 text-right text-[12px] text-ink-muted tabular-nums">
+                    {(counted?.people ?? 0).toLocaleString()}
+                    <span className="ml-1 text-[11px]">here</span>
                   </p>
                 </div>
 
-                <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-line">
-                  <div
-                    className={`h-full rounded-full ${tone.bar}`}
-                    style={{ width: `${Math.max(share, stage.people > 0 ? 2 : 0)}%` }}
-                  />
-                </div>
-
                 {people.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5 pl-9">
                     {people.slice(0, 12).map((member) => (
                       <Link
                         key={member.id}
@@ -116,16 +146,14 @@ export default async function Progress(props: PageProps<'/p/[slug]/progress'>) {
                       </Link>
                     ))}
                     {people.length > 12 ? (
-                      <span className="text-[11px] text-ink-faint">
-                        +{people.length - 12} more
-                      </span>
+                      <span className="text-[11px] text-ink-faint">+{people.length - 12} more</span>
                     ) : null}
                   </div>
                 ) : null}
-              </div>
+              </li>
             )
           })}
-        </div>
+        </ol>
       </section>
 
       {couldHelp.length > 0 ? (
@@ -143,9 +171,7 @@ export default async function Progress(props: PageProps<'/p/[slug]/progress'>) {
               >
                 <Avatar profile={match.profile} size="md" />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">
-                    {match.profile.full_name}
-                  </p>
+                  <p className="truncate text-sm font-semibold text-ink">{match.profile.full_name}</p>
                   <p className="truncate text-[12px] text-ink-muted">{match.profile.headline}</p>
                   <p className="mt-1.5 text-[12px] leading-relaxed text-lift">{match.reason}</p>
                 </div>
@@ -156,38 +182,58 @@ export default async function Progress(props: PageProps<'/p/[slug]/progress'>) {
       ) : null}
 
       <section>
-        <SectionHeader title="Recently moved forward" />
+        <SectionHeader
+          title="Recently finished a stage"
+          hint="What people did, in their own words"
+        />
         {feed.length > 0 ? (
-          <ul className="card divide-y divide-line">
-            {feed.map((update) => (
-              <li key={update.id} className="flex items-start gap-3 px-4 py-3.5">
-                <Avatar profile={update.author} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] text-ink-soft">
-                    <Link
-                      href={`/u/${update.author.handle}`}
-                      className="font-semibold text-ink hover:text-accent"
-                    >
-                      {update.author.full_name}
-                    </Link>{' '}
-                    {update.note || `moved to ${update.to_progress}%`}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-ink-faint">
-                    {update.from_progress !== null
-                      ? `${update.from_progress}% → ${update.to_progress}%`
-                      : `${update.to_progress}%`}{' '}
-                    · {timeAgo(update.created_at)}
-                  </p>
+          <ul className="space-y-3">
+            {feed.map((completion) => (
+              <li key={completion.id} className="card p-4">
+                <div className="flex items-start gap-3">
+                  <Avatar profile={completion.author} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <Link
+                        href={`/u/${completion.author.handle}`}
+                        className="text-[13px] font-semibold text-ink hover:text-accent"
+                      >
+                        {completion.author.full_name}
+                      </Link>
+                      <span className="text-[11px] text-ink-faint">
+                        finished {completion.stage?.name} · {timeAgo(completion.completed_at)}
+                      </span>
+                    </div>
+                    <div className="prose-commons mt-2 text-[13px]">{completion.what_i_did}</div>
+                    {completion.what_was_hard ? (
+                      <div className="mt-2.5 rounded-[10px] bg-mist p-3">
+                        <p className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">
+                          What was hard
+                        </p>
+                        <div className="prose-commons mt-1 text-[13px]">
+                          {completion.what_was_hard}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="mt-2.5">
+                      <Link
+                        href={`/p/${slug}/discussions?kind=reflection`}
+                        className="text-[12px] font-medium text-accent hover:text-accent-hover"
+                      >
+                        Reply to this in the discussion →
+                      </Link>
+                    </div>
+                  </div>
+                  <Chip tone="lift">🪜 {completion.stage?.name}</Chip>
                 </div>
-                {update.is_milestone ? <span className="chip bg-lift-soft text-lift">Milestone</span> : null}
               </li>
             ))}
           </ul>
         ) : (
           <EmptyState
-            icon="📈"
-            title="No movement recorded yet"
-            body="When someone moves forward it shows here, and the people behind them get told."
+            icon="🪜"
+            title="Nobody has finished a stage yet"
+            body="When someone does, they write down what they actually did — and everyone still on that stage gets told."
           />
         )}
       </section>

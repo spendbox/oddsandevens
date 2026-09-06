@@ -10,13 +10,14 @@ import {
 import { requireOnboardedProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import type { Profile, Reply } from '@/lib/types'
-import { Composer, KindFilter, PostActions, ReplyForm } from './discussion-ui'
+import { Composer, KindFilter, PostActions, ReplyForm, ReplyUseful } from './discussion-ui'
 
 const KIND_TONE = {
   question: 'sky',
   update: 'neutral',
   insight: 'accent',
   win: 'lift',
+  reflection: 'warn',
 } as const
 
 const KIND_LABEL = {
@@ -24,6 +25,7 @@ const KIND_LABEL = {
   update: 'Update',
   insight: 'What I learned',
   win: 'Win',
+  reflection: 'Finished a stage',
 } as const
 
 export default async function Discussions(props: PageProps<'/p/[slug]/discussions'>) {
@@ -57,6 +59,14 @@ export default async function Discussions(props: PageProps<'/p/[slug]/discussion
       ? supabase.from('post_useful').select('post_id').eq('user_id', userId).in('post_id', postIds)
       : Promise.resolve({ data: [] as never[] }),
   ])
+
+  const replyIds = ((replyRows ?? []) as { id: string }[]).map((reply) => reply.id)
+  const { data: replyUsefulRows } = replyIds.length
+    ? await supabase.from('reply_useful').select('reply_id').eq('user_id', userId).in('reply_id', replyIds)
+    : { data: [] as never[] }
+  const replyMarked = new Set(
+    (replyUsefulRows ?? []).map((row: { reply_id: string }) => row.reply_id),
+  )
 
   const repliesByPost = new Map<string, (Reply & { author: Profile })[]>()
   for (const reply of (replyRows ?? []) as (Reply & { author: Profile })[]) {
@@ -122,7 +132,7 @@ export default async function Discussions(props: PageProps<'/p/[slug]/discussion
                         {replies.map((reply) => (
                           <li key={reply.id} className="flex items-start gap-2.5">
                             <Avatar profile={reply.author} size="xs" />
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <p className="text-[12px]">
                                 <span className="font-semibold text-ink">
                                   {reply.author.full_name}
@@ -132,6 +142,14 @@ export default async function Discussions(props: PageProps<'/p/[slug]/discussion
                                 </span>
                               </p>
                               <div className="prose-commons mt-0.5 text-[13px]">{reply.body}</div>
+                              {membership ? (
+                                <ReplyUseful
+                                  slug={slug}
+                                  replyId={reply.id}
+                                  count={reply.useful_count}
+                                  marked={replyMarked.has(reply.id)}
+                                />
+                              ) : null}
                             </div>
                           </li>
                         ))}

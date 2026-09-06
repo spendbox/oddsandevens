@@ -1,13 +1,14 @@
 import Link from 'next/link'
 import { Avatar } from '@/components/avatar'
 import { IntentionCard, PursuitCard } from '@/components/pursuit-card'
+import { PointsChip } from '@/components/standing'
 import { EmptyState, SectionHeader, formatDate, formatTime, timeAgo } from '@/components/ui'
 import { accent } from '@/lib/accent'
 import { suggestPeople, suggestPursuits, type Person } from '@/lib/matching'
 import { myPursuits } from '@/lib/queries'
 import { requireOnboardedProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
-import type { Ask, CommonsEvent, Membership, Profile, Pursuit, Stage } from '@/lib/types'
+import type { Ask, CommonsEvent, Membership, Profile, Pursuit, Stage, StageCompletion } from '@/lib/types'
 
 export const metadata = { title: 'Home' }
 
@@ -113,6 +114,9 @@ export default async function HomePage() {
                       <p className="mt-1.5 line-clamp-2 text-[12px] leading-relaxed text-accent">
                         {match.reason}
                       </p>
+                      <div className="mt-1.5">
+                        <PointsChip points={match.profile.points} subtle />
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -232,15 +236,18 @@ async function RecentActivity({ userId, joinedIds }: { userId: string; joinedIds
 
   const supabase = await supabaseServer()
   const { data } = await supabase
-    .from('progress_updates')
-    .select('*, author:profiles!progress_updates_user_id_fkey(*), pursuit:pursuits(slug, title)')
+    .from('stage_completions')
+    .select(
+      '*, author:profiles!stage_completions_user_id_fkey(*), stage:stages(name), pursuit:pursuits(slug, title)',
+    )
     .in('pursuit_id', joinedIds)
     .neq('user_id', userId)
-    .order('created_at', { ascending: false })
+    .order('completed_at', { ascending: false })
     .limit(4)
 
-  const updates = (data ?? []) as (import('@/lib/types').ProgressUpdate & {
+  const updates = (data ?? []) as unknown as (StageCompletion & {
     author: Profile
+    stage: { name: string } | null
     pursuit: { slug: string; title: string }
   })[]
 
@@ -255,11 +262,12 @@ async function RecentActivity({ userId, joinedIds }: { userId: string; joinedIds
             <Avatar profile={update.author} size="xs" />
             <div className="min-w-0">
               <p className="text-[12px] leading-snug text-ink-soft">
-                <span className="font-medium text-ink">{update.author.full_name}</span>{' '}
-                {update.note || `moved to ${update.to_progress}%`}
+                <span className="font-medium text-ink">{update.author.full_name}</span> finished{' '}
+                <span className="font-medium text-ink">{update.stage?.name}</span>
               </p>
+              <p className="mt-0.5 line-clamp-2 text-[11px] text-ink-muted">{update.what_i_did}</p>
               <p className="mt-0.5 text-[11px] text-ink-faint">
-                {update.pursuit.title} · {timeAgo(update.created_at)}
+                {update.pursuit.title} · {timeAgo(update.completed_at)}
               </p>
             </div>
           </li>

@@ -12,6 +12,7 @@ import {
 } from '@/lib/queries'
 import { requireOnboardedProfile } from '@/lib/session'
 import { ConnectButton } from '@/components/connect-button'
+import { PointsChip } from '@/components/standing'
 import { supabaseServer } from '@/lib/supabase/server'
 
 export default async function People(props: PageProps<'/p/[slug]/people'>) {
@@ -181,6 +182,9 @@ function MatchCard({
           {match.profile.location ? (
             <p className="mt-0.5 truncate text-[11px] text-ink-faint">{match.profile.location}</p>
           ) : null}
+          <div className="mt-1.5">
+            <PointsChip points={match.profile.points} subtle />
+          </div>
         </div>
       </div>
 

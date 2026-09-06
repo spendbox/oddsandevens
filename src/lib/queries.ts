@@ -3,16 +3,23 @@ import type {
   Ask,
   CommonsEvent,
   Membership,
+  MembershipWithProgress,
   Post,
   Profile,
-  ProgressUpdate,
   Pursuit,
+  Quiz,
+  QuizQuestion,
   Resource,
   Stage,
+  StageCompletion,
   StageCount,
+  Tool,
 } from './types'
 
-/** Every pursuit this person is in, with the pursuit and their stage attached. */
+/**
+ * Every pursuit this person is in, with progress counted from the stages they
+ * have actually finished rather than a number they typed about themselves.
+ */
 export async function myPursuits(userId: string) {
   const supabase = await supabaseServer()
   const { data } = await supabase
@@ -21,7 +28,35 @@ export async function myPursuits(userId: string) {
     .eq('user_id', userId)
     .order('joined_at', { ascending: false })
 
-  return (data ?? []) as (Membership & { pursuit: Pursuit; stage: Stage | null })[]
+  const rows = (data ?? []) as (Membership & { pursuit: Pursuit; stage: Stage | null })[]
+  if (rows.length === 0) return [] as MembershipWithProgress[]
+
+  const pursuitIds = rows.map((row) => row.pursuit_id)
+
+  const [{ data: completions }, { data: stages }] = await Promise.all([
+    supabase.from('stage_completions').select('pursuit_id').eq('user_id', userId).in('pursuit_id', pursuitIds),
+    supabase.from('stages').select('pursuit_id').in('pursuit_id', pursuitIds),
+  ])
+
+  const done = tally((completions ?? []) as { pursuit_id: string }[])
+  const total = tally((stages ?? []) as { pursuit_id: string }[])
+
+  return rows.map((row) => {
+    const completed = done.get(row.pursuit_id) ?? 0
+    const totalStages = total.get(row.pursuit_id) ?? 0
+    return {
+      ...row,
+      completed,
+      totalStages,
+      progress: totalStages > 0 ? Math.round((completed / totalStages) * 100) : 0,
+    }
+  }) as MembershipWithProgress[]
+}
+
+function tally(rows: { pursuit_id: string }[]) {
+  const counts = new Map<string, number>()
+  for (const row of rows) counts.set(row.pursuit_id, (counts.get(row.pursuit_id) ?? 0) + 1)
+  return counts
 }
 
 export async function pursuitBySlug(slug: string) {
@@ -132,13 +167,47 @@ export async function pursuitEvents(pursuitId: string) {
 export async function pursuitProgressFeed(pursuitId: string) {
   const supabase = await supabaseServer()
   const { data } = await supabase
-    .from('progress_updates')
-    .select('*, author:profiles!progress_updates_user_id_fkey(*)')
+    .from('stage_completions')
+    .select('*, author:profiles!stage_completions_user_id_fkey(*), stage:stages(*)')
     .eq('pursuit_id', pursuitId)
-    .order('created_at', { ascending: false })
+    .order('completed_at', { ascending: false })
     .limit(25)
 
-  return (data ?? []) as (ProgressUpdate & { author: Profile })[]
+  return (data ?? []) as unknown as (StageCompletion & { author: Profile; stage: Stage })[]
+}
+
+/** Which stages this person has finished in a pursuit. */
+export async function myCompletions(pursuitId: string, userId: string) {
+  const supabase = await supabaseServer()
+  const { data } = await supabase
+    .from('stage_completions')
+    .select('*')
+    .eq('pursuit_id', pursuitId)
+    .eq('user_id', userId)
+
+  return (data ?? []) as StageCompletion[]
+}
+
+export async function pursuitQuizzes(pursuitId: string) {
+  const supabase = await supabaseServer()
+  const { data } = await supabase
+    .from('quizzes')
+    .select('*, author:profiles!quizzes_user_id_fkey(*), questions:quiz_questions(*)')
+    .eq('pursuit_id', pursuitId)
+    .order('created_at', { ascending: false })
+
+  return (data ?? []) as unknown as (Quiz & { author: Profile; questions: QuizQuestion[] })[]
+}
+
+export async function pursuitTools(pursuitId: string) {
+  const supabase = await supabaseServer()
+  const { data } = await supabase
+    .from('tools')
+    .select('*, author:profiles!tools_user_id_fkey(*)')
+    .eq('pursuit_id', pursuitId)
+    .order('use_count', { ascending: false })
+
+  return (data ?? []) as unknown as (Tool & { author: Profile })[]
 }
 
 /** Needs and offers people have posted, used to explain why two people match. */
@@ -187,6 +256,91 @@ export async function searchPursuits(query: string, limit = 24) {
     .limit(limit)
 
   return (fallback ?? []) as Pursuit[]
+}
+
+/**
+ * Finding the pursuits somebody's sentence is really about.
+ *
+ * "I want to learn AI automation this year" shares no whole phrase with "Learn
+ * Python Properly", and a search that demands every word finds nothing — which
+ * would send everyone off to create a duplicate of a pursuit that already
+ * exists. So the sentence is reduced to the words that carry meaning, any one
+ * of which is enough to surface a candidate, and the results are ranked by how
+ * many of them actually landed.
+ */
+const FILLER = new Set([
+  'i', 'im', 'ive', 'id', 'me', 'my', 'we', 'our', 'you', 'your', 'a', 'an', 'the',
+  'to', 'of', 'in', 'on', 'at', 'for', 'and', 'or', 'but', 'with', 'from', 'by',
+  'want', 'wants', 'wanted', 'need', 'needs', 'like', 'would', 'should', 'could',
+  'can', 'do', 'does', 'how', 'what', 'when', 'where', 'why', 'help', 'trying',
+  'try', 'am', 'is', 'are', 'be', 'been', 'being', 'get', 'getting', 'got',
+  'this', 'that', 'these', 'those', 'it', 'its', 'year', 'years', 'month',
+  'months', 'week', 'weeks', 'day', 'days', 'someday', 'soon', 'more', 'really',
+  'goal', 'goals', 'about', 'into', 'up', 'out', 'own', 'first', 'next', 'new',
+  // Generic verbs of intention. Almost every sentence has one, and they match
+  // almost every pursuit, so they add noise rather than signal.
+  'start', 'starting', 'begin', 'make', 'making', 'go', 'going', 'become', 'take',
+  'have', 'having', 'find', 'finding', 'keep', 'put', 'set', 'work', 'working',
+])
+
+export function meaningfulWords(intent: string): string[] {
+  return [
+    ...new Set(
+      intent
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((word) => word.length > 1 && !FILLER.has(word)),
+    ),
+  ].slice(0, 8)
+}
+
+export async function findSimilarPursuits(intent: string, limit = 6) {
+  const words = meaningfulWords(intent)
+  if (words.length === 0) return searchPursuits(intent, limit)
+
+  const supabase = await supabaseServer()
+
+  // Any one of these words is enough to be a candidate.
+  const { data } = await supabase
+    .from('pursuits')
+    .select('*')
+    .textSearch('search', words.join(' | '), { config: 'english' })
+    .limit(30)
+
+  let candidates = (data ?? []) as Pursuit[]
+
+  // Full text stems words, but not every near-match survives it, so widen once.
+  if (candidates.length === 0) {
+    const { data: loose } = await supabase
+      .from('pursuits')
+      .select('*')
+      .or(words.map((word) => `title.ilike.%${word}%,tagline.ilike.%${word}%`).join(','))
+      .limit(30)
+    candidates = (loose ?? []) as Pursuit[]
+  }
+
+  // A word in the title says far more than the same word buried in a tagline.
+  return candidates
+    .map((pursuit) => {
+      const title = pursuit.title.toLowerCase()
+      const tags = pursuit.tags.join(' ').toLowerCase()
+      const tagline = `${pursuit.tagline} ${pursuit.description}`.toLowerCase()
+
+      const score = words.reduce(
+        (total, word) =>
+          total +
+          (title.includes(word) ? 30 : 0) +
+          (tags.includes(word) ? 20 : 0) +
+          (tagline.includes(word) ? 5 : 0),
+        0,
+      )
+
+      return { pursuit, score: score + Math.min(pursuit.member_count, 999) / 1000 }
+    })
+    .filter((row) => row.score >= 5)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((row) => row.pursuit)
 }
 
 export async function searchPeople(query: string, limit = 24) {

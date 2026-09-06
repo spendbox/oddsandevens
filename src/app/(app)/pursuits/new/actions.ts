@@ -25,13 +25,17 @@ export async function createPursuit(_prev: CreateState, formData: FormData): Pro
   const title = String(formData.get('title') ?? '').trim()
   if (!title) return { error: 'Give the pursuit a name.' }
 
-  const stageNames = formData
-    .getAll('stage')
-    .map(String)
-    .map((name) => name.trim())
-    .filter(Boolean)
+  const stageNames = formData.getAll('stage').map(String)
+  const stageDescriptions = formData.getAll('stage_description').map(String)
 
-  if (stageNames.length < 2) {
+  const stages = stageNames
+    .map((name, index) => ({
+      name: name.trim(),
+      description: (stageDescriptions[index] ?? '').trim(),
+    }))
+    .filter((stage) => stage.name)
+
+  if (stages.length < 2) {
     return { error: 'A pursuit needs at least two stages, so people can see where they stand.' }
   }
 
@@ -72,9 +76,10 @@ export async function createPursuit(_prev: CreateState, formData: FormData): Pro
   if (error || !pursuit) return { error: error?.message ?? 'Could not create the pursuit.' }
 
   await supabase.from('stages').insert(
-    stageNames.map((name, index) => ({
+    stages.map((stage, index) => ({
       pursuit_id: pursuit.id,
-      name: name.slice(0, 60),
+      name: stage.name.slice(0, 60),
+      description: stage.description.slice(0, 200),
       position: index + 1,
     })),
   )
@@ -83,7 +88,7 @@ export async function createPursuit(_prev: CreateState, formData: FormData): Pro
     pursuit_id: pursuit.id,
     user_id: user.id,
     role: 'steward',
-    intent: String(formData.get('intent') ?? '').trim().slice(0, 280),
+    intent: String(formData.get('member_intent') ?? '').trim().slice(0, 280),
   })
 
   revalidatePath('/pursuits')

@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 
 import { useRef, useState, useTransition } from 'react'
 import type { Stage } from '@/lib/types'
@@ -122,5 +123,45 @@ export function VoteButton({
       </svg>
       <span className="tabular-nums">{count}</span>
     </button>
+  )
+}
+
+/**
+ * What a member sees before they have earned the right to publish here.
+ *
+ * The gate exists so a pursuit's knowledge base is built by people who have
+ * shown up, not by anyone who arrived a minute ago. Saying so plainly — with
+ * the number, and the ways to earn it — is better than a disabled button.
+ */
+export function LockedComposer({
+  shortfall,
+  slug,
+}: {
+  shortfall: { points: number; where: 'in this pursuit' | 'across Commons' }
+  slug: string
+}) {
+  return (
+    <div className="card bg-mist p-4">
+      <p className="text-sm font-semibold text-ink">
+        {shortfall.points} more {shortfall.points === 1 ? 'point' : 'points'} {shortfall.where} and
+        you can add to this knowledge base
+      </p>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">
+        Points come from other people finding you useful — not from posting volume. The knowledge
+        base is gated so it stays worth reading.
+      </p>
+      <ul className="mt-3 space-y-1 text-[12px] text-ink-soft">
+        <li>· Answer a question in the discussion, and have it marked useful (+2)</li>
+        <li>· Finish a stage and write down how you did it (+10)</li>
+        <li>
+          ·{' '}
+          <Link href={`/p/${slug}/practice`} className="font-medium text-accent hover:text-accent-hover">
+            Build a tool or write a quiz
+          </Link>{' '}
+          people go on to use (+2 each time)
+        </li>
+        <li>· Accept a connection from someone who sought you out (+5)</li>
+      </ul>
+    </div>
   )
 }
