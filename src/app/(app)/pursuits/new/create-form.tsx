@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import type { Suggestion } from '@/lib/stage-suggestions'
 import { createPursuit, type CreateState } from './actions'
 
 const initial: CreateState = { error: null }
@@ -25,35 +26,127 @@ const ACCENT_SWATCH: Record<string, string> = {
   orange: 'bg-[#ea580c]',
 }
 
-const EMOJI = ['🎯', '🚀', '📘', '📍', '🏃', '🐍', '🔥', '🎨', '💡', '🌱', '🏔️', '⚡']
+const EMOJI = ['🎯', '🚀', '📘', '📍', '🏃', '🐍', '🔥', '🎨', '💡', '🌱', '🏔️', '💼']
 
-export function CreateForm({ initialTitle }: { initialTitle: string }) {
+export function CreateForm({
+  intent,
+  initialTitle,
+  suggestion,
+}: {
+  intent: string
+  initialTitle: string
+  suggestion: Suggestion
+}) {
   const [state, formAction, pending] = useActionState(createPursuit, initial)
-  const [stages, setStages] = useState(['', '', ''])
-  const [emoji, setEmoji] = useState('🎯')
-  const [accent, setAccent] = useState('violet')
+  const [stages, setStages] = useState(suggestion.stages.map((stage) => ({ ...stage })))
+  const [emoji, setEmoji] = useState(suggestion.emoji)
+  const [accent, setAccent] = useState(suggestion.accent)
 
-  const setStage = (index: number, value: string) =>
-    setStages((current) => current.map((item, i) => (i === index ? value : item)))
+  const setStage = (index: number, field: 'name' | 'description', value: string) =>
+    setStages((current) =>
+      current.map((stage, i) => (i === index ? { ...stage, [field]: value } : stage)),
+    )
+
+  const move = (index: number, direction: -1 | 1) =>
+    setStages((current) => {
+      const target = index + direction
+      if (target < 0 || target >= current.length) return current
+      const next = [...current]
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
 
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="emoji" value={emoji} />
       <input type="hidden" name="accent" value={accent} />
+      <input type="hidden" name="intent" value={intent} />
+
+      <div className="card p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-ink">The stages</h2>
+          <span className="text-[11px] text-ink-faint">{stages.length} stages</span>
+        </div>
+
+        <p className="mb-4 rounded-[10px] bg-accent-soft px-3 py-2 text-[12px] leading-relaxed text-accent">
+          {suggestion.because}
+        </p>
+
+        <div className="space-y-2.5">
+          {stages.map((stage, index) => (
+            <div key={index} className="rounded-[12px] border border-line p-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-mist text-[10px] font-semibold text-ink-muted">
+                  {index + 1}
+                </span>
+                <input
+                  name="stage"
+                  value={stage.name}
+                  onChange={(event) => setStage(index, 'name', event.target.value)}
+                  className="field"
+                  placeholder="Stage name"
+                />
+                <div className="flex shrink-0 flex-col">
+                  <button
+                    type="button"
+                    onClick={() => move(index, -1)}
+                    disabled={index === 0}
+                    aria-label={`Move ${stage.name || 'stage'} earlier`}
+                    className="px-1 text-[10px] leading-none text-ink-faint hover:text-ink disabled:opacity-30"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(index, 1)}
+                    disabled={index === stages.length - 1}
+                    aria-label={`Move ${stage.name || 'stage'} later`}
+                    className="px-1 text-[10px] leading-none text-ink-faint hover:text-ink disabled:opacity-30"
+                  >
+                    ▼
+                  </button>
+                </div>
+                {stages.length > 2 ? (
+                  <button
+                    type="button"
+                    onClick={() => setStages((current) => current.filter((_, i) => i !== index))}
+                    aria-label={`Remove ${stage.name || 'stage'}`}
+                    className="shrink-0 px-1 text-ink-faint hover:text-rose"
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
+              <input
+                name="stage_description"
+                value={stage.description}
+                onChange={(event) => setStage(index, 'description', event.target.value)}
+                className="field mt-2 ml-7 w-[calc(100%-1.75rem)] text-[12px]"
+                placeholder="What finishing this stage means"
+              />
+            </div>
+          ))}
+        </div>
+
+        {stages.length < 10 ? (
+          <button
+            type="button"
+            onClick={() => setStages((current) => [...current, { name: '', description: '' }])}
+            className="mt-3 text-[12px] font-medium text-accent hover:text-accent-hover"
+          >
+            + Add a stage
+          </button>
+        ) : null}
+      </div>
 
       <div className="card space-y-4 p-4">
+        <h2 className="text-sm font-semibold text-ink">The pursuit itself</h2>
+
         <div>
           <label htmlFor="title" className="mb-1.5 block text-xs font-medium text-ink-soft">
-            The outcome
+            Name
           </label>
-          <input
-            id="title"
-            name="title"
-            required
-            defaultValue={initialTitle}
-            className="field"
-            placeholder="Build a Profitable SaaS Company"
-          />
+          <input id="title" name="title" required defaultValue={initialTitle} className="field" />
         </div>
 
         <div>
@@ -64,20 +157,20 @@ export function CreateForm({ initialTitle }: { initialTitle: string }) {
             id="tagline"
             name="tagline"
             className="field"
-            placeholder="From an idea you cannot stop thinking about to revenue you can live on."
+            placeholder="From where you are now to the thing you actually want."
           />
         </div>
 
         <div>
           <label htmlFor="description" className="mb-1.5 block text-xs font-medium text-ink-soft">
-            What this pursuit is for
+            Who it is for
           </label>
           <textarea
             id="description"
             name="description"
-            rows={4}
+            rows={3}
             className="field resize-none"
-            placeholder="Who it is for, and what they should expect to get out of being here."
+            placeholder="What someone should expect to get out of being here."
           />
         </div>
 
@@ -86,7 +179,7 @@ export function CreateForm({ initialTitle }: { initialTitle: string }) {
             <label htmlFor="category" className="mb-1.5 block text-xs font-medium text-ink-soft">
               Category
             </label>
-            <select id="category" name="category" className="field" defaultValue="business">
+            <select id="category" name="category" className="field" defaultValue={suggestion.category}>
               {CATEGORIES.map((category) => (
                 <option key={category.value} value={category.value}>
                   {category.label}
@@ -94,7 +187,6 @@ export function CreateForm({ initialTitle }: { initialTitle: string }) {
               ))}
             </select>
           </div>
-
           <div>
             <label htmlFor="tags" className="mb-1.5 block text-xs font-medium text-ink-soft">
               Tags
@@ -142,64 +234,19 @@ export function CreateForm({ initialTitle }: { initialTitle: string }) {
       </div>
 
       <div className="card p-4">
-        <h2 className="text-sm font-semibold text-ink">The stages people pass through</h2>
-        <p className="mt-1 text-[12px] leading-relaxed text-ink-muted">
-          In order, from where someone starts to where they finish. This is what the progress board
-          is built from — and what makes it possible to say &ldquo;two stages ahead of you&rdquo;.
-        </p>
-
-        <div className="mt-4 space-y-2">
-          {stages.map((stage, index) => (
-            <div key={index} className="flex items-center gap-2.5">
-              <span className="w-5 shrink-0 text-[11px] text-ink-faint tabular-nums">
-                {index + 1}
-              </span>
-              <input
-                name="stage"
-                value={stage}
-                onChange={(event) => setStage(index, event.target.value)}
-                className="field"
-                placeholder={
-                  ['Idea', 'Validating', 'Building', 'Beta', 'Launched', 'Profitable'][index] ??
-                  'Next stage'
-                }
-              />
-              {stages.length > 2 ? (
-                <button
-                  type="button"
-                  onClick={() => setStages((current) => current.filter((_, i) => i !== index))}
-                  aria-label={`Remove stage ${index + 1}`}
-                  className="shrink-0 px-1 text-ink-faint hover:text-rose"
-                >
-                  ×
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
-
-        {stages.length < 8 ? (
-          <button
-            type="button"
-            onClick={() => setStages((current) => [...current, ''])}
-            className="mt-3 text-[12px] font-medium text-accent hover:text-accent-hover"
-          >
-            + Add a stage
-          </button>
-        ) : null}
-      </div>
-
-      <div className="card p-4">
-        <label htmlFor="intent" className="mb-1.5 block text-xs font-medium text-ink-soft">
+        <label htmlFor="intent_note" className="mb-1.5 block text-xs font-medium text-ink-soft">
           What are you here to do?
         </label>
         <textarea
-          id="intent"
-          name="intent"
+          id="intent_note"
+          name="member_intent"
           rows={2}
+          defaultValue={intent}
           className="field resize-none"
-          placeholder="Get my first ten paying customers."
         />
+        <p className="mt-1.5 text-[11px] text-ink-faint">
+          Other members see this when Commons suggests you to them.
+        </p>
       </div>
 
       {state.error ? (

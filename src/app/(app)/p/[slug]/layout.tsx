@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { accent } from '@/lib/accent'
-import { myMembership, pursuitBySlug, pursuitProgress, pursuitStages } from '@/lib/queries'
+import { myCompletions, myMembership, pursuitBySlug, pursuitProgress, pursuitStages } from '@/lib/queries'
 import { requireOnboardedProfile } from '@/lib/session'
 import { JoinButton } from './join-button'
 import { PursuitTabs } from './tabs'
@@ -19,11 +19,14 @@ export default async function PursuitLayout(props: LayoutProps<'/p/[slug]'>) {
   const pursuit = await pursuitBySlug(slug)
   if (!pursuit) notFound()
 
-  const [membership, stages, progress] = await Promise.all([
+  const [membership, stages, progress, completions] = await Promise.all([
     myMembership(pursuit.id, userId),
     pursuitStages(pursuit.id),
     pursuitProgress(pursuit.id),
+    myCompletions(pursuit.id, userId),
   ])
+
+  const finished = completions.length
 
   const tone = accent(pursuit.accent)
   const myStage = stages.find((stage) => stage.id === membership?.stage_id)
@@ -82,20 +85,36 @@ export default async function PursuitLayout(props: LayoutProps<'/p/[slug]'>) {
             </Stat>
 
             <Stat
-              label="Your progress"
-              value={membership ? `${membership.progress}%` : '—'}
+              label="Stages finished"
+              value={membership ? `${finished} of ${stages.length}` : '—'}
             >
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/70">
-                <div
-                  className={`h-full rounded-full ${tone.bar}`}
-                  style={{ width: `${membership?.progress ?? 0}%` }}
-                />
+              <div className="mt-2 flex gap-1">
+                {stages.map((stage, index) => (
+                  <span
+                    key={stage.id}
+                    title={stage.name}
+                    className={`h-1.5 flex-1 rounded-full ${
+                      index < finished ? tone.bar : 'bg-white/70'
+                    }`}
+                  />
+                ))}
               </div>
             </Stat>
 
-            <Stat label="Current stage" value={myStage?.name ?? (membership ? 'Not set' : 'Not joined')}>
+            <Stat
+              label="Current stage"
+              value={
+                membership
+                  ? finished === stages.length && stages.length > 0
+                    ? 'All finished'
+                    : (myStage?.name ?? 'Not set')
+                  : 'Not joined'
+              }
+            >
               <p className="mt-2 line-clamp-1 text-[11px] text-ink-muted">
-                {myStage?.description ?? 'Join to place yourself on the journey.'}
+                {membership
+                  ? (myStage?.description ?? 'Pick up where the journey starts.')
+                  : 'Join to place yourself on the journey.'}
               </p>
             </Stat>
           </div>

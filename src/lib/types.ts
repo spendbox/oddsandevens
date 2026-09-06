@@ -9,6 +9,8 @@ export type Profile = {
   skills: string[]
   interests: string[]
   onboarded: boolean
+  /** Standing across Commons. Shown on a profile, never inside a pursuit. */
+  points: number
 }
 
 export type Pursuit = {
@@ -38,14 +40,25 @@ export type Membership = {
   id: string
   pursuit_id: string
   user_id: string
+  /** The stage this person is working on now. Everything before it is finished. */
   stage_id: string | null
-  progress: number
   intent: string
   role: 'member' | 'steward'
   joined_at: string
+  /** Standing earned inside this pursuit. Gates adding to its knowledge base. */
+  points: number
 }
 
-export type PostKind = 'question' | 'update' | 'insight' | 'win'
+/** A membership with progress counted from the stages actually finished. */
+export type MembershipWithProgress = Membership & {
+  pursuit: Pursuit
+  stage: Stage | null
+  completed: number
+  totalStages: number
+  progress: number
+}
+
+export type PostKind = 'question' | 'update' | 'insight' | 'win' | 'reflection'
 
 export type Post = {
   id: string
@@ -66,6 +79,7 @@ export type Reply = {
   post_id: string
   author_id: string
   body: string
+  useful_count: number
   created_at: string
   author?: Profile
 }
@@ -121,17 +135,101 @@ export type StageCount = {
   people: number
 }
 
-export type ProgressUpdate = {
+/** Finishing a stage, and the public account of how you did it. */
+export type StageCompletion = {
+  id: string
+  pursuit_id: string
+  user_id: string
+  stage_id: string
+  what_i_did: string
+  what_was_hard: string
+  post_id: string | null
+  completed_at: string
+  author?: Profile
+  stage?: Stage
+}
+
+export type Badge = {
+  slug: string
+  name: string
+  description: string
+  emoji: string
+}
+
+export type UserBadge = {
+  id: string
+  user_id: string
+  badge_slug: string
+  pursuit_id: string | null
+  stage_id: string | null
+  label: string
+  earned_at: string
+  badge?: Badge
+}
+
+export type Quiz = {
   id: string
   pursuit_id: string
   user_id: string
   stage_id: string | null
-  from_progress: number | null
-  to_progress: number
-  note: string
-  is_milestone: boolean
+  title: string
+  description: string
+  attempt_count: number
   created_at: string
   author?: Profile
+  questions?: QuizQuestion[]
+}
+
+export type QuizQuestion = {
+  id: string
+  quiz_id: string
+  position: number
+  prompt: string
+  options: string[]
+  correct_index: number
+  explanation: string
+}
+
+export type QuizAttempt = {
+  id: string
+  quiz_id: string
+  user_id: string
+  score: number
+  total: number
+  created_at: string
+}
+
+export type ChecklistConfig = { items: string[] }
+export type CalculatorConfig = {
+  inputs: { key: string; label: string }[]
+  formula: string
+  unit: string
+}
+
+export type Tool = {
+  id: string
+  pursuit_id: string
+  user_id: string
+  stage_id: string | null
+  kind: 'checklist' | 'calculator'
+  title: string
+  description: string
+  config: ChecklistConfig | CalculatorConfig
+  use_count: number
+  created_at: string
+  author?: Profile
+}
+
+export type PointEvent = {
+  id: string
+  user_id: string
+  actor_id: string | null
+  pursuit_id: string | null
+  kind: string
+  points: number
+  subject_type: string
+  subject_id: string | null
+  created_at: string
 }
 
 export type Connection = {

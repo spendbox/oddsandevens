@@ -209,38 +209,38 @@ $$;
 -- Who is pursuing what, and how far along they are
 -- ---------------------------------------------------------------------------
 
-insert into public.memberships (pursuit_id, user_id, stage_id, progress, intent) values
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111102', public.seed_stage('22222222-2222-2222-2222-222222222201', 4), 62, 'Getting my invoicing tool out of beta and to 50 paying customers.'),
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', public.seed_stage('22222222-2222-2222-2222-222222222201', 6), 88, 'Already launched two. Here mostly to help people earlier on.'),
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111109', public.seed_stage('22222222-2222-2222-2222-222222222201', 5), 74, 'From $3k MRR to $10k without hiring anyone.'),
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111105', public.seed_stage('22222222-2222-2222-2222-222222222201', 3), 45, 'Rebuilding after my first startup. Slower this time.'),
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111103', public.seed_stage('22222222-2222-2222-2222-222222222201', 2), 28, 'Engineer with an idea. Trying not to build it before someone wants it.'),
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111104', public.seed_stage('22222222-2222-2222-2222-222222222201', 1), 12, 'Looking for a founder to join rather than an idea of my own.'),
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111107', public.seed_stage('22222222-2222-2222-2222-222222222201', 2), 30, 'Validating a research tool for small teams.'),
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111106', public.seed_stage('22222222-2222-2222-2222-222222222201', 1), 8, 'Still deciding whether to leave my job.'),
+insert into public.memberships (pursuit_id, user_id, stage_id, intent) values
+('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111102', public.seed_stage('22222222-2222-2222-2222-222222222201', 4), 'Getting my invoicing tool out of beta and to 50 paying customers.'),
+('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111101', public.seed_stage('22222222-2222-2222-2222-222222222201', 6), 'Already launched two. Here mostly to help people earlier on.'),
+('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111109', public.seed_stage('22222222-2222-2222-2222-222222222201', 5), 'From $3k MRR to $10k without hiring anyone.'),
+('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111105', public.seed_stage('22222222-2222-2222-2222-222222222201', 3), 'Rebuilding after my first startup. Slower this time.'),
+('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111103', public.seed_stage('22222222-2222-2222-2222-222222222201', 2), 'Engineer with an idea. Trying not to build it before someone wants it.'),
+('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111104', public.seed_stage('22222222-2222-2222-2222-222222222201', 1), 'Looking for a founder to join rather than an idea of my own.'),
+('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111107', public.seed_stage('22222222-2222-2222-2222-222222222201', 2), 'Validating a research tool for small teams.'),
+('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111106', public.seed_stage('22222222-2222-2222-2222-222222222201', 1), 'Still deciding whether to leave my job.'),
 
-('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111101', public.seed_stage('22222222-2222-2222-2222-222222222202', 5), 92, 'Building a design team, not just designs.'),
-('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111104', public.seed_stage('22222222-2222-2222-2222-222222222202', 3), 55, 'Getting better at defending decisions with research.'),
-('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111107', public.seed_stage('22222222-2222-2222-2222-222222222202', 4), 68, 'Bringing research and design systems closer together.'),
-('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111106', public.seed_stage('22222222-2222-2222-2222-222222222202', 2), 34, 'A PM learning enough design to be useful, not dangerous.'),
+('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111101', public.seed_stage('22222222-2222-2222-2222-222222222202', 5), 'Building a design team, not just designs.'),
+('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111104', public.seed_stage('22222222-2222-2222-2222-222222222202', 3), 'Getting better at defending decisions with research.'),
+('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111107', public.seed_stage('22222222-2222-2222-2222-222222222202', 4), 'Bringing research and design systems closer together.'),
+('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111106', public.seed_stage('22222222-2222-2222-2222-222222222202', 2), 'A PM learning enough design to be useful, not dangerous.'),
 
-('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111112', public.seed_stage('22222222-2222-2222-2222-222222222203', 6), 95, 'Settled in Toronto. Here to answer the questions I once had.'),
-('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111108', public.seed_stage('22222222-2222-2222-2222-222222222203', 5), 80, 'Landed in Berlin first, Canada next. Comparing the two systems.'),
-('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111110', public.seed_stage('22222222-2222-2222-2222-222222222203', 2), 25, 'Gathering documents. IELTS booked for March.'),
-('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111106', public.seed_stage('22222222-2222-2222-2222-222222222203', 1), 10, 'Working out whether Express Entry is realistic for me.'),
+('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111112', public.seed_stage('22222222-2222-2222-2222-222222222203', 6), 'Settled in Toronto. Here to answer the questions I once had.'),
+('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111108', public.seed_stage('22222222-2222-2222-2222-222222222203', 5), 'Landed in Berlin first, Canada next. Comparing the two systems.'),
+('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111110', public.seed_stage('22222222-2222-2222-2222-222222222203', 2), 'Gathering documents. IELTS booked for March.'),
+('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111106', public.seed_stage('22222222-2222-2222-2222-222222222203', 1), 'Working out whether Express Entry is realistic for me.'),
 
-('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111111', public.seed_stage('22222222-2222-2222-2222-222222222204', 6), 100, 'Six marathons in. Coaching two people this season.'),
-('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111106', public.seed_stage('22222222-2222-2222-2222-222222222204', 4), 66, 'Half marathon in May. Longest run so far is 16k.'),
-('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111102', public.seed_stage('22222222-2222-2222-2222-222222222204', 2), 30, 'Running to stay sane while building a company.'),
-('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111110', public.seed_stage('22222222-2222-2222-2222-222222222204', 1), 15, 'Week three. Everything hurts.'),
+('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111111', public.seed_stage('22222222-2222-2222-2222-222222222204', 6), 'Six marathons in. Coaching two people this season.'),
+('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111106', public.seed_stage('22222222-2222-2222-2222-222222222204', 4), 'Half marathon in May. Longest run so far is 16k.'),
+('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111102', public.seed_stage('22222222-2222-2222-2222-222222222204', 2), 'Running to stay sane while building a company.'),
+('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111110', public.seed_stage('22222222-2222-2222-2222-222222222204', 1), 'Week three. Everything hurts.'),
 
-('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111103', public.seed_stage('22222222-2222-2222-2222-222222222205', 5), 96, 'Fluent. Here to review beginners'' code.'),
-('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111108', public.seed_stage('22222222-2222-2222-2222-222222222205', 5), 90, 'Python daily for ML work.'),
-('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111110', public.seed_stage('22222222-2222-2222-2222-222222222205', 2), 32, 'Finished the syntax. Building a small budgeting tool now.'),
+('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111103', public.seed_stage('22222222-2222-2222-2222-222222222205', 5), 'Fluent. Here to review beginners'' code.'),
+('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111108', public.seed_stage('22222222-2222-2222-2222-222222222205', 5), 'Python daily for ML work.'),
+('22222222-2222-2222-2222-222222222205', '11111111-1111-1111-1111-111111111110', public.seed_stage('22222222-2222-2222-2222-222222222205', 2), 'Finished the syntax. Building a small budgeting tool now.'),
 
-('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111105', public.seed_stage('22222222-2222-2222-2222-222222222206', 4), 70, 'Investing steadily since the raise. Aiming for work-optional at 34.'),
-('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111109', public.seed_stage('22222222-2222-2222-2222-222222222206', 3), 52, 'Growing MRR is my investing strategy for now.'),
-('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111110', public.seed_stage('22222222-2222-2222-2222-222222222206', 1), 18, 'Clearing a loan before anything else.');
+('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111105', public.seed_stage('22222222-2222-2222-2222-222222222206', 4), 'Investing steadily since the raise. Aiming for work-optional at 34.'),
+('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111109', public.seed_stage('22222222-2222-2222-2222-222222222206', 3), 'Growing MRR is my investing strategy for now.'),
+('22222222-2222-2222-2222-222222222206', '11111111-1111-1111-1111-111111111110', public.seed_stage('22222222-2222-2222-2222-222222222206', 1), 'Clearing a loan before anything else.');
 
 -- ---------------------------------------------------------------------------
 -- Discussions
@@ -432,18 +432,185 @@ insert into public.events (pursuit_id, created_by, kind, title, description, sta
  now() + interval '4 days', 'Online', true, null);
 
 -- ---------------------------------------------------------------------------
--- A little history on the progress board
+-- Stages people have finished, in their own words
 -- ---------------------------------------------------------------------------
 
-insert into public.progress_updates (pursuit_id, user_id, stage_id, from_progress, to_progress, note, is_milestone, created_at) values
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111109', public.seed_stage('22222222-2222-2222-2222-222222222201', 5), 68, 74,
- 'Crossed $3,000 MRR this morning.', true, now() - interval '1 day'),
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111102', public.seed_stage('22222222-2222-2222-2222-222222222201', 4), 55, 62,
- 'Beta opened. 84 people in.', true, now() - interval '3 days'),
-('22222222-2222-2222-2222-222222222201', '11111111-1111-1111-1111-111111111107', public.seed_stage('22222222-2222-2222-2222-222222222201', 2), 24, 30,
- 'Seven customer interviews done.', false, now() - interval '2 hours'),
-('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111106', public.seed_stage('22222222-2222-2222-2222-222222222204', 4), 60, 66,
- 'First 16k. Slow, but never had to walk.', true, now() - interval '2 days');
+-- Everyone has finished every stage before the one they are standing on. These
+-- accounts are written to be true of almost any journey, so the board reads
+-- like people rather than like filler, and they are picked deterministically so
+-- re-running the seed does not reshuffle everybody's history.
+insert into public.stage_completions (pursuit_id, user_id, stage_id, what_i_did, what_was_hard, completed_at)
+select
+  m.pursuit_id, m.user_id, s.id,
+  (array[
+    'Slower than I expected. What finally moved it was doing one small piece every day instead of waiting for a clear run at it.',
+    'I asked someone a stage ahead what they would skip if they did it again, then did only what they said mattered. Halved the time.',
+    'Got stuck for weeks on something that turned out not to matter. Writing down what actually had to be true is what unstuck it.',
+    'Unglamorous. I set a target small enough to hit every week and stopped negotiating with myself about it.',
+    'The hard part was starting before I felt ready. Everything I was waiting to learn, I learned by doing this badly first.',
+    'Two false starts. What worked was making it smaller, until it was something I could finish inside a week.',
+    'I copied somebody else''s approach almost exactly, then changed the parts that obviously did not fit me.',
+    'Kept a list of every question I could not answer, and worked through it one a week. That list basically was this stage.'
+  ])[1 + (abs(hashtext(m.user_id::text || s.id::text)) % 8)],
+  (array[
+    'Losing momentum whenever life got busy. Shrinking the weekly target until it survived a bad week fixed it.',
+    '',
+    'Believing I had to understand everything before starting.',
+    '',
+    'Doing it alone. It got much easier once I was talking to someone else at the same point.',
+    '',
+    'Comparing myself to people five stages ahead instead of one.',
+    ''
+  ])[1 + (abs(hashtext(s.id::text || m.user_id::text)) % 8)],
+  now() - ((current_stage.position - s.position) * interval '9 days')
+from public.memberships m
+join public.stages current_stage on current_stage.id = m.stage_id
+join public.stages s on s.pursuit_id = m.pursuit_id and s.position < current_stage.position
+on conflict do nothing;
+
+-- A few real accounts, written the way the product asks people to write them.
+update public.stage_completions set
+  what_i_did = 'Interviewed 12 people before writing a line of code. Nine said they would use it; two paid for it up front. Those two became the whole product.',
+  what_was_hard = 'I kept pitching instead of listening. Writing the questions down beforehand, and refusing to say the product name in the first ten minutes, fixed it.'
+where user_id = '11111111-1111-1111-1111-111111111102'
+  and stage_id = public.seed_stage('22222222-2222-2222-2222-222222222201', 2);
+
+update public.stage_completions set
+  what_i_did = 'Wrote one article a week for search terms my customers actually type. Nothing happened for five months. Month six brought 40 signups, and it has not stopped since.',
+  what_was_hard = 'Writing into silence. I set a rule that I would not check analytics until I had published twenty.'
+where user_id = '11111111-1111-1111-1111-111111111109'
+  and stage_id = public.seed_stage('22222222-2222-2222-2222-222222222201', 4);
+
+update public.stage_completions set
+  what_i_did = 'Booked the IELTS, got the credential assessment started, and opened a separate account for proof of funds so the six-month history would be clean.',
+  what_was_hard = 'The order of operations. Half the delays came from doing things in the wrong sequence, not from the things themselves.'
+where user_id = '11111111-1111-1111-1111-111111111112'
+  and stage_id = public.seed_stage('22222222-2222-2222-2222-222222222203', 2);
+
+-- ---------------------------------------------------------------------------
+-- Appreciation — the thing points are actually made of
+-- ---------------------------------------------------------------------------
+
+-- People marking each other's posts useful.
+insert into public.post_useful (post_id, user_id)
+select p.id, m.user_id
+from public.posts p
+join public.memberships m on m.pursuit_id = p.pursuit_id and m.user_id <> p.author_id
+where p.kind in ('insight', 'win', 'reflection')
+on conflict do nothing;
+
+insert into public.reply_useful (reply_id, user_id)
+select r.id, p.author_id
+from public.replies r
+join public.posts p on p.id = r.post_id
+where r.author_id <> p.author_id
+on conflict do nothing;
+
+insert into public.resource_votes (resource_id, user_id)
+select r.id, m.user_id
+from public.resources r
+join public.memberships m on m.pursuit_id = r.pursuit_id and m.user_id <> r.user_id
+where r.vote_count > 50
+on conflict do nothing;
+
+-- ---------------------------------------------------------------------------
+-- The ledger, derived from the appreciation above so the totals are honest
+-- ---------------------------------------------------------------------------
+
+insert into public.point_events (user_id, actor_id, pursuit_id, kind, points, subject_type, subject_id)
+select p.author_id, pu.user_id, p.pursuit_id, 'post_useful', public.points_for('post_useful'), 'post', p.id
+from public.post_useful pu
+join public.posts p on p.id = pu.post_id
+where pu.user_id <> p.author_id
+on conflict do nothing;
+
+insert into public.point_events (user_id, actor_id, pursuit_id, kind, points, subject_type, subject_id)
+select r.author_id, ru.user_id, p.pursuit_id, 'reply_useful', public.points_for('reply_useful'), 'reply', r.id
+from public.reply_useful ru
+join public.replies r on r.id = ru.reply_id
+join public.posts p on p.id = r.post_id
+where ru.user_id <> r.author_id
+on conflict do nothing;
+
+insert into public.point_events (user_id, actor_id, pursuit_id, kind, points, subject_type, subject_id)
+select res.user_id, rv.user_id, res.pursuit_id, 'resource_upvote', public.points_for('resource_upvote'), 'resource', res.id
+from public.resource_votes rv
+join public.resources res on res.id = rv.resource_id
+where rv.user_id <> res.user_id
+on conflict do nothing;
+
+insert into public.point_events (user_id, actor_id, pursuit_id, kind, points, subject_type, subject_id)
+select sc.user_id, null, sc.pursuit_id, 'stage_completed', public.points_for('stage_completed'), 'stage', sc.stage_id
+from public.stage_completions sc
+on conflict do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Badges, from the stages actually finished
+-- ---------------------------------------------------------------------------
+
+insert into public.user_badges (user_id, badge_slug, pursuit_id, stage_id, label, earned_at)
+select sc.user_id, 'stage', sc.pursuit_id, sc.stage_id, s.name, sc.completed_at
+from public.stage_completions sc
+join public.stages s on s.id = sc.stage_id
+on conflict do nothing;
+
+insert into public.user_badges (user_id, badge_slug, label)
+select distinct user_id, 'first-steps', ''
+from public.stage_completions
+on conflict do nothing;
+
+insert into public.user_badges (user_id, badge_slug, label)
+select distinct user_id, 'contributor', '' from public.resources where user_id is not null
+on conflict do nothing;
+
+-- ---------------------------------------------------------------------------
+-- A quiz and two tools, so the Practice tab is not empty
+-- ---------------------------------------------------------------------------
+
+insert into public.quizzes (id, pursuit_id, user_id, stage_id, title, description) values
+('33333333-3333-3333-3333-333333333301', '22222222-2222-2222-2222-222222222201',
+ '11111111-1111-1111-1111-111111111107',
+ public.seed_stage('22222222-2222-2222-2222-222222222201', 2),
+ 'Do you actually know how to validate?',
+ 'Five questions on customer interviews. Most people get the second one wrong.')
+on conflict (id) do nothing;
+
+insert into public.quiz_questions (quiz_id, position, prompt, options, correct_index, explanation) values
+('33333333-3333-3333-3333-333333333301', 1,
+ 'What is the first thing you should ask in a customer interview?',
+ array['What do you think of my idea?', 'How do you handle this problem today?', 'Would you pay for this?', 'What features would you want?'],
+ 1, 'Ask about their present, not your future. Anything hypothetical gets you a polite answer.'),
+('33333333-3333-3333-3333-333333333301', 2,
+ 'Nine of twelve people say they would use your product. What have you learned?',
+ array['You have validated the idea', 'You have learned almost nothing', 'You should build immediately', 'You have found your market'],
+ 1, '"Would use" costs nothing to say. Look for something that costs them: money, time, or an introduction.'),
+('33333333-3333-3333-3333-333333333301', 3,
+ 'Someone already solves this with a spreadsheet. What does that mean?',
+ array['The problem is not real', 'They will never pay for software', 'The problem is real, and your bar is now the spreadsheet', 'You should build a spreadsheet'],
+ 2, 'A workaround is proof of pain. It also tells you exactly what you have to beat.'),
+('33333333-3333-3333-3333-333333333301', 4,
+ 'What is the strongest signal short of payment?',
+ array['A like on your launch post', 'They give you two hours to set it up with them', 'They join your mailing list', 'They say it is a great idea'],
+ 1, 'Time is the currency people spend before money. An hour of their calendar is real.'),
+('33333333-3333-3333-3333-333333333301', 5,
+ 'You describe the problem as "reporting takes too long". Customers say "I do not trust the numbers". What do you do?',
+ array['Keep your wording, it is clearer', 'Use their wording everywhere', 'Average the two', 'Ask them to be more specific'],
+ 1, 'Their words are the ones that will make a stranger stop scrolling. Yours only make sense to you.')
+on conflict do nothing;
+
+insert into public.tools (id, pursuit_id, user_id, stage_id, kind, title, description, config) values
+('44444444-4444-4444-4444-444444444401', '22222222-2222-2222-2222-222222222201',
+ '11111111-1111-1111-1111-111111111105', null, 'calculator',
+ 'How long your runway lasts',
+ 'Money in the bank divided by what you spend each month. The number most founders avoid working out.',
+ '{"inputs":[{"key":"savings","label":"Money in the bank"},{"key":"burn","label":"Monthly spend"}],"formula":"savings / burn","unit":"months"}'::jsonb),
+('44444444-4444-4444-4444-444444444402', '22222222-2222-2222-2222-222222222201',
+ '11111111-1111-1111-1111-111111111102',
+ public.seed_stage('22222222-2222-2222-2222-222222222201', 4), 'checklist',
+ 'Before you open the beta',
+ 'What has to be true before you let real people in. Learned by getting each one wrong.',
+ '{"items":["Ten customer interviews done and written up","Someone outside your head has used it start to finish","Payment tested with a real card","You can answer a support email within a day","You know which single number tells you it is working","There is a way for people to tell you it is broken"]}'::jsonb)
+on conflict (id) do nothing;
 
 drop function public.seed_stage(uuid, integer);
 drop function public.seed_person(uuid, text, text, text, text, text, text, text[]);

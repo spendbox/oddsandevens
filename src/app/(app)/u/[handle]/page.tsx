@@ -3,11 +3,12 @@ import { notFound } from 'next/navigation'
 import { redirect } from 'next/navigation'
 import { Avatar } from '@/components/avatar'
 import { ConnectButton } from '@/components/connect-button'
+import { BadgeRow, PointsChip } from '@/components/standing'
 import { Chip, ProgressBar, SectionHeader, timeAgo } from '@/components/ui'
 import { accent } from '@/lib/accent'
 import { requireOnboardedProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
-import type { Ask, Membership, Profile, Pursuit, Stage } from '@/lib/types'
+import type { Ask, Badge, Membership, Profile, Pursuit, Stage, UserBadge } from '@/lib/types'
 
 export async function generateMetadata(props: PageProps<'/u/[handle]'>) {
   const { handle } = await props.params
@@ -26,8 +27,14 @@ export default async function PublicProfile(props: PageProps<'/u/[handle]'>) {
 
   const person = data as Profile
 
-  const [{ data: theirMemberships }, { data: myMemberships }, { data: asks }, { data: connection }] =
-    await Promise.all([
+  const [
+    { data: theirMemberships },
+    { data: myMemberships },
+    { data: asks },
+    { data: connection },
+    { data: theirCompletions },
+    { data: allStages },
+  ] = await Promise.all([
       supabase
         .from('memberships')
         .select('*, pursuit:pursuits(*), stage:stages(*)')
@@ -41,7 +48,25 @@ export default async function PublicProfile(props: PageProps<'/u/[handle]'>) {
           `and(requester_id.eq.${userId},addressee_id.eq.${person.id}),and(requester_id.eq.${person.id},addressee_id.eq.${userId})`,
         )
         .maybeSingle(),
+      supabase.from('stage_completions').select('pursuit_id').eq('user_id', person.id),
+      supabase.from('stages').select('pursuit_id'),
     ])
+
+  const { data: badgeRows } = await supabase
+    .from('user_badges')
+    .select('*, badge:badges(*)')
+    .eq('user_id', person.id)
+    .order('earned_at', { ascending: false })
+
+  const badges = (badgeRows ?? []) as unknown as (UserBadge & { badge: Badge | null })[]
+
+  const countBy = (rows: { pursuit_id: string }[] | null) => {
+    const counts = new Map<string, number>()
+    for (const row of rows ?? []) counts.set(row.pursuit_id, (counts.get(row.pursuit_id) ?? 0) + 1)
+    return counts
+  }
+  const finishedByPursuit = countBy(theirCompletions as { pursuit_id: string }[] | null)
+  const stagesByPursuit = countBy(allStages as { pursuit_id: string }[] | null)
 
   const theirs = (theirMemberships ?? []) as (Membership & {
     pursuit: Pursuit
@@ -87,7 +112,14 @@ export default async function PublicProfile(props: PageProps<'/u/[handle]'>) {
             {shared.length} pursuit{shared.length === 1 ? '' : 's'} in common
           </span>
         ) : null}
+        <PointsChip points={person.points} subtle />
       </div>
+
+      {badges.length > 0 ? (
+        <div className="mt-5">
+          <BadgeRow badges={badges} limit={12} />
+        </div>
+      ) : null}
 
       {person.bio ? <p className="prose-commons mt-6">{person.bio}</p> : null}
 
@@ -132,7 +164,12 @@ export default async function PublicProfile(props: PageProps<'/u/[handle]'>) {
           <SectionHeader title="Pursuits you both share" />
           <ul className="space-y-2.5">
             {shared.map((membership) => (
-              <PursuitRow key={membership.id} membership={membership} />
+              <PursuitRow
+                key={membership.id}
+                membership={membership}
+                finished={finishedByPursuit.get(membership.pursuit_id) ?? 0}
+                totalStages={stagesByPursuit.get(membership.pursuit_id) ?? 0}
+              />
             ))}
           </ul>
         </section>
@@ -145,7 +182,12 @@ export default async function PublicProfile(props: PageProps<'/u/[handle]'>) {
             {theirs
               .filter((membership) => !mine.has(membership.pursuit_id))
               .map((membership) => (
-                <PursuitRow key={membership.id} membership={membership} />
+                <PursuitRow
+                  key={membership.id}
+                  membership={membership}
+                  finished={finishedByPursuit.get(membership.pursuit_id) ?? 0}
+                  totalStages={stagesByPursuit.get(membership.pursuit_id) ?? 0}
+                />
               ))}
           </ul>
         </section>
@@ -156,8 +198,12 @@ export default async function PublicProfile(props: PageProps<'/u/[handle]'>) {
 
 function PursuitRow({
   membership,
+  finished,
+  totalStages,
 }: {
   membership: Membership & { pursuit: Pursuit; stage: Stage | null }
+  finished: number
+  totalStages: number
 }) {
   const tone = accent(membership.pursuit.accent)
   return (
@@ -178,11 +224,11 @@ function PursuitRow({
             </p>
           </div>
           <span className="shrink-0 text-[12px] font-medium text-ink-muted tabular-nums">
-            {membership.progress}%
+            {finished}/{totalStages}
           </span>
         </div>
         <div className="mt-2.5">
-          <ProgressBar value={membership.progress} />
+          <ProgressBar value={totalStages > 0 ? (finished / totalStages) * 100 : 0} />
         </div>
         {membership.intent ? (
           <p className="mt-2.5 text-[12px] text-ink-muted">

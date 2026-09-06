@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { supabaseServer } from './supabase/server'
+import { awardPoints } from './points'
 
 /**
  * A connection request carries the reason the two people were matched, so the
@@ -65,9 +66,30 @@ export async function answerConnection(connectionId: string, accept: boolean, pa
   if (accept) {
     const { data: connection } = await supabase
       .from('connections')
-      .select('requester_id')
+      .select('requester_id, pursuit_id')
       .eq('id', connectionId)
       .maybeSingle()
+
+    // Being sought out is worth more than seeking. The person somebody wanted
+    // to meet earns the larger share.
+    if (connection) {
+      await awardPoints(supabase, {
+        userId: user.id,
+        actorId: connection.requester_id,
+        pursuitId: connection.pursuit_id,
+        kind: 'connection_received',
+        subjectType: 'connection',
+        subjectId: connectionId,
+      })
+      await awardPoints(supabase, {
+        userId: connection.requester_id,
+        actorId: null,
+        pursuitId: connection.pursuit_id,
+        kind: 'connection_made',
+        subjectType: 'connection',
+        subjectId: connectionId,
+      })
+    }
 
     const { data: me } = await supabase
       .from('profiles')

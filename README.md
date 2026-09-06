@@ -19,26 +19,79 @@ deliberately the smallest of them:
 | | Surface | What it is for |
 |---|---|---|
 | 💬 | **Discussions** | Questions and hard-won answers. Posting asks *what kind* of thing this is — a question, an update, something you learned, a win — before it asks for words. That one choice is what makes the board a record instead of a feed. |
-| 🚀 | **Progress** | Everyone placed on the same journey. `IDEA 1,240 · VALIDATING 842 · BUILDING 1,104`. You can see who is ahead of you and reach them. |
+| 🚀 | **Progress** | Everyone placed on the same journey. `IDEA 1,240 · VALIDATING 842 · BUILDING 1,104`. One stage at a time — you finish one, then you are on the next. |
 | 🤝 | **People** | Never a member list. Every person comes with the sentence explaining why they are worth your time. |
 | 🙋 | **Help** | "I need…" and "I can help…" — a marketplace of needs and capabilities, matched to each other automatically. |
 | 📚 | **Resources** | One knowledge base per outcome, so 8,000 people stop separately asking how to validate an idea. |
+| 🧠 | **Practice** | Quizzes and small tools — checklists and calculators — built by members for the people coming after them. |
 | 📅 | **Events** | Challenges, meetups, AMAs and working sessions — the things that make people actually finish. |
 
 Direct messages exist, one-to-one, off to the side.
 
-### The mechanic that makes it self-reinforcing
+### Finishing a stage costs you a paragraph
 
-When you move your progress marker forward, Commons tells the people still
-standing where you just were. That single loop is the whole design:
+There is no percentage slider. A stage is either behind you or ahead of you, and
+to put one behind you, you answer two questions in public:
 
-> Tunde moves from *Beta* to *Launched* → the five members at *Idea*,
-> *Validating* and *Building* are told that someone who came through their stage
-> is now one step ahead.
+> **What did you actually do?**
+> **What was hard, and how did you get past it?**
 
-People ahead pull people behind. People behind ask better questions. People with
-complementary skills find each other. And every person who succeeds leaves
-knowledge behind for the next one.
+That answer is posted into the discussion, where people can reply to it and mark
+it useful. Then you move to the next stage and earn a badge for the one you
+finished. Everyone still standing on that stage is told that somebody who just
+came through it is now one step ahead of them.
+
+People ahead pull people behind. People behind ask better questions. And every
+person who gets somewhere leaves the account of how behind them.
+
+### Points, and why you cannot see anyone else's
+
+You earn points when **other people** find you worth their time:
+
+| | |
+|---|---|
+| Someone you connected with accepts | **+5** (and +1 to whoever asked) |
+| Your post or your reply marked useful | **+2** |
+| A resource you shared gets upvoted | **+3** |
+| You finish a stage | **+10** |
+| Someone takes a quiz you wrote | **+2** |
+| Someone uses a tool you built | **+2** |
+
+You cannot award them to yourself, and the database refuses any points row whose
+value disagrees with the table above — so a forged client cannot mint standing.
+
+**Adding to a pursuit's knowledge base needs 20 points in that pursuit, or 100
+across Commons.** Newcomers read the knowledge base before they write to it.
+Quizzes and tools are deliberately *not* gated: building something useful is how
+a new member earns their way in.
+
+Points are **never shown inside a pursuit** — not beside a post, not on the
+progress board, not in a member list. A visible score next to what somebody wrote
+changes how it gets read, and a pursuit only works if people answer each other as
+equals. They appear in exactly two places: on a profile, where you went looking
+for them, and on a *people you should meet* card, where they are part of the case
+for spending your time on that person.
+
+## Starting a pursuit
+
+You do not fill in a form. You type a sentence — *"I want to learn AI automation
+this year"* — and Commons does three things:
+
+1. **Reduces it to what it is about.** "learn", "ai", "automation" — the filler
+   goes.
+2. **Shows you what already exists**, ranked, before you create anything. A
+   pursuit split across four near-identical copies helps nobody.
+3. **Proposes the journey.** Only if none of them fit. It recognises the shape of
+   what you asked for — learning a skill, building a business, relocating,
+   getting fit, money, creative work, a habit, a career move — and suggests the
+   stages people pass through, with the reason it picked them. You rename,
+   reorder, and delete freely; editing a suggestion is a far easier job than
+   inventing one from an empty box.
+
+The matching lives in [`src/lib/stage-suggestions.ts`](src/lib/stage-suggestions.ts)
+and is keyword-driven on purpose: you can read exactly why a journey was
+proposed, and a language model can be dropped in behind the same function later
+without anything around it changing.
 
 ## How the matching works
 

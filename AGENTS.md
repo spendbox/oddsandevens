@@ -36,3 +36,17 @@ anything structural.
 - Every table has row level security. A new table without RLS policies is a bug.
 - Matching is deterministic and explainable — see `src/lib/matching.ts`. Every
   suggested person carries a human-readable reason.
+
+## Rules that are easy to break by accident
+
+- **Points are never rendered inside a pursuit.** Only on a profile and on a
+  "people you should meet" card. See the note in `src/components/standing.tsx`
+  before putting a total anywhere new.
+- **Point values live in the database.** `points_for()` is the authority and the
+  insert policy rejects any row that disagrees with it; `src/lib/points.ts`
+  mirrors the numbers so the interface can explain them.
+- **Progress is counted, never stored.** A member's percentage is completed
+  stages over total stages. There is no `progress` column, deliberately.
+- **Tool formulas are parsed, never evaluated.** `src/lib/expression.ts` handles
+  arithmetic and nothing else. Never reach for `eval` or `new Function` here —
+  one member writes the formula and everybody else's browser runs it.

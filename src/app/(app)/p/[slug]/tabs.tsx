@@ -10,6 +10,7 @@ const TABS = [
   { segment: 'people', label: 'People' },
   { segment: 'help', label: 'Help' },
   { segment: 'resources', label: 'Resources' },
+  { segment: 'practice', label: 'Practice' },
   { segment: 'events', label: 'Events' },
 ]
 

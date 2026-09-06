@@ -9,7 +9,8 @@ import {
 } from '@/lib/queries'
 import { requireOnboardedProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
-import { ResourceComposer, VoteButton } from './resource-ui'
+import { canAddResources, gateShortfall } from '@/lib/points'
+import { LockedComposer, ResourceComposer, VoteButton } from './resource-ui'
 
 const KIND_LABEL: Record<string, string> = {
   book: 'Book',
@@ -31,7 +32,7 @@ const KIND_ICON: Record<string, string> = {
 
 export default async function Resources(props: PageProps<'/p/[slug]/resources'>) {
   const { slug } = await props.params
-  const { userId } = await requireOnboardedProfile()
+  const { profile, userId } = await requireOnboardedProfile()
 
   const pursuit = await pursuitBySlug(slug)
   if (!pursuit) notFound()
@@ -56,6 +57,10 @@ export default async function Resources(props: PageProps<'/p/[slug]/resources'>)
 
   const voted = new Set((votes ?? []).map((row: { resource_id: string }) => row.resource_id))
 
+  // Standing before publishing: twenty points earned here, or a hundred across
+  // Commons. Someone brand new reads the knowledge base before adding to it.
+  const allowed = membership ? canAddResources(membership.points, profile.points) : false
+
   // Grouped by the stage they help with, so a beginner is not handed the
   // fundraising material and a founder is not handed the syntax course.
   const byStage = new Map<string, typeof resources>()
@@ -71,7 +76,14 @@ export default async function Resources(props: PageProps<'/p/[slug]/resources'>)
   return (
     <div className="space-y-8">
       {membership ? (
-        <ResourceComposer slug={slug} pursuitId={pursuit.id} stages={stages} />
+        allowed ? (
+          <ResourceComposer slug={slug} pursuitId={pursuit.id} stages={stages} />
+        ) : (
+          <LockedComposer
+            shortfall={gateShortfall(membership.points, profile.points)}
+            slug={slug}
+          />
+        )
       ) : null}
 
       {resources.length === 0 ? (

@@ -95,7 +95,7 @@ export default async function Discover(props: PageProps<'/discover'>) {
             }
           >
             <Link
-              href={`/pursuits/new${query ? `?title=${encodeURIComponent(query)}` : ''}`}
+              href={`/pursuits/new${query ? `?q=${encodeURIComponent(query)}` : ""}`}
               className="btn btn-primary"
             >
               Create this pursuit

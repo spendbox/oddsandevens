@@ -207,18 +207,6 @@ as $$
   order by s.position;
 $$;
 
--- The pursuit's collective progress: the average of everyone pursuing it.
-create or replace function public.collective_progress(p_pursuit uuid)
-returns integer
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce(round(avg(progress))::integer, 0)
-  from public.memberships
-  where pursuit_id = p_pursuit;
-$$;
 
 -- ---------------------------------------------------------------------------
 -- Row level security
@@ -231,7 +219,6 @@ alter table public.memberships      enable row level security;
 alter table public.posts            enable row level security;
 alter table public.replies          enable row level security;
 alter table public.post_useful      enable row level security;
-alter table public.progress_updates enable row level security;
 alter table public.asks             enable row level security;
 alter table public.ask_responses    enable row level security;
 alter table public.resources        enable row level security;
@@ -319,14 +306,6 @@ create policy "useful readable" on public.post_useful
 drop policy if exists "useful toggle" on public.post_useful;
 create policy "useful toggle" on public.post_useful
   for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
-
-drop policy if exists "progress readable" on public.progress_updates;
-create policy "progress readable" on public.progress_updates
-  for select to authenticated using (true);
-drop policy if exists "progress create" on public.progress_updates;
-create policy "progress create" on public.progress_updates
-  for insert to authenticated
-  with check (user_id = auth.uid() and public.is_member(pursuit_id));
 
 drop policy if exists "asks readable" on public.asks;
 create policy "asks readable" on public.asks
