@@ -1,13 +1,18 @@
 node_modules
-.next
-out
-build
+
+# Anchored to the repository root on purpose. A bare "build" or "out" would also
+# match src/app/build and src/app/out — which would silently drop real routes
+# from commits, and hide them from Tailwind's source scanning.
+/.next
+/out
+/build
+
 .DS_Store
 *.pem
 npm-debug.log*
 .env
 .env*.local
-.vercel
+/.vercel
 next-env.d.ts
-.next-docs
 tsconfig.tsbuildinfo
+/.next-docs

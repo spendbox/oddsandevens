@@ -1,138 +1,120 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { supabaseServer } from '@/lib/supabase/server'
+import { Wordmark } from '@/components/ui'
+import { ENGINE_LIST } from '@/lib/engines'
+import { optionalProfile } from '@/lib/session'
 
-const EXAMPLES = [
-  { emoji: '🚀', title: 'Build a Profitable SaaS Company', people: '8,421' },
-  { emoji: '📍', title: 'Move to Canada', people: '3,120' },
-  { emoji: '🏃', title: 'Run a Half Marathon', people: '2,847' },
-  { emoji: '🐍', title: 'Learn Python Properly', people: '5,209' },
-]
-
-const SURFACES = [
-  ['Discuss', 'Questions and hard-won answers, kept instead of scrolled past.'],
-  ['Progress', 'See who is ahead of you, level with you, and just behind.'],
-  ['People', 'Introductions with a reason attached, not a member list.'],
-  ['Help', 'Post what you need. Post what you can give. Get matched.'],
-  ['Learn', 'One knowledge base per outcome, built by everyone in it.'],
-  ['Do', 'Challenges, meetups and sessions that make people finish.'],
+const SHOWCASE = [
+  'A calculator for import duty on a car coming into Nigeria',
+  'A quiz that scores how ready a business is to hire',
+  'An invoice generator with my bank details on it',
+  'A tracker for daily expenses',
+  'A directory of scholarships for Nigerian students',
+  'An assistant that answers tenancy law questions',
 ]
 
 export default async function Landing() {
-  const supabase = await supabaseServer()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (user) redirect('/home')
+  const { profile } = await optionalProfile()
+  if (profile) redirect('/tools')
 
   return (
     <main className="min-h-screen">
-      <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-        <div className="flex items-center gap-2">
-          <Mark />
-          <span className="text-[15px] font-semibold tracking-[-0.02em]">Commons</span>
+      <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
+        <Wordmark />
+        <div className="flex items-center gap-1.5">
+          <Link href="/signin" className="btn btn-ghost">
+            Sign in
+          </Link>
+          <Link href="/signin?mode=signup" className="btn btn-primary">
+            Start building
+          </Link>
         </div>
-        <Link href="/login" className="btn btn-quiet">
-          Sign in
-        </Link>
       </header>
 
-      <section className="mx-auto max-w-5xl px-6 pt-14 pb-20 sm:pt-24">
-        <p className="mb-5 text-xs font-medium tracking-wide text-accent uppercase">
-          An intent network
-        </p>
-        <h1 className="max-w-3xl text-[2rem] leading-[1.1] font-semibold tracking-[-0.03em] text-ink sm:text-[3.25rem]">
-          Find the people pursuing
+      <section className="mx-auto max-w-5xl px-4 pt-14 pb-20 sm:px-6 sm:pt-24">
+        <h1 className="max-w-3xl text-[2rem] leading-[1.08] font-semibold tracking-[-0.03em] text-ink sm:text-[3.25rem]">
+          Describe a tool.
           <br />
-          what you are pursuing.
+          Get a tool.
         </h1>
         <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-soft sm:text-base">
-          Most networks connect you to people you already know. Commons connects you to people who
-          want the same outcome you do — and shows you exactly why each of them is worth your time.
+          Say what you want in a sentence. Forge builds it, you change whatever you like, and you
+          get a link. Share it, or charge for it.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
-          <Link href="/login?mode=signup" className="btn btn-primary px-5 py-2.5">
-            Start a pursuit
+          <Link href="/signin?mode=signup" className="btn btn-primary px-5 py-2.5">
+            Build something
           </Link>
-          <Link href="/login" className="btn btn-quiet px-5 py-2.5">
-            I already have an account
+          <Link href="/signin" className="btn btn-quiet px-5 py-2.5">
+            I have an account
           </Link>
         </div>
 
-        <div className="mt-14 grid gap-2.5 sm:grid-cols-2">
-          {EXAMPLES.map((example) => (
-            <div key={example.title} className="card card-hover flex items-center gap-3 px-4 py-3.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-mist text-base">
-                {example.emoji}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-ink">{example.title}</p>
-                <p className="text-xs text-ink-muted">{example.people} pursuing this</p>
-              </div>
+        <div className="mt-14 grid gap-2 sm:grid-cols-2">
+          {SHOWCASE.map((example) => (
+            <div key={example} className="card px-4 py-3">
+              <p className="text-[13px] leading-relaxed text-ink-soft">
+                <span className="text-ink-faint">&ldquo;</span>
+                {example}
+                <span className="text-ink-faint">&rdquo;</span>
+              </p>
             </div>
           ))}
         </div>
       </section>
 
       <section className="border-t border-line bg-mist">
-        <div className="mx-auto max-w-5xl px-6 py-16">
+        <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
           <h2 className="max-w-lg text-xl font-semibold tracking-[-0.02em] text-ink sm:text-2xl">
-            A pursuit is a workspace, not a group chat.
+            Six kinds of tool, one sentence each.
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
-            Every pursuit is built around six things, so the work of getting somewhere does not get
-            buried under the conversation about getting there.
+            You never choose from this list. Forge reads what you asked for and picks — and you can
+            change its mind.
           </p>
 
           <div className="mt-9 grid gap-x-10 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
-            {SURFACES.map(([title, body], index) => (
-              <div key={title}>
-                <p className="text-[11px] font-medium text-ink-faint tabular-nums">
-                  {String(index + 1).padStart(2, '0')}
-                </p>
-                <h3 className="mt-1.5 text-sm font-semibold text-ink">{title}</h3>
-                <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">{body}</p>
+            {ENGINE_LIST.map((engine) => (
+              <div key={engine.id}>
+                <h3 className="text-sm font-semibold text-ink">
+                  {engine.emoji} {engine.name}
+                </h3>
+                <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">{engine.blurb}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 py-20">
-        <blockquote className="max-w-2xl">
-          <p className="text-lg leading-relaxed font-medium tracking-[-0.01em] text-ink sm:text-xl">
-            &ldquo;You don&rsquo;t join <em>Learn Python</em> to talk about Python. You join because
-            something should actually help you learn it — and then help you teach the next
-            person.&rdquo;
-          </p>
-        </blockquote>
-        <Link href="/login?mode=signup" className="btn btn-primary mt-8 px-5 py-2.5">
-          Join Commons
+      <section className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
+        <div className="grid gap-10 sm:grid-cols-3">
+          {[
+            ['Describe it', 'One or two sentences, the way you would explain it to a person.'],
+            ['Edit it', 'Ask for changes in plain words, or edit any part of it by hand.'],
+            ['Share it', 'Publish and you have a link. Free, or paid — you keep the earnings.'],
+          ].map(([title, body], index) => (
+            <div key={title}>
+              <p className="text-[11px] font-medium text-ink-faint tabular-nums">
+                {String(index + 1).padStart(2, '0')}
+              </p>
+              <h3 className="mt-1.5 text-sm font-semibold text-ink">{title}</h3>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">{body}</p>
+            </div>
+          ))}
+        </div>
+
+        <Link href="/signin?mode=signup" className="btn btn-primary mt-10 px-5 py-2.5">
+          Build something
         </Link>
       </section>
 
       <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-5xl flex-col gap-2 px-6 py-8 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Mark small />
-            <span>Commons</span>
-          </div>
-          <p>People connect around outcomes, not follows.</p>
+        <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-8 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <Wordmark />
+          <p>Turn what you know into something people can use.</p>
         </div>
       </footer>
     </main>
-  )
-}
-
-function Mark({ small }: { small?: boolean }) {
-  const size = small ? 16 : 22
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <rect width="32" height="32" rx="8" fill="#5b53e8" />
-      <circle cx="16" cy="16" r="8.5" fill="none" stroke="#fff" strokeWidth="2.2" />
-      <circle cx="16" cy="16" r="3" fill="#fff" />
-    </svg>
   )
 }

@@ -1,205 +1,167 @@
-# Commons
+# Forge
 
-**An intent network.** People connect around what they are trying to achieve,
-not around who they already know.
+**Describe a tool. Get a tool.**
 
-You join a *pursuit* — an outcome like "Build a Profitable SaaS Company" or
-"Move to Canada" — and Commons puts you next to the people who want the same
-thing: the ones a step ahead who can pull you forward, the ones a step behind
-you can help, and the ones whose skills answer the thing you just asked for.
+Say what you want in a sentence — *"a calculator that works out import duty on a
+car coming into Nigeria"* — and Forge builds it. You change whatever you like,
+publish it, and you have a link. Share it, or charge for it.
 
 ---
 
-## The one rule this product lives or dies by
+## What it can build
 
-**A pursuit is not a group chat.** If it becomes another WhatsApp group, the
-magic is gone. So a pursuit is a shared workspace with six surfaces, and chat is
-deliberately the smallest of them:
+You never choose from this list. Forge reads what you asked for and picks the
+engine; you can overrule it.
 
-| | Surface | What it is for |
-|---|---|---|
-| 💬 | **Discussions** | Questions and hard-won answers. Posting asks *what kind* of thing this is — a question, an update, something you learned, a win — before it asks for words. That one choice is what makes the board a record instead of a feed. |
-| 🚀 | **Progress** | Everyone placed on the same journey. `IDEA 1,240 · VALIDATING 842 · BUILDING 1,104`. One stage at a time — you finish one, then you are on the next. |
-| 🤝 | **People** | Never a member list. Every person comes with the sentence explaining why they are worth your time. |
-| 🙋 | **Help** | "I need…" and "I can help…" — a marketplace of needs and capabilities, matched to each other automatically. |
-| 📚 | **Resources** | One knowledge base per outcome, so 8,000 people stop separately asking how to validate an idea. |
-| 🧠 | **Practice** | Quizzes and small tools — checklists and calculators — built by members for the people coming after them. |
-| 📅 | **Events** | Challenges, meetups, AMAs and working sessions — the things that make people actually finish. |
+| | Engine | What it makes | Example |
+|---|---|---|---|
+| 🧮 | **Calculator** | Someone enters numbers, the tool works something out | Import duty, loan repayments, profit margin |
+| 📋 | **Quiz** | Questions in, a scored result out | Business health check, career assessment |
+| 📄 | **Generator** | A form that produces a finished document | Invoice, business plan, proposal |
+| 📊 | **Tracker** | Entries kept over time, with summaries | Daily expenses, medication, weight |
+| 🗂 | **Directory** | A searchable list the creator curates | Scholarships, suppliers, vendors |
+| ✨ | **AI assistant** | An expert that answers in the creator's domain | Tenancy law, exam coaching, CV help |
 
-Direct messages exist, one-to-one, off to the side.
+Adding a seventh means adding an engine — a schema, and how to run it — not
+touching the rest of the app. See `src/lib/engines/`.
 
-### Finishing a stage costs you a paragraph
+## How building works
 
-There is no percentage slider. A stage is either behind you or ahead of you, and
-to put one behind you, you answer two questions in public:
+Two calls to Claude, not one.
 
-> **What did you actually do?**
-> **What was hard, and how did you get past it?**
+1. **What kind of thing is this?** A cheap, low-effort classification that also
+   names the tool, picks an emoji and a colour, and says why it chose that
+   engine.
+2. **Build that kind of thing.** Against *that engine's* schema, passed to the
+   API as a JSON schema through
+   [structured outputs](https://docs.anthropic.com/en/docs/build-with-claude/structured-outputs).
 
-That answer is posted into the discussion, where people can reply to it and mark
-it useful. Then you move to the next stage and earn a badge for the one you
-finished. Everyone still standing on that stage is told that somebody who just
-came through it is now one step ahead of them.
+Splitting them means each response is validated against one tight shape rather
+than a union, and **the model cannot hand the app a shape it then has to defend
+against.** Every spec is parsed again before it is saved, and again before it is
+run.
 
-People ahead pull people behind. People behind ask better questions. And every
-person who gets somewhere leaves the account of how behind them.
+## Editing
 
-### Points, and why you cannot see anyone else's
+Two ways, and the first is the point:
 
-You earn points when **other people** find you worth their time:
+- **Ask for a change.** *"Add an input for clearing agent fees and include it in
+  the total."* Claude rebuilds the tool with that change and leaves the rest
+  alone.
+- **Edit it by hand.** Every field of every engine, in one editor generated from
+  the shape of the spec itself — so a new engine gets an editor for free.
 
-| | |
-|---|---|
-| Someone you connected with accepts | **+5** (and +1 to whoever asked) |
-| Your post or your reply marked useful | **+2** |
-| A resource you shared gets upvoted | **+3** |
-| You finish a stage | **+10** |
-| Someone takes a quiz you wrote | **+2** |
-| Someone uses a tool you built | **+2** |
+## Two things that are parsed, never evaluated
 
-You cannot award them to yourself, and the database refuses any points row whose
-value disagrees with the table above — so a forged client cannot mint standing.
+- **Formulas.** A creator writes `if(age > 10, value * 0.35, value * 0.20)` and
+  it runs in every visitor's browser. `src/lib/expression.ts` implements a small
+  language — arithmetic, comparisons, and `min`, `max`, `round`, `floor`,
+  `ceil`, `abs`, `sqrt`, `if` — and refuses everything else. There is no `eval`
+  and there must never be one.
+- **Markdown.** Generated documents and assistant replies are rendered into
+  React elements, not injected as HTML. No `dangerouslySetInnerHTML` anywhere.
 
-**Adding to a pursuit's knowledge base needs 20 points in that pursuit, or 100
-across Commons.** Newcomers read the knowledge base before they write to it.
-Quizzes and tools are deliberately *not* gated: building something useful is how
-a new member earns their way in.
+## Money
 
-Points are **never shown inside a pursuit** — not beside a post, not on the
-progress board, not in a member list. A visible score next to what somebody wrote
-changes how it gets read, and a pursuit only works if people answer each other as
-equals. They appear in exactly two places: on a profile, where you went looking
-for them, and on a *people you should meet* card, where they are part of the case
-for spending your time on that person.
+Paid tools go through Paystack. Two rules hold it together:
 
-## Starting a pursuit
+- A purchase is marked paid **only after Paystack itself has been asked**, never
+  because a browser came back from checkout.
+- A buyer can only ever create a *pending* row, for the *correct amount*, on a
+  *published* tool. Nothing they can reach flips it to paid — that is done
+  server-side with the service role. (An earlier version let a buyer insert a row
+  already marked paid. It was caught in testing; the policy in
+  `0004_purchase_integrity.sql` is what closed it.)
 
-You do not fill in a form. You type a sentence — *"I want to learn AI automation
-this year"* — and Commons does three things:
-
-1. **Reduces it to what it is about.** "learn", "ai", "automation" — the filler
-   goes.
-2. **Shows you what already exists**, ranked, before you create anything. A
-   pursuit split across four near-identical copies helps nobody.
-3. **Proposes the journey.** Only if none of them fit. It recognises the shape of
-   what you asked for — learning a skill, building a business, relocating,
-   getting fit, money, creative work, a habit, a career move — and suggests the
-   stages people pass through, with the reason it picked them. You rename,
-   reorder, and delete freely; editing a suggestion is a far easier job than
-   inventing one from an empty box.
-
-The matching lives in [`src/lib/stage-suggestions.ts`](src/lib/stage-suggestions.ts)
-and is keyword-driven on purpose: you can read exactly why a journey was
-proposed, and a language model can be dropped in behind the same function later
-without anything around it changing.
-
-## How the matching works
-
-Every suggestion carries its reason, in plain language:
-
-- *"Offers help with b2b — which you asked for"*
-- *"Two stages ahead of you — already at Profitable"*
-- *"Behind you, at Validating — you have done this part"*
-- *"Needs Postgres and APIs — which you have"*
-
-The scoring lives in [`src/lib/matching.ts`](src/lib/matching.ts). It is
-deterministic and explainable on purpose: it works from what people wrote about
-themselves — their skills, their stage, the needs and offers they posted — so
-every introduction can be traced back to something a real person actually said.
-There is no opaque score and no unexplained "92% match".
+When a creator sets their Paystack subaccount, the split happens at Paystack, so
+their earnings never sit in a platform balance waiting to be paid out by hand.
 
 ---
 
 ## Running it
 
-You need a free [Supabase](https://supabase.com) account. Nothing else.
+### 1. If you are coming from the old project
 
-### 1. Create the database
+`supabase/teardown-old-commons.sql` removes everything the previous app created —
+all 27 tables, its functions, its triggers and its demo accounts. Run it once in
+the Supabase SQL Editor. It is safe to run twice and touches nothing else.
 
-1. Create a new project at [supabase.com/dashboard](https://supabase.com/dashboard).
-2. Open **SQL Editor** and run these files in order, one at a time:
-   - `supabase/migrations/0001_init.sql` — the tables
-   - `supabase/migrations/0002_policies.sql` — security rules and counters
-   - `supabase/migrations/0003_grants.sql` — API permissions
-3. Optional but recommended for a first look: run `supabase/seed.sql`. It fills
-   the app with six pursuits and twelve people so nothing is empty. Every demo
-   account signs in with the password `commons123` (for example
-   `tunde@commons.demo`). **Do not run the seed on a real project.**
+### 2. The database
 
-### 2. Connect the app
+In Supabase, open **SQL Editor** and run these in order, checking each reports
+Success:
 
-In Supabase go to **Project Settings → API** and copy the two values into a file
-called `.env.local` in this folder:
+1. `supabase/migrations/0001_init.sql`
+2. `supabase/migrations/0002_policies.sql`
+3. `supabase/migrations/0003_counters.sql`
+4. `supabase/migrations/0004_purchase_integrity.sql`
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+They are safe to re-run. Then check:
+
+```sql
+select count(*) from information_schema.tables where table_schema = 'public';
 ```
 
-Both are safe to expose in a browser — row level security is what protects the
-data, not the key.
+You want **6**.
 
-**Turn off email confirmation.** This one is not optional — without it nobody can
-sign in. In Supabase go to **Authentication → Sign In / Providers → Email**,
-untick **Confirm email**, and save. New accounts then work immediately, with no
-email involved anywhere.
+**Turn off email confirmation** — this one is not optional, or nobody can sign
+in. **Authentication → Sign In / Providers → Email → untick "Confirm email"**.
 
-### 3. Run it
+### 3. Settings
+
+Create `.env.local` (locally) or add these in Vercel under **Settings →
+Environment Variables**:
+
+| Variable | Needed for | Where it comes from |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | everything | Supabase → Project Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | everything | same page, the **anon**/publishable key |
+| `ANTHROPIC_API_KEY` | building tools, AI assistants | console.anthropic.com → API Keys |
+| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | paid tools | Paystack → Settings → API Keys |
+| `PAYSTACK_SECRET_KEY` | paid tools | same page |
+| `SUPABASE_SERVICE_ROLE_KEY` | paid tools | Supabase → Project Settings → API → **service_role** |
+
+The last three are only needed once you want to charge for something. The bottom
+two are secrets: server-side only, never with a `NEXT_PUBLIC_` prefix.
+
+On Vercel these are read **when the site is built**, so redeploy after adding
+them.
+
+### 4. Run
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>.
-
-### 4. Deploy
-
-Push to GitHub, then import the repository at
-[vercel.com/new](https://vercel.com/new). Add the same two environment variables
-in Vercel's project settings and deploy. Nothing else to configure.
+Then <http://localhost:3000>. To deploy, push to GitHub and import the repo at
+[vercel.com/new](https://vercel.com/new).
 
 ---
-
-## Notes for whoever works on this next
-
-- **Next.js 16.** `src/proxy.ts` is what used to be called middleware; `cookies()`,
-  `params` and `searchParams` are all async. See `AGENTS.md`.
-- **Every table has row level security.** A new table without policies is a bug.
-  The policies are verified by hand against a real Postgres: a non-member cannot
-  post into a pursuit, nobody can write as someone else, and signed-out requests
-  reach nothing.
-- **Data fetching** happens in Server Components through `src/lib/queries.ts`.
-  Mutations are Server Actions in `actions.ts` files beside each route.
-- **Embedded joins need their foreign key named** wherever two tables are related
-  more than one way — `author:profiles!posts_author_id_fkey(*)`. Without it
-  PostgREST cannot tell which relationship you mean and the query fails at
-  runtime rather than at build time.
-- **Progressive web app.** Installable, with a manifest, icons, and a service
-  worker that keeps it from dying on a dropped connection.
 
 ## Structure
 
 ```
 src/
   app/
-    (app)/            signed-in application
-      home/           your pursuits, people to meet, what is coming up
-      discover/       search for an outcome
-      pursuits/       your pursuits, and creating one
-      p/[slug]/       a pursuit workspace — the six surfaces
-      people/         connection requests and your connections
-      messages/       one-to-one conversations
-      u/[handle]/     someone else's profile
-    login/            sign in and sign up
-    onboarding/       first-run profile setup
-  components/         shared interface pieces
+    page.tsx           the landing page
+    signin/            sign in and sign up
+    new/               describe a tool
+    build/[id]/        the editor: preview, ask for a change, publish
+    tools/             everything you have built
+    t/[slug]/          the public tool — the link you share
+    api/assistant/     streams an AI assistant's reply
+  components/
+    runners/           one per engine: what a tool looks like when used
+    markdown.tsx       renders generated documents, safely
   lib/
-    matching.ts       who you should meet, and why
-    queries.ts        every read the app makes
-    supabase/         server and browser clients
-  proxy.ts            session refresh and route protection
+    claude.ts          plan, build, revise, polish, converse
+    engines/           the six engines and their schemas
+    expression.ts      the formula language
+    paystack.ts        checkout and verification
+    supabase/          browser, server and service-role clients
+  proxy.ts             session refresh and route protection
 supabase/
-  migrations/         the database, in order
-  seed.sql            demo data
+  migrations/          the database, in order
+  teardown-old-commons.sql
 ```
