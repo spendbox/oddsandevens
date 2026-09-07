@@ -6,8 +6,12 @@ export type Profile = {
   display_name: string
   coins: number
   bank_name: string
+  bank_code: string
   account_number: string
   account_name: string
+  account_verified_at: string | null
+  /** False while an email alone is enough to sign in. See migration 0004. */
+  password_set: boolean
   created_at: string
 }
 

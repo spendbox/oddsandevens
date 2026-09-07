@@ -43,7 +43,26 @@ type GameState = {
 type Phase = 'ready' | 'watch' | 'tap' | 'sending' | 'cleared' | 'missed' | 'over'
 
 /** How long the "level cleared" flash sits on screen before the next card. */
-const CLEARED_MS = 850
+const CLEARED_MS = 1500
+
+/**
+ * What the screen shouts when a level goes down.
+ *
+ * Indexed by the level just cleared, so the praise escalates with the climb —
+ * clearing level 9 is a genuinely rare thing and should not be met with the
+ * same word as clearing level 1.
+ */
+const CHEERS = [
+  { word: 'Nice!', note: 'One down.' },
+  { word: 'Well done!', note: 'Two in a row.' },
+  { word: 'Sharp!', note: 'Three clean.' },
+  { word: 'Excellent!', note: 'Most people stop around here.' },
+  { word: 'Brilliant!', note: 'Halfway to the box.' },
+  { word: 'On fire!', note: 'Six down, four to go.' },
+  { word: 'Incredible!', note: 'This is the hard half now.' },
+  { word: 'Unreal!', note: 'Eight. Almost nobody gets here.' },
+  { word: 'One more!', note: 'Level 10 is all that is left.' },
+]
 
 export function Game({ initial, box }: { initial: GameState; box: Box }) {
   const router = useRouter()
@@ -57,6 +76,8 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   const [pressed, setPressed] = useState<number | null>(null)
   const [taps, setTaps] = useState<number[]>([])
   const [msLeft, setMsLeft] = useState(0)
+  /** The level whose cheer is on screen right now. */
+  const [justCleared, setJustCleared] = useState(0)
 
   // Every timer this component starts, so a phase change can cancel all of
   // them at once. A stray flash from a previous level landing on a live round
@@ -148,7 +169,12 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
       setRound(null)
       setState(next)
 
-      if (next.status === 'won' || next.status === 'failed') {
+      if (next.status === 'won') {
+        router.replace(`/won/${initial.attemptId}`)
+        return
+      }
+
+      if (next.status === 'failed') {
         setPhase('over')
         // The box page, the wallet and the dashboard all changed. Let the
         // server components behind this screen catch up.
@@ -158,10 +184,11 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
 
       if (next.awaitingReplay) return setPhase('missed')
 
+      setJustCleared(state.level)
       setPhase('cleared')
       later(() => setPhase('ready'), CLEARED_MS)
     },
-    [clearTimers, later, post, router, state.level],
+    [clearTimers, initial.attemptId, later, post, router, state.level],
   )
 
   /** The countdown, while it is the player's turn. */
@@ -223,6 +250,8 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   const nextAnswerSeconds = answerMsFor(state.level) / 1000
   const answerMs = round?.answerMs ?? 1
   const fraction = phase === 'tap' ? Math.max(0, Math.min(1, msLeft / answerMs)) : 1
+
+  const cheer = CHEERS[Math.min(Math.max(justCleared, 1), CHEERS.length) - 1]
 
   const mood: GridMood =
     phase === 'watch' ? 'showing' : phase === 'tap' ? 'input' : phase === 'cleared' ? 'right' : phase === 'missed' ? 'wrong' : 'idle'
@@ -334,23 +363,24 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
           the player starts aiming at them. */}
       <div className="mb-5 flex h-[7.5rem] flex-col justify-center text-center">
         <p className="text-sm font-semibold tracking-[0.2em] text-dusk uppercase">
-          Level {state.level}
+          {phase === 'cleared' ? `Level ${justCleared} cleared` : `Level ${state.level}`}
         </p>
 
-        {phase === 'tap' ? (
+        {phase === 'cleared' ? (
+          <div className="animate-pop">
+            <p className="bg-linear-to-r from-lime via-cyan to-violet bg-clip-text text-4xl font-bold text-transparent">
+              {cheer.word}
+            </p>
+            <p className="mt-1 text-sm text-mist">{cheer.note}</p>
+          </div>
+        ) : phase === 'tap' ? (
           <p className="tabular mt-1 text-5xl font-bold text-chalk">
             {(msLeft / 1000).toFixed(1)}
             <span className="text-2xl text-dusk">s</span>
           </p>
         ) : (
           <p className="mt-1 text-2xl font-bold text-mist">
-            {phase === 'watch'
-              ? 'Watch…'
-              : phase === 'cleared'
-                ? 'Cleared ✓'
-                : phase === 'sending'
-                  ? '…'
-                  : `${steps} flashes`}
+            {phase === 'watch' ? 'Watch…' : phase === 'sending' ? '…' : `${steps} flashes`}
           </p>
         )}
 
@@ -368,6 +398,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
       <Grid
         lit={lit}
         mood={mood}
+        celebrate={phase === 'cleared'}
         disabled={phase !== 'tap'}
         pressed={pressed}
         onTap={onTap}

@@ -1,15 +1,14 @@
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
 import { SiteHeader } from '@/components/site-header'
 import { Button, ButtonLink, Card, Pill, Problem } from '@/components/ui'
 import { optionalProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import { tidyBoxCode } from '@/lib/codes'
 import { LEVELS, planFor, stepsFor } from '@/lib/game'
-import { MIN_TOPUP_COINS, naira } from '@/lib/money'
+import { MIN_TOPUP_COINS, NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money'
 import type { Box } from '@/lib/types'
 import { play } from './actions'
-import { ShareLink } from './share-link'
+import { ShareLink } from '@/components/share-link'
 
 async function loadBox(rawCode: string): Promise<Box | null> {
   const supabase = await supabaseServer()
@@ -59,7 +58,7 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
             {isOpen ? '🔓 Open' : '🔒 Already won'} · Box {box.code}
           </Pill>
 
-          <h1 className="tabular mt-5 bg-linear-to-r from-gold via-gold to-[#ff9a3c] bg-clip-text text-6xl font-bold tracking-tight text-transparent sm:text-7xl">
+          <h1 className="prize tabular mt-5 text-6xl font-bold tracking-tight sm:text-7xl">
             {naira(box.prize_naira)}
           </h1>
 
@@ -121,10 +120,19 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
                 )}
               </div>
 
+              <ButtonLink
+                href={`/b/${box.code}/try`}
+                tone="ghost"
+                size="lg"
+                className="mt-3 w-full"
+              >
+                ▶ Try it free first
+              </ButtonLink>
+
               <p className="mt-4 text-center text-sm text-dusk">
                 {profile
                   ? `You have ${profile.coins} ${profile.coins === 1 ? 'coin' : 'coins'}. One game costs one.`
-                  : `Coins are ${naira(100)} each, ${MIN_TOPUP_COINS} minimum.`}
+                  : `Coins are ${naira(NAIRA_PER_COIN)} each, ${MIN_TOPUP_COINS} minimum.`}
               </p>
             </>
           ) : (
@@ -145,9 +153,14 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
                   : null}{' '}
                 · {naira(box.prize_naira)} each to them and {box.creator_name || 'the creator'}.
               </p>
-              <ButtonLink href={profile ? '/home' : '/'} tone="ghost" className="mt-6">
-                Drop your own box
-              </ButtonLink>
+              <div className="mt-6 grid gap-3">
+                <ButtonLink href={profile ? '/home' : '/enter'} tone="gold" size="lg">
+                  Create your own box — free
+                </ButtonLink>
+                <ButtonLink href={`/b/${box.code}/try`} tone="ghost">
+                  ▶ See how it was played
+                </ButtonLink>
+              </div>
             </div>
           )}
         </Card>
@@ -203,11 +216,21 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
         </Card>
 
         <p className="mt-6 text-center text-sm text-dusk">
-          Every game generates its own patterns. No two runs are the same.{' '}
-          <Link href="/" className="underline underline-offset-4 hover:text-mist">
-            What is Spendbox?
-          </Link>
+          Every game generates its own patterns. No two runs are the same.
         </p>
+
+        {!isMine ? (
+          <Card className="mt-6 bg-linear-to-br from-gold/12 to-violet/10 text-center">
+            <p className="font-semibold">Want one of these of your own?</p>
+            <p className="mt-1.5 text-sm text-mist">
+              Creating a box is free. Share it, and when somebody finally beats it you earn{' '}
+              {naira(PRIZE_NAIRA)} — the same as the winner.
+            </p>
+            <ButtonLink href={profile ? '/home' : '/enter'} tone="gold" className="mt-4">
+              Create your box — free
+            </ButtonLink>
+          </Card>
+        ) : null}
       </main>
     </>
   )

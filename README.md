@@ -1,11 +1,12 @@
 # Spendbox
 
-**Drop a box. Share the link. Somebody beats it, and you both get paid.**
+**Create your box free. Share it. Earn.**
 
-A box holds ₦100,000. Making one is free. Anyone with the link can try to beat
-it, and each try costs the player one coin. Beating a box means clearing ten
-patterns in a row against a clock that never gets kinder. Whoever does it first
-takes ₦100,000 — and the person who made the box takes ₦100,000 too.
+A box holds ₦100,000. Making one is free and you keep one at a time. Anyone with
+the link can try to beat it, and each try costs the player one coin — never the
+creator. Beating a box means clearing ten patterns in a row against a clock that
+never gets kinder. Whoever does it first takes ₦100,000 — and the person who
+made the box takes ₦100,000 too.
 
 ---
 
@@ -42,6 +43,30 @@ no two games are the same.
 pattern, same level, no charge. Miss again and the game is over; the next go
 costs another coin.
 
+**Every box has a free practice run.** `/b/CODE/try` plays the first three
+levels for real, with no coin and no prize, so nobody pays a coin to find out
+what they are buying. Practice runs entirely in the browser — there is no result
+worth cheating for, so there is nothing for a server to referee.
+
+## Getting in
+
+**An email is all it takes.** No sign-up form, no confirmation link. Type an
+address and you are playing. What that creates is not a second-class guest: it
+is a real account with a real wallet and a real history, tracked from the first
+tap.
+
+**A password is what claiming a prize requires.** Setting one is step one of the
+claim flow, and it changes the account permanently: from then on the email alone
+will not open it, and the password is the only way in. So an account with a prize
+attached to it can never be opened by a stranger typing the address.
+
+The residual risk is worth stating plainly: between topping up and setting a
+password, unspent coins sit in an account that somebody who guesses the email
+could open. The app pushes toward setting a password once there is a balance and
+requires one before any money leaves, but that window is the price of letting
+people play without signing up. Close it by requiring a password at top-up if
+you would rather not carry it.
+
 ## The money
 
 | | |
@@ -54,7 +79,14 @@ costs another coin.
 
 Coins are bought through Paystack. Winnings are paid out **by hand**, by bank
 transfer, from the Paystack dashboard — there is no key on this server that can
-move money out on its own. `/admin/payouts` is the worklist for whoever does it.
+move money out on its own. `/admin` is the dashboard and `/admin/payouts` is the
+worklist for whoever sends the transfers.
+
+**Bank accounts are verified before they are saved.** The player picks their bank
+and types their number; the account name comes back from Paystack's name enquiry
+against NIBSS — the bank's own answer to "who owns this number?" — and that is
+what gets stored, never what the player typed. A mistyped digit fails loudly at
+that point rather than six weeks later when ₦100,000 has gone to a stranger.
 
 ## Where the rules are enforced
 
@@ -69,8 +101,13 @@ Concretely:
 - **Row level security is on for every table**, and there is no insert or update
   policy for attempts, payouts, top-ups or the ledger. A browser holding the
   anon key cannot create a game, award itself a payout, or mark its own winnings
-  paid. It cannot even change its own coin balance: a trigger on `profiles`
-  refuses that for anyone but the server.
+  paid.
+- **A trigger on `profiles` guards every column the server owns**: the coin
+  balance, whether a password is set, and all four bank fields including
+  `account_verified_at`. That last one is the sharpest: the payout queue treats
+  it as proof Paystack confirmed the account, so a player who could set it
+  themselves could send ₦100,000 anywhere they liked. The only field on that
+  table a person can edit is their own display name.
 - **Three things happen inside one database transaction**, because doing them
   twice costs somebody something: crediting a payment, taking a coin and opening
   a game, and deciding who won. They live in `supabase/migrations/0003_functions.sql`
@@ -112,12 +149,17 @@ supabase/reset.sql              wipes the old project clean
 supabase/migrations/0001_schema.sql
 supabase/migrations/0002_policies.sql
 supabase/migrations/0003_functions.sql
+supabase/migrations/0004_guests_and_banks.sql
 ```
 
 **2. Turn off email confirmation.** Authentication → Sign In / Providers →
-Email → uncheck **Confirm email**. Signing up is meant to be an email, a
-password, and you are in. Leave it on and new players get stuck waiting for a
-link.
+Email → uncheck **Confirm email**. Entering is meant to be an email and nothing
+else. Leave it on and new players get stuck waiting for a link.
+
+Password resets *do* send email, through whatever SMTP Supabase is configured
+with. The built-in sender is heavily rate limited and fine for testing; set up
+your own SMTP under Project Settings → Authentication before real traffic, or
+resets will silently stop arriving.
 
 **3. Environment variables.** Copy `.env.example` and fill it in. All five go
 into Vercel under Settings → Environment Variables:
@@ -145,9 +187,11 @@ redeploy after changing any of them.
 ```
 src/lib/game.ts        the difficulty curve and the pattern generator
 src/lib/play.ts        the referee: issues levels, judges answers, crowns winners
+src/lib/guest.ts       getting somebody in on an email alone, and where that stops
 src/lib/wallet.ts      turning a Paystack payment into coins, exactly once
 src/lib/money.ts       every price in the product, in one file
-src/components/grid.tsx  the nine tiles
+src/components/grid.tsx        the nine tiles
+src/components/practice-game.tsx  the free example run
 supabase/migrations/   the schema, the policies, and the three atomic functions
 ```
 

@@ -51,5 +51,14 @@ structural.
   `src/lib/game.ts`. Neither number should be written down anywhere else.
 - `src/lib/game.ts` is shared by the server and the browser on purpose: they
   draw the same curve. Where they disagree about time, the server wins.
-- Box pages are readable by anyone, signed in or not. That is the point of a
-  distribution link.
+- Box pages and practice runs are readable by anyone, signed in or not. That is
+  the point of a distribution link.
+- An email alone gets somebody playing; a password is what claiming a prize
+  requires, and setting one closes email-only entry for that account forever.
+  `src/lib/guest.ts` holds both halves and the reasoning.
+- Anything the server asserts about a person — their balance, whether they have
+  a password, whether Paystack verified their bank account — is guarded by the
+  trigger in `0004_guests_and_banks.sql`, not just by an RLS policy. Adding a
+  column of that kind means adding it to that trigger.
+- "Create your box free. Share it. Earn." is the message. It belongs on every
+  page that has room for it.

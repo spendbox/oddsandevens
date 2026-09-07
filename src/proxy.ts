@@ -15,7 +15,7 @@ import { supabaseEnv } from './lib/supabase/env'
  *
  * Named `proxy` rather than `middleware`: Next.js 16 renamed the convention.
  */
-const NEEDS_ACCOUNT = ['/home', '/wallet', '/account', '/play', '/admin']
+const NEEDS_ACCOUNT = ['/home', '/wallet', '/account', '/play', '/admin', '/claim']
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })

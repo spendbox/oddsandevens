@@ -96,3 +96,56 @@ export function webhookIsGenuine(rawBody: string, signature: string | null): boo
   if (given.length !== mine.length) return false
   return timingSafeEqual(given, mine)
 }
+
+/** One Nigerian bank, as Paystack lists it. */
+export type Bank = { name: string; code: string; slug: string }
+
+/**
+ * The list of banks a player can pick from.
+ *
+ * Fetched rather than hard-coded because it changes — banks merge, fintechs
+ * arrive, codes get reassigned — and a stale list means somebody cannot be
+ * paid. Cached for a day: it does not change often enough to ask on every page
+ * load, and it must not be a dependency of the account page rendering.
+ */
+export async function listBanks(): Promise<Bank[]> {
+  const response = await fetch(`${BASE}/bank?currency=NGN&perPage=100`, {
+    headers: { authorization: `Bearer ${secret()}` },
+    next: { revalidate: 86_400 },
+  })
+
+  const body = (await response.json().catch(() => null)) as
+    | { status?: boolean; data?: Bank[] }
+    | null
+
+  if (!response.ok || !body?.status || !Array.isArray(body.data)) {
+    throw new PaystackError('Could not load the list of banks from Paystack.')
+  }
+
+  // Paystack returns duplicates for banks with several codes. Keep one of each
+  // name, and sort so the picker reads alphabetically.
+  const seen = new Set<string>()
+  return body.data
+    .filter((bank) => (seen.has(bank.name) ? false : seen.add(bank.name)))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Ask the bank who owns an account number.
+ *
+ * This is Paystack's name enquiry against NIBSS, and it is the difference
+ * between a payout that arrives and one that vanishes into a mistyped digit.
+ * The name it returns is what gets stored — never what the player typed, which
+ * is how account details end up not matching the bank's records.
+ */
+export async function resolveAccount(args: {
+  accountNumber: string
+  bankCode: string
+}): Promise<{ account_name: string; account_number: string }> {
+  const query = new URLSearchParams({
+    account_number: args.accountNumber,
+    bank_code: args.bankCode,
+  })
+
+  return paystack(`/bank/resolve?${query.toString()}`)
+}

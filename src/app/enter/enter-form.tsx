@@ -1,82 +1,106 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { Button, Field, Problem } from '@/components/ui'
-import { signIn, signUp, type EnterState } from './actions'
+import { Button, Field, Note, Problem } from '@/components/ui'
+import { PasswordField } from '@/components/password-field'
+import { enter, enterWithPassword, sendReset, type EnterState } from './actions'
 
 const EMPTY: EnterState = {}
 
 /**
- * One form, two modes. Sign in and sign up ask for almost the same thing, and a
- * person arriving from a shared box link should not have to work out which page
- * they are supposed to be on.
+ * One field to start with: an email.
+ *
+ * Most people arriving here have just tapped somebody's box link and want to
+ * play. They type an email and they are in. The password field only appears for
+ * accounts that have a password — which means accounts with money attached,
+ * because setting one is what claiming a prize requires.
  */
 export function EnterForm({ next }: { next: string }) {
-  const [mode, setMode] = useState<'in' | 'up'>('up')
-  const [inState, inAction, inPending] = useActionState(signIn, EMPTY)
-  const [upState, upAction, upPending] = useActionState(signUp, EMPTY)
+  const [emailState, emailAction, emailPending] = useActionState(enter, EMPTY)
+  const [passState, passAction, passPending] = useActionState(enterWithPassword, EMPTY)
+  const [resetState, resetAction, resetPending] = useActionState(sendReset, EMPTY)
+  const [typed, setTyped] = useState('')
 
-  const joining = mode === 'up'
-  const state = joining ? upState : inState
-  const pending = joining ? upPending : inPending
+  // Once any step tells us this account has a password, stay on that step.
+  const known = passState.email ?? emailState.email ?? ''
+  const locked = Boolean(emailState.needsPassword || passState.needsPassword)
+  const problem = passState.problem ?? emailState.problem ?? resetState.problem
+
+  if (locked) {
+    return (
+      <div className="animate-rise">
+        <p className="mb-1 text-sm text-mist">Welcome back</p>
+        <p className="mb-6 truncate text-lg font-semibold">{known}</p>
+
+        <form action={passAction} className="grid gap-4">
+          <input type="hidden" name="next" value={next} />
+          <input type="hidden" name="email" value={known} />
+
+          <PasswordField
+            label="Your password"
+            name="password"
+            required
+            autoFocus
+            autoComplete="current-password"
+            placeholder="Enter your password"
+          />
+
+          {problem ? <Problem>{problem}</Problem> : null}
+          {resetState.sentReset ? (
+            <Note>
+              If that address has an account, a reset link is on its way. Check your inbox,
+              and your spam folder.
+            </Note>
+          ) : null}
+
+          <Button type="submit" size="lg" disabled={passPending} className="w-full">
+            {passPending ? 'One moment…' : 'Sign in'}
+          </Button>
+        </form>
+
+        <form action={resetAction} className="mt-4 text-center">
+          <input type="hidden" name="email" value={known} />
+          <button
+            type="submit"
+            disabled={resetPending}
+            className="text-sm font-medium text-mist underline underline-offset-4
+                       hover:text-chalk disabled:opacity-50"
+          >
+            {resetPending ? 'Sending…' : 'Forgot your password? Email me a reset link'}
+          </button>
+        </form>
+      </div>
+    )
+  }
 
   return (
     <div className="animate-rise">
-      <div className="mb-6 grid grid-cols-2 gap-1 rounded-2xl bg-black/30 p-1">
-        {(['up', 'in'] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setMode(value)}
-            aria-pressed={mode === value}
-            className={
-              'no-select h-11 rounded-xl text-sm font-semibold transition ' +
-              (mode === value ? 'bg-violet text-white' : 'text-mist hover:text-chalk')
-            }
-          >
-            {value === 'up' ? 'Create account' : 'Sign in'}
-          </button>
-        ))}
-      </div>
+      <h1 className="text-2xl font-bold tracking-tight">Your email is all it takes</h1>
+      <p className="mt-2 mb-6 text-sm leading-relaxed text-mist">
+        No sign-up form, no confirmation email. Type your address and start playing. You
+        only set a password when you win something and want to claim it.
+      </p>
 
-      <form action={joining ? upAction : inAction} className="grid gap-4">
+      <form action={emailAction} className="grid gap-4">
         <input type="hidden" name="next" value={next} />
-
-        {joining ? (
-          <Field
-            label="Your name"
-            name="name"
-            autoComplete="name"
-            placeholder="What should we call you?"
-            maxLength={40}
-          />
-        ) : null}
 
         <Field
           label="Email"
           name="email"
           type="email"
           required
+          autoFocus
           autoComplete="email"
           inputMode="email"
           placeholder="you@example.com"
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
         />
 
-        <Field
-          label="Password"
-          name="password"
-          type="password"
-          required
-          minLength={6}
-          autoComplete={joining ? 'new-password' : 'current-password'}
-          placeholder="At least 6 characters"
-          hint={joining ? 'No confirmation email. You are in straight away.' : undefined}
-        />
+        {problem ? <Problem>{problem}</Problem> : null}
 
-        {state.problem ? <Problem>{state.problem}</Problem> : null}
-
-        <Button type="submit" size="lg" disabled={pending} className="mt-1 w-full">
-          {pending ? 'One moment…' : joining ? 'Create account' : 'Sign in'}
+        <Button type="submit" tone="gold" size="lg" disabled={emailPending} className="w-full">
+          {emailPending ? 'One moment…' : 'Continue'}
         </Button>
       </form>
     </div>
