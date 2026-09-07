@@ -2,11 +2,12 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { SiteHeader } from '@/components/site-header'
 import { Card, Empty, Pill } from '@/components/ui'
-import { isAdmin, requireProfile } from '@/lib/session'
+import { adminsConfigured, isAdmin, requireProfile } from '@/lib/session'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { LEVELS } from '@/lib/game'
 import { NAIRA_PER_COIN, naira } from '@/lib/money'
 import type { Box, Payout } from '@/lib/types'
+import { AdminNotConfigured } from './not-configured'
 
 export const metadata = { title: 'Admin' }
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,13 @@ export const dynamic = 'force-dynamic'
 export default async function AdminPage() {
   const { profile } = await requireProfile()
 
-  // Not "403": somebody who is not an admin should not learn this page exists.
+  // Nobody is on the list at all. That is a deployment that forgot a variable,
+  // not somebody snooping, and answering with a 404 sends whoever runs this
+  // site hunting for a broken route. Say what is actually wrong instead.
+  if (!adminsConfigured()) return <AdminNotConfigured email={profile.email} />
+
+  // The list exists and they are not on it. Now a 404 is the right answer:
+  // somebody who is not an admin should not learn this page exists.
   if (!isAdmin(profile.email)) notFound()
 
   const admin = supabaseAdmin()

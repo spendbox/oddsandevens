@@ -55,6 +55,18 @@ address and you are playing. What that creates is not a second-class guest: it
 is a real account with a real wallet and a real history, tracked from the first
 tap.
 
+**Password resets are sent by us, through Resend** — not by Supabase's built-in
+mailer, which is rate limited hard enough that resets quietly stop arriving
+under real traffic. Spendbox owns the tokens: 32 random bytes in the link, only
+a SHA-256 of them in the database, single-use, 45 minutes, three per hour per
+account. A leaked backup of that table cannot reset a single password, because
+the thing in the email cannot be worked back out of the thing in the row.
+
+Nothing else in the app sends email. Getting in on an email alone sends no mail
+at all — the session hand-off uses Supabase's admin `generateLink`, which exists
+precisely to generate links "to be sent via a custom email provider" and
+dispatches nothing itself.
+
 **A password is what claiming a prize requires.** Setting one is step one of the
 claim flow, and it changes the account permanently: from then on the email alone
 will not open it, and the password is the only way in. So an account with a prize
@@ -150,16 +162,15 @@ supabase/migrations/0001_schema.sql
 supabase/migrations/0002_policies.sql
 supabase/migrations/0003_functions.sql
 supabase/migrations/0004_guests_and_banks.sql
+supabase/migrations/0005_password_resets.sql
 ```
 
 **2. Turn off email confirmation.** Authentication → Sign In / Providers →
 Email → uncheck **Confirm email**. Entering is meant to be an email and nothing
 else. Leave it on and new players get stuck waiting for a link.
 
-Password resets *do* send email, through whatever SMTP Supabase is configured
-with. The built-in sender is heavily rate limited and fine for testing; set up
-your own SMTP under Project Settings → Authentication before real traffic, or
-resets will silently stop arriving.
+You do **not** need to configure SMTP in Supabase. Spendbox never uses its
+mailer — see step 3.
 
 **3. Environment variables.** Copy `.env.example` and fill it in. All five go
 into Vercel under Settings → Environment Variables:
@@ -170,7 +181,19 @@ into Vercel under Settings → Environment Variables:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same page, the "anon" key |
 | `SUPABASE_SERVICE_ROLE_KEY` | same page, the "service_role" key — **required** |
 | `PAYSTACK_SECRET_KEY` | Paystack → Settings → API Keys |
-| `ADMIN_EMAILS` | who can see `/admin/payouts`, comma-separated |
+| `RESEND_API_KEY` | resend.com → API Keys. All email goes through it |
+| `EMAIL_FROM` | e.g. `Spendbox <hello@yourdomain.com>` |
+| `ADMIN_EMAILS` | who can open `/admin`, comma-separated |
+
+`EMAIL_FROM` must be on a domain **verified in Resend**. Their onboarding sender
+works without a domain but only delivers to your own address — which looks fine
+in testing and reaches nobody in production.
+
+**`/admin` is a 404 until `ADMIN_EMAILS` includes you.** That is deliberate: an
+unset variable must not open a door. But if the list is empty *entirely*, the
+page says so and prints the exact line to add, rather than pretending not to
+exist. So if you cannot get in, open `/admin` while signed in and it will tell
+you what to set. Remember to redeploy — Vercel reads these at build time.
 
 `SUPABASE_SERVICE_ROLE_KEY` is not optional here. Every coin spent and every
 answer judged goes through it. Never give it a `NEXT_PUBLIC_` prefix.

@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 import { supabaseServer } from '@/lib/supabase/server'
 import { enterWithEmail } from '@/lib/guest'
+import { emailConfigured } from '@/lib/email'
+import { sendResetLink } from '@/lib/reset'
 import { siteOrigin } from '@/lib/site'
 
 /**
@@ -74,24 +76,36 @@ export async function enterWithPassword(
 }
 
 /**
- * Send a reset link.
+ * Send a reset link, through Resend.
  *
- * Always reports success, whether or not the address exists. Saying "no account
- * with that email" turns this form into a way to find out who has an account
- * here, which is nobody's business.
+ * Always reports success, whether or not the address exists, whether or not
+ * mail actually went out. Saying "no account with that email" turns this form
+ * into a way to find out who has an account here, which is nobody's business.
  */
 export async function sendReset(_state: EnterState, formData: FormData): Promise<EnterState> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
   if (!email.includes('@')) return { problem: 'Enter your email address first.', email }
 
-  const supabase = await supabaseServer()
+  if (!emailConfigured()) {
+    return {
+      needsPassword: true,
+      email,
+      problem:
+        'Password resets are not set up on this deployment: RESEND_API_KEY and EMAIL_FROM ' +
+        'are missing.',
+    }
+  }
+
   const origin = await siteOrigin()
 
-  await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/reset`,
-  })
+  try {
+    await sendResetLink(email, origin)
+  } catch {
+    // Swallowed deliberately. A Resend outage must not turn into a message that
+    // tells the sender whether that address has an account.
+  }
 
-  return { sentReset: true, email }
+  return { sentReset: true, email, needsPassword: true }
 }
 
 export async function signOut() {

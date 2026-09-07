@@ -1,44 +1,30 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { supabaseServer } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+import { consumeReset } from '@/lib/reset'
 
-export type ResetState = { problem?: string; done?: boolean }
+export type ResetState = { problem?: string }
 
 /**
  * Finish a password reset.
  *
- * Supabase has already signed this person in by the time they get here — that
- * is what clicking the emailed link does — so the only check needed is that
- * somebody is actually signed in. Without that, this would be a form for
- * changing a stranger's password.
+ * The token in the form is the only thing that says who this is. There is no
+ * session here — unlike Supabase's own flow, following our link does not sign
+ * anybody in, so a reset link that leaks cannot be used to read an account, only
+ * to set a password on it once and then be spent.
  */
 export async function chooseNewPassword(
   _state: ResetState,
   formData: FormData,
 ): Promise<ResetState> {
+  const token = String(formData.get('token') ?? '')
   const password = String(formData.get('password') ?? '')
-  if (password.length < 6) return { problem: 'Use a password of at least 6 characters.' }
+  const again = String(formData.get('password_again') ?? '')
 
-  const supabase = await supabaseServer()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (password !== again) return { problem: 'Those two passwords are not the same.' }
 
-  if (!user) {
-    return {
-      problem:
-        'That reset link has expired. Ask for a new one from the sign-in page.',
-    }
-  }
+  const problem = await consumeReset(token, password)
+  if (problem) return { problem }
 
-  const { error } = await supabase.auth.updateUser({ password })
-  if (error) return { problem: error.message }
-
-  // The account now has a password, so email-only entry no longer opens it.
-  const admin = supabaseAdmin()
-  await admin.from('profiles').update({ password_set: true }).eq('id', user.id)
-
-  redirect('/home')
+  redirect('/enter?reset=1')
 }

@@ -62,3 +62,9 @@ structural.
   column of that kind means adding it to that trigger.
 - "Create your box free. Share it. Earn." is the message. It belongs on every
   page that has room for it.
+- All outbound email goes through Resend, in `src/lib/email.ts`. Supabase's
+  mailer is never used — it is rate limited hard enough to fail silently in
+  production. Anything that needs to email somebody adds a function there.
+- A gate that can be closed by a missing environment variable should say so
+  rather than 404. `/admin` is the worked example: no list at all explains
+  itself, a list that excludes you is a 404.
