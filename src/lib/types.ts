@@ -1,79 +1,79 @@
-import type { EngineId } from './engines'
+/** The shapes stored in the database, as the app reads them. */
 
 export type Profile = {
   id: string
-  handle: string
-  full_name: string
-  bio: string
-  avatar_url: string | null
-  paystack_subaccount: string | null
+  email: string
+  display_name: string
+  coins: number
+  bank_name: string
+  account_number: string
+  account_name: string
   created_at: string
 }
 
-export type Tool = {
+export type Box = {
   id: string
-  owner_id: string
-  slug: string
-  engine: EngineId
+  code: string
+  creator_id: string
+  creator_name: string
   title: string
-  tagline: string
-  description: string
-  emoji: string
-  accent: string
-  spec: unknown
-  brief: string
-  status: 'draft' | 'published'
-  price_kobo: number
-  currency: string
-  view_count: number
-  run_count: number
-  created_at: string
-  updated_at: string
-  owner?: Profile
-}
-
-export type ToolRecord = {
-  id: string
-  tool_id: string
-  data: Record<string, string>
-  position: number
+  prize_naira: number
+  status: 'open' | 'won'
+  winner_id: string | null
+  winner_name: string
+  won_at: string | null
+  attempts_count: number
+  best_level: number
   created_at: string
 }
 
-export type ToolEntry = {
+export type Attempt = {
   id: string
-  tool_id: string
+  box_id: string
   user_id: string
-  data: Record<string, string | number | boolean>
-  entry_date: string
+  player_name: string
+  status: 'playing' | 'won' | 'failed'
+  level: number
+  levels_cleared: number
+  replays_left: number
+  awaiting_replay: boolean
+  pattern: number[] | null
+  pattern_level: number | null
+  shown_at: string | null
+  deadline_at: string | null
+  coins_spent: number
   created_at: string
+  finished_at: string | null
 }
 
-export type ToolRun = {
+export type Topup = {
   id: string
-  tool_id: string
-  user_id: string | null
-  input: Record<string, unknown>
-  output: Record<string, unknown>
-  created_at: string
-}
-
-export type Purchase = {
-  id: string
-  tool_id: string
-  buyer_id: string
-  reference: string
+  user_id: string
+  coins: number
   amount_kobo: number
-  currency: string
-  status: 'pending' | 'paid' | 'failed'
+  reference: string
+  status: 'pending' | 'success' | 'failed'
   created_at: string
   paid_at: string | null
 }
 
-/** Naira, from kobo. 250000 becomes "₦2,500". */
-export function formatPrice(kobo: number, currency = 'NGN'): string {
-  if (kobo === 0) return 'Free'
-  const major = kobo / 100
-  const symbol = currency === 'NGN' ? '₦' : currency === 'USD' ? '$' : `${currency} `
-  return `${symbol}${major.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+export type LedgerEntry = {
+  id: string
+  user_id: string
+  kind: 'topup' | 'play' | 'refund' | 'bonus'
+  coins: number
+  memo: string
+  created_at: string
+}
+
+export type Payout = {
+  id: string
+  box_id: string
+  user_id: string
+  role: 'creator' | 'winner'
+  amount_naira: number
+  status: 'pending' | 'paid'
+  note: string
+  created_at: string
+  paid_at: string | null
 }

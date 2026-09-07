@@ -1,13 +1,14 @@
 import 'server-only'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
 /**
- * Paystack, for creators who charge for their tools.
+ * Paystack, for filling a wallet with coins.
  *
- * Two rules hold the money side together. A transaction is only ever marked
- * paid after Paystack itself has been asked — never on the strength of the
- * browser coming back from checkout. And when a creator has given their
- * subaccount code, the split happens at Paystack, so their earnings never sit
- * in a platform balance waiting to be paid out by hand.
+ * One rule holds the money side together: coins are only ever credited after
+ * Paystack itself has said the money arrived — either because we asked it
+ * (verify) or because it told us (the webhook, whose signature we check). The
+ * browser coming back from checkout is a hint that it is worth asking, and
+ * nothing more than that.
  */
 
 const BASE = 'https://api.paystack.co'
@@ -19,14 +20,13 @@ function secret(): string {
   if (!key || !key.trim()) {
     throw new PaystackError(
       'Payments are not set up: PAYSTACK_SECRET_KEY is not set. Add it in Vercel under ' +
-        'Settings → Environment Variables (Paystack → Settings → API Keys), then redeploy. ' +
-        'Free tools work without it.',
+        'Settings → Environment Variables (Paystack → Settings → API Keys), then redeploy.',
     )
   }
   return key.trim()
 }
 
-export function paymentsConfigured() {
+export function paymentsConfigured(): boolean {
   return Boolean(process.env.PAYSTACK_SECRET_KEY?.trim())
 }
 
@@ -57,7 +57,6 @@ export async function startCheckout(args: {
   amountKobo: number
   reference: string
   callbackUrl: string
-  subaccount: string | null
 }): Promise<{ authorization_url: string; reference: string }> {
   return paystack('/transaction/initialize', {
     method: 'POST',
@@ -66,8 +65,6 @@ export async function startCheckout(args: {
       amount: args.amountKobo,
       reference: args.reference,
       callback_url: args.callbackUrl,
-      // The creator is paid directly; Forge keeps only what Paystack leaves.
-      ...(args.subaccount ? { subaccount: args.subaccount, bearer: 'subaccount' } : {}),
     }),
   })
 }
@@ -76,6 +73,26 @@ export async function verifyPayment(reference: string): Promise<{
   status: string
   amount: number
   currency: string
+  reference: string
 }> {
   return paystack(`/transaction/verify/${encodeURIComponent(reference)}`)
+}
+
+/**
+ * Is this webhook really from Paystack?
+ *
+ * Paystack signs the raw body with the secret key. Anyone can POST to the
+ * webhook URL, so an unsigned or wrongly signed request is somebody trying to
+ * credit themselves coins for free. Compared in constant time so that the
+ * comparison itself does not leak the answer one byte at a time.
+ */
+export function webhookIsGenuine(rawBody: string, signature: string | null): boolean {
+  if (!signature) return false
+
+  const expected = createHmac('sha512', secret()).update(rawBody).digest('hex')
+  const given = Buffer.from(signature, 'utf8')
+  const mine = Buffer.from(expected, 'utf8')
+
+  if (given.length !== mine.length) return false
+  return timingSafeEqual(given, mine)
 }

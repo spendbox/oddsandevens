@@ -1,228 +1,131 @@
 @import 'tailwindcss';
 
-/*
-  Forge runs on white. Two people use this interface: someone making a tool,
-  who should feel like they are writing rather than configuring, and someone
-  using one, who should not be able to tell it was generated. Both are served
-  by getting out of the way.
-*/
+/* ==========================================================================
+   Spendbox looks like an arcade cabinet, not a bank.
+   Deep violet-black, neon on top, everything rounded and chunky enough to hit
+   with a thumb. All the colour lives here as tokens so a screen never invents
+   its own shade of purple.
+   ========================================================================== */
 @theme {
-  --color-paper: #ffffff;
-  --color-mist: #f8f9fb;
-  --color-line: #eaecf0;
-  --color-line-strong: #dcdfe6;
+  --color-ink: #07040f;
+  --color-night: #0d0720;
+  --color-deep: #150c2e;
+  --color-haze: #241546;
 
-  --color-ink: #101319;
-  --color-ink-soft: #414653;
-  --color-ink-muted: #757c8c;
-  --color-ink-faint: #a2a8b6;
+  --color-violet: #a855f7;
+  --color-violet-soft: #c99cff;
+  --color-cyan: #22d3ee;
+  --color-lime: #a3e635;
+  --color-gold: #ffc94a;
+  --color-rose: #fb5c7d;
 
-  --color-accent: #5b53e8;
-  --color-accent-hover: #4a42d6;
-  --color-accent-soft: #f0efff;
-  --color-accent-line: #dcd8fb;
+  --color-chalk: #f4f0ff;
+  --color-mist: #a99ec7;
+  --color-dusk: #6f6490;
 
-  --color-lift: #16a34a;
-  --color-lift-soft: #edfbf2;
-  --color-warn: #b45309;
-  --color-warn-soft: #fff8ec;
-  --color-rose: #e11d48;
-  --color-rose-soft: #fff1f4;
+  /* The device's own interface font, in every case.
+     A webfont would be one more thing to download before the first screen
+     paints, and most of this audience is on mobile data where that is the
+     difference between "instant" and "is it broken?". The stack below already
+     lands on something tight and modern everywhere it matters: SF Pro on
+     iPhone, Roboto on Android, Segoe on Windows. */
+  --font-body:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    ui-sans-serif, system-ui, sans-serif;
 
-  --radius-card: 14px;
+  --radius-tile: 1.25rem;
 
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --animate-pop: pop 220ms cubic-bezier(0.2, 1.4, 0.4, 1);
+  --animate-rise: rise 420ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  --animate-pulse-glow: pulse-glow 2.4s ease-in-out infinite;
+  --animate-shake: shake 380ms ease-in-out;
+  --animate-drift: drift 18s ease-in-out infinite;
+}
+
+@keyframes pop {
+  0% { transform: scale(0.86); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, -22px, 0) scale(1.08); }
+}
+
+:root {
+  color-scheme: dark;
 }
 
 html {
-  -webkit-text-size-adjust: 100%;
+  background: var(--color-ink);
+  /* iOS: stop the whole page rubber-banding while somebody hammers the grid. */
+  overscroll-behavior-y: none;
 }
 
 body {
-  background: var(--color-paper);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
+  min-height: 100dvh;
+  margin: 0;
+  color: var(--color-chalk);
+  font-family: var(--font-body);
+  background:
+    radial-gradient(1100px 620px at 12% -8%, #3b1d6e 0%, transparent 62%),
+    radial-gradient(900px 560px at 92% 4%, #0e3b52 0%, transparent 58%),
+    radial-gradient(800px 700px at 50% 110%, #2a1150 0%, transparent 60%),
+    var(--color-ink);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
-* {
-  border-color: var(--color-line);
+/* The game is a tapping contest. Nothing may select, magnify, or fire a
+   double-tap zoom while it is being played. */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
 
-::selection {
-  background: var(--color-accent-soft);
-  color: var(--color-accent-hover);
+/* A pane: the frosted card everything sits on. */
+.pane {
+  background: color-mix(in oklab, var(--color-deep) 82%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-violet) 22%, transparent);
+  box-shadow:
+    0 24px 60px -30px rgb(0 0 0 / 0.9),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+  backdrop-filter: blur(14px);
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
-@layer components {
-  .card {
-    background: var(--color-paper);
-    border: 1px solid var(--color-line);
-    border-radius: var(--radius-card);
-  }
-
-  .card-hover {
-    transition: border-color 140ms ease, box-shadow 140ms ease;
-  }
-
-  .card-hover:hover {
-    border-color: var(--color-line-strong);
-    box-shadow: 0 1px 2px rgb(16 19 25 / 0.04), 0 8px 24px -14px rgb(16 19 25 / 0.16);
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    border-radius: 10px;
-    font-size: 0.875rem;
-    font-weight: 500;
-    padding: 0.55rem 0.95rem;
-    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .btn-primary {
-    background: var(--color-accent);
-    color: #fff;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: var(--color-accent-hover);
-  }
-
-  .btn-quiet {
-    background: var(--color-paper);
-    color: var(--color-ink-soft);
-    border: 1px solid var(--color-line-strong);
-  }
-
-  .btn-quiet:hover:not(:disabled) {
-    background: var(--color-mist);
-    color: var(--color-ink);
-  }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--color-ink-muted);
-  }
-
-  .btn-ghost:hover:not(:disabled) {
-    background: var(--color-mist);
-    color: var(--color-ink);
-  }
-
-  .field {
-    width: 100%;
-    border: 1px solid var(--color-line-strong);
-    border-radius: 10px;
-    padding: 0.6rem 0.75rem;
-    font-size: 0.9rem;
-    background: var(--color-paper);
-    color: var(--color-ink);
-    transition: border-color 120ms ease, box-shadow 120ms ease;
-  }
-
-  .field::placeholder {
-    color: var(--color-ink-faint);
-  }
-
-  .field:focus {
-    outline: none;
-    border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px var(--color-accent-soft);
-  }
-
-  .label {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--color-ink-soft);
-    margin-bottom: 0.375rem;
-  }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    border-radius: 999px;
-    font-size: 0.6875rem;
-    font-weight: 500;
-    padding: 0.2rem 0.6rem;
-  }
-}
-
-/* What a tool produces: a generated document, an assistant's reply. */
-.prose-forge {
-  font-size: 0.9375rem;
-  line-height: 1.7;
-  color: var(--color-ink-soft);
-  overflow-wrap: anywhere;
-}
-
-.prose-forge h1,
-.prose-forge h2,
-.prose-forge h3 {
-  color: var(--color-ink);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 1.4em 0 0.5em;
-  line-height: 1.3;
-}
-
-.prose-forge h1 { font-size: 1.35rem; }
-.prose-forge h2 { font-size: 1.1rem; }
-.prose-forge h3 { font-size: 0.975rem; }
-.prose-forge h1:first-child,
-.prose-forge h2:first-child { margin-top: 0; }
-
-.prose-forge p { margin: 0.75em 0; }
-.prose-forge strong { color: var(--color-ink); font-weight: 600; }
-.prose-forge ul, .prose-forge ol { margin: 0.75em 0; padding-left: 1.3em; }
-.prose-forge li { margin: 0.3em 0; }
-.prose-forge ul { list-style: disc; }
-.prose-forge ol { list-style: decimal; }
-.prose-forge hr { border: 0; border-top: 1px solid var(--color-line); margin: 1.5em 0; }
-.prose-forge code {
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-  background: var(--color-mist);
-  padding: 0.1em 0.35em;
-  border-radius: 4px;
-}
-.prose-forge table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.875rem; }
-.prose-forge th, .prose-forge td {
-  border: 1px solid var(--color-line);
-  padding: 0.5em 0.7em;
-  text-align: left;
-}
-.prose-forge th { background: var(--color-mist); font-weight: 600; color: var(--color-ink); }
-
-@media print {
-  .no-print { display: none !important; }
-  body { background: #fff; }
+/* Numbers that are meant to be read at a glance: prizes, timers, balances. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

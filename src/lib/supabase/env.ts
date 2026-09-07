@@ -1,5 +1,5 @@
 /**
- * The settings Forge needs, checked once and reported in words.
+ * The settings Spendbox needs, checked once and reported in words.
  *
  * Supabase's own failure for a missing URL is "Invalid supabaseUrl", which
  * names neither the setting nor where it goes. Anyone deploying hits that
@@ -7,7 +7,7 @@
  */
 function missing(name: string): never {
   throw new Error(
-    `Forge cannot start: ${name} is not set.\n\n` +
+    `Spendbox cannot start: ${name} is not set.\n\n` +
       'Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY — in Vercel under ' +
       'Settings → Environment Variables, or in a .env.local file when running locally. ' +
       'The values are in Supabase under Project Settings → API (use the "anon"/"publishable" ' +
@@ -25,7 +25,7 @@ function tidyUrl(raw: string): string {
     new URL(withScheme)
   } catch {
     throw new Error(
-      `Forge cannot start: NEXT_PUBLIC_SUPABASE_URL is not a valid address (got "${raw}").\n\n` +
+      `Spendbox cannot start: NEXT_PUBLIC_SUPABASE_URL is not a valid address (got "${raw}").\n\n` +
         'It should look like https://abcdefghijkl.supabase.co — copy it from Supabase under ' +
         'Project Settings → API, as "Project URL".',
     )

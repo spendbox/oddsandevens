@@ -1,148 +1,125 @@
--- Row level security, and the profile every sign-up needs.
+-- ============================================================================
+-- STEP 2 of 2, part B — row level security.
 --
--- The rule that shapes all of this: a published tool is readable by anyone,
--- signed in or not. A tool nobody can open is not a product.
+-- Run this after 0001_schema.sql.
+--
+-- The shape of it: a browser may READ its own things, and may READ any box
+-- (a box link has to work for a stranger, or sharing it is pointless). A
+-- browser may WRITE almost nothing. Spending a coin, issuing a pattern, judging
+-- an answer and deciding a winner all happen in server routes holding the
+-- service-role key, which bypasses these policies on purpose.
+--
+-- Turning RLS on with no policy for an operation denies that operation. So the
+-- absence of an insert policy below is not an oversight — it is the rule.
+-- ============================================================================
 
-create or replace function public.handle_new_user()
+alter table public.profiles    enable row level security;
+alter table public.topups      enable row level security;
+alter table public.coin_ledger enable row level security;
+alter table public.boxes       enable row level security;
+alter table public.attempts    enable row level security;
+alter table public.payouts     enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- profiles — yours and nobody else's.
+--
+-- Names shown to other people (a box's creator, a winner, a leaderboard row)
+-- are copied onto the box and attempt rows, so nothing here needs to be public.
+-- ---------------------------------------------------------------------------
+create policy "read own profile" on public.profiles
+  for select to authenticated
+  using (id = (select auth.uid()));
+
+create policy "create own profile" on public.profiles
+  for insert to authenticated
+  with check (id = (select auth.uid()));
+
+-- A player may edit their display name and their bank details. The `coins`
+-- column is in this table too, so the WITH CHECK below is doing real work: it
+-- lets the row be updated, and the balance guard is that no policy grants a
+-- browser the ability to change what coins is worth — see the trigger.
+create policy "update own profile" on public.profiles
+  for update to authenticated
+  using (id = (select auth.uid()))
+  with check (id = (select auth.uid()));
+
+-- Postgres has no per-column policies, so the balance is protected by a
+-- trigger instead: an ordinary signed-in session simply cannot change it.
+-- The service role, which is what the payment and game routes use, is exempt.
+create or replace function public.guard_coin_balance()
 returns trigger
 language plpgsql
-security definer
 set search_path = public
 as $$
 declare
-  base_handle text;
-  final_handle text;
-  suffix integer := 0;
+  claims text := current_setting('request.jwt.claims', true);
 begin
-  base_handle := regexp_replace(lower(split_part(new.email, '@', 1)), '[^a-z0-9]', '', 'g');
-  if base_handle = '' or base_handle is null then
-    base_handle := 'maker';
+  if new.coins is distinct from old.coins
+     -- No claims at all means this is not a request from a browser: the SQL
+     -- editor, a migration, a psql session. Those are already trusted.
+     and claims is not null and claims <> ''
+     and (claims::jsonb ->> 'role') is distinct from 'service_role'
+  then
+    raise exception 'coins can only be changed by Spendbox itself';
   end if;
-  base_handle := left(base_handle, 20);
-  final_handle := base_handle;
-
-  while exists (select 1 from public.profiles where handle = final_handle) loop
-    suffix := suffix + 1;
-    final_handle := base_handle || suffix::text;
-  end loop;
-
-  insert into public.profiles (id, handle, full_name)
-  values (new.id, final_handle, coalesce(new.raw_user_meta_data->>'full_name', ''));
   return new;
 end;
 $$;
 
--- Attaching a trigger to auth.users needs rights the SQL editor does not have on
--- every Supabase project. If it is refused, say so and carry on: the app creates
--- a missing profile on first sign-in anyway. Letting it abort here would roll
--- back the whole migration and leave the database with no tables at all.
-do $$
-begin
-  drop trigger if exists on_auth_user_created on auth.users;
-  create trigger on_auth_user_created
-    after insert on auth.users
-    for each row execute function public.handle_new_user();
-exception
-  when insufficient_privilege or undefined_table then
-    raise notice 'Skipped the auth.users profile trigger (%). The app creates profiles on first sign-in, so nothing is broken.', sqlerrm;
-end $$;
+create trigger profiles_guard_coins
+  before update on public.profiles
+  for each row execute function public.guard_coin_balance();
 
 -- ---------------------------------------------------------------------------
+-- topups and the ledger — read your own money history, write none of it.
+-- ---------------------------------------------------------------------------
+create policy "read own topups" on public.topups
+  for select to authenticated
+  using (user_id = (select auth.uid()));
 
-alter table public.profiles     enable row level security;
-alter table public.tools        enable row level security;
-alter table public.tool_records enable row level security;
-alter table public.tool_entries enable row level security;
-alter table public.tool_runs    enable row level security;
-alter table public.purchases    enable row level security;
+create policy "read own ledger" on public.coin_ledger
+  for select to authenticated
+  using (user_id = (select auth.uid()));
 
--- Profiles are public: a tool page shows who made it.
-drop policy if exists "profiles readable" on public.profiles;
-create policy "profiles readable" on public.profiles
-  for select to anon, authenticated using (true);
-drop policy if exists "own profile insert" on public.profiles;
-create policy "own profile insert" on public.profiles
-  for insert to authenticated with check (id = auth.uid());
-drop policy if exists "own profile update" on public.profiles;
-create policy "own profile update" on public.profiles
-  for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
-
--- A published tool is readable by the world. A draft belongs to its maker.
-drop policy if exists "published tools are public" on public.tools;
-create policy "published tools are public" on public.tools
-  for select to anon, authenticated using (status = 'published');
-drop policy if exists "own tools readable" on public.tools;
-create policy "own tools readable" on public.tools
-  for select to authenticated using (owner_id = auth.uid());
-drop policy if exists "create own tools" on public.tools;
-create policy "create own tools" on public.tools
-  for insert to authenticated with check (owner_id = auth.uid());
-drop policy if exists "edit own tools" on public.tools;
-create policy "edit own tools" on public.tools
-  for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
-drop policy if exists "delete own tools" on public.tools;
-create policy "delete own tools" on public.tools
-  for delete to authenticated using (owner_id = auth.uid());
-
--- Directory rows follow their tool: public once it is, and paid ones need
--- access. Curating them is the owner's job alone.
-drop policy if exists "records follow the tool" on public.tool_records;
-create policy "records follow the tool" on public.tool_records
+-- ---------------------------------------------------------------------------
+-- boxes — anyone with the link can look, including signed-out visitors. That
+-- is the whole point of a share link.
+--
+-- Creating one is free and open to any signed-in person, as long as they put
+-- their own id on it. Nobody updates a box from a browser: the winner, the
+-- attempt count and the best level are all decided by the server.
+-- ---------------------------------------------------------------------------
+create policy "anyone can read boxes" on public.boxes
   for select to anon, authenticated
-  using (exists (
-    select 1 from public.tools t
-    where t.id = tool_id and (t.status = 'published' or t.owner_id = auth.uid())
-  ));
-drop policy if exists "owner curates records" on public.tool_records;
-create policy "owner curates records" on public.tool_records
-  for all to authenticated
-  using (exists (select 1 from public.tools t where t.id = tool_id and t.owner_id = auth.uid()))
-  with check (exists (select 1 from public.tools t where t.id = tool_id and t.owner_id = auth.uid()));
+  using (true);
 
--- What somebody tracks is theirs. Not even the tool's maker can read it.
-drop policy if exists "own entries" on public.tool_entries;
-create policy "own entries" on public.tool_entries
-  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
-
--- A run is visible to whoever made it and to the tool's owner, who needs to
--- know how their tool is being used.
-drop policy if exists "runs visible to you and the maker" on public.tool_runs;
-create policy "runs visible to you and the maker" on public.tool_runs
-  for select to authenticated
-  using (
-    user_id = auth.uid()
-    or exists (select 1 from public.tools t where t.id = tool_id and t.owner_id = auth.uid())
-  );
--- Anyone may use a published tool they have access to, signed in or not.
-drop policy if exists "record a run" on public.tool_runs;
-create policy "record a run" on public.tool_runs
-  for insert to anon, authenticated
-  with check (
-    exists (select 1 from public.tools t where t.id = tool_id and t.status = 'published')
-    and (user_id is null or user_id = auth.uid())
-  );
-
-drop policy if exists "own purchases" on public.purchases;
-create policy "own purchases" on public.purchases
-  for select to authenticated
-  using (
-    buyer_id = auth.uid()
-    or exists (select 1 from public.tools t where t.id = tool_id and t.owner_id = auth.uid())
-  );
-drop policy if exists "start a purchase" on public.purchases;
-create policy "start a purchase" on public.purchases
-  for insert to authenticated with check (buyer_id = auth.uid());
+create policy "create own box" on public.boxes
+  for insert to authenticated
+  with check (creator_id = (select auth.uid()));
 
 -- ---------------------------------------------------------------------------
--- Grants. Supabase sets these by default; stating them makes the schema
--- portable and the intent readable.
+-- attempts — a player can read their own runs, and a creator can read the runs
+-- against their own box, so both sides can see what happened. Neither can write
+-- one: paying a coin and judging an answer are the server's job.
 -- ---------------------------------------------------------------------------
+create policy "read own attempts" on public.attempts
+  for select to authenticated
+  using (user_id = (select auth.uid()));
 
-grant usage on schema public to anon, authenticated;
-grant select on table public.profiles, public.tools, public.tool_records to anon;
-grant insert on table public.tool_runs to anon;
-grant select, insert, update, delete on all tables in schema public to authenticated;
-grant execute on function public.has_access(uuid) to anon, authenticated;
+create policy "creator reads attempts on their box" on public.attempts
+  for select to authenticated
+  using (
+    exists (
+      select 1 from public.boxes b
+      where b.id = attempts.box_id
+        and b.creator_id = (select auth.uid())
+    )
+  );
 
-alter default privileges in schema public
-  grant select, insert, update, delete on tables to authenticated;
+-- ---------------------------------------------------------------------------
+-- payouts — you can see what you are owed. Marking it paid is done by hand, by
+-- whoever runs Spendbox, with the service-role key.
+-- ---------------------------------------------------------------------------
+create policy "read own payouts" on public.payouts
+  for select to authenticated
+  using (user_id = (select auth.uid()));

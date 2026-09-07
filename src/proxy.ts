@@ -4,14 +4,18 @@ import { supabaseEnv } from './lib/supabase/env'
 
 /**
  * Refreshes the Supabase session on every request, and keeps signed-out people
- * out of the parts of Forge that belong to a person.
+ * out of the parts of Spendbox that belong to a person.
  *
- * Published tools are deliberately not in that set: `/t/...` works for anyone
- * with the link, signed in or not, because distribution is the whole point.
+ * Box pages are deliberately not in that set: /b/ABC123 works for anyone with
+ * the link, signed in or not, because a link a stranger cannot open is not a
+ * share link.
+ *
+ * This is a convenience, not a security boundary. The check here reads a cookie;
+ * every page and route that matters asks Supabase who the user actually is.
  *
  * Named `proxy` rather than `middleware`: Next.js 16 renamed the convention.
  */
-const OWNER_ONLY = ['/new', '/tools', '/build', '/account']
+const NEEDS_ACCOUNT = ['/home', '/wallet', '/account', '/play', '/admin']
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
@@ -39,15 +43,16 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
-  const needsAccount = OWNER_ONLY.some(
+  const { pathname, search } = request.nextUrl
+  const privatePage = NEEDS_ACCOUNT.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   )
 
-  if (!user && needsAccount) {
+  if (!user && privatePage) {
     const url = request.nextUrl.clone()
-    url.pathname = '/signin'
-    url.searchParams.set('next', pathname)
+    url.pathname = '/enter'
+    url.search = ''
+    url.searchParams.set('next', `${pathname}${search}`)
     return NextResponse.redirect(url)
   }
 
@@ -55,9 +60,9 @@ export async function proxy(request: NextRequest) {
   // sent there because something went wrong, in which case bouncing them back
   // is a loop with nothing on screen to explain it.
   const reportingProblem = request.nextUrl.searchParams.has('problem')
-  if (user && !reportingProblem && pathname === '/signin') {
+  if (user && !reportingProblem && pathname === '/enter') {
     const url = request.nextUrl.clone()
-    url.pathname = '/tools'
+    url.pathname = request.nextUrl.searchParams.get('next') ?? '/home'
     url.search = ''
     return NextResponse.redirect(url)
   }
@@ -67,6 +72,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|.*\\.(?:png|jpg|jpeg|svg|gif|webp)$).*)',
+    // Paystack's webhook is signed, not cookied, and must never be redirected.
+    '/((?!_next/static|_next/image|favicon.ico|icon.svg|api/paystack|.*\\.(?:png|jpg|jpeg|svg|gif|webp)$).*)',
   ],
 }
