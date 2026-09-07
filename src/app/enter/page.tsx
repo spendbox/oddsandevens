@@ -20,6 +20,12 @@ export default async function EnterPage({ searchParams }: PageProps<'/enter'>) {
         <span className="text-2xl font-bold tracking-tight">Spendbox</span>
       </Link>
 
+      {params.reset === '1' ? (
+        <p className="mb-4 rounded-2xl border border-lime/25 bg-lime/10 px-4 py-3 text-sm text-lime">
+          Password changed. Sign in with your new one.
+        </p>
+      ) : null}
+
       {problem === 'profile' ? (
         <p className="mb-4 rounded-2xl border border-rose/30 bg-rose/10 px-4 py-3 text-sm text-rose">
           We could not set up your player profile. Check that the Spendbox tables exist in

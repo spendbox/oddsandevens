@@ -83,16 +83,29 @@ export async function optionalProfile(): Promise<Profile | null> {
 }
 
 /**
- * Who is allowed to see the payouts queue.
+ * Who is allowed into /admin.
  *
- * ADMIN_EMAILS is a comma-separated list, server-side only. Empty means nobody,
- * which is the right default: an unset variable should not open a door.
+ * ADMIN_EMAILS is a comma-separated list, server-side only. An empty list means
+ * nobody, because an unset variable must never open a door.
+ *
+ * That default is right and also the single most confusing thing about this
+ * app to deploy: forget the variable and /admin returns a 404 that looks
+ * exactly like the page not existing. So the two cases are told apart —
+ * `adminsConfigured()` says whether anybody is on the list at all, and the page
+ * explains itself when the answer is no.
  */
-export function isAdmin(email: string): boolean {
-  const allowed = (process.env.ADMIN_EMAILS ?? '')
+function adminList(): string[] {
+  return (process.env.ADMIN_EMAILS ?? '')
     .split(',')
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean)
+}
 
-  return allowed.includes(email.trim().toLowerCase())
+/** Has anybody been named as an admin? */
+export function adminsConfigured(): boolean {
+  return adminList().length > 0
+}
+
+export function isAdmin(email: string): boolean {
+  return adminList().includes(email.trim().toLowerCase())
 }
