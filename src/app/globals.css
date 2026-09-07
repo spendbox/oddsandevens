@@ -40,6 +40,9 @@
   --animate-pulse-glow: pulse-glow 2.4s ease-in-out infinite;
   --animate-shake: shake 380ms ease-in-out;
   --animate-drift: drift 18s ease-in-out infinite;
+  --animate-sheen: sheen 3.2s ease-in-out infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-ring: ring 2.6s ease-out infinite;
 }
 
 @keyframes pop {
@@ -64,6 +67,23 @@
   40% { transform: translateX(8px); }
   60% { transform: translateX(-5px); }
   80% { transform: translateX(3px); }
+}
+
+/* A slow highlight travelling across a headline or a prize figure. */
+@keyframes sheen {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* An expanding halo, for a prize that wants looking at. */
+@keyframes ring {
+  0% { transform: scale(0.85); opacity: 0.55; }
+  100% { transform: scale(1.5); opacity: 0; }
 }
 
 @keyframes drift {
@@ -105,6 +125,26 @@ body {
 }
 
 /* A pane: the frosted card everything sits on. */
+/* Big money. A moving gradient rather than a flat gold, because the number is
+   the whole product and it should not look like body copy. */
+.prize {
+  background-image: linear-gradient(100deg, #ffc94a, #ffe9a8, #ff9a3c, #ffc94a);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: var(--animate-sheen);
+}
+
+/* The faint grid behind the hero — an arcade floor, not a spreadsheet. */
+.arcade-floor {
+  background-image:
+    linear-gradient(to right, rgb(168 85 247 / 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(168 85 247 / 0.09) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 20%, transparent 75%);
+}
+
 .pane {
   background: color-mix(in oklab, var(--color-deep) 82%, transparent);
   border: 1px solid color-mix(in oklab, var(--color-violet) 22%, transparent);

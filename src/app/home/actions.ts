@@ -7,12 +7,13 @@ import { makeBoxCode } from '@/lib/codes'
 import { PRIZE_NAIRA } from '@/lib/money'
 
 /**
- * Make a box. Free, and the only thing it asks for is a name — and even that is
- * optional.
+ * Make a box. Free, and the person keeps one at a time.
  *
- * The insert goes through the signed-in user's own client, not the service-role
- * one, so the "creator_id = auth.uid()" policy is doing the checking. There is
- * nothing here worth bypassing it for.
+ * The one-at-a-time rule is a partial unique index on the boxes table, not a
+ * check here: two taps arriving together are a race, and the database is the
+ * only thing that reliably wins it. A 23505 on the creator index means they
+ * already have one open, which is not an error worth alarming anybody about —
+ * send them to the box they already have.
  */
 export async function createBox(formData: FormData) {
   const { profile } = await requireProfile()
@@ -20,8 +21,6 @@ export async function createBox(formData: FormData) {
 
   const title = String(formData.get('title') ?? '').trim().slice(0, 60)
 
-  // The code column is unique, so a clash is just a retry. Six characters from
-  // a 31-letter alphabet makes that vanishingly rare, but "rare" is not "never".
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const code = makeBoxCode()
 
@@ -37,8 +36,26 @@ export async function createBox(formData: FormData) {
       .select('code')
       .maybeSingle()
 
-    if (data) redirect(`/b/${data.code}`)
-    if (error?.code !== '23505') break
+    if (data) redirect(`/b/${data.code}?fresh=1`)
+
+    if (error?.code === '23505') {
+      // Which unique index tripped? The creator one means they already have a
+      // live box; the code one is a collision worth retrying.
+      if (error.message.includes('boxes_one_open_per_creator')) {
+        const { data: existing } = await supabase
+          .from('boxes')
+          .select('code')
+          .eq('creator_id', profile.id)
+          .eq('status', 'open')
+          .maybeSingle()
+
+        if (existing) redirect(`/b/${existing.code}`)
+        redirect('/home?problem=already')
+      }
+      continue
+    }
+
+    break
   }
 
   redirect('/home?problem=box')

@@ -31,6 +31,7 @@ export function Grid({
   mood,
   disabled,
   pressed,
+  celebrate = false,
   onTap,
 }: {
   /** The tile currently glowing, while the pattern plays. */
@@ -39,6 +40,8 @@ export function Grid({
   disabled: boolean
   /** The tile the player is touching right now, for feedback. */
   pressed: number | null
+  /** Light the whole board up — a level has just been cleared. */
+  celebrate?: boolean
   onTap: (tile: number) => void
 }) {
   return (
@@ -48,6 +51,7 @@ export function Grid({
         'rounded-[2rem] bg-black/35 p-2.5 ring-2 transition-[box-shadow,--tw-ring-color] duration-200',
         MOOD_RING[mood],
         mood === 'wrong' && 'animate-shake',
+        celebrate && 'shadow-[0_0_60px_-10px_rgb(163_230_53/0.55)]',
       )}
     >
       {Array.from({ length: TILE_COUNT }, (_, tile) => {
@@ -69,7 +73,9 @@ export function Grid({
             className={cx(
               'rounded-tile transition-[background-color,box-shadow,transform] duration-100',
               'ring-1 ring-inset',
-              isLit
+              celebrate
+                ? 'animate-pop bg-linear-to-br from-lime/80 to-cyan/70 ring-white/40'
+                : isLit
                 ? 'scale-[1.04] bg-linear-to-br from-cyan to-violet ring-white/50 ' +
                     'shadow-[0_0_28px_6px_rgb(34_211_238/0.45)]'
                 : isPressed

@@ -1,16 +1,16 @@
 import Link from 'next/link'
 import { Card } from '@/components/ui'
 import { Logo } from '@/components/site-header'
+import { PRIZE_NAIRA, naira } from '@/lib/money'
 import { EnterForm } from './enter-form'
 
-export const metadata = { title: 'Sign in' }
+export const metadata = { title: 'Play' }
 
-export default async function EnterPage({
-  searchParams,
-}: PageProps<'/enter'>) {
+export default async function EnterPage({ searchParams }: PageProps<'/enter'>) {
   const params = await searchParams
   const raw = params.next
-  const next = typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/home'
+  const next =
+    typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/home'
   const problem = typeof params.problem === 'string' ? params.problem : null
 
   return (
@@ -32,7 +32,7 @@ export default async function EnterPage({
       </Card>
 
       <p className="mt-6 text-center text-sm text-dusk">
-        Play for coins. Coins cost real money. Only spend what you can afford to lose.
+        Create a box free · share it · earn {naira(PRIZE_NAIRA)} when someone beats it
       </p>
     </main>
   )

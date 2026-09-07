@@ -1,12 +1,15 @@
 import Link from 'next/link'
 import { SiteHeader } from '@/components/site-header'
-import { Button, Card, Empty, Pill } from '@/components/ui'
+import { Button, ButtonLink, Card, Empty, Pill, Problem } from '@/components/ui'
+import { BankForm } from '@/components/bank-form'
+import { PasswordSetup } from '@/components/password-setup'
+import { NameForm } from './name-form'
 import { isAdmin, requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
+import { listBanks, paymentsConfigured, type Bank } from '@/lib/paystack'
 import { naira } from '@/lib/money'
 import type { Payout } from '@/lib/types'
 import { signOut } from '../enter/actions'
-import { AccountForm } from './account-form'
 
 export const metadata = { title: 'Your account' }
 
@@ -21,7 +24,20 @@ export default async function AccountPage() {
     .order('created_at', { ascending: false })
 
   const payouts = (data ?? []) as Payout[]
-  const missingBank = payouts.some((p) => p.status === 'pending') && !profile.account_number
+  const owed = payouts.filter((payout) => payout.status === 'pending')
+
+  // The bank list is Paystack's, and the page must still render without it.
+  let banks: Bank[] = []
+  let banksProblem: string | null = null
+  if (paymentsConfigured()) {
+    try {
+      banks = await listBanks()
+    } catch {
+      banksProblem = 'Could not load the bank list from Paystack just now.'
+    }
+  } else {
+    banksProblem = 'Payments are not set up on this deployment yet.'
+  }
 
   return (
     <>
@@ -31,8 +47,22 @@ export default async function AccountPage() {
         <h1 className="text-3xl font-bold tracking-tight">Your account</h1>
         <p className="mt-1.5 text-mist">{profile.email}</p>
 
-        {/* --------------------------- winnings ------------------------- */}
-        <section className="mt-8">
+        {owed.length > 0 ? (
+          <Card className="mt-6 border-gold/40 bg-gold/10">
+            <p className="font-semibold text-gold">
+              You are owed {naira(owed.reduce((sum, payout) => sum + payout.amount_naira, 0))}
+            </p>
+            <p className="mt-1.5 text-sm text-mist">
+              Finish the two steps below and it will be transferred to you.
+            </p>
+            <ButtonLink href="/claim" tone="gold" size="sm" className="mt-4">
+              Claim it
+            </ButtonLink>
+          </Card>
+        ) : null}
+
+        {/* ------------------------------ winnings ---------------------- */}
+        <section className="mt-10">
           <h2 className="mb-4 text-xl font-bold tracking-tight">Winnings</h2>
 
           {payouts.length === 0 ? (
@@ -50,11 +80,7 @@ export default async function AccountPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">{payout.note}</p>
                       <p className="text-xs text-dusk">
-                        {payout.role === 'winner' ? 'You beat it' : 'Your box was beaten'} ·{' '}
-                        {new Date(payout.created_at).toLocaleDateString('en-NG', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
+                        {payout.role === 'winner' ? 'You beat it' : 'Your box was beaten'}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -68,29 +94,55 @@ export default async function AccountPage() {
               </ul>
             </Card>
           )}
-
-          {missingBank ? (
-            <p className="mt-3 rounded-2xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-gold">
-              Add your bank details below so your winnings can be sent.
-            </p>
-          ) : null}
         </section>
 
-        {/* --------------------------- details -------------------------- */}
+        {/* ------------------------------ name -------------------------- */}
         <section className="mt-10">
-          <h2 className="mb-4 text-xl font-bold tracking-tight">Details</h2>
+          <h2 className="mb-4 text-xl font-bold tracking-tight">Your name</h2>
           <Card>
-            <AccountForm profile={profile} />
+            <NameForm defaultName={profile.display_name} />
           </Card>
         </section>
 
-        <div className="mt-10 flex items-center justify-between gap-4">
+        {/* ------------------------------ password ---------------------- */}
+        <section className="mt-10">
+          <h2 className="mb-2 text-xl font-bold tracking-tight">
+            Password {profile.password_set ? null : <Pill tone="gold">Not set</Pill>}
+          </h2>
+          <p className="mb-4 text-sm text-mist">
+            {profile.password_set
+              ? 'Your password is how you sign in on any device.'
+              : 'You have been playing with just your email. Set a password and this account ' +
+                'is locked to you — and you can sign in from anywhere.'}
+          </p>
+          <Card>
+            <PasswordSetup hasPassword={profile.password_set} />
+          </Card>
+        </section>
+
+        {/* ------------------------------ bank -------------------------- */}
+        <section className="mt-10">
+          <h2 className="mb-2 text-xl font-bold tracking-tight">Where winnings go</h2>
+          <p className="mb-4 text-sm text-mist">
+            Checked against your bank before it is saved, so a payout cannot go to a typo.
+          </p>
+
+          {banksProblem ? (
+            <Problem>{banksProblem}</Problem>
+          ) : (
+            <Card>
+              <BankForm profile={profile} banks={banks} />
+            </Card>
+          )}
+        </section>
+
+        <div className="mt-12 flex items-center justify-between gap-4">
           {isAdmin(profile.email) ? (
             <Link
-              href="/admin/payouts"
+              href="/admin"
               className="text-sm font-medium text-cyan underline underline-offset-4"
             >
-              Payout queue
+              Admin dashboard
             </Link>
           ) : (
             <span />

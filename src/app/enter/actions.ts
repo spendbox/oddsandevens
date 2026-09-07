@@ -2,100 +2,96 @@
 
 import { redirect } from 'next/navigation'
 import { supabaseServer } from '@/lib/supabase/server'
-import { supabaseAdmin } from '@/lib/supabase/admin'
-import { nameFromEmail } from '@/lib/session'
+import { enterWithEmail } from '@/lib/guest'
+import { siteOrigin } from '@/lib/site'
 
 /**
- * Signing in and signing up, with an email address and a password and nothing
- * else. No confirmation link, no magic link, no waiting on an inbox — somebody
- * who has just been sent a box link should be playing within seconds.
+ * Getting in.
  *
- * That "no confirmation" part is a Supabase setting, not something this code
- * can decide: Authentication → Sign In / Providers → Email → turn off "Confirm
- * email". If it is left on, signUp returns no session and the person is stuck
- * looking at a screen telling them to check an inbox. So this checks for that
- * exact case and says what to do about it, rather than failing silently.
+ * There is one field to start with: an email address. If that address has no
+ * password, the player is simply let in — see src/lib/guest.ts for why that is
+ * safe and where it stops. If it does have one, the form asks for it.
+ *
+ * Nobody is ever sent away to check an inbox before they can play. The only
+ * email Spendbox sends is a password reset, and only when asked for.
  */
 
-export type EnterState = { problem?: string }
+export type EnterState = {
+  problem?: string
+  /** The form asks for a password once we know the account has one. */
+  needsPassword?: boolean
+  email?: string
+  sentReset?: boolean
+}
 
-function cleanNext(raw: FormData['get'] extends never ? never : unknown): string {
+function safeNext(raw: unknown): string {
   const value = typeof raw === 'string' ? raw : ''
   // Only ever redirect inside this site. An open redirect on a sign-in form is
   // how phishing links get their credibility.
   return value.startsWith('/') && !value.startsWith('//') ? value : '/home'
 }
 
-export async function signIn(_state: EnterState, formData: FormData): Promise<EnterState> {
+/** Step one: an email, and nothing else. */
+export async function enter(_state: EnterState, formData: FormData): Promise<EnterState> {
+  const email = String(formData.get('email') ?? '').trim().toLowerCase()
+  const next = safeNext(formData.get('next'))
+
+  const result = await enterWithEmail(email)
+
+  if (!result.ok) {
+    if ('needsPassword' in result) return { needsPassword: true, email }
+    return { problem: result.problem, email }
+  }
+
+  redirect(next)
+}
+
+/** Step two, only for accounts that have a password. */
+export async function enterWithPassword(
+  _state: EnterState,
+  formData: FormData,
+): Promise<EnterState> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
   const password = String(formData.get('password') ?? '')
-  const next = cleanNext(formData.get('next'))
+  const next = safeNext(formData.get('next'))
 
-  if (!email || !password) return { problem: 'Enter your email and your password.' }
+  if (!password) return { needsPassword: true, email, problem: 'Enter your password.' }
 
   const supabase = await supabaseServer()
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
     return {
-      problem:
-        error.message.toLowerCase().includes('invalid')
-          ? 'That email and password do not match an account.'
-          : error.message,
+      needsPassword: true,
+      email,
+      problem: error.message.toLowerCase().includes('invalid')
+        ? 'That password does not match this account.'
+        : error.message,
     }
   }
 
   redirect(next)
 }
 
-export async function signUp(_state: EnterState, formData: FormData): Promise<EnterState> {
+/**
+ * Send a reset link.
+ *
+ * Always reports success, whether or not the address exists. Saying "no account
+ * with that email" turns this form into a way to find out who has an account
+ * here, which is nobody's business.
+ */
+export async function sendReset(_state: EnterState, formData: FormData): Promise<EnterState> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  const password = String(formData.get('password') ?? '')
-  const name = String(formData.get('name') ?? '').trim()
-  const next = cleanNext(formData.get('next'))
-
-  if (!email.includes('@')) return { problem: 'That does not look like an email address.' }
-  if (password.length < 6) return { problem: 'Use a password of at least 6 characters.' }
+  if (!email.includes('@')) return { problem: 'Enter your email address first.', email }
 
   const supabase = await supabaseServer()
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { display_name: name } },
+  const origin = await siteOrigin()
+
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/reset`,
   })
 
-  if (error) {
-    return {
-      problem: error.message.toLowerCase().includes('already')
-        ? 'There is already an account with that email. Sign in instead.'
-        : error.message,
-    }
-  }
-
-  if (!data.session) {
-    return {
-      problem:
-        'The account was made, but Supabase is set to require an email confirmation. ' +
-        'Turn it off under Authentication → Sign In / Providers → Email → "Confirm email", ' +
-        'then sign in.',
-    }
-  }
-
-  // Give the profile the name they typed rather than one guessed from the
-  // email. Done here because loadOrCreateProfile only ever guesses.
-  if (data.user) {
-    const admin = supabaseAdmin()
-    await admin.from('profiles').upsert(
-      {
-        id: data.user.id,
-        email,
-        display_name: name || nameFromEmail(email),
-      },
-      { onConflict: 'id' },
-    )
-  }
-
-  redirect(next)
+  return { sentReset: true, email }
 }
 
 export async function signOut() {
