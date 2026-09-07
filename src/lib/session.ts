@@ -1,89 +1,98 @@
 import { redirect } from 'next/navigation'
 import { supabaseServer } from './supabase/server'
+import { supabaseAdmin } from './supabase/admin'
 import type { Profile } from './types'
 
-function handleFrom(email: string | undefined): string {
-  const base = (email ?? '').split('@')[0].replace(/[^a-z0-9]/gi, '').toLowerCase()
-  return base.slice(0, 20) || 'maker'
+/** A friendly name from an email address, for someone who hasn't set one. */
+export function nameFromEmail(email: string | undefined | null): string {
+  const local = (email ?? '').split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim()
+  if (!local) return 'Player'
+  return local.charAt(0).toUpperCase() + local.slice(1, 20)
 }
 
 /**
- * Create the profile for someone who does not have one yet.
+ * Fetch the profile for a signed-in user, creating it the first time.
  *
- * Normally the database trigger on auth.users has already done this. Some
- * Supabase projects will not let the SQL editor attach that trigger, so the app
- * does not depend on it: a signed-in user without a profile is recoverable
- * rather than a dead end.
+ * Written with the service-role client rather than a database trigger on
+ * auth.users: some Supabase projects will not let the SQL editor attach that
+ * trigger, and a signed-in person with no profile row should be something the
+ * app recovers from, not a dead end.
  */
-async function createProfile(userId: string, email: string | undefined, name: string) {
-  const supabase = await supabaseServer()
-  const base = handleFrom(email)
+async function loadOrCreateProfile(userId: string, email: string): Promise<Profile | null> {
+  const admin = supabaseAdmin()
 
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const handle = attempt === 0 ? base : `${base}${attempt + 1}`
-    const { data, error } = await supabase
-      .from('profiles')
-      .insert({ id: userId, handle, full_name: name })
-      .select('*')
-      .maybeSingle()
-
-    if (data) return data as Profile
-    if (error?.code !== '23505') break
-  }
-
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from('profiles')
     .select('*')
     .eq('id', userId)
     .maybeSingle()
 
-  return (existing as Profile) ?? null
+  if (existing) return existing as Profile
+
+  const { data: created } = await admin
+    .from('profiles')
+    .insert({ id: userId, email, display_name: nameFromEmail(email) })
+    .select('*')
+    .maybeSingle()
+
+  if (created) return created as Profile
+
+  // Lost a race with another tab creating the same row. Read it back.
+  const { data: raced } = await admin
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle()
+
+  return (raced as Profile) ?? null
 }
 
-/** The signed-in person. Always getUser(): the proxy's check is optimistic. */
+/**
+ * The signed-in person, or a redirect to the sign-in page.
+ *
+ * Always getUser() rather than getSession(): the proxy's check is optimistic
+ * and a cookie can say anything, so the one that asks Supabase is the one that
+ * counts.
+ */
 export async function requireProfile(): Promise<{ profile: Profile; userId: string }> {
   const supabase = await supabaseServer()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) redirect('/signin')
+  if (!user) redirect('/enter')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle()
+  const profile = await loadOrCreateProfile(user.id, user.email ?? '')
 
-  if (profile) return { profile: profile as Profile, userId: user.id }
-
-  const created = await createProfile(
-    user.id,
-    user.email,
-    typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '',
-  )
-
-  // Without a profile there is nothing to render, and /signin would bounce
+  // Without a profile there is nothing to render, and /enter would bounce
   // straight back here. Land somewhere that explains itself instead.
-  if (!created) redirect('/signin?problem=profile')
+  if (!profile) redirect('/enter?problem=profile')
 
-  return { profile: created, userId: user.id }
+  return { profile, userId: user.id }
 }
 
-/** The signed-in person, or null. For pages that work either way. */
-export async function optionalProfile(): Promise<{ profile: Profile | null; userId: string | null }> {
+/** The signed-in person, or null. For pages that work either way — a box page. */
+export async function optionalProfile(): Promise<Profile | null> {
   const supabase = await supabaseServer()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) return { profile: null, userId: null }
+  if (!user) return null
+  return loadOrCreateProfile(user.id, user.email ?? '')
+}
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle()
+/**
+ * Who is allowed to see the payouts queue.
+ *
+ * ADMIN_EMAILS is a comma-separated list, server-side only. Empty means nobody,
+ * which is the right default: an unset variable should not open a door.
+ */
+export function isAdmin(email: string): boolean {
+  const allowed = (process.env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
 
-  return { profile: (profile as Profile) ?? null, userId: user.id }
+  return allowed.includes(email.trim().toLowerCase())
 }

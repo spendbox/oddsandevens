@@ -1,0 +1,408 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Grid, type GridMood } from '@/components/grid'
+import { Button, ButtonLink, Card, Pill } from '@/components/ui'
+import { LEVELS, answerMsFor, stepsFor } from '@/lib/game'
+import { naira } from '@/lib/money'
+import type { Box } from '@/lib/types'
+
+/** What the server sends back after every call. Mirrors GameState in lib/play. */
+type Round = {
+  pattern: number[]
+  flashMs: number
+  gapMs: number
+  answerMs: number
+  msRemaining: number
+}
+
+type GameState = {
+  attemptId: string
+  status: 'playing' | 'won' | 'failed'
+  level: number
+  levelsCleared: number
+  replaysLeft: number
+  awaitingReplay: boolean
+  round?: Round
+  message?: string
+}
+
+/**
+ * Where the screen is in the loop:
+ *
+ *   ready  -> the level card, clock stopped. Nothing is running until they tap.
+ *   watch  -> the pattern plays. Still no clock; watching is free.
+ *   tap    -> their turn, and now the clock runs.
+ *   judged -> a beat of feedback, then either the next level or the miss card.
+ *
+ * The clock stopping between levels is the rule of the game, not a nicety: a
+ * player must never lose a second to a screen they were reading.
+ */
+type Phase = 'ready' | 'watch' | 'tap' | 'sending' | 'cleared' | 'missed' | 'over'
+
+/** How long the "level cleared" flash sits on screen before the next card. */
+const CLEARED_MS = 850
+
+export function Game({ initial, box }: { initial: GameState; box: Box }) {
+  const router = useRouter()
+
+  const [state, setState] = useState<GameState>(initial)
+  const [phase, setPhase] = useState<Phase>(
+    initial.status !== 'playing' ? 'over' : initial.awaitingReplay ? 'missed' : 'ready',
+  )
+  const [round, setRound] = useState<Round | null>(null)
+  const [lit, setLit] = useState<number | null>(null)
+  const [pressed, setPressed] = useState<number | null>(null)
+  const [taps, setTaps] = useState<number[]>([])
+  const [msLeft, setMsLeft] = useState(0)
+
+  // Every timer this component starts, so a phase change can cancel all of
+  // them at once. A stray flash from a previous level landing on a live round
+  // would be a bug the player experiences as the game cheating.
+  const timers = useRef<Array<ReturnType<typeof setTimeout>>>([])
+  // The countdown below closes over the taps as they were when it started, so
+  // it reads them from here instead of from state.
+  const tapsRef = useRef<number[]>([])
+  const clearTimers = useCallback(() => {
+    for (const timer of timers.current) clearTimeout(timer)
+    timers.current = []
+  }, [])
+  const later = useCallback((fn: () => void, ms: number) => {
+    timers.current.push(setTimeout(fn, ms))
+  }, [])
+
+  useEffect(() => clearTimers, [clearTimers])
+
+  const post = useCallback(async (path: string, body: object): Promise<GameState | null> => {
+    try {
+      const response = await fetch(`/api/game/${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ attemptId: initial.attemptId, ...body }),
+      })
+      if (!response.ok) return null
+      return (await response.json()) as GameState
+    } catch {
+      return null
+    }
+  }, [initial.attemptId])
+
+  /** Play the pattern out, flash by flash, then hand the grid over. */
+  const showPattern = useCallback(
+    (next: Round) => {
+      clearTimers()
+      setTaps([])
+      setLit(null)
+      setPhase('watch')
+
+      let elapsed = 0
+      next.pattern.forEach((tile) => {
+        later(() => setLit(tile), elapsed)
+        later(() => setLit(null), elapsed + next.flashMs)
+        elapsed += next.flashMs + next.gapMs
+      })
+
+      later(() => {
+        // The server's deadline is the real one. If a reload ate into it, the
+        // player gets what is left rather than a full clock they do not have.
+        const serverLeft = next.msRemaining - elapsed
+        setMsLeft(Math.max(0, Math.min(next.answerMs, serverLeft)))
+        setPhase('tap')
+      }, elapsed)
+    },
+    [clearTimers, later],
+  )
+
+  /** Ask the server to start the level, then show whatever it sends. */
+  const beginLevel = useCallback(async () => {
+    clearTimers()
+    setPhase('sending')
+
+    const next = await post('begin', {})
+    if (!next) {
+      setPhase('ready')
+      return
+    }
+
+    setState(next)
+
+    if (next.status !== 'playing') return setPhase('over')
+    if (next.awaitingReplay) return setPhase('missed')
+    if (!next.round) return setPhase('ready')
+
+    setRound(next.round)
+    showPattern(next.round)
+  }, [clearTimers, post, showPattern])
+
+  /** Send the taps and act on the verdict. */
+  const submit = useCallback(
+    async (finalTaps: number[]) => {
+      clearTimers()
+      setPhase('sending')
+
+      const next = await post('answer', { level: state.level, taps: finalTaps })
+      if (!next) return setPhase('missed')
+
+      setRound(null)
+      setState(next)
+
+      if (next.status === 'won' || next.status === 'failed') {
+        setPhase('over')
+        // The box page, the wallet and the dashboard all changed. Let the
+        // server components behind this screen catch up.
+        router.refresh()
+        return
+      }
+
+      if (next.awaitingReplay) return setPhase('missed')
+
+      setPhase('cleared')
+      later(() => setPhase('ready'), CLEARED_MS)
+    },
+    [clearTimers, later, post, router, state.level],
+  )
+
+  /** The countdown, while it is the player's turn. */
+  useEffect(() => {
+    if (phase !== 'tap') return
+
+    const endsAt = Date.now() + msLeft
+    const tick = setInterval(() => {
+      const remaining = endsAt - Date.now()
+
+      if (remaining <= 0) {
+        clearInterval(tick)
+        setMsLeft(0)
+        // Send whatever they managed. The server will call it a miss, and it
+        // gets to make that call rather than the browser announcing it.
+        void submit(tapsRef.current)
+        return
+      }
+
+      setMsLeft(remaining)
+    }, 60)
+
+    return () => clearInterval(tick)
+    // msLeft is the starting value for this run of the clock, set once when the
+    // phase turns to 'tap'. Re-running on every tick would restart the clock.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
+  useEffect(() => {
+    tapsRef.current = taps
+  }, [taps])
+
+  const onTap = (tile: number) => {
+    if (phase !== 'tap' || !round) return
+
+    setPressed(tile)
+    later(() => setPressed(null), 120)
+
+    const next = [...taps, tile]
+    setTaps(next)
+
+    if (next.length >= round.pattern.length) void submit(next)
+  }
+
+  const replay = async () => {
+    setPhase('sending')
+    const next = await post('replay', {})
+    if (!next) return setPhase('missed')
+
+    setState(next)
+    if (next.status !== 'playing') return setPhase('over')
+    if (!next.round) return setPhase('ready')
+
+    setRound(next.round)
+    showPattern(next.round)
+  }
+
+  const steps = phase === 'ready' ? stepsFor(state.level) : (round?.pattern.length ?? stepsFor(state.level))
+  const nextAnswerSeconds = answerMsFor(state.level) / 1000
+  const answerMs = round?.answerMs ?? 1
+  const fraction = phase === 'tap' ? Math.max(0, Math.min(1, msLeft / answerMs)) : 1
+
+  const mood: GridMood =
+    phase === 'watch' ? 'showing' : phase === 'tap' ? 'input' : phase === 'cleared' ? 'right' : phase === 'missed' ? 'wrong' : 'idle'
+
+  // ---------------------------------------------------------------- the end
+  if (phase === 'over') {
+    const won = state.status === 'won'
+    const beatenByBox = box.status === 'won' && box.winner_id !== null
+
+    return (
+      <div className="animate-rise text-center">
+        <p className="text-7xl" aria-hidden>
+          {won ? '🏆' : '💥'}
+        </p>
+
+        <h1 className="mt-4 text-3xl font-bold tracking-tight">
+          {won ? 'You beat the box' : `Level ${state.levelsCleared + 1} got you`}
+        </h1>
+
+        <p className="mt-3 text-mist">
+          {won
+            ? state.message === 'You beat the box.'
+              ? `${naira(box.prize_naira)} is yours, and the same goes to ${box.creator_name || 'the creator'}. Add your bank details and it will be sent by transfer.`
+              : 'You cleared all ten — but somebody else got to this box first.'
+            : `You cleared ${state.levelsCleared} of ${LEVELS}. Another coin, another go.`}
+        </p>
+
+        <div className="mt-8 grid gap-3">
+          {won ? (
+            <ButtonLink href="/account" tone="gold" size="lg">
+              Add bank details
+            </ButtonLink>
+          ) : !beatenByBox ? (
+            <ButtonLink href={`/b/${box.code}`} tone="gold" size="lg">
+              Try again · 1 coin
+            </ButtonLink>
+          ) : null}
+
+          <ButtonLink href="/home" tone="ghost" size="lg">
+            Back to your boxes
+          </ButtonLink>
+        </div>
+      </div>
+    )
+  }
+
+  // ------------------------------------------------------------ a miss
+  if (phase === 'missed') {
+    return (
+      <div className="animate-rise text-center">
+        <p className="text-6xl" aria-hidden>
+          😵‍💫
+        </p>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight">
+          {state.message ?? 'That was not the pattern.'}
+        </h1>
+        <p className="mt-2 text-mist">
+          You have {state.replaysLeft} free {state.replaysLeft === 1 ? 'replay' : 'replays'} left.
+          Use it and level {state.level} starts again with a brand new pattern.
+        </p>
+
+        <div className="mt-8 grid gap-3">
+          <Button onClick={replay} tone="gold" size="lg" disabled={state.replaysLeft < 1}>
+            ↻ Replay level {state.level} · free
+          </Button>
+          <ButtonLink href="/home" tone="ghost" size="lg">
+            Give up
+          </ButtonLink>
+        </div>
+      </div>
+    )
+  }
+
+  // ------------------------------------------------------------ the game
+  return (
+    <div className="no-select">
+      {/* progress through the ten levels */}
+      <div className="mb-5 flex items-center gap-3">
+        <Link href={`/b/${box.code}`} className="text-sm text-dusk hover:text-mist">
+          ← Box {box.code}
+        </Link>
+        <div className="ml-auto flex items-center gap-2">
+          <Pill tone={state.replaysLeft > 0 ? 'cyan' : 'quiet'}>
+            ↻ {state.replaysLeft} replay{state.replaysLeft === 1 ? '' : 's'}
+          </Pill>
+        </div>
+      </div>
+
+      <div className="mb-5 flex gap-1.5" aria-label={`Level ${state.level} of ${LEVELS}`}>
+        {Array.from({ length: LEVELS }, (_, index) => (
+          <div
+            key={index}
+            className={
+              'h-1.5 flex-1 rounded-full transition ' +
+              (index < state.levelsCleared
+                ? 'bg-lime'
+                : index === state.levelsCleared
+                  ? 'bg-violet'
+                  : 'bg-white/10')
+            }
+          />
+        ))}
+      </div>
+
+      {/* The clock, or the reason there isn't one yet.
+          Fixed height on purpose: this text changes on every phase, and if the
+          block were allowed to resize, the grid underneath would jump between
+          "watch" and "your turn" — moving the tap targets at the exact moment
+          the player starts aiming at them. */}
+      <div className="mb-5 flex h-[7.5rem] flex-col justify-center text-center">
+        <p className="text-sm font-semibold tracking-[0.2em] text-dusk uppercase">
+          Level {state.level}
+        </p>
+
+        {phase === 'tap' ? (
+          <p className="tabular mt-1 text-5xl font-bold text-chalk">
+            {(msLeft / 1000).toFixed(1)}
+            <span className="text-2xl text-dusk">s</span>
+          </p>
+        ) : (
+          <p className="mt-1 text-2xl font-bold text-mist">
+            {phase === 'watch'
+              ? 'Watch…'
+              : phase === 'cleared'
+                ? 'Cleared ✓'
+                : phase === 'sending'
+                  ? '…'
+                  : `${steps} flashes`}
+          </p>
+        )}
+
+        <div className="mx-auto mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-white/10">
+          <div
+            className={
+              'h-full rounded-full transition-[width] duration-75 ease-linear ' +
+              (fraction > 0.4 ? 'bg-lime' : fraction > 0.18 ? 'bg-gold' : 'bg-rose')
+            }
+            style={{ width: `${fraction * 100}%` }}
+          />
+        </div>
+      </div>
+
+      <Grid
+        lit={lit}
+        mood={mood}
+        disabled={phase !== 'tap'}
+        pressed={pressed}
+        onTap={onTap}
+      />
+
+      {/* how many taps in, so a player can tell where they are */}
+      <div className="mt-5 flex items-center justify-center gap-1.5" aria-hidden>
+        {Array.from({ length: steps }, (_, index) => (
+          <span
+            key={index}
+            className={
+              'size-2 rounded-full transition ' +
+              (index < taps.length ? 'bg-cyan' : 'bg-white/12')
+            }
+          />
+        ))}
+      </div>
+
+      {/* Reserved whether or not the card is in it, for the same reason. */}
+      <div className="mt-6 min-h-[13rem]">
+        {phase === 'ready' ? (
+        <Card className="text-center">
+          <p className="text-sm leading-relaxed text-mist">
+            {state.levelsCleared === 0
+              ? `${steps} tiles will flash. Tap them back in the same order.`
+              : `${steps} flashes this time, and ${nextAnswerSeconds} seconds to answer.`}{' '}
+            The clock is stopped until you start, and stays stopped while the pattern plays.
+          </p>
+
+          <Button onClick={beginLevel} tone="gold" size="lg" className="mt-4 w-full">
+            {state.levelsCleared === 0 ? 'Start level 1' : `Start level ${state.level}`}
+          </Button>
+        </Card>
+        ) : null}
+      </div>
+    </div>
+  )
+}

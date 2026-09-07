@@ -1,167 +1,160 @@
-# Forge
+# Spendbox
 
-**Describe a tool. Get a tool.**
+**Drop a box. Share the link. Somebody beats it, and you both get paid.**
 
-Say what you want in a sentence — *"a calculator that works out import duty on a
-car coming into Nigeria"* — and Forge builds it. You change whatever you like,
-publish it, and you have a link. Share it, or charge for it.
-
----
-
-## What it can build
-
-You never choose from this list. Forge reads what you asked for and picks the
-engine; you can overrule it.
-
-| | Engine | What it makes | Example |
-|---|---|---|---|
-| 🧮 | **Calculator** | Someone enters numbers, the tool works something out | Import duty, loan repayments, profit margin |
-| 📋 | **Quiz** | Questions in, a scored result out | Business health check, career assessment |
-| 📄 | **Generator** | A form that produces a finished document | Invoice, business plan, proposal |
-| 📊 | **Tracker** | Entries kept over time, with summaries | Daily expenses, medication, weight |
-| 🗂 | **Directory** | A searchable list the creator curates | Scholarships, suppliers, vendors |
-| ✨ | **AI assistant** | An expert that answers in the creator's domain | Tenancy law, exam coaching, CV help |
-
-Adding a seventh means adding an engine — a schema, and how to run it — not
-touching the rest of the app. See `src/lib/engines/`.
-
-## How building works
-
-Two calls to Claude, not one.
-
-1. **What kind of thing is this?** A cheap, low-effort classification that also
-   names the tool, picks an emoji and a colour, and says why it chose that
-   engine.
-2. **Build that kind of thing.** Against *that engine's* schema, passed to the
-   API as a JSON schema through
-   [structured outputs](https://docs.anthropic.com/en/docs/build-with-claude/structured-outputs).
-
-Splitting them means each response is validated against one tight shape rather
-than a union, and **the model cannot hand the app a shape it then has to defend
-against.** Every spec is parsed again before it is saved, and again before it is
-run.
-
-## Editing
-
-Two ways, and the first is the point:
-
-- **Ask for a change.** *"Add an input for clearing agent fees and include it in
-  the total."* Claude rebuilds the tool with that change and leaves the rest
-  alone.
-- **Edit it by hand.** Every field of every engine, in one editor generated from
-  the shape of the spec itself — so a new engine gets an editor for free.
-
-## Two things that are parsed, never evaluated
-
-- **Formulas.** A creator writes `if(age > 10, value * 0.35, value * 0.20)` and
-  it runs in every visitor's browser. `src/lib/expression.ts` implements a small
-  language — arithmetic, comparisons, and `min`, `max`, `round`, `floor`,
-  `ceil`, `abs`, `sqrt`, `if` — and refuses everything else. There is no `eval`
-  and there must never be one.
-- **Markdown.** Generated documents and assistant replies are rendered into
-  React elements, not injected as HTML. No `dangerouslySetInnerHTML` anywhere.
-
-## Money
-
-Paid tools go through Paystack. Two rules hold it together:
-
-- A purchase is marked paid **only after Paystack itself has been asked**, never
-  because a browser came back from checkout.
-- A buyer can only ever create a *pending* row, for the *correct amount*, on a
-  *published* tool. Nothing they can reach flips it to paid — that is done
-  server-side with the service role. (An earlier version let a buyer insert a row
-  already marked paid. It was caught in testing; the policy in
-  `0004_purchase_integrity.sql` is what closed it.)
-
-When a creator sets their Paystack subaccount, the split happens at Paystack, so
-their earnings never sit in a platform balance waiting to be paid out by hand.
+A box holds ₦100,000. Making one is free. Anyone with the link can try to beat
+it, and each try costs the player one coin. Beating a box means clearing ten
+patterns in a row against a clock that never gets kinder. Whoever does it first
+takes ₦100,000 — and the person who made the box takes ₦100,000 too.
 
 ---
 
-## Running it
+## The game
 
-### 1. If you are coming from the old project
+A 3×3 grid. Tiles light up one at a time; you tap them back in the same order.
 
-`supabase/teardown-old-commons.sql` removes everything the previous app created —
-all 27 tables, its functions, its triggers and its demo accounts. Run it once in
-the Supabase SQL Editor. It is safe to run twice and touches nothing else.
+| Level | Flashes | Each flash | Time to answer |
+|------:|--------:|-----------:|---------------:|
+| 1 | 4 | 620ms | 2s |
+| 2 | 5 | 580ms | 2s |
+| 3 | 6 | 540ms | 2s |
+| 4 | 7 | 500ms | 3s |
+| 5 | 8 | 460ms | 3s |
+| 6 | 9 | 420ms | 3s |
+| 7 | 10 | 380ms | 4s |
+| 8 | 11 | 340ms | 4s |
+| 9 | 12 | 300ms | 4s |
+| 10 | 13 | 260ms | 5s |
 
-### 2. The database
+Two seconds to start, and another second every three levels. The pattern gets
+one flash longer and 40ms faster each level, so the pressure comes from both
+ends at once. A perfect run is about 77 seconds of play.
 
-In Supabase, open **SQL Editor** and run these in order, checking each reports
-Success:
+**The clock stops between levels.** It does not start when the level card
+appears, and it does not run while the pattern is playing. It starts the instant
+the last flash goes out — reading and watching are free, only recalling is
+timed.
 
-1. `supabase/migrations/0001_init.sql`
-2. `supabase/migrations/0002_policies.sql`
-3. `supabase/migrations/0003_counters.sql`
-4. `supabase/migrations/0004_purchase_integrity.sql`
+**Every run generates its own patterns.** Nobody can learn a box by heart, and
+no two games are the same.
 
-They are safe to re-run. Then check:
+**One free replay per game.** Miss a level and you can take it again — new
+pattern, same level, no charge. Miss again and the game is over; the next go
+costs another coin.
 
-```sql
-select count(*) from information_schema.tables where table_schema = 'public';
+## The money
+
+| | |
+|---|---|
+| Making a box | Free |
+| One coin | ₦100 |
+| Smallest top-up | 5 coins (₦500) |
+| One game | 1 coin |
+| Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
+
+Coins are bought through Paystack. Winnings are paid out **by hand**, by bank
+transfer, from the Paystack dashboard — there is no key on this server that can
+move money out on its own. `/admin/payouts` is the worklist for whoever does it.
+
+## Where the rules are enforced
+
+The browser is trusted with nothing. It says which game it is playing and which
+tiles were tapped, and that is all. Everything else — what the pattern was, when
+the clock started, whether the answer arrived in time, whether a replay is
+available, who beat the box — is decided on the server against rows a browser
+cannot write.
+
+Concretely:
+
+- **Row level security is on for every table**, and there is no insert or update
+  policy for attempts, payouts, top-ups or the ledger. A browser holding the
+  anon key cannot create a game, award itself a payout, or mark its own winnings
+  paid. It cannot even change its own coin balance: a trigger on `profiles`
+  refuses that for anyone but the server.
+- **Three things happen inside one database transaction**, because doing them
+  twice costs somebody something: crediting a payment, taking a coin and opening
+  a game, and deciding who won. They live in `supabase/migrations/0003_functions.sql`
+  and only the service role may call them.
+- **A box is won exactly once.** The claim is an update that only matches while
+  `winner_id is null`, so two players finishing in the same millisecond cannot
+  both be first.
+- **A payment is credited exactly once.** Paystack is asked directly — the
+  browser coming back from checkout is only a hint that it is worth asking — and
+  the top-up row flips `pending → success` in one conditional update that only
+  one caller can win. The webhook and the browser callback race constantly; that
+  is fine.
+- **Patterns are issued one level at a time.** Sending all ten up front would
+  hand a player the rest of the game the moment they started it. Reloading
+  mid-level returns *the same* pattern with the time that is actually left, so a
+  refresh costs seconds rather than buying a re-roll.
+
+The one thing the server cannot hide is the pattern for the level in play: to
+show it to somebody, it has to be sent to them. A determined player reading
+their own network traffic can see it. Every other defence still holds — the
+clock, the level, the replay count and the win are all the server's to decide.
+
+## Stack
+
+- Next.js 16 (App Router, Turbopack) + React 19 + TypeScript
+- Tailwind CSS v4, configured in `src/app/globals.css` — no config file
+- Supabase (Postgres + Auth), deployed on Vercel
+- Paystack for coin purchases
+
+No webfont: the app uses the device's own interface font. On mobile data, a font
+download is the difference between "instant" and "is it broken?".
+
+## Setting it up
+
+**1. The database.** In Supabase → SQL Editor, run these four files in order:
+
+```
+supabase/reset.sql              wipes the old project clean
+supabase/migrations/0001_schema.sql
+supabase/migrations/0002_policies.sql
+supabase/migrations/0003_functions.sql
 ```
 
-You want **6**.
+**2. Turn off email confirmation.** Authentication → Sign In / Providers →
+Email → uncheck **Confirm email**. Signing up is meant to be an email, a
+password, and you are in. Leave it on and new players get stuck waiting for a
+link.
 
-**Turn off email confirmation** — this one is not optional, or nobody can sign
-in. **Authentication → Sign In / Providers → Email → untick "Confirm email"**.
+**3. Environment variables.** Copy `.env.example` and fill it in. All five go
+into Vercel under Settings → Environment Variables:
 
-### 3. Settings
+| | |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same page, the "anon" key |
+| `SUPABASE_SERVICE_ROLE_KEY` | same page, the "service_role" key — **required** |
+| `PAYSTACK_SECRET_KEY` | Paystack → Settings → API Keys |
+| `ADMIN_EMAILS` | who can see `/admin/payouts`, comma-separated |
 
-Create `.env.local` (locally) or add these in Vercel under **Settings →
-Environment Variables**:
+`SUPABASE_SERVICE_ROLE_KEY` is not optional here. Every coin spent and every
+answer judged goes through it. Never give it a `NEXT_PUBLIC_` prefix.
 
-| Variable | Needed for | Where it comes from |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | everything | Supabase → Project Settings → API |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | everything | same page, the **anon**/publishable key |
-| `ANTHROPIC_API_KEY` | building tools, AI assistants | console.anthropic.com → API Keys |
-| `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | paid tools | Paystack → Settings → API Keys |
-| `PAYSTACK_SECRET_KEY` | paid tools | same page |
-| `SUPABASE_SERVICE_ROLE_KEY` | paid tools | Supabase → Project Settings → API → **service_role** |
+**4. The Paystack webhook.** Paystack → Settings → API Keys & Webhooks → set the
+webhook URL to `https://your-domain/api/paystack/webhook`. Without it, a player
+who closes the tab mid-payment has paid and has no coins.
 
-The last three are only needed once you want to charge for something. The bottom
-two are secrets: server-side only, never with a `NEXT_PUBLIC_` prefix.
+**5. Deploy.** Push to Vercel. Environment variables are read at build time, so
+redeploy after changing any of them.
 
-On Vercel these are read **when the site is built**, so redeploy after adding
-them.
-
-### 4. Run
-
-```bash
-npm install
-npm run dev
-```
-
-Then <http://localhost:3000>. To deploy, push to GitHub and import the repo at
-[vercel.com/new](https://vercel.com/new).
-
----
-
-## Structure
+## Where things are
 
 ```
-src/
-  app/
-    page.tsx           the landing page
-    signin/            sign in and sign up
-    new/               describe a tool
-    build/[id]/        the editor: preview, ask for a change, publish
-    tools/             everything you have built
-    t/[slug]/          the public tool — the link you share
-    api/assistant/     streams an AI assistant's reply
-  components/
-    runners/           one per engine: what a tool looks like when used
-    markdown.tsx       renders generated documents, safely
-  lib/
-    claude.ts          plan, build, revise, polish, converse
-    engines/           the six engines and their schemas
-    expression.ts      the formula language
-    paystack.ts        checkout and verification
-    supabase/          browser, server and service-role clients
-  proxy.ts             session refresh and route protection
-supabase/
-  migrations/          the database, in order
-  teardown-old-commons.sql
+src/lib/game.ts        the difficulty curve and the pattern generator
+src/lib/play.ts        the referee: issues levels, judges answers, crowns winners
+src/lib/wallet.ts      turning a Paystack payment into coins, exactly once
+src/lib/money.ts       every price in the product, in one file
+src/components/grid.tsx  the nine tiles
+supabase/migrations/   the schema, the policies, and the three atomic functions
 ```
+
+If the game turns out too hard or too easy, `answerMsFor` in `src/lib/game.ts`
+is the number to change. The whole curve moves with it.
+
+## A note on what this is
+
+Spendbox is a game of skill played for money. Coins are non-refundable once
+spent, and a box can only ever be won once. Both screens say so.
