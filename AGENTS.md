@@ -167,6 +167,29 @@ structural.
   inside the same `Promise.all` as the cookie read, so a build-time render hit
   the service-role client before the route had been marked dynamic. Marketing
   numbers degrade to their baseline; only money is entitled to throw.
+- `src/proxy.ts` is not allowed to throw, ever. It runs on every request to
+  every route, so an exception there is not a broken page but a broken site,
+  box links included. It threw once, over `NEXT_PUBLIC_SUPABASE_URL`, and every
+  URL on the domain answered with a stack trace. Missing settings or an
+  unreachable Supabase mean the request passes through and the pages behind
+  decide.
+- Read Supabase settings through `readSupabaseEnv()`, which reports, not
+  `supabaseEnv()`, which throws — the throwing one is for callers holding a coin
+  or a payout. `optionalProfile()` returns null rather than throwing so the
+  landing page and box pages render for a stranger whatever state the
+  deployment is in; `requireProfile()` sends people to `/setup`.
+- Every Supabase setting has a second name without the `NEXT_PUBLIC_` prefix
+  (`SUPABASE_URL`, `SUPABASE_ANON_KEY`), and both are read. A `NEXT_PUBLIC_`
+  name is compiled into the build, so a deployment made before the variable
+  existed cannot see it however long it has been in the dashboard, and a Preview
+  build cannot see a Production-only value. The prefix-free names are never
+  compiled in, so they are read on every request and work without a redeploy.
+  Read them written out in full — `process.env[name]` with a computed key is
+  invisible to the compiler and silently reads nothing in the browser.
+- `/setup` says what the running deployment can actually see, names and
+  booleans only, never values. It is public while Supabase is down, because
+  that is when there is no sign-in left to put it behind, and admin-only once
+  Supabase works again.
 - The front-page counters add `STATS_BASELINE` in `src/lib/money.ts` to the real
   totals. That baseline is a launch figure presented to readers as history —
   treat changing it as a claim being made, not a setting being tuned.
