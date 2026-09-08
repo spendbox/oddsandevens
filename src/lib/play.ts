@@ -1,6 +1,7 @@
 import 'server-only'
 import { supabaseAdmin } from './supabase/admin'
 import {
+  COUNT_IN_MS,
   LATENCY_GRACE_MS,
   LEVELS,
   makePattern,
@@ -190,9 +191,10 @@ async function recordMiss(attempt: Attempt, message: string): Promise<GameState>
  *  - Nothing is out. Generate a new pattern, write down when it went out, and
  *    work out the deadline from that.
  *
- * The deadline is `shown_at + how long the pattern takes to play + the answer
- * time + a latency allowance`, because the clock the player sees only starts
- * once the last flash has gone out.
+ * The deadline is `shown_at + the count-in + how long the pattern takes to play
+ * + the answer time + a latency allowance`, because the clock the player sees
+ * only starts once the last flash has gone out — but the server's has been
+ * running since it handed the pattern over.
  */
 export async function beginLevel(attempt: Attempt): Promise<GameState> {
   const admin = supabaseAdmin()
@@ -227,8 +229,15 @@ export async function beginLevel(attempt: Attempt): Promise<GameState> {
   const plan = planFor(attempt.level)
   const pattern = makePattern(attempt.level)
   const shownAt = new Date(now)
+  // Everything that happens between here and the player's first tap: the
+  // count-in, the pattern playing, then their answer time — plus the latency
+  // allowance. Leave any of these out and the clock on screen is a lie.
   const deadline = new Date(
-    now + showMsFor(attempt.level) + answerMsFor(attempt.level) + LATENCY_GRACE_MS,
+    now +
+      COUNT_IN_MS +
+      showMsFor(attempt.level) +
+      answerMsFor(attempt.level) +
+      LATENCY_GRACE_MS,
   )
 
   const { data } = await admin

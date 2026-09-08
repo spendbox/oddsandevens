@@ -59,6 +59,23 @@ export function answerMsFor(level: number): number {
   return (2 + Math.floor((level - 1) / 3)) * 1000
 }
 
+/**
+ * The 3-2-1 before a level, in milliseconds.
+ *
+ * Lives here, with the rest of the curve, because both halves have to agree on
+ * it: the screen spends this long counting in, and the server has to budget for
+ * it when it works out the deadline.
+ *
+ * It did not, once. The count-in was added to the screen alone, so every level
+ * quietly handed the player 2.4 seconds less than the clock in front of them
+ * claimed — 60% of the window at level 1 — and the run ended "out of time" with
+ * seconds still showing. Anything that happens between issuing a pattern and
+ * the player's first tap has to be counted here.
+ */
+export const COUNT_IN_TICKS = 3
+export const COUNT_IN_TICK_MS = 800
+export const COUNT_IN_MS = COUNT_IN_TICKS * COUNT_IN_TICK_MS
+
 /** Everything the browser needs to run one level. */
 export type LevelPlan = {
   level: number

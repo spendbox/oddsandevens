@@ -387,7 +387,11 @@ function drawTicket(context: CanvasRenderingContext2D, data: FlyerData) {
   const cardX = MARGIN - 12
   const cardW = SIZE - cardX * 2
   const cardY = 128
-  const cardH = SIZE - cardY - FOOTER_HEIGHT + 46
+  // Stops well short of the footer band. The card carries a 60px blur offset
+  // 18px downward, and that shadow was reaching the wordmark even when the
+  // card's own edge did not — which is what "the URL is too close to the box"
+  // was describing.
+  const cardH = SIZE - cardY - FOOTER_HEIGHT - 54
   const tear = cardY + cardH * 0.68
 
   context.save()

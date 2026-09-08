@@ -57,6 +57,14 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
             <Problem>You already have a box open. One at a time.</Problem>
           </div>
         ) : null}
+        {params.problem === 'full' ? (
+          <div className="mt-4">
+            <Problem>
+              Spendbox has as many boxes running as it can support right now. Check back
+              soon — one frees up every time a box is beaten.
+            </Problem>
+          </div>
+        ) : null}
 
         {owed.length > 0 ? (
           <Card className="mt-6 border-gold/40 bg-gold/10">

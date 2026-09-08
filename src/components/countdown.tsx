@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { COUNT_IN_TICKS, COUNT_IN_TICK_MS } from '@/lib/game'
 
 /**
  * Three, two, one.
@@ -10,13 +11,12 @@ import { useEffect, useState } from 'react'
  * the start button. Every level gets one, including a replay, because the
  * moment after a miss is exactly when somebody is least ready.
  *
- * Counts down over `TICK_MS` per number and then calls `onDone` once. The
- * caller decides what happens next; this component only handles the numbers.
+ * The timings come from src/lib/game.ts rather than living here, because the
+ * server budgets for this pause when it sets the deadline. If the two ever
+ * disagree, the player loses the difference.
  */
-const TICK_MS = 800
-
 export function Countdown({ onDone }: { onDone: () => void }) {
-  const [count, setCount] = useState(3)
+  const [count, setCount] = useState(COUNT_IN_TICKS)
 
   useEffect(() => {
     if (count === 0) {
@@ -24,7 +24,7 @@ export function Countdown({ onDone }: { onDone: () => void }) {
       return
     }
 
-    const timer = setTimeout(() => setCount((n) => n - 1), TICK_MS)
+    const timer = setTimeout(() => setCount((n) => n - 1), COUNT_IN_TICK_MS)
     return () => clearTimeout(timer)
     // onDone is recreated on every render of the parent; depending on it would
     // restart the countdown mid-count.

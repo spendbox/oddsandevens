@@ -74,20 +74,19 @@ export async function sendResetLink(rawEmail: string, origin: string): Promise<v
     html: emailShell({
       heading: 'Choose a new password',
       body:
-        `Hi ${escapeHtml(name)}, somebody asked to reset the password on the Spendbox ` +
-        `account for this address. Tap the button and you can set a new one. ` +
-        `The link works once and expires in ${LIFETIME_MINUTES} minutes.`,
+        `Hi ${escapeHtml(name)}, here is the link to set a new password on your ` +
+        `Spendbox account. It works once and expires in ${LIFETIME_MINUTES} minutes.`,
       buttonLabel: 'Set a new password',
       buttonUrl: link,
       footer:
-        'If this was not you, ignore this email — nothing has changed and your password ' +
-        'still works.',
+        'Did not request this? Ignore this email — nothing has changed and your current ' +
+        'password still works.',
     }),
     text:
       `Hi ${name},\n\n` +
-      `Somebody asked to reset the password on the Spendbox account for this address.\n\n` +
-      `Set a new one here (works once, expires in ${LIFETIME_MINUTES} minutes):\n${link}\n\n` +
-      `If this was not you, ignore this email. Nothing has changed.`,
+      `Here is the link to set a new password on your Spendbox account. ` +
+      `It works once and expires in ${LIFETIME_MINUTES} minutes.\n\n${link}\n\n` +
+      `Did not request this? Ignore this email. Nothing has changed.`,
   })
 }
 
