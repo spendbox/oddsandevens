@@ -77,9 +77,13 @@ export async function enterStep(_state: EnterState, formData: FormData): Promise
     const origin = await siteOrigin()
     try {
       await sendResetLink(email, origin)
-    } catch {
-      // Swallowed deliberately. A Resend outage must not turn into a message
-      // that tells the sender whether that address has an account.
+    } catch (error) {
+      // The browser is told nothing either way — saying "that failed" would
+      // reveal that the address has an account. But it goes to the server log,
+      // because the alternative is what actually happened: EMAIL_FROM was on a
+      // domain we do not own, Resend rejected every send, and nothing anywhere
+      // said so.
+      console.error('[spendbox] password reset email failed:', error)
     }
 
     return { step: 'password', email, sentReset: true }

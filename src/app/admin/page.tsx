@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
+import { Footer } from '@/components/footer'
 import { Card, Empty, Pill } from '@/components/ui'
 import { adminsConfigured, isAdmin, requireProfile } from '@/lib/session'
 import { supabaseAdmin } from '@/lib/supabase/admin'
@@ -121,12 +122,20 @@ export default async function AdminPage() {
         <section className="mt-10">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-bold tracking-tight">Newest boxes</h2>
-            <Link
-              href="/admin/payouts"
-              className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
-            >
-              Payout queue <ArrowRight size={14} />
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/admin/users"
+                className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
+              >
+                Players <ArrowRight size={14} />
+              </Link>
+              <Link
+                href="/admin/payouts"
+                className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
+              >
+                Payouts <ArrowRight size={14} />
+              </Link>
+            </div>
           </div>
 
           {boxes.length === 0 ? (
@@ -163,6 +172,8 @@ export default async function AdminPage() {
           )}
         </section>
       </main>
+
+      <Footer />
     </>
   )
 }

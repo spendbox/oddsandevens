@@ -38,6 +38,11 @@ export async function createBox(formData: FormData) {
 
     if (data) redirect(`/b/${data.code}?fresh=1`)
 
+    // The cap is enforced by a trigger, which raises a check_violation. It is
+    // not the creator's fault and there is nothing for them to retry, so it
+    // gets its own message rather than "try once more".
+    if (error?.message?.includes('box limit reached')) redirect('/home?problem=full')
+
     if (error?.code === '23505') {
       // Which unique index tripped? The creator one means they already have a
       // live box; the code one is a collision worth retrying.

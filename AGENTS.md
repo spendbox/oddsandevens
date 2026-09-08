@@ -75,6 +75,15 @@ structural.
   production. Anything that needs to email somebody adds a function there.
 - Every level counts in from three before the pattern plays, in the real game
   and the practice run. The clock does not start until the last flash is out.
+- Anything that happens between the server issuing a pattern and the player's
+  first tap has to be in the deadline. `COUNT_IN_MS` lives in `src/lib/game.ts`
+  for exactly that reason: it was added to the screen alone once, and every
+  level then ran 1.2 seconds short of the clock the player could see — 60% of a
+  level-1 window, and it cost people coins. The client holds the deadline as an
+  absolute moment, never as a duration, so pauses subtract themselves.
+- Deleting a player cascades to their boxes, attempts, ledger and payouts.
+  `/admin/users` refuses while they have an open box or money owed, and warns
+  what the payment history loses. Never make that path quieter.
 - Long-lived visual work that people download — the flyers in `src/lib/flyers.ts`
   — measures its blocks and centres the stack, never fixed coordinates. The
   title and description are the creator's text and vary in length; a layout

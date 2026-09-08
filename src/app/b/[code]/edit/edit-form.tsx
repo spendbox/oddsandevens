@@ -3,7 +3,6 @@
 import { useActionState, useState } from 'react'
 import { Check, Eye } from 'lucide-react'
 import { Button, Card, Field, Note, Problem } from '@/components/ui'
-import { ImagePicker } from '@/components/image-picker'
 import { BoxPreview } from '@/components/box-preview'
 import { FlyerStudio } from '@/components/flyer-studio'
 import type { Box } from '@/lib/types'
@@ -21,9 +20,11 @@ export function EditForm({ box }: { box: Box }) {
   const [state, action, pending] = useActionState<EditState, FormData>(saveBox, {})
   const [title, setTitle] = useState(box.title)
   const [description, setDescription] = useState(box.description)
-  const [imageUrl, setImageUrl] = useState(box.image_url)
-
-  const preview: Box = { ...box, title, description, image_url: state.imageUrl ?? imageUrl }
+  // Pictures are switched off for now, so the preview shows whatever the box
+  // already has rather than anything being chosen. The upload path itself is
+  // untouched — src/components/image-picker.tsx and the handling in actions.ts
+  // are still there and still work; only this control is hidden.
+  const preview: Box = { ...box, title, description }
 
   return (
     <div className="grid gap-6">
@@ -58,11 +59,6 @@ export function EditForm({ box }: { box: Box }) {
               {description.length}/280 · shows on your box page and on your flyers.
             </span>
           </label>
-
-          <ImagePicker
-            currentUrl={state.imageUrl ?? box.image_url}
-            onPicked={setImageUrl}
-          />
 
           {state.problem ? <Problem>{state.problem}</Problem> : null}
           {state.saved ? (

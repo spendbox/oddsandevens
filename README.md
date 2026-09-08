@@ -39,6 +39,11 @@ timed.
 **Every run generates its own patterns.** Nobody can learn a box by heart, and
 no two games are the same.
 
+**Every level counts in from three.** The pattern does not start until the count
+does, and the server budgets for it — `COUNT_IN_MS` in `src/lib/game.ts` is part
+of the deadline, not just a screen animation. It was not, once, and every level
+quietly ran 1.2 seconds short of the clock the player could see.
+
 **One free replay per game, then a coin a go.** Miss a level and you can take
 it again — new pattern, same level, no charge. After that, a retry costs one
 coin and you keep every level you have already cleared. The run only ends when
@@ -86,6 +91,10 @@ Nothing else in the app sends email.
 | Retrying a level, after the free replay | 1 coin |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
 | Beating **your own** box | ₦100,000 once, not twice |
+
+There is also a ceiling on how many boxes may exist at all, since every one of
+them is a standing ₦100,000 promise. It starts at 500 and is editable at
+`/admin/users` without a deploy.
 
 Beating your own box pays the prize **once**. Paying both halves would hand
 somebody ₦200,000 for patterns they set themselves, which is not a game — it is
@@ -167,6 +176,7 @@ supabase/migrations/0004_guests_and_banks.sql
 supabase/migrations/0005_password_resets.sql
 supabase/migrations/0006_retries_and_box_art.sql
 supabase/migrations/0007_self_win_and_stats.sql
+supabase/migrations/0008_settings_and_limits.sql
 ```
 
 0006 also creates a public `box-images` storage bucket. If your Supabase project
@@ -190,12 +200,16 @@ into Vercel under Settings → Environment Variables:
 | `SUPABASE_SERVICE_ROLE_KEY` | same page, the "service_role" key — **required** to play |
 | `PAYSTACK_SECRET_KEY` | Paystack → Settings → API Keys |
 | `RESEND_API_KEY` | resend.com → API Keys. All email goes through it |
-| `EMAIL_FROM` | e.g. `Spendbox <hello@yourdomain.com>` |
+| `EMAIL_FROM` | e.g. `Spendbox <notifications@spendbox.site>` |
 | `ADMIN_EMAILS` | who can open `/admin`. Defaults to `spendbox@gmail.com` |
 
-`EMAIL_FROM` must be on a domain **verified in Resend**. Their onboarding sender
-works without a domain but only delivers to your own address — which looks fine
-in testing and reaches nobody in production.
+`EMAIL_FROM` must be on a domain **verified in Resend**, and it must be a domain
+you actually own. This was set to `spendbox.com` while the site runs on
+`spendbox.site`: Resend refused every send, and because the reset flow
+deliberately tells the browser nothing either way, no password reset arrived and
+nothing said why. Verify `spendbox.site` in Resend and use an address on it. A
+failed send is now logged server-side, so the next time this happens it shows up
+in the Vercel logs.
 
 **`/admin` is a 404 until `ADMIN_EMAILS` includes you.** That is deliberate: an
 unset variable must not open a door. But if the list is empty *entirely*, the

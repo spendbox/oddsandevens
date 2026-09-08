@@ -84,6 +84,17 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   const [pressed, setPressed] = useState<number | null>(null)
   const [taps, setTaps] = useState<number[]>([])
   const [msLeft, setMsLeft] = useState(0)
+
+  /**
+   * When the server stops accepting this level's answer, as a clock time.
+   *
+   * Kept as an absolute moment rather than "milliseconds remaining" because a
+   * duration goes stale the instant anything takes time — the count-in, a slow
+   * render, a reload — and the screen then shows a clock the server disagrees
+   * with. Read against Date.now() whenever it matters, so every one of those
+   * pauses is accounted for exactly once, by subtraction.
+   */
+  const deadlineAt = useRef(0)
   /** The level whose cheer is on screen right now. */
   const [justCleared, setJustCleared] = useState(0)
 
@@ -134,9 +145,11 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
       })
 
       later(() => {
-        // The server's deadline is the real one. If a reload ate into it, the
-        // player gets what is left rather than a full clock they do not have.
-        const serverLeft = next.msRemaining - elapsed
+        // Read the deadline now, at the moment the player's turn actually
+        // starts. Whatever the count-in and the pattern took has already come
+        // out of it, so this is the real number rather than an estimate made
+        // several seconds ago.
+        const serverLeft = deadlineAt.current - Date.now()
         setMsLeft(Math.max(0, Math.min(next.answerMs, serverLeft)))
         setPhase('tap')
       }, elapsed)
@@ -161,6 +174,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     if (next.awaitingReplay) return setPhase('missed')
     if (!next.round) return setPhase('ready')
 
+    deadlineAt.current = Date.now() + next.round.msRemaining
     setRound(next.round)
     setPhase('counting')
   }, [clearTimers, post])
@@ -258,6 +272,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     if (next.status !== 'playing') return setPhase('over')
     if (next.awaitingReplay || !next.round) return setPhase('missed')
 
+    deadlineAt.current = Date.now() + next.round.msRemaining
     setRound(next.round)
     setPhase('counting')
   }
@@ -271,6 +286,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     if (next.status !== 'playing') return setPhase('over')
     if (!next.round) return setPhase('ready')
 
+    deadlineAt.current = Date.now() + next.round.msRemaining
     setRound(next.round)
     setPhase('counting')
   }
