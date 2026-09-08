@@ -13,6 +13,8 @@ import 'server-only'
  * step with everything else.
  */
 
+import { DEFAULT_EMAIL_FROM, SITE_DOMAIN } from './contact'
+
 const BASE = 'https://api.resend.com'
 
 export class EmailError extends Error {}
@@ -31,24 +33,34 @@ function apiKey(): string {
 /**
  * Who the mail comes from.
  *
- * Must be an address on a domain verified in Resend. Resend's onboarding
- * sender works without a domain but only delivers to your own address, which is
- * exactly the sort of thing that looks fine in testing and reaches nobody in
- * production — so the failure names it.
+ * Falls back to the address on our own domain rather than throwing. EMAIL_FROM
+ * exists so the sender can be changed without a deploy, not so that forgetting
+ * it — or leaving an old value behind in Vercel — can stop every email going
+ * out. There is exactly one domain this can legitimately be, and it is named in
+ * src/lib/contact.ts.
  */
 function from(): string {
-  const sender = process.env.EMAIL_FROM?.trim()
-  if (!sender) {
-    throw new EmailError(
-      'Email is not set up: EMAIL_FROM is not set. Use an address on a domain you have ' +
-        'verified in Resend, like "Spendbox <hello@yourdomain.com>".',
-    )
-  }
-  return sender
+  return process.env.EMAIL_FROM?.trim() || DEFAULT_EMAIL_FROM
+}
+
+/** The domain the sender address is on, for checking against our own. */
+export function senderDomain(): string | null {
+  return from().match(/@([^\s>]+)/)?.[1]?.toLowerCase() ?? null
+}
+
+/**
+ * Is the sender on a domain we can actually send from?
+ *
+ * Resend only sends from a domain verified to us. An EMAIL_FROM left over from
+ * somewhere else is silently fatal — every send refused, nothing delivered — so
+ * it is worth being able to ask the question directly.
+ */
+export function senderDomainMatches(): boolean {
+  return senderDomain() === SITE_DOMAIN
 }
 
 export function emailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim())
+  return Boolean(process.env.RESEND_API_KEY?.trim())
 }
 
 export async function sendEmail(message: {

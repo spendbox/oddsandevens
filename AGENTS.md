@@ -70,6 +70,10 @@ structural.
   `pressed`, `taps` and `lit` by hand — clearTimers cancels the pending
   un-press, and a tile left lit into the next level looks like the game giving
   away a pattern it has not drawn yet.
+- The domain is `spendbox.site`, named once in `src/lib/contact.ts` and nowhere
+  else. Mail must be sent from an address on it; `EMAIL_FROM` is optional and
+  defaults to one, and `/admin/email` flags any other domain in red because
+  Resend refuses those silently.
 - All outbound email goes through Resend, in `src/lib/email.ts`. Supabase's
   mailer is never used — it is rate limited hard enough to fail silently in
   production. Anything that needs to email somebody adds a function there.
