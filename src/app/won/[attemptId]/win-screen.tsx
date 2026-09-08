@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { PartyPopper, Share2, Trophy } from 'lucide-react'
 import { ButtonLink, Card } from '@/components/ui'
+import { Mascot } from '@/components/mascot'
 import { Confetti } from '@/components/confetti'
 import { ShareLink } from '@/components/share-link'
 import { LEVELS } from '@/lib/game'
@@ -35,9 +37,7 @@ export function WinScreen({
     return (
       <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-10">
         <div className="animate-rise text-center">
-          <p className="text-7xl" aria-hidden>
-            😤
-          </p>
+          <Mascot mood="thinking" size={140} className="mx-auto" />
           <h1 className="mt-4 text-3xl font-bold tracking-tight">
             All ten. Just not first.
           </h1>
@@ -65,9 +65,7 @@ export function WinScreen({
 
       <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-4 py-10">
         <div className="text-center">
-          <p className="animate-pop text-8xl" aria-hidden>
-            🏆
-          </p>
+          <Mascot mood="excited" size={160} className="mx-auto animate-pop" />
 
           <p className="mt-6 text-sm font-semibold tracking-[0.3em] text-gold uppercase">
             Box beaten
@@ -104,12 +102,14 @@ export function WinScreen({
               send it to. We check the account with your bank before saving it.
             </p>
             <ButtonLink href="/claim" tone="gold" size="lg" className="mt-5 w-full">
-              Claim {naira(box.prize_naira)}
+              <Trophy size={18} /> Claim {naira(box.prize_naira)}
             </ButtonLink>
           </Card>
         ) : (
           <Card className="mt-8 border-lime/40 bg-lime/10 text-center">
-            <p className="font-semibold text-lime">Already set up — nothing to do</p>
+            <p className="flex items-center justify-center gap-2 font-semibold text-lime">
+              <PartyPopper size={17} /> Already set up — nothing to do
+            </p>
             <p className="mt-1.5 text-sm text-mist">
               {naira(box.prize_naira)} is queued for transfer to your bank account. Payouts go
               out by hand, so give it a little time.
@@ -118,7 +118,9 @@ export function WinScreen({
         )}
 
         <Card className="mt-4">
-          <p className="mb-3 text-sm font-semibold">Tell people you beat it</p>
+          <p className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Share2 size={15} /> Tell people you beat it
+          </p>
           <ShareLink code={box.code} title={`I beat ${box.title || `box ${box.code}`}`} />
         </Card>
 

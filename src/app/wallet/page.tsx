@@ -1,11 +1,13 @@
 import { SiteHeader } from '@/components/site-header'
-import { Button, Card, Empty, Pill, Problem } from '@/components/ui'
+import { Card, Empty, Pill, Problem } from '@/components/ui'
 import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
+import { ArrowDownLeft, Gamepad2 } from 'lucide-react'
 import { paymentsConfigured } from '@/lib/paystack'
 import { MIN_TOPUP_COINS, NAIRA_PER_COIN, coinsToNaira, naira } from '@/lib/money'
 import type { LedgerEntry } from '@/lib/types'
 import { startTopup } from './actions'
+import { CustomAmount } from './custom-amount'
 
 export const metadata = { title: 'Wallet' }
 
@@ -66,7 +68,7 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
 
         {credited && credited > 0 ? (
           <p className="mt-4 rounded-2xl border border-lime/25 bg-lime/10 px-4 py-3 text-sm text-lime">
-            ✓ {credited} {credited === 1 ? 'coin' : 'coins'} added. Go and beat something.
+            {credited} {credited === 1 ? 'coin' : 'coins'} added. Go and beat something.
           </p>
         ) : null}
 
@@ -122,27 +124,7 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
           </div>
 
           <Card className="mt-4">
-            <form action={startTopup} className="flex flex-wrap items-end gap-3">
-              <label className="min-w-0 flex-1">
-                <span className="mb-1.5 block text-sm font-medium text-mist">
-                  Or another amount
-                </span>
-                <input
-                  type="number"
-                  name="coins"
-                  min={MIN_TOPUP_COINS}
-                  max={500}
-                  defaultValue={MIN_TOPUP_COINS}
-                  inputMode="numeric"
-                  className="h-12 w-full rounded-2xl border border-white/12 bg-black/30 px-4
-                             text-base text-chalk focus:border-gold/60 focus:outline-none
-                             focus:ring-2 focus:ring-gold/25"
-                />
-              </label>
-              <Button type="submit" tone="ghost" size="md">
-                Pay with Paystack
-              </Button>
-            </form>
+            <CustomAmount />
           </Card>
         </section>
 
@@ -163,7 +145,7 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
                       className="grid size-9 shrink-0 place-items-center rounded-full bg-white/6 text-sm"
                       aria-hidden
                     >
-                      {entry.coins > 0 ? '↓' : '🎮'}
+                      {entry.coins > 0 ? <ArrowDownLeft size={16} /> : <Gamepad2 size={16} />}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useFormStatus } from 'react-dom'
+import { ArrowRight, Coins, Link2, Package } from 'lucide-react'
 import { Button, Card, Field } from '@/components/ui'
 import { LEVELS } from '@/lib/game'
 import { PRIZE_NAIRA, naira } from '@/lib/money'
@@ -9,21 +10,21 @@ import { createBox } from './actions'
 
 const STEPS = [
   {
-    emoji: '📦',
+    Icon: Package,
     title: 'Your box holds ' + naira(PRIZE_NAIRA),
     body:
       'Making it costs you nothing. The prize sits on the box from the moment it exists, ' +
       'and it stays there until somebody beats it.',
   },
   {
-    emoji: '🔗',
+    Icon: Link2,
     title: 'You share the link',
     body:
       'Anyone who opens it can try. Each attempt costs the player one coin — you are never ' +
       'charged for anyone playing your box.',
   },
   {
-    emoji: '💰',
+    Icon: Coins,
     title: 'Somebody beats it, you both earn',
     body:
       `They have to clear all ${LEVELS} patterns against the clock. When someone finally does, ` +
@@ -68,9 +69,7 @@ export function CreateBox() {
       </div>
 
       <div key={step} className="animate-rise">
-        <p className="text-4xl" aria-hidden>
-          {current.emoji}
-        </p>
+        <current.Icon size={34} className="text-gold" />
         <h2 className="mt-3 text-xl font-bold tracking-tight">{current.title}</h2>
         <p className="mt-2 text-sm leading-relaxed text-mist">{current.body}</p>
       </div>
@@ -96,7 +95,7 @@ export function CreateBox() {
       ) : (
         <div className="mt-6 flex items-center gap-3">
           <Button type="button" tone="gold" size="lg" onClick={() => setStep(step + 1)}>
-            Next
+            Next <ArrowRight size={17} />
           </Button>
           <button
             type="button"

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Card, Empty, Pill } from '@/components/ui'
 import { adminsConfigured, isAdmin, requireProfile } from '@/lib/session'
@@ -122,9 +123,9 @@ export default async function AdminPage() {
             <h2 className="text-xl font-bold tracking-tight">Newest boxes</h2>
             <Link
               href="/admin/payouts"
-              className="text-sm font-medium text-cyan underline underline-offset-4"
+              className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
             >
-              Payout queue →
+              Payout queue <ArrowRight size={14} />
             </Link>
           </div>
 

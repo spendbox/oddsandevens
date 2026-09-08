@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Coins, User } from 'lucide-react'
 import { naira } from '@/lib/money'
 import { Pill } from './ui'
 import type { Profile } from '@/lib/types'
@@ -21,7 +22,7 @@ export function SiteHeader({ profile }: { profile: Profile | null }) {
             <>
               <Link href="/wallet" aria-label="Your wallet">
                 <Pill tone="gold" className="tabular">
-                  <span aria-hidden>🪙</span>
+                  <Coins size={13} />
                   {profile.coins}
                   <span className="hidden text-gold/70 sm:inline">
                     · {naira(profile.coins * 100)}
@@ -34,7 +35,7 @@ export function SiteHeader({ profile }: { profile: Profile | null }) {
                            font-bold text-chalk ring-1 ring-inset ring-white/12"
                 aria-label="Your account"
               >
-                {(profile.display_name || profile.email || '?').charAt(0).toUpperCase()}
+                <User size={17} />
               </Link>
             </>
           ) : (

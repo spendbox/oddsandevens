@@ -36,6 +36,7 @@ export default async function PlayPage({ params }: PageProps<'/play/[attemptId]'
           levelsCleared: attempt.levels_cleared,
           replaysLeft: attempt.replays_left,
           awaitingReplay: attempt.awaiting_replay,
+          coins: profile.coins,
         }}
       />
     </main>

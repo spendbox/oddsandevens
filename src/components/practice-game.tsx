@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Grid, type GridMood } from './grid'
+import { GraduationCap, RotateCcw, Zap } from 'lucide-react'
 import { Button, ButtonLink, Card, Pill } from './ui'
+import { Mascot } from './mascot'
 import { answerMsFor, flashMsFor, gapMsFor, makePattern, stepsFor } from '@/lib/game'
 
 /**
@@ -79,6 +81,8 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
       if (left <= 0) {
         clearInterval(tick)
         setMsLeft(0)
+        setPressed(null)
+        setLit(null)
         setPhase('wrong')
         return
       }
@@ -102,12 +106,22 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
     // Wrong the moment it is wrong, rather than at the end of the sequence.
     if (next[next.length - 1] !== pattern[next.length - 1]) {
       clearTimers()
+      setPressed(null)
+      setTaps([])
+      setLit(null)
       setPhase('wrong')
       return
     }
 
     if (next.length === pattern.length) {
       clearTimers()
+      // clearTimers has just cancelled the pending un-press from this very tap,
+      // so the tile has to be released here or it stays lit into the next
+      // level — where it looks like the game giving away the first tile of a
+      // pattern it has not drawn yet. Same reason the dots are emptied.
+      setPressed(null)
+      setTaps([])
+      setLit(null)
       setPhase(level >= PRACTICE_LEVELS ? 'done' : 'right')
     }
   }
@@ -135,9 +149,7 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
   if (phase === 'done') {
     return (
       <div className="animate-rise text-center">
-        <p className="text-7xl" aria-hidden>
-          🎓
-        </p>
+        <Mascot mood="excited" size={140} className="mx-auto" />
         <h2 className="mt-4 text-3xl font-bold tracking-tight">Now you know how it works</h2>
         <p className="mt-3 text-mist">
           That was levels 1 to {PRACTICE_LEVELS}. The real box goes to 10, and the last one
@@ -146,7 +158,7 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
 
         <div className="mt-8 grid gap-3">
           <ButtonLink href={`/b/${boxCode}`} tone="gold" size="lg">
-            {canPlay ? 'Play the real box · 1 coin' : 'Back to the box'}
+            <Zap size={18} /> {canPlay ? 'Play the real box · 1 coin' : 'Back to the box'}
           </ButtonLink>
           <Button
             tone="ghost"
@@ -156,7 +168,7 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
               setPhase('ready')
             }}
           >
-            Practise again
+            <RotateCcw size={17} /> Practise again
           </Button>
         </div>
       </div>
@@ -166,7 +178,9 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
   return (
     <div className="no-select">
       <div className="mb-5 flex items-center gap-3">
-        <Pill tone="cyan">Practice · free</Pill>
+        <Pill tone="cyan">
+          <GraduationCap size={13} /> Practice · free
+        </Pill>
         <span className="ml-auto text-sm text-dusk">
           Level {level} of {PRACTICE_LEVELS}
         </span>
@@ -187,7 +201,7 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
             {phase === 'watch'
               ? 'Watch…'
               : phase === 'right'
-                ? 'Perfect ✓'
+                ? 'Perfect'
                 : phase === 'wrong'
                   ? 'Try that again'
                   : `${steps} flashes`}

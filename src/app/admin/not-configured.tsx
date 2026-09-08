@@ -1,3 +1,4 @@
+import { KeyRound } from 'lucide-react'
 import { Card } from '@/components/ui'
 
 /**
@@ -10,9 +11,7 @@ import { Card } from '@/components/ui'
 export function AdminNotConfigured({ email }: { email: string }) {
   return (
     <main className="mx-auto max-w-2xl px-4 py-16">
-      <p className="text-5xl" aria-hidden>
-        🔑
-      </p>
+      <KeyRound size={44} className="text-gold" />
       <h1 className="mt-4 text-3xl font-bold tracking-tight">No admins are set up yet</h1>
       <p className="mt-3 leading-relaxed text-mist">
         The admin dashboard is locked to a list of email addresses, and that list is empty on
@@ -31,14 +30,14 @@ export function AdminNotConfigured({ email }: { email: string }) {
             <code className="rounded bg-black/40 px-1.5 py-0.5 font-mono text-cyan">
               ADMIN_EMAILS
             </code>{' '}
-            with this exact value:
+            listing the addresses that should have access:
             <span className="mt-2 block rounded-xl bg-black/40 px-3 py-2 font-mono text-chalk">
-              {email}
+              spendbox@gmail.com{email.toLowerCase() !== 'spendbox@gmail.com' ? `,${email}` : ''}
             </span>
             <span className="mt-1.5 block text-xs text-dusk">
-              That is the address you are signed in as. Separate several admins with commas.
-              No <code className="font-mono">NEXT_PUBLIC_</code> prefix — this one is
-              server-side only.
+              Spendbox&apos;s own address, plus the one you are signed in as. Separate several
+              with commas. No <code className="font-mono">NEXT_PUBLIC_</code> prefix — this
+              one is server-side only, and it is never sent to a browser.
             </span>
           </li>
           <li>
