@@ -1,0 +1,342 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Spendbox — advertisements</title>
+<!--
+  Five advertisements, drawn in the browser and rendered to PNG by render.mjs.
+
+  Written as HTML rather than as a design file so the words can be changed by
+  editing a sentence and running one command, which is the only way marketing
+  copy ever survives contact with reality. Everything visual comes from the
+  same tokens the site uses, so an ad cannot drift into its own shade of
+  purple: see src/app/globals.css.
+
+  Two rules for anything added here. Every claim has to be something the
+  product actually does — the prize, the price and the rules are real, and the
+  counters on the landing page are a launch figure and must never appear in an
+  advertisement as though they were history. And every ad carries the age limit
+  and the line about money you can afford to lose, because this is a game
+  played for money and an ad that leaves that out is the one part of the
+  funnel doing the wrong thing.
+-->
+<style>
+  :root {
+    --ink: #07040f;
+    --violet: #a855f7;
+    --cyan: #22d3ee;
+    --rose: #fb5c7d;
+    --gold: #ffc94a;
+    --chalk: #f4f0ff;
+    --mist: #a99ec7;
+    --dusk: #6f6490;
+    --font: 'Liberation Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  p, h1 { margin: 0; }
+
+  body {
+    margin: 0;
+    background: #17141d;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    padding: 32px;
+    font-family: var(--font);
+  }
+
+  /* One ad. Square, because that is the shape that survives being posted to a
+     feed, a status and a chat thread without anyone cropping it. */
+  /* Three rows: the wordmark, the idea, the small print. The middle row takes
+     whatever is left and centres its contents, so every ad in the set has the
+     same air above and below the thing it is actually about — which is most of
+     what makes five separate images read as one campaign. */
+  .ad {
+    position: relative;
+    width: 1080px;
+    height: 1080px;
+    overflow: hidden;
+    color: var(--chalk);
+    background:
+      radial-gradient(760px 520px at 14% -6%, #3b1d6e 0%, transparent 62%),
+      radial-gradient(700px 460px at 94% 4%, #0e3b52 0%, transparent 58%),
+      radial-gradient(720px 640px at 50% 112%, #2a1150 0%, transparent 60%),
+      var(--ink);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: 84px;
+  }
+
+  /* The idea. Centred in the space between the wordmark and the small print. */
+  .body {
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    padding: 48px 0;
+  }
+  .body.beside { flex-direction: row; align-items: center; gap: 64px; }
+  .body.beside .words { flex: 1; display: flex; flex-direction: column; gap: 28px; }
+  /* Beside a picture there is roughly half the width, so the headline steps
+     down to a size that still breaks where the line break says it should.
+     A headline that rewraps on its own is the fastest way to look accidental. */
+  .body.beside h1 { font-size: 68px; }
+  .body.beside .sub { font-size: 28px; max-width: 15em; }
+
+  /* The wordmark, top left on every one of them. */
+  .brand { display: flex; align-items: center; gap: 18px; }
+  .brand .name { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
+
+  .eyebrow {
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--cyan);
+  }
+
+  h1 {
+    font-weight: 900;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    font-size: 96px;
+  }
+  h1.small { font-size: 78px; }
+
+  .sub {
+    font-size: 30px;
+    line-height: 1.55;
+    color: var(--mist);
+    max-width: 19em;
+  }
+
+  /* The legal foot. Small, never hidden, never in a colour that cannot be
+     read — an ad for a money game has to carry this. */
+  .foot {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 40px;
+  }
+  .url { font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
+  .legal {
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--dusk);
+    text-align: right;
+    max-width: 24em;
+  }
+
+  .gold { color: var(--gold); }
+  .rose { color: var(--rose); }
+  .stack { display: flex; flex-direction: column; }
+
+  /* --- the 3x3 grid, for the ad about how the game is played -------------- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    width: 372px;
+    padding: 17px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 46px;
+    box-shadow: inset 0 0 0 2px rgba(168, 85, 247, 0.32);
+  }
+  .tile { aspect-ratio: 1; border-radius: 26px; background: rgba(255, 255, 255, 0.055); }
+  .tile.lit {
+    background: linear-gradient(140deg, var(--cyan), var(--violet));
+    box-shadow: 0 0 44px 8px rgba(34, 211, 238, 0.34);
+  }
+
+  /* --- the two prizes ----------------------------------------------------- */
+  .prizes { display: flex; gap: 26px; }
+  .prize {
+    flex: 1;
+    padding: 44px 40px 40px;
+    border-radius: 40px;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.08);
+  }
+  .prize .amount {
+    font-size: 68px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+  .prize .who {
+    margin-top: 20px;
+    font-size: 25px;
+    line-height: 1.4;
+    color: var(--mist);
+  }
+
+  /* --- the coin, for the price ad ----------------------------------------- */
+  .coin {
+    width: 232px;
+    height: 232px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 66px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    color: #2a1a02;
+    background: linear-gradient(150deg, #ffe9a8, var(--gold) 46%, #e8951a);
+    box-shadow: 0 0 90px 12px rgba(255, 201, 74, 0.28);
+  }
+
+  /* --- the clock, for the difficulty ad ----------------------------------- */
+  .clock { font-size: 128px; font-weight: 900; letter-spacing: -0.05em; line-height: 1; }
+  .clock span { font-size: 50px; color: var(--dusk); }
+  .flashes { display: flex; gap: 12px; margin-top: 26px; }
+  .flashes i {
+    width: 23px;
+    height: 23px;
+    border-radius: 8px;
+    background: linear-gradient(140deg, var(--cyan), var(--violet));
+  }
+  .flashes i:nth-child(even) { opacity: 0.55; }
+</style>
+
+<body>
+  <!-- ===================================================== 1 · the offer -->
+  <section class="ad" id="ad-1">
+    <div class="brand"><svg class="mark" width="52" height="52"></svg><span class="name">Spendbox</span></div>
+
+    <div class="body">
+      <p class="eyebrow">Free to create</p>
+      <h1>Make a box.<br>Share the link.<br><span class="gold">Get paid.</span></h1>
+      <p class="sub">Whoever beats it takes ₦100,000.<br>So do you.</p>
+    </div>
+
+    <div class="foot">
+      <span class="url">spendbox.site</span>
+      <p class="legal">18+. A game of skill played for money. Coins are non-refundable once spent. Please only play with money you can afford to lose.</p>
+    </div>
+  </section>
+
+  <!-- ================================================== 2 · how it plays -->
+  <section class="ad" id="ad-2">
+    <div class="brand"><svg class="mark" width="52" height="52"></svg><span class="name">Spendbox</span></div>
+
+    <div class="body beside">
+      <div class="words">
+        <p class="eyebrow">One coin a go</p>
+        <h1 class="small">Nine tiles.<br>Ten patterns.</h1>
+        <p class="sub">Watch it flash. Tap it back.<br>Ten times over.</p>
+      </div>
+
+      <div class="grid">
+        <i class="tile"></i><i class="tile lit"></i><i class="tile"></i>
+        <i class="tile lit"></i><i class="tile"></i><i class="tile"></i>
+        <i class="tile"></i><i class="tile"></i><i class="tile lit"></i>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span class="url">spendbox.site</span>
+      <p class="legal">18+. A game of skill played for money. Coins are non-refundable once spent. Please only play with money you can afford to lose.</p>
+    </div>
+  </section>
+
+  <!-- ================================================= 3 · two winners -->
+  <section class="ad" id="ad-3">
+    <div class="brand"><svg class="mark" width="52" height="52"></svg><span class="name">Spendbox</span></div>
+
+    <div class="body" style="gap: 52px">
+      <div class="stack" style="gap: 28px">
+        <p class="eyebrow">The part nobody expects</p>
+        <h1>One box.<br>Two people paid.</h1>
+      </div>
+
+      <div class="prizes">
+        <div class="prize">
+          <p class="amount gold">₦100,000</p>
+          <p class="who">to the player<br>who beats it</p>
+        </div>
+        <div class="prize">
+          <p class="amount gold">₦100,000</p>
+          <p class="who">to whoever<br>made it</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span class="url">spendbox.site</span>
+      <p class="legal">18+. A game of skill played for money. Coins are non-refundable once spent. Please only play with money you can afford to lose.</p>
+    </div>
+  </section>
+
+  <!-- ==================================================== 4 · the price -->
+  <section class="ad" id="ad-4">
+    <div class="brand"><svg class="mark" width="52" height="52"></svg><span class="name">Spendbox</span></div>
+
+    <div class="body beside">
+      <div class="coin">₦100</div>
+      <div class="words">
+        <p class="eyebrow">One coin</p>
+        <h1 class="small">One shot at<br><span class="gold">₦100,000.</span></h1>
+        <p class="sub">Coins are ₦100 each.<br>A go at any box costs one.</p>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span class="url">spendbox.site</span>
+      <p class="legal">18+. A game of skill played for money. Coins are non-refundable once spent. Please only play with money you can afford to lose.</p>
+    </div>
+  </section>
+
+  <!-- =============================================== 5 · the difficulty -->
+  <section class="ad" id="ad-5">
+    <div class="brand"><svg class="mark" width="52" height="52"></svg><span class="name">Spendbox</span></div>
+
+    <div class="body" style="gap: 40px">
+      <p class="eyebrow" style="color: var(--rose)">Level ten</p>
+      <div>
+        <p class="clock">5.0<span>s</span></p>
+        <div class="flashes">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+      </div>
+      <h1 class="small">Thirteen flashes.<br>Five seconds.</h1>
+      <p class="sub">That is all that stands between<br>anybody and ₦100,000.</p>
+    </div>
+
+    <div class="foot">
+      <span class="url">spendbox.site</span>
+      <p class="legal">18+. A game of skill played for money. Coins are non-refundable once spent. Please only play with money you can afford to lose.</p>
+    </div>
+  </section>
+
+  <script>
+    // The mark, from the same numbers as src/components/logo.tsx. Inlined once
+    // and cloned so the five ads cannot end up with five slightly different
+    // logos, which is exactly how that happens.
+    const MARK = `
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="mk-t" gradientUnits="userSpaceOnUse" x1="49.2" y1="7.7" x2="14.8" y2="39.6">
+            <stop offset="0" stop-color="#22d3ee"/><stop offset=".3" stop-color="#2ac7ee"/>
+            <stop offset=".68" stop-color="#6a8bec"/><stop offset="1" stop-color="#a855f7"/>
+          </linearGradient>
+          <linearGradient id="mk-b" gradientUnits="userSpaceOnUse" x1="14.8" y1="30" x2="49.2" y2="50">
+            <stop offset="0" stop-color="#a855f7"/><stop offset=".24" stop-color="#ab57f2"/>
+            <stop offset=".7" stop-color="#d067b0"/><stop offset="1" stop-color="#fb5c7d"/>
+          </linearGradient>
+        </defs>
+        <g fill="none" stroke-width="9.4" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="url(#mk-t)" d="M49.2 17.5 32 7.7 14.8 17.5 14.8 29.8 32 39.6"/>
+          <path stroke="url(#mk-b)" d="M14.8 46.5 32 56.3 49.2 46.5 49.2 34.2 32 24.4"/>
+        </g>
+      </svg>`
+
+    for (const slot of document.querySelectorAll('svg.mark')) {
+      const size = slot.getAttribute('width')
+      const wrap = document.createElement('span')
+      wrap.innerHTML = MARK
+      const svg = wrap.firstElementChild
+      svg.setAttribute('width', size)
+      svg.setAttribute('height', size)
+      slot.replaceWith(svg)
+    }
+  </script>
+</body>
