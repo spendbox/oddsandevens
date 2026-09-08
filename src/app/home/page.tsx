@@ -5,11 +5,14 @@ import { ButtonLink, Card, Pill, Problem } from '@/components/ui'
 import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import { LEVELS } from '@/lib/game'
-import { MIN_TOPUP_COINS, PRIZE_NAIRA, coinsToNaira, naira } from '@/lib/money'
+import { PRIZE_NAIRA, coinsToNaira, naira } from '@/lib/money'
 import type { Attempt, Box, Payout } from '@/lib/types'
 import { CreateBox } from './create-box'
 import { ShareLink } from '@/components/share-link'
 import { FlyerStudio } from '@/components/flyer-studio'
+import { AttemptsChart } from '@/components/attempts-chart'
+import { attemptsByDay } from '@/lib/activity'
+import { Footer } from '@/components/footer'
 
 export const metadata = { title: 'Your box' }
 
@@ -29,6 +32,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
   const owed = (payouts ?? []) as Payout[]
 
   const openBox = myBoxes.find((box) => box.status === 'open') ?? null
+  const activity = openBox ? await attemptsByDay(openBox.id) : []
   const finishedBoxes = myBoxes.filter((box) => box.status !== 'open')
 
   return (
@@ -103,10 +107,6 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
               <Coins size={17} /> Top up
             </ButtonLink>
 
-            <p className="mt-3 text-xs text-dusk">
-              {MIN_TOPUP_COINS} coins minimum ({naira(coinsToNaira(MIN_TOPUP_COINS))}).
-              Creating a box is always free.
-            </p>
           </Card>
 
           {openBox ? (
@@ -151,7 +151,15 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
                 <Unlock size={13} /> Your box is live
               </Pill>
 
-              <p className="mt-4 mb-3 text-sm font-semibold">Share it and start earning</p>
+              <div className="mt-5 rounded-2xl bg-black/25 p-4 ring-1 ring-inset ring-white/8">
+                <p className="mb-1 text-sm font-semibold">People trying your box</p>
+                <p className="mb-4 text-xs text-dusk">
+                  Every attempt, by the day it happened.
+                </p>
+                <AttemptsChart data={activity} />
+              </div>
+
+              <p className="mt-5 mb-3 text-sm font-semibold">Share it and start earning</p>
               <ShareLink code={openBox.code} title={openBox.title || `Box ${openBox.code}`} />
 
               <div className="mt-5">
@@ -255,6 +263,8 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
           </section>
         ) : null}
       </main>
+
+      <Footer />
     </>
   )
 }

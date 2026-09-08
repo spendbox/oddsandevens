@@ -7,8 +7,19 @@
  * there are no stale PNGs sitting in a bucket advertising an old name.
  *
  * Square, 1080x1080, because that is what every place these get posted wants —
- * WhatsApp status, an Instagram post, an X image. Drawn at that size rather
- * than scaled up, so the text is sharp.
+ * WhatsApp status, an Instagram post, an X image.
+ *
+ * ── How the layout works, and why it is not a list of coordinates ──────────
+ *
+ * Everything sits inside a margin and is placed by a cursor that moves down the
+ * page. Every block asks for the space it needs and the cursor advances by that
+ * plus a gap from a small scale. Nothing is positioned against the bottom of
+ * the canvas except the footer, which is measured from it.
+ *
+ * This is the second attempt. The first used fixed y positions per element,
+ * looked correct for a one-line title, and ran the caption straight through the
+ * grid the moment a title wrapped to two. Fixed coordinates cannot survive
+ * text somebody else types.
  */
 
 export type FlyerStyle = 'bold' | 'grid' | 'ticket'
@@ -16,6 +27,7 @@ export type FlyerStyle = 'bold' | 'grid' | 'ticket'
 export type FlyerData = {
   code: string
   title: string
+  description: string
   prize: string
   creator: string
   url: string
@@ -23,15 +35,20 @@ export type FlyerData = {
 
 const SIZE = 1080
 
+/** The page margin. Everything lives inside this. */
+const MARGIN = 96
+
+/** The vertical rhythm. Gaps come from here, never from a guessed number. */
+const GAP = { tight: 18, normal: 40, loose: 72, section: 104 }
+
 const INK = '#07040f'
 const CHALK = '#f4f0ff'
 const MIST = '#a99ec7'
-const DUSK = '#6f6490'
+const DUSK = '#7d739c'
 const VIOLET = '#a855f7'
 const CYAN = '#22d3ee'
 const GOLD = '#ffc94a'
 
-/** The system font stack, matching the app. */
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
 function font(weight: number, size: number): string {
@@ -64,6 +81,8 @@ function wrap(
   maxLines: number,
 ): string[] {
   const words = text.split(/\s+/).filter(Boolean)
+  if (words.length === 0) return []
+
   const lines: string[] = []
   let line = ''
 
@@ -80,12 +99,13 @@ function wrap(
 
   if (line && lines.length < maxLines) lines.push(line)
 
-  if (lines.length === maxLines) {
-    let last = lines[maxLines - 1]
+  const complete = lines.join(' ') === words.join(' ')
+  if (!complete && lines.length > 0) {
+    let last = lines[lines.length - 1]
     while (context.measureText(`${last}…`).width > maxWidth && last.length > 1) {
       last = last.slice(0, -1)
     }
-    if (words.join(' ') !== lines.join(' ')) lines[maxLines - 1] = `${last}…`
+    lines[lines.length - 1] = `${last}…`
   }
 
   return lines
@@ -108,39 +128,52 @@ function background(context: CanvasRenderingContext2D) {
   context.fillStyle = INK
   context.fillRect(0, 0, SIZE, SIZE)
 
-  const violet = context.createRadialGradient(180, 90, 0, 180, 90, 780)
-  violet.addColorStop(0, 'rgba(120, 45, 190, 0.75)')
-  violet.addColorStop(1, 'rgba(120, 45, 190, 0)')
+  const violet = context.createRadialGradient(150, 60, 0, 150, 60, 820)
+  violet.addColorStop(0, 'rgba(122, 47, 192, 0.72)')
+  violet.addColorStop(1, 'rgba(122, 47, 192, 0)')
   context.fillStyle = violet
   context.fillRect(0, 0, SIZE, SIZE)
 
-  const cyan = context.createRadialGradient(940, 1000, 0, 940, 1000, 720)
-  cyan.addColorStop(0, 'rgba(14, 116, 144, 0.6)')
+  const cyan = context.createRadialGradient(960, 1020, 0, 960, 1020, 700)
+  cyan.addColorStop(0, 'rgba(14, 116, 144, 0.55)')
   cyan.addColorStop(1, 'rgba(14, 116, 144, 0)')
   context.fillStyle = cyan
   context.fillRect(0, 0, SIZE, SIZE)
 }
 
+/**
+ * The band at the bottom the footer owns, plus clear air above it.
+ *
+ * Bigger than the wordmark itself on purpose. Content that stops exactly where
+ * the footer starts is not overlapping, but it reads as crowded — which is
+ * what "too close to the URL" means.
+ */
+const FOOTER_HEIGHT = 190
+
 /** The wordmark, bottom-left on every design. */
-function wordmark(context: CanvasRenderingContext2D, url: string) {
+function footer(context: CanvasRenderingContext2D, url: string) {
+  const top = SIZE - MARGIN - 52
+  context.textAlign = 'left'
+
   context.fillStyle = VIOLET
-  roundRect(context, 80, SIZE - 168, 52, 52, 16)
+  roundRect(context, MARGIN, top, 52, 52, 16)
   context.fill()
 
   context.fillStyle = CYAN
-  context.fillRect(94, SIZE - 154, 10, 10)
-  context.fillRect(112, SIZE - 154, 10, 10)
-  context.fillRect(94, SIZE - 136, 10, 10)
-  context.fillRect(112, SIZE - 136, 10, 10)
+  context.fillRect(MARGIN + 14, top + 14, 10, 10)
+  context.fillRect(MARGIN + 32, top + 14, 10, 10)
+  context.fillRect(MARGIN + 14, top + 32, 10, 10)
+  context.fillRect(MARGIN + 32, top + 32, 10, 10)
 
   context.fillStyle = CHALK
-  context.font = font(700, 34)
-  context.textAlign = 'left'
-  context.fillText('Spendbox', 148, SIZE - 128)
+  context.font = font(700, 32)
+  context.fillText('Spendbox', MARGIN + 68, top + 24)
 
   context.fillStyle = DUSK
-  context.font = font(500, 25)
-  context.fillText(url.replace(/^https?:\/\//, ''), 148, SIZE - 92)
+  context.font = font(500, 23)
+  context.fillText(url.replace(/^https?:\/\//, ''), MARGIN + 68, top + 52)
+
+  context.textAlign = 'center'
 }
 
 /** A 3x3 grid with some tiles lit, at any size. */
@@ -151,18 +184,19 @@ function miniGrid(
   box: number,
   lit: number[],
 ) {
-  const gap = box * 0.09
-  const tile = (box - gap * 2) / 3
+  const gap = box * 0.075
+  const pad = box * 0.06
+  const tile = (box - gap * 2 - pad * 2) / 3
 
-  context.fillStyle = 'rgba(0, 0, 0, 0.35)'
-  roundRect(context, x - gap, y - gap, box + gap * 2, box + gap * 2, box * 0.13)
+  context.fillStyle = 'rgba(0, 0, 0, 0.4)'
+  roundRect(context, x, y, box, box, box * 0.14)
   context.fill()
 
   for (let index = 0; index < 9; index += 1) {
     const column = index % 3
     const row = Math.floor(index / 3)
-    const tx = x + column * (tile + gap)
-    const ty = y + row * (tile + gap)
+    const tx = x + pad + column * (tile + gap)
+    const ty = y + pad + row * (tile + gap)
 
     if (lit.includes(index)) {
       const shine = context.createLinearGradient(tx, ty, tx + tile, ty + tile)
@@ -170,7 +204,7 @@ function miniGrid(
       shine.addColorStop(1, VIOLET)
       context.fillStyle = shine
     } else {
-      context.fillStyle = 'rgba(255, 255, 255, 0.07)'
+      context.fillStyle = 'rgba(255, 255, 255, 0.06)'
     }
 
     roundRect(context, tx, ty, tile, tile, tile * 0.26)
@@ -178,52 +212,118 @@ function miniGrid(
   }
 }
 
+
 /**
- * Design one — the number, as big as it goes.
+ * A block in a flyer: how tall it is, and how to draw it once its top edge is
+ * known.
+ */
+type Block = { height: number; gapAfter: number; draw: (top: number) => void }
+
+/**
+ * Stack blocks and centre the whole stack in the space available.
  *
- * For a group chat, where the flyer is competing with everything else on the
- * screen and has about half a second to say what it is.
+ * The reason for measuring before drawing: a cursor that only moves downward
+ * lays a short flyer out correctly but leaves all the slack at the bottom, so a
+ * box with no description looks top-heavy and one with a long title looks
+ * cramped. Measuring first means the same design breathes evenly whatever the
+ * creator typed.
+ */
+function stack(blocks: Block[], top: number, bottom: number) {
+  const available = bottom - top
+  const marks = blocks.reduce((total, block) => total + block.height, 0)
+  const gaps = blocks
+    .slice(0, -1)
+    .reduce((total, block) => total + block.gapAfter, 0)
+
+  // Too tall for the space: tighten the gaps rather than let the last block
+  // walk over the footer. A long title spends its extra height on air first,
+  // and only runs out when there is genuinely nothing left to give.
+  const squeeze =
+    marks + gaps > available && gaps > 0
+      ? Math.max(0.3, (available - marks) / gaps)
+      : 1
+
+  const content = marks + gaps * squeeze
+
+  // Centre in what is left. Never start above the area.
+  let y = Math.max(top, top + (available - content) / 2)
+
+  for (const [index, block] of blocks.entries()) {
+    block.draw(y)
+    y += block.height + (index < blocks.length - 1 ? block.gapAfter * squeeze : 0)
+  }
+}
+
+/** A centred run of text as a block. `y` is the block's top, not a baseline. */
+function textBlock(
+  context: CanvasRenderingContext2D,
+  lines: string[],
+  size: number,
+  weight: number,
+  colour: string | CanvasGradient,
+  lineHeight: number,
+  gapAfter: number,
+): Block {
+  return {
+    height: lines.length * lineHeight,
+    gapAfter,
+    draw(top) {
+      context.fillStyle = colour
+      context.font = font(weight, size)
+      lines.forEach((line, index) => {
+        // Baselines sit at roughly 78% down each line box.
+        context.fillText(line, SIZE / 2, top + index * lineHeight + lineHeight * 0.78)
+      })
+    },
+  }
+}
+
+/**
+ * Design one — the number, with room around it.
+ *
+ * For a group chat, where the flyer has about half a second to say what it is.
  */
 function drawBold(context: CanvasRenderingContext2D, data: FlyerData) {
   background(context)
   context.textAlign = 'center'
 
-  context.fillStyle = GOLD
-  context.font = font(700, 34)
-  context.fillText('BEAT THE PATTERN, TAKE THE BOX', SIZE / 2, 175)
+  const inner = SIZE - MARGIN * 2
+  const blocks: Block[] = []
 
-  const gradient = context.createLinearGradient(120, 0, 960, 0)
+  blocks.push(
+    textBlock(context, ['BEAT THE PATTERN · TAKE THE BOX'], 30, 700, GOLD, 40, GAP.section),
+  )
+
+  const gradient = context.createLinearGradient(MARGIN, 0, SIZE - MARGIN, 0)
   gradient.addColorStop(0, GOLD)
   gradient.addColorStop(0.5, '#ffe9a8')
   gradient.addColorStop(1, '#ff9a3c')
-  context.fillStyle = gradient
-  const prizeSize = fitText(context, data.prize, 880, 700, 200, 90)
-  context.font = font(700, prizeSize)
-  context.fillText(data.prize, SIZE / 2, 390)
+  const prizeSize = fitText(context, data.prize, inner, 700, 176, 84)
+  blocks.push(
+    textBlock(context, [data.prize], prizeSize, 700, gradient, prizeSize * 1.02, GAP.section),
+  )
 
-  // Laid out with a running cursor from here down, because the title is the
-  // creator's text and can be one line or two — and a fixed layout that looks
-  // right for one of those quietly overlaps for the other.
-  context.fillStyle = CHALK
   context.font = font(600, 46)
-  const lines = wrap(context, data.title, 840, 2)
+  blocks.push(
+    textBlock(context, wrap(context, data.title, inner, 2), 46, 600, CHALK, 60, GAP.normal),
+  )
 
-  let y = 470
-  for (const line of lines) {
-    context.fillText(line, SIZE / 2, y)
-    y += 58
+  if (data.description) {
+    context.font = font(400, 30)
+    const lines = wrap(context, data.description, inner - 40, 3)
+    if (lines.length > 0) {
+      blocks.push(textBlock(context, lines, 30, 400, MIST, 44, GAP.loose))
+    }
   }
 
-  const grid = 200
-  y += 30
-  miniGrid(context, SIZE / 2 - grid / 2, y, grid, [0, 4, 5, 7])
-  y += grid + 62
+  // No grid on this one. Design two is the grid; drawing it here as well was
+  // what made the flyer whose entire job is the number feel packed.
+  blocks.push(
+    textBlock(context, [`Box ${data.code} · by ${data.creator}`], 27, 500, DUSK, 36, 0),
+  )
 
-  context.fillStyle = MIST
-  context.font = font(500, 32)
-  context.fillText(`Box ${data.code} · by ${data.creator}`, SIZE / 2, y)
-
-  wordmark(context, data.url)
+  stack(blocks, MARGIN + 30, SIZE - FOOTER_HEIGHT)
+  footer(context, data.url)
 }
 
 /**
@@ -236,41 +336,47 @@ function drawGrid(context: CanvasRenderingContext2D, data: FlyerData) {
   background(context)
   context.textAlign = 'center'
 
-  context.fillStyle = CYAN
-  context.font = font(700, 32)
-  context.fillText('NINE TILES · TEN PATTERNS · ONE PRIZE', SIZE / 2, 140)
+  const inner = SIZE - MARGIN * 2
+  const blocks: Block[] = []
 
-  const grid = 370
-  miniGrid(context, SIZE / 2 - grid / 2, 190, grid, [1, 3, 4, 8])
+  blocks.push(
+    textBlock(context, ['NINE TILES · TEN PATTERNS · ONE PRIZE'], 28, 700, CYAN, 38, GAP.normal),
+  )
 
-  context.fillStyle = CHALK
-  context.font = font(600, 44)
-  const lines = wrap(context, data.title, 840, 2)
+  const grid = 330
+  blocks.push({
+    height: grid,
+    gapAfter: GAP.loose,
+    draw: (top) => miniGrid(context, SIZE / 2 - grid / 2, top, grid, [1, 3, 4, 8]),
+  })
 
-  let y = 640
-  for (const line of lines) {
-    context.fillText(line, SIZE / 2, y)
-    y += 54
+  context.font = font(600, 42)
+  blocks.push(
+    textBlock(context, wrap(context, data.title, inner, 2), 42, 600, CHALK, 54, GAP.tight),
+  )
+
+  if (data.description) {
+    context.font = font(400, 27)
+    const lines = wrap(context, data.description, inner - 60, 1)
+    if (lines.length > 0) blocks.push(textBlock(context, lines, 27, 400, MIST, 40, GAP.normal))
   }
 
-  const gradient = context.createLinearGradient(200, 0, 880, 0)
+  const gradient = context.createLinearGradient(MARGIN, 0, SIZE - MARGIN, 0)
   gradient.addColorStop(0, GOLD)
   gradient.addColorStop(1, '#ff9a3c')
-  context.fillStyle = gradient
-  const prizeSize = fitText(context, data.prize, 700, 700, 118, 64)
-  context.font = font(700, prizeSize)
-  y += 44
-  context.fillText(data.prize, SIZE / 2, y)
+  const prizeSize = fitText(context, data.prize, inner - 120, 700, 104, 60)
+  blocks.push(
+    textBlock(context, [data.prize], prizeSize, 700, gradient, prizeSize * 1.05, GAP.tight),
+  )
 
-  context.fillStyle = MIST
-  context.font = font(500, 30)
-  context.fillText('to whoever beats it first', SIZE / 2, y + 44)
+  blocks.push(textBlock(context, ['to whoever beats it first'], 26, 500, DUSK, 34, 0))
 
-  wordmark(context, data.url)
+  stack(blocks, MARGIN, SIZE - FOOTER_HEIGHT)
+  footer(context, data.url)
 }
 
 /**
- * Design three — a torn ticket with the code on it.
+ * Design three — a ticket with the code on it.
  *
  * The one that looks like it is worth something, and puts the box code where
  * somebody can read it aloud.
@@ -278,64 +384,76 @@ function drawGrid(context: CanvasRenderingContext2D, data: FlyerData) {
 function drawTicket(context: CanvasRenderingContext2D, data: FlyerData) {
   background(context)
 
+  const cardX = MARGIN - 12
+  const cardW = SIZE - cardX * 2
+  const cardY = 128
+  const cardH = SIZE - cardY - FOOTER_HEIGHT + 46
+  const tear = cardY + cardH * 0.68
+
   context.save()
   context.shadowColor = 'rgba(0, 0, 0, 0.55)'
   context.shadowBlur = 60
-  context.shadowOffsetY = 20
-  context.fillStyle = 'rgba(21, 12, 46, 0.94)'
-  roundRect(context, 110, 150, 860, 700, 48)
+  context.shadowOffsetY = 18
+  context.fillStyle = 'rgba(21, 12, 46, 0.95)'
+  roundRect(context, cardX, cardY, cardW, cardH, 44)
   context.fill()
   context.restore()
 
-  context.strokeStyle = 'rgba(168, 85, 247, 0.45)'
+  context.strokeStyle = 'rgba(168, 85, 247, 0.4)'
   context.lineWidth = 3
-  roundRect(context, 110, 150, 860, 700, 48)
+  roundRect(context, cardX, cardY, cardW, cardH, 44)
   context.stroke()
 
-  // The perforation across the middle of the ticket.
-  context.strokeStyle = 'rgba(255, 255, 255, 0.16)'
+  context.strokeStyle = 'rgba(255, 255, 255, 0.14)'
   context.lineWidth = 3
-  context.setLineDash([14, 14])
+  context.setLineDash([13, 13])
   context.beginPath()
-  context.moveTo(150, 620)
-  context.lineTo(930, 620)
+  context.moveTo(cardX + 44, tear)
+  context.lineTo(cardX + cardW - 44, tear)
   context.stroke()
   context.setLineDash([])
 
   context.fillStyle = INK
   context.beginPath()
-  context.arc(110, 620, 30, 0, Math.PI * 2)
-  context.arc(970, 620, 30, 0, Math.PI * 2)
+  context.arc(cardX, tear, 28, 0, Math.PI * 2)
+  context.arc(cardX + cardW, tear, 28, 0, Math.PI * 2)
   context.fill()
 
   context.textAlign = 'center'
+  const inner = cardW - 130
 
-  context.fillStyle = GOLD
-  context.font = font(700, 30)
-  context.fillText('ONE ATTEMPT · ONE COIN', SIZE / 2, 250)
+  // Above the tear: what it is, and what it is worth.
+  const upper: Block[] = []
+  upper.push(textBlock(context, ['ONE ATTEMPT · ONE COIN'], 26, 700, GOLD, 34, GAP.normal))
 
-  context.fillStyle = CHALK
-  context.font = font(600, 44)
-  const lines = wrap(context, data.title, 720, 2)
-  lines.forEach((line, index) => context.fillText(line, SIZE / 2, 330 + index * 56))
+  context.font = font(600, 42)
+  upper.push(textBlock(context, wrap(context, data.title, inner, 2), 42, 600, CHALK, 54, GAP.tight))
 
-  const gradient = context.createLinearGradient(200, 0, 880, 0)
+  if (data.description) {
+    context.font = font(400, 26)
+    const lines = wrap(context, data.description, inner - 40, 2)
+    if (lines.length > 0) upper.push(textBlock(context, lines, 26, 400, MIST, 36, GAP.normal))
+  }
+
+  const gradient = context.createLinearGradient(MARGIN, 0, SIZE - MARGIN, 0)
   gradient.addColorStop(0, GOLD)
   gradient.addColorStop(1, '#ff9a3c')
-  context.fillStyle = gradient
-  const prizeSize = fitText(context, data.prize, 640, 700, 150, 80)
-  context.font = font(700, prizeSize)
-  context.fillText(data.prize, SIZE / 2, 500 + (lines.length - 1) * 40)
+  const prizeSize = fitText(context, data.prize, inner - 60, 700, 118, 66)
+  upper.push(textBlock(context, [data.prize], prizeSize, 700, gradient, prizeSize * 1.05, 0))
 
-  context.fillStyle = DUSK
-  context.font = font(600, 28)
-  context.fillText('BOX CODE', SIZE / 2, 700)
+  stack(upper, cardY + 44, tear - 34)
 
-  context.fillStyle = CYAN
-  context.font = font(700, 92)
-  context.fillText(data.code, SIZE / 2, 790)
+  // Below the tear: the stub.
+  stack(
+    [
+      textBlock(context, ['BOX CODE'], 25, 600, DUSK, 32, GAP.tight),
+      textBlock(context, [data.code], 76, 700, CYAN, 88, 0),
+    ],
+    tear + 24,
+    cardY + cardH - 24,
+  )
 
-  wordmark(context, data.url)
+  footer(context, data.url)
 }
 
 const DRAW: Record<FlyerStyle, (c: CanvasRenderingContext2D, d: FlyerData) => void> = {
@@ -349,6 +467,8 @@ export const FLYER_STYLES: { style: FlyerStyle; name: string; note: string }[] =
   { style: 'grid', name: 'The game', note: 'Shows what the game is at a glance.' },
   { style: 'ticket', name: 'The ticket', note: 'Puts the box code front and centre.' },
 ]
+
+export const FLYER_SIZE = SIZE
 
 /** Draw one flyer onto a canvas the caller owns. */
 export function drawFlyer(canvas: HTMLCanvasElement, style: FlyerStyle, data: FlyerData) {

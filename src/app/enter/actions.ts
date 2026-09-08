@@ -42,52 +42,81 @@ function safeNext(raw: unknown): string {
   return value.startsWith('/') && !value.startsWith('//') ? value : '/home'
 }
 
-/** Step one: who are you? */
-export async function checkEmail(_state: EnterState, formData: FormData): Promise<EnterState> {
-  const email = String(formData.get('email') ?? '').trim().toLowerCase()
-
-  if (!email.includes('@') || email.length < 4) {
-    return { step: 'email', problem: 'That does not look like an email address.' }
-  }
-
-  return { step: (await accountExists(email)) ? 'password' : 'create', email }
-}
-
-/** Step two, for somebody who already has an account. */
-export async function signIn(_state: EnterState, formData: FormData): Promise<EnterState> {
+/**
+ * Every step of the form, behind one action.
+ *
+ * Deliberately not four separate actions with four separate useActionState
+ * hooks. That is how it was, and it had a bug worth remembering: each hook kept
+ * its own last result, so after going back to change the email the sign-in
+ * hook was still reporting "you are on the password step" and the screen never
+ * moved. With one action there is exactly one answer to "which step is this",
+ * and no stale one to disagree with it.
+ */
+export async function enterStep(_state: EnterState, formData: FormData): Promise<EnterState> {
+  const intent = String(formData.get('intent') ?? 'check')
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
   const password = String(formData.get('password') ?? '')
   const next = safeNext(formData.get('next'))
 
-  if (!password) return { step: 'password', email, problem: 'Enter your password.' }
+  // Going back to the first step. Nothing to validate; nothing to remember.
+  if (intent === 'back') return { step: 'email' }
+
+  if (intent === 'reset') {
+    if (!email.includes('@')) return { step: 'email', problem: 'Enter your email address first.' }
+
+    if (!emailConfigured()) {
+      return {
+        step: 'password',
+        email,
+        problem:
+          'Password resets are not set up on this deployment: RESEND_API_KEY and EMAIL_FROM ' +
+          'are missing.',
+      }
+    }
+
+    const origin = await siteOrigin()
+    try {
+      await sendResetLink(email, origin)
+    } catch {
+      // Swallowed deliberately. A Resend outage must not turn into a message
+      // that tells the sender whether that address has an account.
+    }
+
+    return { step: 'password', email, sentReset: true }
+  }
+
+  if (intent === 'check') {
+    if (!email.includes('@') || email.length < 4) {
+      return { step: 'email', email, problem: 'That does not look like an email address.' }
+    }
+    return { step: (await accountExists(email)) ? 'password' : 'create', email }
+  }
 
   const supabase = await supabaseServer()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-  if (error) {
-    return {
-      step: 'password',
-      email,
-      problem: error.message.toLowerCase().includes('invalid')
-        ? 'That password does not match this account.'
-        : error.message,
+  if (intent === 'signin') {
+    if (!password) return { step: 'password', email, problem: 'Enter your password.' }
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      return {
+        step: 'password',
+        email,
+        problem: error.message.toLowerCase().includes('invalid')
+          ? 'That password does not match this account.'
+          : error.message,
+      }
     }
+
+    redirect(next)
   }
 
-  redirect(next)
-}
-
-/** Step two, for somebody new. */
-export async function signUp(_state: EnterState, formData: FormData): Promise<EnterState> {
-  const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  const password = String(formData.get('password') ?? '')
-  const next = safeNext(formData.get('next'))
-
+  // Signing up.
   if (password.length < 6) {
     return { step: 'create', email, problem: 'Use a password of at least 6 characters.' }
   }
 
-  const supabase = await supabaseServer()
   const { data, error } = await supabase.auth.signUp({ email, password })
 
   if (error) {
@@ -120,39 +149,6 @@ export async function signUp(_state: EnterState, formData: FormData): Promise<En
   }
 
   redirect(next)
-}
-
-/**
- * Send a reset link, through Resend.
- *
- * Always reports success, whether or not the address exists, whether or not
- * mail actually went out. Saying "no account with that email" turns this form
- * into a way to find out who has an account here, which is nobody's business.
- */
-export async function sendReset(_state: EnterState, formData: FormData): Promise<EnterState> {
-  const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  if (!email.includes('@')) return { step: 'email', problem: 'Enter your email address first.' }
-
-  if (!emailConfigured()) {
-    return {
-      step: 'password',
-      email,
-      problem:
-        'Password resets are not set up on this deployment: RESEND_API_KEY and EMAIL_FROM ' +
-        'are missing.',
-    }
-  }
-
-  const origin = await siteOrigin()
-
-  try {
-    await sendResetLink(email, origin)
-  } catch {
-    // Swallowed deliberately. A Resend outage must not turn into a message that
-    // tells the sender whether that address has an account.
-  }
-
-  return { step: 'password', email, sentReset: true }
 }
 
 export async function signOut() {

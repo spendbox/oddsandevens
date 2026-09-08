@@ -1,4 +1,5 @@
 import { SiteHeader } from '@/components/site-header'
+import { Footer } from '@/components/footer'
 import { Card, Empty, Pill, Problem } from '@/components/ui'
 import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
@@ -176,6 +177,8 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
           )}
         </section>
       </main>
+
+      <Footer />
     </>
   )
 }

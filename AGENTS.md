@@ -76,9 +76,21 @@ structural.
 - Every level counts in from three before the pattern plays, in the real game
   and the practice run. The clock does not start until the last flash is out.
 - Long-lived visual work that people download — the flyers in `src/lib/flyers.ts`
-  — lays out with a running cursor, never fixed coordinates. The title is the
-  creator's text and can be one line or two, and a layout tuned for one of those
-  quietly overlaps for the other.
+  — measures its blocks and centres the stack, never fixed coordinates. The
+  title and description are the creator's text and vary in length; a layout
+  tuned for one length is cramped or gappy at another.
+- A public page must never hard-fail on a missing environment variable. The
+  landing page took a whole Vercel deploy down that way: `siteStats()` ran
+  inside the same `Promise.all` as the cookie read, so a build-time render hit
+  the service-role client before the route had been marked dynamic. Marketing
+  numbers degrade to their baseline; only money is entitled to throw.
+- The front-page counters add `STATS_BASELINE` in `src/lib/money.ts` to the real
+  totals. That baseline is a launch figure presented to readers as history —
+  treat changing it as a claim being made, not a setting being tuned.
+- Beating your own box pays the prize once. `claim_win` is where that lives.
+- Written pages (terms, privacy, how it works, responsible play) share
+  `src/components/legal-page.tsx`, and the contact address has one home in
+  `src/lib/contact.ts`.
 - A gate that can be closed by a missing environment variable should say so
   rather than 404. `/admin` is the worked example: no list at all explains
   itself, a list that excludes you is a 404.

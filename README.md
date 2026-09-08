@@ -85,6 +85,11 @@ Nothing else in the app sends email.
 | One game | 1 coin |
 | Retrying a level, after the free replay | 1 coin |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
+| Beating **your own** box | ₦100,000 once, not twice |
+
+Beating your own box pays the prize **once**. Paying both halves would hand
+somebody ₦200,000 for patterns they set themselves, which is not a game — it is
+a way to print money, and would be the first thing anybody tried.
 
 Coins are bought through Paystack. Winnings are paid out **by hand, by bank
 transfer, within one week**, from the Paystack dashboard — there is no key on this server that can
@@ -161,6 +166,7 @@ supabase/migrations/0003_functions.sql
 supabase/migrations/0004_guests_and_banks.sql
 supabase/migrations/0005_password_resets.sql
 supabase/migrations/0006_retries_and_box_art.sql
+supabase/migrations/0007_self_win_and_stats.sql
 ```
 
 0006 also creates a public `box-images` storage bucket. If your Supabase project
@@ -181,7 +187,7 @@ into Vercel under Settings → Environment Variables:
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same page, the "anon" key |
-| `SUPABASE_SERVICE_ROLE_KEY` | same page, the "service_role" key — **required** |
+| `SUPABASE_SERVICE_ROLE_KEY` | same page, the "service_role" key — **required** to play |
 | `PAYSTACK_SECRET_KEY` | Paystack → Settings → API Keys |
 | `RESEND_API_KEY` | resend.com → API Keys. All email goes through it |
 | `EMAIL_FROM` | e.g. `Spendbox <hello@yourdomain.com>` |
@@ -197,8 +203,13 @@ page says so and prints the exact line to add, rather than pretending not to
 exist. So if you cannot get in, open `/admin` while signed in and it will tell
 you what to set. Remember to redeploy — Vercel reads these at build time.
 
-`SUPABASE_SERVICE_ROLE_KEY` is not optional here. Every coin spent and every
-answer judged goes through it. Never give it a `NEXT_PUBLIC_` prefix.
+`SUPABASE_SERVICE_ROLE_KEY` is not optional for anything that matters: every
+coin spent and every answer judged goes through it. Never give it a
+`NEXT_PUBLIC_` prefix.
+
+The site will still build and the landing page will still render without it —
+the front-page counters fall back to their baseline rather than taking the
+deploy down — but nobody can play, top up or be paid until it is set.
 
 **4. The Paystack webhook.** Paystack → Settings → API Keys & Webhooks → set the
 webhook URL to `https://your-domain/api/paystack/webhook`. Without it, a player
@@ -221,6 +232,8 @@ src/components/mascot.tsx      Boxy, in five moods
 src/components/tile-reel.tsx   the grid playing itself, on every box page
 src/lib/flyers.ts              the three promo flyers, drawn on a canvas
 src/components/card-deck.tsx   the swipeable card rail
+src/lib/pdf.ts                 a one-page PDF around a single JPEG
+src/lib/stats.ts               the two counters on the front page
 supabase/migrations/   the schema, the policies, and the three atomic functions
 ```
 

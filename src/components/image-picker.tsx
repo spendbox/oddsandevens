@@ -20,14 +20,23 @@ import { Button } from './ui'
 const MAX_EDGE = 1200
 const QUALITY = 0.82
 
-export function ImagePicker({ currentUrl }: { currentUrl: string }) {
+export function ImagePicker({
+  currentUrl,
+  onPicked,
+}: {
+  currentUrl: string
+  /** Told the local preview URL, so a live preview can show it before saving. */
+  onPicked?: (url: string) => void
+}) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const choose = async (file: File) => {
     setBusy(true)
-    setPreview(URL.createObjectURL(file))
+    const local = URL.createObjectURL(file)
+    setPreview(local)
+    onPicked?.(local)
 
     try {
       const shrunk = await shrink(file)
@@ -69,6 +78,7 @@ export function ImagePicker({ currentUrl }: { currentUrl: string }) {
             type="button"
             onClick={() => {
               setPreview(null)
+              onPicked?.(currentUrl)
               if (inputRef.current) inputRef.current.value = ''
             }}
             aria-label="Choose a different picture"

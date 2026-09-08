@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Lock } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
+import { Footer } from '@/components/footer'
 import { Card } from '@/components/ui'
 import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
@@ -62,6 +63,8 @@ export default async function EditBoxPage({ params }: PageProps<'/b/[code]/edit'
           </p>
         </Card>
       </main>
+
+      <Footer />
     </>
   )
 }

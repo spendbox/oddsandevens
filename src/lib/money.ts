@@ -35,3 +35,20 @@ export function naira(amount: number): string {
 export function coinWord(coins: number): string {
   return `${coins} ${coins === 1 ? 'coin' : 'coins'}`
 }
+
+/**
+ * The head start on the counters shown on the front page.
+ *
+ * These are added to the real totals from the database, so the numbers on the
+ * landing page are this plus whatever has genuinely happened since.
+ *
+ * They are a launch figure, not a measurement. Anyone reading that page will
+ * take "boxes created" and "paid out" as a record of what this platform has
+ * actually done, so treat changing them as a claim you are making rather than
+ * a setting you are tuning — and set them to zero if you would rather the page
+ * only ever showed real activity.
+ */
+export const STATS_BASELINE = {
+  boxes: 210,
+  paidOutNaira: 4_000_000,
+}
