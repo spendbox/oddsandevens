@@ -10,7 +10,7 @@ import {
   showMsFor,
   answerMsFor,
 } from './game'
-import { COINS_PER_PLAY, COINS_PER_RETRY } from './money'
+import { CHEAPEST_RETRY, COINS_PER_PLAY, retryCostFor } from './money'
 import type { Attempt, Box, Profile } from './types'
 
 /**
@@ -155,7 +155,7 @@ async function recordMiss(attempt: Attempt, message: string): Promise<GameState>
   // still affordable — carrying on from here, or starting again — and the
   // screen offers whichever they can pay for. It only ends when neither is
   // possible, which means the cheaper of the two.
-  if (attempt.replays_left <= 0 && coins < Math.min(COINS_PER_PLAY, COINS_PER_RETRY)) {
+  if (attempt.replays_left <= 0 && coins < Math.min(COINS_PER_PLAY, CHEAPEST_RETRY)) {
     const ended = await endAttempt(attempt.id, 'failed')
     return stateOf(ended ?? { ...attempt, status: 'failed' }, message, coins)
   }
@@ -297,7 +297,7 @@ export async function buyRetry(attempt: Attempt): Promise<GameState> {
   const { data, error } = await admin.rpc('buy_replay', {
     p_attempt: attempt.id,
     p_user: attempt.user_id,
-    p_cost: COINS_PER_RETRY,
+    p_cost: retryCostFor(attempt.level),
   })
 
   const row = Array.isArray(data) ? data[0] : data
@@ -307,7 +307,8 @@ export async function buyRetry(attempt: Attempt): Promise<GameState> {
   if (!row.bought) {
     const problem =
       row.problem === 'not enough coins'
-        ? `Carrying on costs ${COINS_PER_RETRY} coins. Start again for ${COINS_PER_PLAY}, or top up.`
+        ? `Carrying on from level ${attempt.level} costs ${retryCostFor(attempt.level)} coins. ` +
+          `Start again for ${COINS_PER_PLAY}, or top up.`
         : 'Could not carry on from here.'
     return stateOf(attempt, problem)
   }

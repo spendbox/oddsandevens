@@ -10,7 +10,7 @@ import { Mascot } from '@/components/mascot'
 import { Countdown } from '@/components/countdown'
 import { usePatternPlayer } from '@/components/use-pattern-player'
 import { LEVELS, answerMsFor, stepsFor } from '@/lib/game'
-import { COINS_PER_PLAY, COINS_PER_RETRY } from '@/lib/money'
+import { COINS_PER_PLAY, retryCostFor } from '@/lib/money'
 import { naira } from '@/lib/money'
 import type { Box } from '@/lib/types'
 
@@ -430,7 +430,10 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   if (phase === 'decide') {
     const freeReplay = state.replaysLeft > 0
     const coins = state.coins ?? 0
-    const canContinue = coins >= COINS_PER_RETRY
+    // What carrying on costs depends on how far they have got, because that is
+     // how much it saves them. See retryCostFor.
+    const carryOn = retryCostFor(state.level)
+    const canContinue = coins >= carryOn
     const canStartAgain = coins >= COINS_PER_PLAY
 
     return (
@@ -488,9 +491,9 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
               detail={
                 canContinue
                   ? `Keep all ${state.levelsCleared} levels you have cleared.`
-                  : `You need ${COINS_PER_RETRY} coins for this.`
+                  : `You need ${carryOn} coins for this.`
               }
-              price={`${COINS_PER_RETRY} coins`}
+              price={`${carryOn} coins`}
             />
           )}
 

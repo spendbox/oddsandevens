@@ -49,6 +49,25 @@ structural.
   write from the app.
 - Prices live in `src/lib/money.ts`; the difficulty curve lives in
   `src/lib/game.ts`. Neither number should be written down anywhere else.
+- Carrying on from a missed level is priced by level, not flat: `retryCostFor`
+  in `money.ts`, 2 coins at levels 1-3, 3 at 4-7, 5 at 8-10. The server charges
+  what that function says — the cost is passed into `buy_replay`, never sent up
+  by the browser — and the screen shows the same number because it calls the
+  same function. `CHEAPEST_RETRY` is for the "can they afford to keep going at
+  all" question; the exact level's price is for everything else.
+- Coins are bought by bank transfer inside the page: Paystack opens an account
+  for the one payment (`chargeByTransfer`), `/wallet` shows it with a clock, and
+  the screen asks `api/pay/status` every few seconds until the money lands. The
+  hosted card checkout is still there as the fallback, one tap down. Do not
+  reverse those — a transfer is what most people here reach for, and it is the
+  one that survives a connection too poor to load somebody else's checkout page.
+- While a transfer is outstanding, ask `/charge/:reference`, never
+  `/transaction/verify`. Verify calls a payment nobody has made yet "abandoned",
+  and acting on that would fail a payment somebody is still in the middle of
+  making. Nothing on the polling path writes `failed` onto a pending charge.
+- `api/pay/status` looks the reference up with the user id in the WHERE clause.
+  A payment reference is a short string sitting in somebody's browser history;
+  it must never be a way to watch, or finish, another person's payment.
 - `src/lib/game.ts` is shared by the server and the browser on purpose: they
   draw the same curve. Where they disagree about time, the server wins.
 - Box pages and practice runs are readable by anyone, signed in or not. That is

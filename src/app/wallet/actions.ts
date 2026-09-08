@@ -5,10 +5,16 @@ import { requireProfile } from '@/lib/session'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { startCheckout, paymentsConfigured } from '@/lib/paystack'
 import { siteOrigin } from '@/lib/site'
-import { MIN_TOPUP_COINS, nairaToKobo, coinsToNaira } from '@/lib/money'
+import { MAX_TOPUP_COINS, MIN_TOPUP_COINS, nairaToKobo, coinsToNaira } from '@/lib/money'
 
 /**
- * Buy coins.
+ * Buy coins with a card, on Paystack's own checkout page.
+ *
+ * The fallback, not the front door: /wallet opens a bank transfer in the page
+ * itself (see api/pay/transfer), which is what most people here reach for and
+ * what survives a connection too poor to load somebody else's checkout. This is
+ * for the ones who would rather use a card, and for the days Paystack will not
+ * open a transfer.
  *
  * The row goes in as 'pending' before the player leaves for Paystack, so that
  * whatever comes back — the browser, the webhook, or a support request three
@@ -24,7 +30,7 @@ export async function startTopup(formData: FormData) {
   const coins = Number.isFinite(requested) ? Math.floor(requested) : 0
 
   if (coins < MIN_TOPUP_COINS) redirect('/wallet?problem=minimum')
-  if (coins > 500) redirect('/wallet?problem=maximum')
+  if (coins > MAX_TOPUP_COINS) redirect('/wallet?problem=maximum')
 
   const amountKobo = nairaToKobo(coinsToNaira(coins))
   // Prefixed so it is obvious what it is when it turns up in Paystack's

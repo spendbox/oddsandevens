@@ -46,9 +46,11 @@ quietly ran 1.2 seconds short of the clock the player could see.
 
 **One free replay per game, then a choice.** Miss a level and you can take it
 again — new pattern, same level, no charge. After that, missing does not end the
-run: it offers two ways forward. Carry on from the level you are stuck on for
-**2 coins**, keeping every level already cleared, or start again from level 1
-for **1 coin**. The run only ends when neither is affordable, or the player
+run: it offers two ways forward. Carry on from the level you are stuck on,
+keeping every level already cleared, or start again from level 1 for **1 coin**.
+Carrying on costs **2 coins at levels 1–3, 3 at levels 4–7 and 5 at levels
+8–10** — it is priced by what it saves you, and eight cleared levels is most of
+the way to ₦100,000. The run only ends when neither is affordable, or the player
 walks away.
 
 **Every box comes with three promo flyers.** Square PNGs a creator can post to
@@ -90,7 +92,7 @@ Nothing else in the app sends email.
 | One coin | ₦100 |
 | Smallest top-up | 5 coins (₦500) |
 | One game | 1 coin |
-| Carrying on from a level, after the free replay | 2 coins |
+| Carrying on from a level, after the free replay | 2 coins at levels 1–3, 3 at 4–7, 5 at 8–10 |
 | Starting again from level 1 | 1 coin |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
 | Beating **your own** box | ₦100,000 once, not twice |

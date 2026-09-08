@@ -149,3 +149,101 @@ export async function resolveAccount(args: {
 
   return paystack(`/bank/resolve?${query.toString()}`)
 }
+
+/**
+ * A temporary bank account to pay into, and how long it lives.
+ *
+ * This is Paystack's "pay with transfer": rather than sending somebody off to a
+ * hosted checkout page, Paystack hands back an account number that belongs to
+ * this one payment. The player opens their own banking app, transfers the
+ * amount, and the money arriving is what tells us to credit the coins — the
+ * same rule as everywhere else in this file, just with the transfer as the
+ * trigger instead of a card.
+ *
+ * It is the right default here. Buying coins on a Nigerian phone is a transfer
+ * far more often than it is a card, and a card page loaded over mobile data is
+ * a page that can fail to load at all. The account details are text, and text
+ * survives a bad connection.
+ */
+export type TransferAccount = {
+  reference: string
+  accountName: string
+  accountNumber: string
+  bankName: string
+  /** ISO time, or null if Paystack did not give the account an expiry. */
+  expiresAt: string | null
+}
+
+/** Shapes Paystack has used for this response. Read defensively. */
+type ChargeResponse = {
+  reference?: string
+  status?: string
+  account_name?: string
+  account_number?: string
+  bank?: { name?: string; slug?: string } | string
+  bank_name?: string
+  account_expires_at?: string
+  expires_at?: string
+  display_text?: string
+}
+
+export async function chargeByTransfer(args: {
+  email: string
+  amountKobo: number
+  reference: string
+  expiresAt: Date
+}): Promise<TransferAccount> {
+  const data = await paystack<ChargeResponse>('/charge', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: args.email,
+      amount: args.amountKobo,
+      reference: args.reference,
+      bank_transfer: { account_expires_at: args.expiresAt.toISOString() },
+    }),
+  })
+
+  const bank =
+    typeof data.bank === 'string' ? data.bank : (data.bank?.name ?? data.bank_name ?? '')
+
+  if (!data.account_number) {
+    // Paystack answered, but not with an account. Almost always means "Pay with
+    // Transfer" is not switched on for this business — a dashboard setting, not
+    // a code problem — so say that rather than showing an empty card.
+    throw new PaystackError(
+      data.display_text ??
+        'Paystack did not return an account to pay into. Check that "Pay with Transfer" is ' +
+          'enabled on your Paystack dashboard under Settings → Preferences.',
+    )
+  }
+
+  return {
+    reference: data.reference ?? args.reference,
+    accountName: data.account_name ?? 'Paystack',
+    accountNumber: data.account_number,
+    bankName: bank || 'Bank',
+    expiresAt: data.account_expires_at ?? data.expires_at ?? null,
+  }
+}
+
+/**
+ * Has the transfer landed yet?
+ *
+ * `/charge/:reference` rather than `/transaction/verify`, and the difference
+ * matters: verify calls a payment nobody has made yet "abandoned", which is a
+ * verdict, and acting on it would fail a payment the player is still in the
+ * middle of making. This endpoint says `pending` and means it.
+ */
+export type ChargeState = 'pending' | 'success' | 'failed'
+
+export async function chargeStatus(reference: string): Promise<ChargeState> {
+  const data = await paystack<{ status?: string }>(
+    `/charge/${encodeURIComponent(reference)}`,
+  )
+
+  if (data.status === 'success') return 'success'
+  if (data.status === 'failed' || data.status === 'reversed' || data.status === 'timeout') {
+    return 'failed'
+  }
+  return 'pending'
+}

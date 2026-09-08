@@ -1,28 +1,25 @@
 import { SiteHeader } from '@/components/site-header'
 import { Footer } from '@/components/footer'
-import { Card, Empty, Pill, Problem } from '@/components/ui'
+import { Card, Empty, Problem } from '@/components/ui'
 import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import { ArrowDownLeft, Gamepad2 } from 'lucide-react'
 import { paymentsConfigured } from '@/lib/paystack'
-import { MIN_TOPUP_COINS, NAIRA_PER_COIN, coinsToNaira, naira } from '@/lib/money'
+import {
+  MAX_TOPUP_COINS,
+  MIN_TOPUP_COINS,
+  NAIRA_PER_COIN,
+  coinsToNaira,
+  naira,
+} from '@/lib/money'
 import type { LedgerEntry } from '@/lib/types'
-import { startTopup } from './actions'
-import { CustomAmount } from './custom-amount'
+import { TopUp } from './top-up'
 
 export const metadata = { title: 'Wallet' }
 
-/** The packs on offer. The first is the minimum; the rest are round numbers. */
-const PACKS = [
-  { coins: 5, label: 'Starter' },
-  { coins: 10, label: 'Handful' },
-  { coins: 25, label: 'Serious', popular: true },
-  { coins: 50, label: 'All in' },
-]
-
 const PROBLEMS: Record<string, string> = {
   minimum: `The smallest top-up is ${MIN_TOPUP_COINS} coins.`,
-  maximum: 'That is more coins than we sell in one go. Try 500 or fewer.',
+  maximum: `That is more coins than we sell in one go. Try ${MAX_TOPUP_COINS} or fewer.`,
   start: 'We could not start that payment. Try again.',
   paystack: 'Paystack would not open a checkout just now. Try again in a moment.',
   setup: 'Payments are not set up on this deployment yet.',
@@ -92,41 +89,13 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
           <h2 className="text-xl font-bold tracking-tight">Add coins</h2>
           <p className="mt-1.5 text-sm text-mist">
             One coin is {naira(NAIRA_PER_COIN)} and buys one attempt at any box. Minimum{' '}
-            {MIN_TOPUP_COINS} coins.
+            {MIN_TOPUP_COINS} coins. Pay by transfer from your bank app — the account to send to
+            appears right here, and your coins land by themselves.
           </p>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            {PACKS.map((pack) => (
-              <form key={pack.coins} action={startTopup}>
-                <input type="hidden" name="coins" value={pack.coins} />
-                <button
-                  type="submit"
-                  className="pane relative w-full rounded-3xl p-5 text-left transition
-                             hover:border-gold/50 active:scale-[0.98]"
-                >
-                  {pack.popular ? (
-                    <span className="absolute -top-2.5 right-4">
-                      <Pill tone="gold">Popular</Pill>
-                    </span>
-                  ) : null}
-                  <p className="text-xs font-semibold tracking-wider text-dusk uppercase">
-                    {pack.label}
-                  </p>
-                  <p className="tabular mt-1.5 text-3xl font-bold">
-                    {pack.coins}
-                    <span className="ml-1.5 text-base font-medium text-mist">coins</span>
-                  </p>
-                  <p className="tabular mt-1 text-sm text-gold">
-                    {naira(coinsToNaira(pack.coins))}
-                  </p>
-                </button>
-              </form>
-            ))}
+          <div className="mt-5">
+            <TopUp />
           </div>
-
-          <Card className="mt-4">
-            <CustomAmount />
-          </Card>
         </section>
 
         {/* ------------------------------- history ----------------------- */}
