@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { supabaseEnv } from './lib/supabase/env'
+import { readSupabaseEnv } from './lib/supabase/env'
 
 /**
  * Refreshes the Supabase session on every request, and keeps signed-out people
@@ -13,15 +13,37 @@ import { supabaseEnv } from './lib/supabase/env'
  * This is a convenience, not a security boundary. The check here reads a cookie;
  * every page and route that matters asks Supabase who the user actually is.
  *
+ * Which is why nothing in here is allowed to throw. It runs on every request to
+ * every route, so an exception on this line is not a broken page — it is a
+ * broken site, box links included, and those are the whole distribution
+ * mechanism. It threw exactly once, in production, over a setting that was
+ * present in the dashboard but not in the build that was serving: every URL on
+ * spendbox.site answered with a stack trace. A convenience that cannot be
+ * skipped is not a convenience.
+ *
+ * So when the settings are missing or Supabase cannot be reached, the request
+ * goes through untouched and the pages behind decide what to do about it. The
+ * worst case is that somebody signed out reaches /home and is bounced by
+ * requireProfile() a moment later instead of here — which is the same
+ * destination, one hop slower.
+ *
  * Named `proxy` rather than `middleware`: Next.js 16 renamed the convention.
  */
 const NEEDS_ACCOUNT = ['/home', '/wallet', '/account', '/play', '/admin', '/claim']
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
-  const { url: supabaseUrl, key: supabaseKey } = supabaseEnv()
 
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+  const env = readSupabaseEnv()
+
+  if (!env.ok) {
+    // Said once per request rather than swallowed: an operator reading the logs
+    // needs to know why nobody is being signed in, and /setup says the rest.
+    console.warn(`[spendbox] proxy is passing requests straight through: ${env.problem}`)
+    return response
+  }
+
+  const supabase = createServerClient(env.settings.url, env.settings.key, {
     cookies: {
       getAll() {
         return request.cookies.getAll()
@@ -39,9 +61,20 @@ export async function proxy(request: NextRequest) {
     },
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Supabase being slow, down, or refusing the cookie must not decide whether
+  // the site answers at all. No user simply means no redirect.
+  let user = null
+
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch (error) {
+    console.warn(
+      `[spendbox] proxy could not reach Supabase: ` +
+        (error instanceof Error ? error.message : String(error)),
+    )
+    return response
+  }
 
   const { pathname, search } = request.nextUrl
   const privatePage = NEEDS_ACCOUNT.some(

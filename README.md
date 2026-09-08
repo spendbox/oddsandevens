@@ -46,9 +46,11 @@ quietly ran 1.2 seconds short of the clock the player could see.
 
 **One free replay per game, then a choice.** Miss a level and you can take it
 again — new pattern, same level, no charge. After that, missing does not end the
-run: it offers two ways forward. Carry on from the level you are stuck on for
-**2 coins**, keeping every level already cleared, or start again from level 1
-for **1 coin**. The run only ends when neither is affordable, or the player
+run: it offers two ways forward. Carry on from the level you are stuck on,
+keeping every level already cleared, or start again from level 1 for **1 coin**.
+Carrying on costs **2 coins at levels 1–3, 3 at levels 4–7 and 5 at levels
+8–10** — it is priced by what it saves you, and eight cleared levels is most of
+the way to ₦100,000. The run only ends when neither is affordable, or the player
 walks away.
 
 **Every box comes with three promo flyers.** Square PNGs a creator can post to
@@ -90,7 +92,7 @@ Nothing else in the app sends email.
 | One coin | ₦100 |
 | Smallest top-up | 5 coins (₦500) |
 | One game | 1 coin |
-| Carrying on from a level, after the free replay | 2 coins |
+| Carrying on from a level, after the free replay | 2 coins at levels 1–3, 3 at 4–7, 5 at 8–10 |
 | Starting again from level 1 | 1 coin |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
 | Beating **your own** box | ₦100,000 once, not twice |
@@ -200,11 +202,31 @@ into Vercel under Settings → Environment Variables:
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same page, the "anon" key |
+| `SUPABASE_URL` | the same URL again, no prefix — see below |
+| `SUPABASE_ANON_KEY` | the same key again, no prefix — see below |
 | `SUPABASE_SERVICE_ROLE_KEY` | same page, the "service_role" key — **required** to play |
 | `PAYSTACK_SECRET_KEY` | Paystack → Settings → API Keys |
 | `RESEND_API_KEY` | resend.com → API Keys. All email goes through it |
 | `EMAIL_FROM` | optional — defaults to `Spendbox <notifications@spendbox.site>` |
 | `ADMIN_EMAILS` | who can open `/admin`. Defaults to `spendbox@gmail.com` |
+
+Tick every environment you deploy — Production, Preview and Development — and
+redeploy after adding them.
+
+**Why the Supabase URL and key are listed twice.** A name beginning
+`NEXT_PUBLIC_` is compiled into the build rather than looked up when somebody
+visits, so a deployment built before you added one cannot see it however long it
+has been sitting in the dashboard — and a Preview deployment cannot see a value
+you ticked for Production only. That gap is what "the variable is set but the
+site says it is not" means. The prefix-free twins are never compiled in, so they
+are read fresh on every request and take effect the moment they are saved, with
+no redeploy. Set both pairs and it stops being a question.
+
+**If the site says it cannot reach Supabase, open `/setup`.** It lists every
+setting and whether the deployment that is answering right now can actually see
+it — names and booleans, never values. It is public while Supabase is down,
+because that is exactly when there is no sign-in left to hide it behind, and
+admin-only once Supabase is working again.
 
 **If an email does not arrive, open `/admin/email`.** It shows every dependency
 a password reset has — the key, the sending domain, the `password_resets` table

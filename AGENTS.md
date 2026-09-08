@@ -49,6 +49,25 @@ structural.
   write from the app.
 - Prices live in `src/lib/money.ts`; the difficulty curve lives in
   `src/lib/game.ts`. Neither number should be written down anywhere else.
+- Carrying on from a missed level is priced by level, not flat: `retryCostFor`
+  in `money.ts`, 2 coins at levels 1-3, 3 at 4-7, 5 at 8-10. The server charges
+  what that function says — the cost is passed into `buy_replay`, never sent up
+  by the browser — and the screen shows the same number because it calls the
+  same function. `CHEAPEST_RETRY` is for the "can they afford to keep going at
+  all" question; the exact level's price is for everything else.
+- Coins are bought by bank transfer inside the page: Paystack opens an account
+  for the one payment (`chargeByTransfer`), `/wallet` shows it with a clock, and
+  the screen asks `api/pay/status` every few seconds until the money lands. The
+  hosted card checkout is still there as the fallback, one tap down. Do not
+  reverse those — a transfer is what most people here reach for, and it is the
+  one that survives a connection too poor to load somebody else's checkout page.
+- While a transfer is outstanding, ask `/charge/:reference`, never
+  `/transaction/verify`. Verify calls a payment nobody has made yet "abandoned",
+  and acting on that would fail a payment somebody is still in the middle of
+  making. Nothing on the polling path writes `failed` onto a pending charge.
+- `api/pay/status` looks the reference up with the user id in the WHERE clause.
+  A payment reference is a short string sitting in somebody's browser history;
+  it must never be a way to watch, or finish, another person's payment.
 - `src/lib/game.ts` is shared by the server and the browser on purpose: they
   draw the same curve. Where they disagree about time, the server wins.
 - Box pages and practice runs are readable by anyone, signed in or not. That is
@@ -63,6 +82,23 @@ structural.
   page that has room for it.
 - Icons come from `lucide-react`. No emoji in the interface — they render
   differently on every platform and cannot take a brand colour.
+- Nothing in this app is instant, so no control is allowed to look idle while it
+  is working. `Button` and `ButtonLink` in `src/components/button.tsx` work it
+  out for themselves — a submit watches `useFormStatus`, a link watches
+  `useLinkStatus`, and an onClick that returns a promise is busy until it
+  settles — so a new screen gets this without being told, and `busy` forces it
+  on for work that started elsewhere. A control styled as text rather than as a
+  button takes `PendingDot` (links) or `SubmitDot` (submits). A busy control
+  keeps its label and grows a spinner: swapping the text changes the width, and
+  a control that resizes under a thumb is one that gets mis-tapped. Busy dims to
+  80% and disabled to 40% — they must not look the same.
+- The exception is anything on the game's own clock. Grid tiles, the count-in
+  and the level card are local and immediate; a spinner there would be a lie and
+  would cost taps. Feedback in the game is the press animation.
+- Every route has a `loading.tsx`, including the one at the root of `src/app`
+  that catches any route without its own. Next renders it the instant a
+  navigation starts, which is the difference between a tap that visibly did
+  something and a tap that did nothing for a second and got tapped again.
 - A box can be renamed, described and given a picture, but never deleted. While
   it is open it is a standing ₦100,000 promise to everyone who has paid to play
   it.
@@ -131,6 +167,29 @@ structural.
   inside the same `Promise.all` as the cookie read, so a build-time render hit
   the service-role client before the route had been marked dynamic. Marketing
   numbers degrade to their baseline; only money is entitled to throw.
+- `src/proxy.ts` is not allowed to throw, ever. It runs on every request to
+  every route, so an exception there is not a broken page but a broken site,
+  box links included. It threw once, over `NEXT_PUBLIC_SUPABASE_URL`, and every
+  URL on the domain answered with a stack trace. Missing settings or an
+  unreachable Supabase mean the request passes through and the pages behind
+  decide.
+- Read Supabase settings through `readSupabaseEnv()`, which reports, not
+  `supabaseEnv()`, which throws — the throwing one is for callers holding a coin
+  or a payout. `optionalProfile()` returns null rather than throwing so the
+  landing page and box pages render for a stranger whatever state the
+  deployment is in; `requireProfile()` sends people to `/setup`.
+- Every Supabase setting has a second name without the `NEXT_PUBLIC_` prefix
+  (`SUPABASE_URL`, `SUPABASE_ANON_KEY`), and both are read. A `NEXT_PUBLIC_`
+  name is compiled into the build, so a deployment made before the variable
+  existed cannot see it however long it has been in the dashboard, and a Preview
+  build cannot see a Production-only value. The prefix-free names are never
+  compiled in, so they are read on every request and work without a redeploy.
+  Read them written out in full — `process.env[name]` with a computed key is
+  invisible to the compiler and silently reads nothing in the browser.
+- `/setup` says what the running deployment can actually see, names and
+  booleans only, never values. It is public while Supabase is down, because
+  that is when there is no sign-in left to put it behind, and admin-only once
+  Supabase works again.
 - The front-page counters add `STATS_BASELINE` in `src/lib/money.ts` to the real
   totals. That baseline is a launch figure presented to readers as history —
   treat changing it as a claim being made, not a setting being tuned.

@@ -1,6 +1,6 @@
+import { BackLink } from '@/components/back-link'
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { ChevronLeft, CircleAlert, CircleCheck } from 'lucide-react'
+import { CircleAlert, CircleCheck } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Footer } from '@/components/footer'
 import { Card, Empty, Pill } from '@/components/ui'
@@ -33,12 +33,7 @@ export default async function AdminEmailPage() {
       <SiteHeader profile={profile} />
 
       <main className="mx-auto max-w-2xl px-4 py-8 pb-24">
-        <Link
-          href="/admin"
-          className="flex items-center gap-1 text-sm text-dusk hover:text-mist"
-        >
-          <ChevronLeft size={15} /> Admin
-        </Link>
+        <BackLink href="/admin">Admin</BackLink>
 
         <div className="mt-4 flex items-center gap-3">
           <h1 className="text-3xl font-bold tracking-tight">Email</h1>

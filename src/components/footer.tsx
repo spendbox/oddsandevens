@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { PendingDot } from './pending-dot'
 import { Mail } from 'lucide-react'
 import { Logo } from './site-header'
 import { CONTACT_EMAIL } from '@/lib/contact'
@@ -19,6 +20,7 @@ export function Footer() {
             <Link href="/" className="flex items-center gap-2.5">
               <Logo size={26} />
               <span className="font-bold tracking-tight">Spendbox</span>
+              <PendingDot />
             </Link>
             <p className="mt-3 max-w-xs text-sm text-mist">
               Create your box free. Share it. Earn.
@@ -34,15 +36,19 @@ export function Footer() {
           <nav className="grid gap-2 text-sm sm:text-right" aria-label="Footer">
             <Link href="/how-it-works" className="text-mist transition hover:text-chalk">
               How it works
+              <PendingDot />
             </Link>
             <Link href="/terms" className="text-mist transition hover:text-chalk">
               Terms and conditions
+              <PendingDot />
             </Link>
             <Link href="/privacy" className="text-mist transition hover:text-chalk">
               Privacy
+              <PendingDot />
             </Link>
             <Link href="/responsible-play" className="text-mist transition hover:text-chalk">
               Responsible play
+              <PendingDot />
             </Link>
           </nav>
         </div>

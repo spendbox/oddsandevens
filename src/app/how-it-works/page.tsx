@@ -4,9 +4,11 @@ import { Mascot } from '@/components/mascot'
 import { optionalProfile } from '@/lib/session'
 import { LEVELS, planFor, stepsFor } from '@/lib/game'
 import {
+  COINS_PER_PLAY,
   MIN_TOPUP_COINS,
   NAIRA_PER_COIN,
   PRIZE_NAIRA,
+  RETRY_PRICES,
   coinsToNaira,
   naira,
 } from '@/lib/money'
@@ -98,8 +100,33 @@ export default async function HowItWorksPage() {
           it again — same level, brand new pattern, no charge.
         </p>
         <p>
-          After that, a retry costs <strong>one coin</strong> and you keep every level you have
-          already cleared. Your run only ends when you are out of coins or you walk away.
+          After that you have a choice. Carrying on from where you are keeps every level you
+          have already cleared, and costs more the further up you are — because the further
+          up you are, the more it is saving you.
+        </p>
+
+        <Card className="!p-0">
+          <ul className="divide-y divide-white/6">
+            {RETRY_PRICES.map((band) => (
+              <li key={band.levels} className="flex items-center justify-between px-5 py-3">
+                <span className="text-sm text-mist">Carrying on at level {band.levels}</span>
+                <span className="tabular text-sm font-semibold text-gold">
+                  {band.coins} coins
+                </span>
+              </li>
+            ))}
+            <li className="flex items-center justify-between px-5 py-3">
+              <span className="text-sm text-mist">Starting again from level 1</span>
+              <span className="tabular text-sm font-semibold text-chalk">
+                {COINS_PER_PLAY} coin
+              </span>
+            </li>
+          </ul>
+        </Card>
+
+        <p>
+          Starting again is always the cheap option and always costs you your cleared levels.
+          Your run only ends when you are out of coins or you walk away.
         </p>
       </Section>
 

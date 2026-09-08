@@ -1,6 +1,6 @@
+import { BackLink } from '@/components/back-link'
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { ChevronLeft, Lock } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Footer } from '@/components/footer'
 import { Card } from '@/components/ui'
@@ -32,12 +32,7 @@ export default async function EditBoxPage({ params }: PageProps<'/b/[code]/edit'
       <SiteHeader profile={profile} />
 
       <main className="mx-auto max-w-lg px-4 py-8 pb-24">
-        <Link
-          href={`/b/${box.code}`}
-          className="flex items-center gap-1 text-sm text-dusk hover:text-mist"
-        >
-          <ChevronLeft size={15} /> Box {box.code}
-        </Link>
+        <BackLink href={`/b/${box.code}`}>Box {box.code}</BackLink>
 
         <h1 className="mt-4 text-3xl font-bold tracking-tight">Customise your box</h1>
         <p className="mt-1.5 text-mist">

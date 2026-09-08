@@ -1,3 +1,4 @@
+import { PendingDot } from '@/components/pending-dot'
 import Link from 'next/link'
 import { Coins, Gamepad2, Package, PartyPopper, Trophy, Unlock, Wallet, X } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
@@ -200,6 +201,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">
                           {box.title || `Box ${box.code}`}
+                          <PendingDot />
                         </p>
                         <p className="text-xs text-dusk">
                           Beaten by {box.winner_name || 'a player'} · {box.attempts_count}{' '}
@@ -258,6 +260,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
                         className="text-sm font-semibold text-cyan underline underline-offset-4"
                       >
                         Resume
+                        <PendingDot />
                       </Link>
                     ) : (
                       <span className="tabular text-sm text-mist">

@@ -1,64 +1,16 @@
-import Link from 'next/link'
 import type { ComponentProps, ReactNode } from 'react'
 
-/** Joins class names, ignoring the false/undefined branches. */
-export function cx(...parts: Array<string | false | null | undefined>): string {
-  return parts.filter(Boolean).join(' ')
-}
+export { cx } from './cx'
+import { cx } from './cx'
 
 /**
- * Every button presses in, and says so.
- *
- * `active:` fires the moment a finger lands rather than when it lifts, so the
- * feedback arrives before the navigation does — on a slow connection that press
- * is the only thing telling somebody the tap registered at all. The brightness
- * drop matters as much as the scale: on a small screen a 3% size change alone
- * is easy to miss.
+ * The buttons live in ./button because they are client components: every one of
+ * them watches its own form, its own promise or its own navigation so that a
+ * tap is never followed by nothing happening. Re-exported from here so that
+ * remains an implementation detail — and so this module stays a server one, as
+ * everything else in it is markup with no behaviour.
  */
-const BUTTON_BASE =
-  'no-select inline-flex items-center justify-center gap-2 rounded-2xl font-semibold ' +
-  'transition-[transform,filter,background-color,box-shadow] duration-100 ' +
-  'active:scale-[0.96] active:brightness-90 ' +
-  'disabled:pointer-events-none disabled:opacity-40 ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan'
-
-const TONES = {
-  primary:
-    'bg-linear-to-b from-violet to-[#7c2fe0] text-white shadow-[0_14px_34px_-14px_#a855f7] ' +
-    'hover:brightness-110',
-  gold:
-    'bg-linear-to-b from-gold to-[#e8a615] text-ink shadow-[0_14px_34px_-14px_#ffc94a] ' +
-    'hover:brightness-105',
-  ghost: 'bg-white/6 text-chalk ring-1 ring-inset ring-white/12 hover:bg-white/12',
-  danger: 'bg-rose/90 text-white hover:bg-rose',
-} as const
-
-const SIZES = {
-  sm: 'h-10 px-4 text-sm',
-  md: 'h-12 px-5 text-[15px]',
-  lg: 'h-14 px-7 text-base',
-} as const
-
-type Tone = keyof typeof TONES
-type Size = keyof typeof SIZES
-
-export function Button({
-  tone = 'primary',
-  size = 'md',
-  className,
-  ...props
-}: ComponentProps<'button'> & { tone?: Tone; size?: Size }) {
-  return <button {...props} className={cx(BUTTON_BASE, TONES[tone], SIZES[size], className)} />
-}
-
-export function ButtonLink({
-  tone = 'primary',
-  size = 'md',
-  className,
-  ...props
-}: ComponentProps<typeof Link> & { tone?: Tone; size?: Size }) {
-  return <Link {...props} className={cx(BUTTON_BASE, TONES[tone], SIZES[size], className)} />
-}
+export { Button, ButtonLink, Spinner } from './button'
 
 export function Card({
   className,

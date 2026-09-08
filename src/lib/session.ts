@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { supabaseServer } from './supabase/server'
 import { supabaseAdmin } from './supabase/admin'
+import { supabaseConfigured } from './supabase/env'
 import { nameFromEmail } from './accounts'
 import type { Profile } from './types'
 
@@ -47,8 +48,14 @@ async function loadOrCreateProfile(userId: string, email: string): Promise<Profi
  * Always getUser() rather than getSession(): the proxy's check is optimistic
  * and a cookie can say anything, so the one that asks Supabase is the one that
  * counts.
+ *
+ * With no Supabase settings there is nobody to be signed in as and /enter would
+ * fail the same way, so it goes somewhere that explains itself instead of
+ * looping or showing a stack trace.
  */
 export async function requireProfile(): Promise<{ profile: Profile; userId: string }> {
+  if (!supabaseConfigured()) redirect('/setup')
+
   const supabase = await supabaseServer()
   const {
     data: { user },
@@ -65,15 +72,32 @@ export async function requireProfile(): Promise<{ profile: Profile; userId: stri
   return { profile, userId: user.id }
 }
 
-/** The signed-in person, or null. For pages that work either way — a box page. */
+/**
+ * The signed-in person, or null. For pages that work either way — a box page.
+ *
+ * Never throws, which is the whole point of it: the landing page and every box
+ * page call this, and those two have to render for a stranger on a bad
+ * connection whatever state the deployment is in. A missing setting or a
+ * Supabase that will not answer means "nobody is signed in", not "no page".
+ */
 export async function optionalProfile(): Promise<Profile | null> {
-  const supabase = await supabaseServer()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (!supabaseConfigured()) return null
 
-  if (!user) return null
-  return loadOrCreateProfile(user.id, user.email ?? '')
+  try {
+    const supabase = await supabaseServer()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) return null
+    return await loadOrCreateProfile(user.id, user.email ?? '')
+  } catch (error) {
+    console.warn(
+      '[spendbox] could not work out who is signed in: ' +
+        (error instanceof Error ? error.message : String(error)),
+    )
+    return null
+  }
 }
 
 /**

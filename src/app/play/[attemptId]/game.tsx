@@ -4,13 +4,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Grid, type GridMood } from '@/components/grid'
-import { ChevronLeft, Coins, Play, RefreshCw, RotateCcw, Trophy, Zap } from 'lucide-react'
-import { Button, ButtonLink, Card, Pill } from '@/components/ui'
+import { Coins, Play, RefreshCw, RotateCcw, Trophy, Zap } from 'lucide-react'
+import { Button, ButtonLink, Card, Pill, Spinner } from '@/components/ui'
 import { Mascot } from '@/components/mascot'
 import { Countdown } from '@/components/countdown'
+import { BackLink } from '@/components/back-link'
+import { PendingDot } from '@/components/pending-dot'
 import { usePatternPlayer } from '@/components/use-pattern-player'
 import { LEVELS, answerMsFor, stepsFor } from '@/lib/game'
-import { COINS_PER_PLAY, COINS_PER_RETRY } from '@/lib/money'
+import { COINS_PER_PLAY, retryCostFor } from '@/lib/money'
 import { naira } from '@/lib/money'
 import type { Box } from '@/lib/types'
 
@@ -111,6 +113,16 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   const turnEndsAt = useRef(0)
   /** An answer is already on its way up. See submit(). */
   const inFlight = useRef(false)
+  /**
+   * Which button the player is waiting on.
+   *
+   * Starting a level and choosing a way out of a miss are both a round trip to
+   * the server, and both used to swap the whole screen for a card with an
+   * ellipsis on it — which is a change, but not one that points at the thing
+   * that was tapped. The button they pressed stays where it is and spins.
+   */
+  const [starting, setStarting] = useState(false)
+  const [choosing, setChoosing] = useState<'replay' | 'retry' | 'again' | null>(null)
   /** The level whose cheer is on screen right now. */
   const [justCleared, setJustCleared] = useState(0)
 
@@ -217,9 +229,10 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   const beginLevel = useCallback(async () => {
     clearTimers()
     stopPattern()
-    setPhase('sending')
+    setStarting(true)
 
     const result = await post('begin', {})
+    setStarting(false)
     if (!result) return setPhase('ready')
 
     startRound(result, 'ready')
@@ -345,26 +358,34 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   /** Pay to carry on from this level, once the free replay is gone. */
   const retry = async () => {
     stopPattern()
-    setPhase('sending')
+    setChoosing('retry')
     const result = await post('retry', {})
-    if (!result) return setPhase('decide')
+    setChoosing(null)
+    if (!result) return
     startRound(result, 'decide')
   }
 
   /** Spend the one free replay. */
   const replay = async () => {
     stopPattern()
-    setPhase('sending')
+    setChoosing('replay')
     const result = await post('replay', {})
-    if (!result) return setPhase('decide')
+    setChoosing(null)
+    if (!result) return
     startRound(result, 'ready')
   }
 
-  /** Give up on this run and open a fresh one at level 1. */
+  /**
+   * Give up on this run and open a fresh one at level 1.
+   *
+   * `choosing` is deliberately not cleared on the way out: this ends in a
+   * navigation to a different attempt, and a card that stops spinning while the
+   * next page is still being fetched looks like the tap was dropped.
+   */
   const startAgain = async () => {
-    setPhase('sending')
+    setChoosing('again')
     const result = await post('restart', {})
-    if (!result) return setPhase('decide')
+    if (!result) return setChoosing(null)
 
     const fresh = result.state
     if (fresh.attemptId && fresh.attemptId !== initial.attemptId) {
@@ -372,6 +393,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
       return
     }
 
+    setChoosing(null)
     setState(fresh)
     setPhase(fresh.status === 'playing' ? 'ready' : 'over')
   }
@@ -430,7 +452,10 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   if (phase === 'decide') {
     const freeReplay = state.replaysLeft > 0
     const coins = state.coins ?? 0
-    const canContinue = coins >= COINS_PER_RETRY
+    // What carrying on costs depends on how far they have got, because that is
+     // how much it saves them. See retryCostFor.
+    const carryOn = retryCostFor(state.level)
+    const canContinue = coins >= carryOn
     const canStartAgain = coins >= COINS_PER_PLAY
 
     return (
@@ -473,6 +498,8 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
             <Choice
               onClick={replay}
               tone="gold"
+              busy={choosing === 'replay'}
+              waiting={choosing !== null}
               icon={<RotateCcw size={20} />}
               title={`Take level ${state.level} again`}
               detail="Your one free replay. New pattern, same level, no charge."
@@ -483,14 +510,16 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
               onClick={retry}
               tone="gold"
               disabled={!canContinue}
+              busy={choosing === 'retry'}
+              waiting={choosing !== null}
               icon={<Play size={20} />}
               title={`Carry on from level ${state.level}`}
               detail={
                 canContinue
                   ? `Keep all ${state.levelsCleared} levels you have cleared.`
-                  : `You need ${COINS_PER_RETRY} coins for this.`
+                  : `You need ${carryOn} coins for this.`
               }
-              price={`${COINS_PER_RETRY} coins`}
+              price={`${carryOn} coins`}
             />
           )}
 
@@ -498,6 +527,8 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
             onClick={startAgain}
             tone="ghost"
             disabled={!canStartAgain}
+            busy={choosing === 'again'}
+            waiting={choosing !== null}
             icon={<RefreshCw size={20} />}
             title="Start again from level 1"
             detail={
@@ -521,6 +552,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
           </span>
           <Link href="/home" className="text-dusk underline underline-offset-4 hover:text-mist">
             Leave for now
+            <PendingDot />
           </Link>
         </div>
       </div>
@@ -532,12 +564,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     <div className="no-select">
       {/* progress through the ten levels */}
       <div className="mb-5 flex items-center gap-3">
-        <Link
-          href={`/b/${box.code}`}
-          className="flex items-center gap-1 text-sm text-dusk hover:text-mist"
-        >
-          <ChevronLeft size={15} /> Box {box.code}
-        </Link>
+        <BackLink href={`/b/${box.code}`}>Box {box.code}</BackLink>
         <div className="ml-auto flex items-center gap-2">
           <Pill tone={state.replaysLeft > 0 ? 'cyan' : 'quiet'}>
             <RotateCcw size={13} /> {state.replaysLeft} free
@@ -648,7 +675,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
             The clock is stopped until you start, and stays stopped while the pattern plays.
           </p>
 
-          <Button onClick={beginLevel} tone="gold" size="lg" className="mt-4 w-full">
+          <Button onClick={beginLevel} busy={starting} tone="gold" size="lg" className="mt-4 w-full">
             {state.levelsCleared === 0 ? 'Start level 1' : `Start level ${state.level}`}
           </Button>
         </Card>
@@ -673,6 +700,8 @@ function Choice({
   price,
   tone,
   disabled,
+  busy,
+  waiting,
 }: {
   onClick: () => void
   icon: React.ReactNode
@@ -681,15 +710,21 @@ function Choice({
   price: string
   tone: 'gold' | 'ghost'
   disabled?: boolean
+  /** This card is the one being waited on: its icon becomes a spinner. */
+  busy?: boolean
+  /** Some card is being waited on. Both stop taking taps; only one spins. */
+  waiting?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || waiting}
+      aria-busy={busy || undefined}
       className={
         'no-select flex w-full items-center gap-4 rounded-3xl p-4 text-left transition ' +
-        'active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ' +
+        'active:scale-[0.98] disabled:pointer-events-none ' +
+        (busy ? 'opacity-90 ' : disabled || waiting ? 'opacity-40 ' : '') +
         (tone === 'gold'
           ? 'bg-linear-to-br from-gold/20 to-violet/15 ring-1 ring-gold/40 hover:from-gold/25'
           : 'bg-white/5 ring-1 ring-white/12 hover:bg-white/8')
@@ -701,7 +736,7 @@ function Choice({
           (tone === 'gold' ? 'bg-gold/20 text-gold' : 'bg-white/8 text-mist')
         }
       >
-        {icon}
+        {busy ? <Spinner className="size-5" /> : icon}
       </span>
 
       <span className="min-w-0 flex-1">

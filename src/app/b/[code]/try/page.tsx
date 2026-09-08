@@ -1,6 +1,5 @@
+import { BackLink } from '@/components/back-link'
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { optionalProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import { tidyBoxCode } from '@/lib/codes'
@@ -30,12 +29,9 @@ export default async function PracticePage({ params }: PageProps<'/b/[code]/try'
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-8">
-      <Link
-        href={`/b/${box.code}`}
-        className="mb-4 flex items-center gap-1 self-start text-sm text-dusk hover:text-mist"
-      >
-        <ChevronLeft size={15} /> Box {box.code}
-      </Link>
+      <BackLink href={`/b/${box.code}`} className="mb-4 self-start">
+        Box {box.code}
+      </BackLink>
 
       <PracticeGame
         boxCode={box.code}
