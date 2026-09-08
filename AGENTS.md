@@ -82,6 +82,19 @@ structural.
   page that has room for it.
 - Icons come from `lucide-react`. No emoji in the interface — they render
   differently on every platform and cannot take a brand colour.
+- The logo is a hexagonal S, drawn in three places that have to agree:
+  `src/components/logo.tsx` for the site, `src/app/icon.svg` for the browser
+  tab, and `mark()` in `src/lib/flyers.ts` for the downloads. All three use the
+  same numbers in the same 64-unit box. It is built rather than traced: two
+  identical strokes, the second the first rotated 180° about the centre, each
+  running from a side vertex over the near apex to the far side vertex, a little
+  way down that vertical side, then back inward on a line parallel to the top
+  edges. Change a measurement and both halves follow; hand-editing one path
+  turns a hexagon into an approximate blob. The gradients are the site's own
+  three accents — cyan at the top point, violet down the left, rose at the
+  bottom right — one per stroke, because the two strokes travel in opposite
+  directions and a single ramp across the whole mark puts the wrong end of it on
+  the lower-left arm.
 - Nothing in this app is instant, so no control is allowed to look idle while it
   is working. `Button` and `ButtonLink` in `src/components/button.tsx` work it
   out for themselves — a submit watches `useFormStatus`, a link watches

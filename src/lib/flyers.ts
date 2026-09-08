@@ -47,6 +47,7 @@ const MIST = '#a99ec7'
 const DUSK = '#7d739c'
 const VIOLET = '#a855f7'
 const CYAN = '#22d3ee'
+const ROSE = '#fb5c7d'
 const GOLD = '#ffc94a'
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -150,20 +151,72 @@ function background(context: CanvasRenderingContext2D) {
  */
 const FOOTER_HEIGHT = 190
 
+
+/**
+ * The Spendbox mark, stroked onto a canvas at any size.
+ *
+ * The same construction as `src/components/logo.tsx` — two strokes, the second
+ * the first turned through 180° — because a flyer is the one place the mark
+ * leaves the site, and a wordmark that does not match the header is worse than
+ * no wordmark. Kept as numbers rather than a traced path for the same reason it
+ * is over there: the symmetry is the design.
+ *
+ * Coordinates are the component's 64-unit box, scaled to `size` on the way out,
+ * so the two can only drift apart if somebody changes one and not the other.
+ */
+function mark(context: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const u = size / 64
+  const at = (px: number, py: number): [number, number] => [x + px * u, y + py * u]
+
+  const first: Array<[number, number]> = [
+    [49.2, 17.5],
+    [32, 7.7],
+    [14.8, 17.5],
+    [14.8, 29.8],
+    [32, 39.6],
+  ]
+  const second = first.map(([px, py]): [number, number] => [64 - px, 64 - py])
+
+  const top = context.createLinearGradient(...at(49.2, 7.7), ...at(14.8, 39.6))
+  top.addColorStop(0, CYAN)
+  top.addColorStop(0.3, '#2ac7ee')
+  top.addColorStop(0.68, '#6a8bec')
+  top.addColorStop(1, VIOLET)
+
+  const bottom = context.createLinearGradient(...at(14.8, 30), ...at(49.2, 50))
+  bottom.addColorStop(0, VIOLET)
+  bottom.addColorStop(0.24, '#ab57f2')
+  bottom.addColorStop(0.7, '#d067b0')
+  bottom.addColorStop(1, ROSE)
+
+  context.save()
+  context.lineWidth = 9.4 * u
+  context.lineCap = 'round'
+  context.lineJoin = 'round'
+
+  for (const [points, paint] of [
+    [first, top],
+    [second, bottom],
+  ] as const) {
+    context.beginPath()
+    points.forEach(([px, py], index) => {
+      const [cx, cy] = at(px, py)
+      if (index === 0) context.moveTo(cx, cy)
+      else context.lineTo(cx, cy)
+    })
+    context.strokeStyle = paint
+    context.stroke()
+  }
+
+  context.restore()
+}
+
 /** The wordmark, bottom-left on every design. */
 function footer(context: CanvasRenderingContext2D, url: string) {
   const top = SIZE - MARGIN - 52
   context.textAlign = 'left'
 
-  context.fillStyle = VIOLET
-  roundRect(context, MARGIN, top, 52, 52, 16)
-  context.fill()
-
-  context.fillStyle = CYAN
-  context.fillRect(MARGIN + 14, top + 14, 10, 10)
-  context.fillRect(MARGIN + 32, top + 14, 10, 10)
-  context.fillRect(MARGIN + 14, top + 32, 10, 10)
-  context.fillRect(MARGIN + 32, top + 32, 10, 10)
+  mark(context, MARGIN, top, 52)
 
   context.fillStyle = CHALK
   context.font = font(700, 32)
