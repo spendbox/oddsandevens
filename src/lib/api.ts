@@ -10,13 +10,21 @@ import type { Attempt } from './types'
  * The attempt is looked up with the user id in the WHERE clause, so a player
  * who guesses somebody else's attempt id gets the same answer as one who
  * invents a random one — nothing at all.
+ *
+ * `arrivedAt` is stamped on the first line, before any of that happens, and it
+ * is the moment an answer is judged against. Checking who is asking costs two
+ * round trips to Supabase — one to the auth endpoint, one for the attempt row —
+ * and those used to run before the clock was read, so a player was charged
+ * several hundred milliseconds for the server authenticating them. It is not
+ * their time to spend.
  */
 export async function attemptFromRequest(
   request: Request,
 ): Promise<
-  | { ok: true; attempt: Attempt; body: Record<string, unknown> }
+  | { ok: true; attempt: Attempt; body: Record<string, unknown>; arrivedAt: number }
   | { ok: false; response: Response }
 > {
+  const arrivedAt = Date.now()
   const supabase = await supabaseServer()
   const {
     data: { user },
@@ -39,5 +47,5 @@ export async function attemptFromRequest(
     return { ok: false, response: Response.json({ problem: 'No such game.' }, { status: 404 }) }
   }
 
-  return { ok: true, attempt, body: body ?? {} }
+  return { ok: true, attempt, body: body ?? {}, arrivedAt }
 }
