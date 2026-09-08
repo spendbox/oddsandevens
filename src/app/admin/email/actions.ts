@@ -2,7 +2,8 @@
 
 import { isAdmin, requireProfile } from '@/lib/session'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { emailShell, sendEmail } from '@/lib/email'
+import { emailShell, sendEmail, senderDomain, senderDomainMatches } from '@/lib/email'
+import { SITE_DOMAIN } from '@/lib/contact'
 
 export type TestState = { ok?: string; problem?: string }
 
@@ -34,7 +35,7 @@ export async function sendTestEmail(
           'This is a test sent from the Spendbox admin page. If you are reading it, ' +
           `the API key, the sending domain and the address are all good. Sent at ${stamp}.`,
         buttonLabel: 'Open Spendbox',
-        buttonUrl: 'https://www.spendbox.site',
+        buttonUrl: `https://www.${SITE_DOMAIN}`,
         footer: 'Nobody else received this.',
       }),
       text: `Your Spendbox email setup works. Sent at ${stamp}.`,
@@ -53,6 +54,10 @@ export async function sendTestEmail(
 export type ProbeResult = {
   hasKey: boolean
   from: string | null
+  fromIsDefault: boolean
+  domain: string | null
+  domainMatches: boolean
+  expectedDomain: string
   tableReady: boolean
   tableProblem: string | null
   recent: { email: string; created_at: string; used_at: string | null }[]
@@ -106,6 +111,10 @@ export async function probeEmailSetup(): Promise<ProbeResult> {
   return {
     hasKey: Boolean(process.env.RESEND_API_KEY?.trim()),
     from: process.env.EMAIL_FROM?.trim() || null,
+    fromIsDefault: !process.env.EMAIL_FROM?.trim(),
+    domain: senderDomain(),
+    domainMatches: senderDomainMatches(),
+    expectedDomain: SITE_DOMAIN,
     tableReady,
     tableProblem,
     recent,

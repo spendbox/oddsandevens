@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Grid, type GridMood } from '@/components/grid'
-import { ChevronLeft, Coins, RotateCcw, Trophy, Zap } from 'lucide-react'
+import { ChevronLeft, Coins, Play, RefreshCw, RotateCcw, Trophy, Zap } from 'lucide-react'
 import { Button, ButtonLink, Card, Pill } from '@/components/ui'
 import { Mascot } from '@/components/mascot'
 import { Countdown } from '@/components/countdown'
 import { LEVELS, answerMsFor, stepsFor } from '@/lib/game'
+import { COINS_PER_PLAY, COINS_PER_RETRY } from '@/lib/money'
 import { naira } from '@/lib/money'
 import type { Box } from '@/lib/types'
 
@@ -48,7 +49,7 @@ type GameState = {
  * The clock stopping between levels is the rule of the game, not a nicety: a
  * player must never lose a second to a screen they were reading.
  */
-type Phase = 'ready' | 'counting' | 'watch' | 'tap' | 'sending' | 'cleared' | 'missed' | 'over'
+type Phase = 'ready' | 'counting' | 'watch' | 'tap' | 'sending' | 'cleared' | 'decide' | 'over'
 
 /** How long the "level cleared" flash sits on screen before the next card. */
 const CLEARED_MS = 1500
@@ -77,7 +78,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
 
   const [state, setState] = useState<GameState>(initial)
   const [phase, setPhase] = useState<Phase>(
-    initial.status !== 'playing' ? 'over' : initial.awaitingReplay ? 'missed' : 'ready',
+    initial.status !== 'playing' ? 'over' : initial.awaitingReplay ? 'decide' : 'ready',
   )
   const [round, setRound] = useState<Round | null>(null)
   const [lit, setLit] = useState<number | null>(null)
@@ -115,19 +116,37 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
 
   useEffect(() => clearTimers, [clearTimers])
 
-  const post = useCallback(async (path: string, body: object): Promise<GameState | null> => {
-    try {
-      const response = await fetch(`/api/game/${path}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ attemptId: initial.attemptId, ...body }),
-      })
-      if (!response.ok) return null
-      return (await response.json()) as GameState
-    } catch {
-      return null
-    }
-  }, [initial.attemptId])
+  /**
+   * Talk to the server, and remember when we started asking.
+   *
+   * `askedAt` is the anchor for the deadline. The server reports how long is
+   * left as of the moment it replied, and that reply then spends a network hop
+   * getting here — so measuring from when the response lands puts the clock
+   * later than the server's by exactly that hop, and the answer going back up
+   * spends another. Anchoring to the request instead makes the screen's
+   * deadline provably no later than the server's, whatever the connection is
+   * doing.
+   */
+  const post = useCallback(
+    async (
+      path: string,
+      body: object,
+    ): Promise<{ state: GameState; askedAt: number } | null> => {
+      const askedAt = Date.now()
+      try {
+        const response = await fetch(`/api/game/${path}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ attemptId: initial.attemptId, ...body }),
+        })
+        if (!response.ok) return null
+        return { state: (await response.json()) as GameState, askedAt }
+      } catch {
+        return null
+      }
+    },
+    [initial.attemptId],
+  )
 
   /** Play the pattern out, flash by flash, then hand the grid over. */
   const showPattern = useCallback(
@@ -157,27 +176,43 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     [clearTimers, later],
   )
 
+  /**
+   * Take a reply that should contain a round, and start counting in.
+   *
+   * The deadline is anchored to when the request went out, never to now — see
+   * the note on post(). Every path that starts a level goes through here so
+   * there is one place that can get it wrong, rather than four.
+   */
+  const startRound = useCallback(
+    (result: { state: GameState; askedAt: number }, fallback: Phase) => {
+      const next = result.state
+      setState(next)
+
+      if (next.status === 'won') {
+        router.replace(`/won/${initial.attemptId}`)
+        return
+      }
+      if (next.status !== 'playing') return setPhase('over')
+      if (next.awaitingReplay) return setPhase('decide')
+      if (!next.round) return setPhase(fallback)
+
+      deadlineAt.current = result.askedAt + next.round.msRemaining
+      setRound(next.round)
+      setPhase('counting')
+    },
+    [initial.attemptId, router],
+  )
+
   /** Ask the server to start the level, then show whatever it sends. */
   const beginLevel = useCallback(async () => {
     clearTimers()
     setPhase('sending')
 
-    const next = await post('begin', {})
-    if (!next) {
-      setPhase('ready')
-      return
-    }
+    const result = await post('begin', {})
+    if (!result) return setPhase('ready')
 
-    setState(next)
-
-    if (next.status !== 'playing') return setPhase('over')
-    if (next.awaitingReplay) return setPhase('missed')
-    if (!next.round) return setPhase('ready')
-
-    deadlineAt.current = Date.now() + next.round.msRemaining
-    setRound(next.round)
-    setPhase('counting')
-  }, [clearTimers, post])
+    startRound(result, 'ready')
+  }, [clearTimers, post, startRound])
 
   /** Send the taps and act on the verdict. */
   const submit = useCallback(
@@ -190,8 +225,9 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
       setPressed(null)
       setPhase('sending')
 
-      const next = await post('answer', { level: state.level, taps: finalTaps })
-      if (!next) return setPhase('missed')
+      const result = await post('answer', { level: state.level, taps: finalTaps })
+      if (!result) return setPhase('decide')
+      const next = result.state
 
       setRound(null)
       setState(next)
@@ -209,7 +245,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
         return
       }
 
-      if (next.awaitingReplay) return setPhase('missed')
+      if (next.awaitingReplay) return setPhase('decide')
 
       setJustCleared(state.level)
       setTaps([])
@@ -262,33 +298,36 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     if (next.length >= round.pattern.length) void submit(next)
   }
 
-  /** Buy another go at this level once the free replay is gone. */
+  /** Pay to carry on from this level, once the free replay is gone. */
   const retry = async () => {
     setPhase('sending')
-    const next = await post('retry', {})
-    if (!next) return setPhase('missed')
-
-    setState(next)
-    if (next.status !== 'playing') return setPhase('over')
-    if (next.awaitingReplay || !next.round) return setPhase('missed')
-
-    deadlineAt.current = Date.now() + next.round.msRemaining
-    setRound(next.round)
-    setPhase('counting')
+    const result = await post('retry', {})
+    if (!result) return setPhase('decide')
+    startRound(result, 'decide')
   }
 
+  /** Spend the one free replay. */
   const replay = async () => {
     setPhase('sending')
-    const next = await post('replay', {})
-    if (!next) return setPhase('missed')
+    const result = await post('replay', {})
+    if (!result) return setPhase('decide')
+    startRound(result, 'ready')
+  }
 
-    setState(next)
-    if (next.status !== 'playing') return setPhase('over')
-    if (!next.round) return setPhase('ready')
+  /** Give up on this run and open a fresh one at level 1. */
+  const startAgain = async () => {
+    setPhase('sending')
+    const result = await post('restart', {})
+    if (!result) return setPhase('decide')
 
-    deadlineAt.current = Date.now() + next.round.msRemaining
-    setRound(next.round)
-    setPhase('counting')
+    const fresh = result.state
+    if (fresh.attemptId && fresh.attemptId !== initial.attemptId) {
+      router.replace(`/play/${fresh.attemptId}`)
+      return
+    }
+
+    setState(fresh)
+    setPhase(fresh.status === 'playing' ? 'ready' : 'over')
   }
 
   const steps = phase === 'ready' ? stepsFor(state.level) : (round?.pattern.length ?? stepsFor(state.level))
@@ -299,7 +338,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   const cheer = CHEERS[Math.min(Math.max(justCleared, 1), CHEERS.length) - 1]
 
   const mood: GridMood =
-    phase === 'watch' ? 'showing' : phase === 'tap' ? 'input' : phase === 'cleared' ? 'right' : phase === 'missed' ? 'wrong' : 'idle'
+    phase === 'watch' ? 'showing' : phase === 'tap' ? 'input' : phase === 'cleared' ? 'right' : phase === 'decide' ? 'wrong' : 'idle'
 
   // ---------------------------------------------------------------- the end
   if (phase === 'over') {
@@ -341,52 +380,103 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     )
   }
 
-  // ------------------------------------------------------------ a miss
-  if (phase === 'missed') {
+  // ------------------------------------------------- where do you want to go
+  if (phase === 'decide') {
     const freeReplay = state.replaysLeft > 0
-    const canPay = (state.coins ?? 0) >= 1
+    const coins = state.coins ?? 0
+    const canContinue = coins >= COINS_PER_RETRY
+    const canStartAgain = coins >= COINS_PER_PLAY
 
     return (
-      <div className="animate-rise text-center">
-        <Mascot mood="sad" size={132} className="mx-auto" />
-
-        <h1 className="mt-4 text-2xl font-bold tracking-tight">
-          {state.message ?? 'That was not the pattern.'}
-        </h1>
-
-        <p className="mt-2 text-mist">
-          {freeReplay
-            ? `You still have your free replay. Use it and level ${state.level} starts again with a brand new pattern.`
-            : canPay
-              ? `Your free replay is gone. You can buy another go at level ${state.level} for one coin, and keep the ${state.levelsCleared} levels you have already cleared.`
-              : 'Your free replay is gone and your wallet is empty.'}
-        </p>
-
-        <div className="mt-8 grid gap-3">
-          {freeReplay ? (
-            <Button onClick={replay} tone="gold" size="lg">
-              <RotateCcw size={18} /> Replay level {state.level} — free
-            </Button>
-          ) : canPay ? (
-            <Button onClick={retry} tone="gold" size="lg">
-              <Coins size={18} /> Retry level {state.level} — 1 coin
-            </Button>
-          ) : (
-            <ButtonLink href="/wallet" tone="gold" size="lg">
-              <Coins size={18} /> Top up to keep going
-            </ButtonLink>
-          )}
-
-          <ButtonLink href="/home" tone="ghost" size="lg">
-            Give up
-          </ButtonLink>
+      <div className="animate-rise">
+        {/* Not a failure screen. They have cleared levels and still have a run
+            in progress — this is a fork in it, and the design says so. */}
+        <div className="text-center">
+          <Mascot mood="thinking" size={110} className="mx-auto" />
+          <p className="mt-3 text-sm font-semibold tracking-[0.2em] text-dusk uppercase">
+            Level {state.level}
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight">
+            {freeReplay ? 'Not that one — go again' : 'Where do you want to go?'}
+          </h1>
+          <p className="mt-2 text-sm text-mist">
+            You have {state.levelsCleared} of {LEVELS}{' '}
+            {state.levelsCleared === 1 ? 'level' : 'levels'} cleared.
+          </p>
         </div>
 
-        {!freeReplay && canPay ? (
-          <p className="mt-4 text-xs text-dusk">
-            You have {state.coins} {state.coins === 1 ? 'coin' : 'coins'} left.
-          </p>
+        {/* Progress, so what is at stake is visible while choosing. */}
+        <div className="mt-5 flex gap-1.5" aria-hidden>
+          {Array.from({ length: LEVELS }, (_, index) => (
+            <div
+              key={index}
+              className={
+                'h-1.5 flex-1 rounded-full ' +
+                (index < state.levelsCleared
+                  ? 'bg-lime'
+                  : index === state.levelsCleared
+                    ? 'bg-gold'
+                    : 'bg-white/10')
+              }
+            />
+          ))}
+        </div>
+
+        <div className="mt-7 grid gap-3">
+          {freeReplay ? (
+            <Choice
+              onClick={replay}
+              tone="gold"
+              icon={<RotateCcw size={20} />}
+              title={`Take level ${state.level} again`}
+              detail="Your one free replay. New pattern, same level, no charge."
+              price="Free"
+            />
+          ) : (
+            <Choice
+              onClick={retry}
+              tone="gold"
+              disabled={!canContinue}
+              icon={<Play size={20} />}
+              title={`Carry on from level ${state.level}`}
+              detail={
+                canContinue
+                  ? `Keep all ${state.levelsCleared} levels you have cleared.`
+                  : `You need ${COINS_PER_RETRY} coins for this.`
+              }
+              price={`${COINS_PER_RETRY} coins`}
+            />
+          )}
+
+          <Choice
+            onClick={startAgain}
+            tone="ghost"
+            disabled={!canStartAgain}
+            icon={<RefreshCw size={20} />}
+            title="Start again from level 1"
+            detail={
+              canStartAgain
+                ? 'A brand new run, and your cleared levels are reset.'
+                : 'You need a coin for this.'
+            }
+            price={`${COINS_PER_PLAY} coin`}
+          />
+        </div>
+
+        {!canStartAgain ? (
+          <ButtonLink href="/wallet" tone="gold" size="lg" className="mt-4 w-full">
+            <Coins size={18} /> Top up to keep playing
+          </ButtonLink>
         ) : null}
+
+        <div className="mt-6 flex items-center justify-between text-sm">
+          <span className="flex items-center gap-1.5 text-dusk">
+            <Coins size={14} /> {coins} {coins === 1 ? 'coin' : 'coins'} left
+          </span>
+          <Link href="/home" className="text-dusk underline underline-offset-4 hover:text-mist">
+            Leave for now
+          </Link>
+        </div>
       </div>
     )
   }
@@ -519,5 +609,68 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
         ) : null}
       </div>
     </div>
+  )
+}
+
+/**
+ * One of the ways out of a missed level.
+ *
+ * A whole tappable card rather than a button with text beside it: this is a
+ * decision about money, and both options need to state their price in the same
+ * shape so neither is the one you press by accident.
+ */
+function Choice({
+  onClick,
+  icon,
+  title,
+  detail,
+  price,
+  tone,
+  disabled,
+}: {
+  onClick: () => void
+  icon: React.ReactNode
+  title: string
+  detail: string
+  price: string
+  tone: 'gold' | 'ghost'
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        'no-select flex w-full items-center gap-4 rounded-3xl p-4 text-left transition ' +
+        'active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ' +
+        (tone === 'gold'
+          ? 'bg-linear-to-br from-gold/20 to-violet/15 ring-1 ring-gold/40 hover:from-gold/25'
+          : 'bg-white/5 ring-1 ring-white/12 hover:bg-white/8')
+      }
+    >
+      <span
+        className={
+          'grid size-11 shrink-0 place-items-center rounded-2xl ' +
+          (tone === 'gold' ? 'bg-gold/20 text-gold' : 'bg-white/8 text-mist')
+        }
+      >
+        {icon}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{title}</span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-mist">{detail}</span>
+      </span>
+
+      <span
+        className={
+          'shrink-0 rounded-full px-3 py-1 text-xs font-bold ' +
+          (tone === 'gold' ? 'bg-gold text-ink' : 'bg-white/10 text-chalk')
+        }
+      >
+        {price}
+      </span>
+    </button>
   )
 }

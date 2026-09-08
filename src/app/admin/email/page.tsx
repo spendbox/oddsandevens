@@ -28,8 +28,6 @@ export default async function AdminEmailPage() {
 
   const probe = await probeEmailSetup()
 
-  const domain = probe.from?.match(/@([^\s>]+)/)?.[1] ?? null
-
   return (
     <>
       <SiteHeader profile={profile} />
@@ -60,17 +58,24 @@ export default async function AdminEmailPage() {
               detail={probe.hasKey ? 'Present' : 'Missing — add it in Vercel and redeploy.'}
             />
             <Check
-              ok={Boolean(probe.from)}
-              label="EMAIL_FROM is set"
-              detail={probe.from ?? 'Missing — add it in Vercel and redeploy.'}
+              ok
+              label="Sending address"
+              detail={
+                probe.fromIsDefault
+                  ? `Using the built-in default. EMAIL_FROM is not set, which is fine.`
+                  : `EMAIL_FROM is set to ${probe.from}`
+              }
             />
             <Check
-              ok={Boolean(domain)}
+              ok={probe.domainMatches}
               label="Sending domain"
               detail={
-                domain
-                  ? `${domain} — this must be verified in Resend, and must be a domain you own.`
-                  : 'Could not read a domain out of EMAIL_FROM.'
+                probe.domainMatches
+                  ? `${probe.domain} — verify this domain in Resend if you have not already.`
+                  : `Sending from ${probe.domain ?? 'nothing readable'}, but this site is ` +
+                    `${probe.expectedDomain}. Resend will refuse every send. Change ` +
+                    `EMAIL_FROM in Vercel to an address on ${probe.expectedDomain}, or ` +
+                    `remove it entirely to use the default.`
               }
             />
             <Check

@@ -44,10 +44,12 @@ does, and the server budgets for it — `COUNT_IN_MS` in `src/lib/game.ts` is pa
 of the deadline, not just a screen animation. It was not, once, and every level
 quietly ran 1.2 seconds short of the clock the player could see.
 
-**One free replay per game, then a coin a go.** Miss a level and you can take
-it again — new pattern, same level, no charge. After that, a retry costs one
-coin and you keep every level you have already cleared. The run only ends when
-the wallet is empty or the player walks away.
+**One free replay per game, then a choice.** Miss a level and you can take it
+again — new pattern, same level, no charge. After that, missing does not end the
+run: it offers two ways forward. Carry on from the level you are stuck on for
+**2 coins**, keeping every level already cleared, or start again from level 1
+for **1 coin**. The run only ends when neither is affordable, or the player
+walks away.
 
 **Every box comes with three promo flyers.** Square PNGs a creator can post to
 WhatsApp, Instagram or X, drawn in the browser from the box's live details —
@@ -88,7 +90,8 @@ Nothing else in the app sends email.
 | One coin | ₦100 |
 | Smallest top-up | 5 coins (₦500) |
 | One game | 1 coin |
-| Retrying a level, after the free replay | 1 coin |
+| Carrying on from a level, after the free replay | 2 coins |
+| Starting again from level 1 | 1 coin |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
 | Beating **your own** box | ₦100,000 once, not twice |
 
@@ -200,7 +203,7 @@ into Vercel under Settings → Environment Variables:
 | `SUPABASE_SERVICE_ROLE_KEY` | same page, the "service_role" key — **required** to play |
 | `PAYSTACK_SECRET_KEY` | Paystack → Settings → API Keys |
 | `RESEND_API_KEY` | resend.com → API Keys. All email goes through it |
-| `EMAIL_FROM` | e.g. `Spendbox <notifications@spendbox.site>` |
+| `EMAIL_FROM` | optional — defaults to `Spendbox <notifications@spendbox.site>` |
 | `ADMIN_EMAILS` | who can open `/admin`. Defaults to `spendbox@gmail.com` |
 
 **If an email does not arrive, open `/admin/email`.** It shows every dependency
@@ -209,13 +212,14 @@ a password reset has — the key, the sending domain, the `password_resets` tabl
 exact refusal. That page exists because "no email arrived" is the least useful
 bug report a system can produce, and this one produced it twice.
 
-`EMAIL_FROM` must be on a domain **verified in Resend**, and it must be a domain
-you actually own. This was set to `spendbox.com` while the site runs on
-`spendbox.site`: Resend refused every send, and because the reset flow
-deliberately tells the browser nothing either way, no password reset arrived and
-nothing said why. Verify `spendbox.site` in Resend and use an address on it. A
-failed send is now logged server-side, so the next time this happens it shows up
-in the Vercel logs.
+Spendbox sends from **spendbox.site**, the domain it runs on. That domain has to
+be verified in Resend — Resend refuses to send from anywhere else, silently as
+far as the person waiting for the email is concerned.
+
+`EMAIL_FROM` is optional. Leave it unset and mail goes out as
+`Spendbox <notifications@spendbox.site>`. Set it only to change the display name
+or the mailbox, and keep it on spendbox.site — `/admin/email` flags it in red if
+it is on anything else.
 
 **`/admin` is a 404 until `ADMIN_EMAILS` includes you.** That is deliberate: an
 unset variable must not open a door. But if the list is empty *entirely*, the

@@ -15,6 +15,17 @@ export const MIN_TOPUP_COINS = 5
 /** What one attempt at a box costs. */
 export const COINS_PER_PLAY = 1
 
+/**
+ * What it costs to carry on from the level you are stuck on, once the free
+ * replay is gone.
+ *
+ * More than starting over, because it is worth more: you keep every level you
+ * have already cleared. Somebody stuck on level 8 can pay two coins to stay
+ * there, or one coin to go back to level 1 — and that choice should have a real
+ * price attached, or nobody would ever start again.
+ */
+export const COINS_PER_RETRY = 2
+
 /** The prize on a box — paid twice over: once to the creator, once to the winner. */
 export const PRIZE_NAIRA = 100_000
 
