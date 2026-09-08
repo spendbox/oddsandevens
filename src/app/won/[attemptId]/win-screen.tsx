@@ -88,9 +88,7 @@ export function WinScreen({
           </div>
 
           <p className="mt-6 text-sm leading-relaxed text-mist">
-            All {LEVELS} levels, first to do it.{' '}
-            {box.creator_name || 'The creator'} earns {naira(box.prize_naira)} too — that is
-            how every box works.
+            All {LEVELS} levels, and you were first.
           </p>
         </div>
 
@@ -111,8 +109,8 @@ export function WinScreen({
               <PartyPopper size={17} /> Already set up — nothing to do
             </p>
             <p className="mt-1.5 text-sm text-mist">
-              {naira(box.prize_naira)} is queued for transfer to your bank account. Payouts go
-              out by hand, so give it a little time.
+              {naira(box.prize_naira)} is queued for transfer to your bank account.
+              Payouts are made by bank transfer within one week.
             </p>
           </Card>
         )}

@@ -7,6 +7,7 @@ import { Grid, type GridMood } from '@/components/grid'
 import { ChevronLeft, Coins, RotateCcw, Trophy, Zap } from 'lucide-react'
 import { Button, ButtonLink, Card, Pill } from '@/components/ui'
 import { Mascot } from '@/components/mascot'
+import { Countdown } from '@/components/countdown'
 import { LEVELS, answerMsFor, stepsFor } from '@/lib/game'
 import { naira } from '@/lib/money'
 import type { Box } from '@/lib/types'
@@ -37,6 +38,9 @@ type GameState = {
  * Where the screen is in the loop:
  *
  *   ready  -> the level card, clock stopped. Nothing is running until they tap.
+ *   counting -> 3, 2, 1. The pattern is already in hand but is not shown yet,
+ *               so nobody's first flash lands while their thumb is still
+ *               travelling from the start button.
  *   watch  -> the pattern plays. Still no clock; watching is free.
  *   tap    -> their turn, and now the clock runs.
  *   judged -> a beat of feedback, then either the next level or the miss card.
@@ -44,7 +48,7 @@ type GameState = {
  * The clock stopping between levels is the rule of the game, not a nicety: a
  * player must never lose a second to a screen they were reading.
  */
-type Phase = 'ready' | 'watch' | 'tap' | 'sending' | 'cleared' | 'missed' | 'over'
+type Phase = 'ready' | 'counting' | 'watch' | 'tap' | 'sending' | 'cleared' | 'missed' | 'over'
 
 /** How long the "level cleared" flash sits on screen before the next card. */
 const CLEARED_MS = 1500
@@ -158,8 +162,8 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     if (!next.round) return setPhase('ready')
 
     setRound(next.round)
-    showPattern(next.round)
-  }, [clearTimers, post, showPattern])
+    setPhase('counting')
+  }, [clearTimers, post])
 
   /** Send the taps and act on the verdict. */
   const submit = useCallback(
@@ -255,7 +259,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     if (next.awaitingReplay || !next.round) return setPhase('missed')
 
     setRound(next.round)
-    showPattern(next.round)
+    setPhase('counting')
   }
 
   const replay = async () => {
@@ -268,7 +272,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     if (!next.round) return setPhase('ready')
 
     setRound(next.round)
-    showPattern(next.round)
+    setPhase('counting')
   }
 
   const steps = phase === 'ready' ? stepsFor(state.level) : (round?.pattern.length ?? stepsFor(state.level))
@@ -432,7 +436,13 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
           </p>
         ) : (
           <p className="mt-1 text-2xl font-bold text-mist">
-            {phase === 'watch' ? 'Watch…' : phase === 'sending' ? '…' : `${steps} flashes`}
+            {phase === 'watch'
+              ? 'Watch…'
+              : phase === 'counting'
+                ? 'Get ready'
+                : phase === 'sending'
+                  ? '…'
+                  : `${steps} flashes`}
           </p>
         )}
 
@@ -447,14 +457,20 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
         </div>
       </div>
 
-      <Grid
-        lit={lit}
-        mood={mood}
-        celebrate={phase === 'cleared'}
-        disabled={phase !== 'tap'}
-        pressed={pressed}
-        onTap={onTap}
-      />
+      <div className="relative">
+        <Grid
+          lit={lit}
+          mood={mood}
+          celebrate={phase === 'cleared'}
+          disabled={phase !== 'tap'}
+          pressed={pressed}
+          onTap={onTap}
+        />
+
+        {phase === 'counting' && round ? (
+          <Countdown onDone={() => showPattern(round)} />
+        ) : null}
+      </div>
 
       {/* how many taps in, so a player can tell where they are */}
       <div className="mt-5 flex items-center justify-center gap-1.5" aria-hidden>

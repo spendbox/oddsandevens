@@ -44,6 +44,12 @@ it again — new pattern, same level, no charge. After that, a retry costs one
 coin and you keep every level you have already cleared. The run only ends when
 the wallet is empty or the player walks away.
 
+**Every box comes with three promo flyers.** Square PNGs a creator can post to
+WhatsApp, Instagram or X, drawn in the browser from the box's live details —
+which is what makes "they update when you edit the box" true without any
+machinery: nothing is stored, so nothing can go stale. On a phone they go
+straight into the share sheet as a real file.
+
 **Every box has a free practice run.** `/b/CODE/try` plays the first three
 levels for real, with no coin and no prize, so nobody pays a coin to find out
 what they are buying. Practice runs entirely in the browser — there is no result
@@ -80,8 +86,8 @@ Nothing else in the app sends email.
 | Retrying a level, after the free replay | 1 coin |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
 
-Coins are bought through Paystack. Winnings are paid out **by hand**, by bank
-transfer, from the Paystack dashboard — there is no key on this server that can
+Coins are bought through Paystack. Winnings are paid out **by hand, by bank
+transfer, within one week**, from the Paystack dashboard — there is no key on this server that can
 move money out on its own. `/admin` is the dashboard and `/admin/payouts` is the
 worklist for whoever sends the transfers.
 
@@ -212,7 +218,9 @@ src/lib/money.ts       every price in the product, in one file
 src/components/grid.tsx        the nine tiles
 src/components/practice-game.tsx  the free example run
 src/components/mascot.tsx      Boxy, in five moods
-src/components/prize-box.tsx   the animated box on every box page
+src/components/tile-reel.tsx   the grid playing itself, on every box page
+src/lib/flyers.ts              the three promo flyers, drawn on a canvas
+src/components/card-deck.tsx   the swipeable card rail
 supabase/migrations/   the schema, the policies, and the three atomic functions
 ```
 

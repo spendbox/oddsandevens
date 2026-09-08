@@ -6,9 +6,20 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ')
 }
 
+/**
+ * Every button presses in, and says so.
+ *
+ * `active:` fires the moment a finger lands rather than when it lifts, so the
+ * feedback arrives before the navigation does — on a slow connection that press
+ * is the only thing telling somebody the tap registered at all. The brightness
+ * drop matters as much as the scale: on a small screen a 3% size change alone
+ * is easy to miss.
+ */
 const BUTTON_BASE =
   'no-select inline-flex items-center justify-center gap-2 rounded-2xl font-semibold ' +
-  'transition active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 ' +
+  'transition-[transform,filter,background-color,box-shadow] duration-100 ' +
+  'active:scale-[0.96] active:brightness-90 ' +
+  'disabled:pointer-events-none disabled:opacity-40 ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan'
 
 const TONES = {
@@ -140,4 +151,9 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
       {children ? <div className="mt-2 text-sm text-mist">{children}</div> : null}
     </div>
   )
+}
+
+/** A skeleton block, for loading.tsx files. */
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cx('animate-pulse-glow rounded-2xl bg-white/6', className)} />
 }

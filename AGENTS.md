@@ -73,6 +73,12 @@ structural.
 - All outbound email goes through Resend, in `src/lib/email.ts`. Supabase's
   mailer is never used — it is rate limited hard enough to fail silently in
   production. Anything that needs to email somebody adds a function there.
+- Every level counts in from three before the pattern plays, in the real game
+  and the practice run. The clock does not start until the last flash is out.
+- Long-lived visual work that people download — the flyers in `src/lib/flyers.ts`
+  — lays out with a running cursor, never fixed coordinates. The title is the
+  creator's text and can be one line or two, and a layout tuned for one of those
+  quietly overlaps for the other.
 - A gate that can be closed by a missing environment variable should say so
   rather than 404. `/admin` is the worked example: no list at all explains
   itself, a list that excludes you is a 404.
