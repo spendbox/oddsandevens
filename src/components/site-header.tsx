@@ -3,6 +3,7 @@ import { Coins, User } from 'lucide-react'
 import { naira } from '@/lib/money'
 import { Pill } from './ui'
 import { PendingDot } from './pending-dot'
+import { Logo } from './logo'
 import type { Profile } from '@/lib/types'
 
 /**
@@ -67,23 +68,4 @@ export function SiteHeader({ profile }: { profile: Profile | null }) {
   )
 }
 
-export function Logo({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden className="shrink-0">
-      <defs>
-        <linearGradient id="sb-logo" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#a855f7" />
-          <stop offset="1" stopColor="#22d3ee" />
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="16" fill="#150c2e" />
-      <g fill="url(#sb-logo)">
-        <rect x="12" y="12" width="12" height="12" rx="4" />
-        <rect x="40" y="12" width="12" height="12" rx="4" />
-        <rect x="26" y="26" width="12" height="12" rx="4" />
-        <rect x="12" y="40" width="12" height="12" rx="4" />
-        <rect x="40" y="40" width="12" height="12" rx="4" />
-      </g>
-    </svg>
-  )
-}
+export { Logo }
