@@ -76,8 +76,17 @@ export async function sendEmail(message: {
   })
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { message?: string } | null
-    throw new EmailError(body?.message ?? `Resend returned ${response.status}.`)
+    const body = (await response.json().catch(() => null)) as
+      | { message?: string; name?: string }
+      | null
+
+    // The status code matters as much as the text: 403 is almost always an
+    // unverified sending domain, 422 a malformed address, 401 a bad key.
+    throw new EmailError(
+      `Resend returned ${response.status}` +
+        (body?.name ? ` (${body.name})` : '') +
+        (body?.message ? `: ${body.message}` : '.'),
+    )
   }
 }
 

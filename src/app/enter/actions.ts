@@ -76,6 +76,7 @@ export async function enterStep(_state: EnterState, formData: FormData): Promise
 
     const origin = await siteOrigin()
     try {
+      // Reports its own outcome to the server log, every branch of it.
       await sendResetLink(email, origin)
     } catch (error) {
       // The browser is told nothing either way — saying "that failed" would

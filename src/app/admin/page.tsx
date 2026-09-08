@@ -135,6 +135,12 @@ export default async function AdminPage() {
               >
                 Payouts <ArrowRight size={14} />
               </Link>
+              <Link
+                href="/admin/email"
+                className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
+              >
+                Email <ArrowRight size={14} />
+              </Link>
             </div>
           </div>
 

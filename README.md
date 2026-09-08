@@ -203,6 +203,12 @@ into Vercel under Settings → Environment Variables:
 | `EMAIL_FROM` | e.g. `Spendbox <notifications@spendbox.site>` |
 | `ADMIN_EMAILS` | who can open `/admin`. Defaults to `spendbox@gmail.com` |
 
+**If an email does not arrive, open `/admin/email`.** It shows every dependency
+a password reset has — the key, the sending domain, the `password_resets` table
+— and will send a real test email and print Resend's own reply, including the
+exact refusal. That page exists because "no email arrived" is the least useful
+bug report a system can produce, and this one produced it twice.
+
 `EMAIL_FROM` must be on a domain **verified in Resend**, and it must be a domain
 you actually own. This was set to `spendbox.com` while the site runs on
 `spendbox.site`: Resend refused every send, and because the reset flow
