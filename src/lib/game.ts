@@ -138,22 +138,44 @@ export function matches(pattern: number[], taps: unknown): taps is number[] {
 }
 
 /**
- * A tolerance on the server's deadline, in milliseconds.
+ * A network allowance on the server's deadline, in milliseconds.
  *
  * The clock the player sees starts when the last flash goes out. The server's
  * has been running since it handed the pattern over, and between those two
- * moments sits a whole round trip: the response coming down, and the answer
- * going back up. On Nigerian mobile data either leg can be most of a second.
+ * moments sits a whole round trip — the response coming down, the answer going
+ * back up — plus the two calls to Supabase the route makes on each leg. On
+ * Nigerian mobile data that adds up to seconds, not milliseconds.
  *
- * 2.2 seconds, which is 1.2 plus a full extra second added deliberately after
- * players kept being told they were out of time having answered inside it. It
- * is invisible: the clock on screen still counts the real answer window, and
- * this only decides how late an answer may arrive and still be honest. It buys
- * nobody an extra tap — at level 10 the hard part is thirteen taps, not two
- * seconds of slack — and the alternative is charging people a coin for a
- * network they cannot control.
+ * Five of them, and it is worth being clear about why so many, because the
+ * instinct is to keep this number small and that instinct is what made the game
+ * unfair.
+ *
+ * The screen never hands out this time. It runs `min(answerMs, whatever the
+ * server says is left)`, so an honest player on the real client is held to the
+ * answer window for their level and not a millisecond more — this only decides
+ * how late their answer may *arrive* and still count. Too small and it does not
+ * cover the round trip, and then it starts coming out of the visible clock
+ * instead: at a second of latency each way the level-10 window was collapsing
+ * from five seconds to under two, which is the same unfairness wearing a
+ * different face. Sized properly, the squeeze never happens and neither does
+ * the rejection.
+ *
+ * What it is not is the thing that stops cheating. To show somebody a pattern
+ * you have to send it to them, so anyone answering the API directly rather than
+ * playing the game has already won the argument, whatever this number is. The
+ * deadline exists to stop a person taking an unbounded amount of time — a
+ * screenshot, a think, a careful tap — and five seconds is nowhere near enough
+ * to matter for that at any level.
+ *
+ * Two other things used to be paid for out of this allowance and no longer are:
+ * the count-in and the pattern running long on a slow phone, now that both are
+ * driven off one wall clock (see use-pattern-player) instead of chains of
+ * setTimeout that could only ever finish late; and the two Supabase round trips
+ * the answer route spent working out who was asking before it read the clock,
+ * now stamped on arrival instead. Between them they were eating most of it, and
+ * players were told they were out of time with seconds on the screen.
  */
-export const LATENCY_GRACE_MS = 2_200
+export const LATENCY_GRACE_MS = 5_000
 
 /** A human sentence for a level, used on the box page's difficulty preview. */
 export function describe(level: number): string {

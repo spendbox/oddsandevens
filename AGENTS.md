@@ -96,6 +96,29 @@ structural.
   rejected honest answers on any round trip over about 300ms, i.e. most phones.
   Every path that starts a level goes through `startRound` so there is one place
   to get this right rather than four.
+- The count-in and the pattern run off one wall clock, in
+  `src/components/use-pattern-player.ts` and `countdown.tsx`, never off a chain
+  or a fan-out of `setTimeout`. A timer fires no earlier than its due time and
+  never earlier, so a busy phone can only ever make a level run long, and every
+  millisecond of that overrun comes out of an answer window the server has
+  already written down. Anything new that has to happen on the game's clock
+  reads the elapsed time and works out where it should be, rather than counting
+  the callbacks it has had.
+- An answer is judged against `arrivedAt`, stamped on the first line of the
+  route, not against `Date.now()` at the point of judging. Checking who is
+  asking costs two round trips to Supabase, and the player is not paying for
+  those. `attemptFromRequest` returns the stamp; use it.
+- `LATENCY_GRACE_MS` is a network allowance and nothing else. Sized too small it
+  does not stop at rejecting late answers — it starts coming out of the clock on
+  screen instead, because the screen holds itself to whatever the server says is
+  left. At a second of latency each way the level-1 window had collapsed from
+  two seconds to none at all. It is not what stops cheating; nothing sent to a
+  browser can be.
+- A level in progress is only resumed if there is time left to play the whole of
+  it — count-in, pattern, answer. Anything less is recorded as a miss on the
+  spot. Handing back a level that cannot be finished is how a player ends up
+  tapping a pattern perfectly and being told they were out of time, and it
+  happens whenever a `begin` request fails and the screen offers start again.
 - Deleting a player cascades to their boxes, attempts, ledger and payouts.
   `/admin/users` refuses while they have an open box or money owed, and warns
   what the payment history loses. Never make that path quieter.

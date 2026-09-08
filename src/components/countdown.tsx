@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { COUNT_IN_TICKS, COUNT_IN_TICK_MS } from '@/lib/game'
+import { useEffect, useRef, useState } from 'react'
+import { COUNT_IN_MS, COUNT_IN_TICKS, COUNT_IN_TICK_MS } from '@/lib/game'
 
 /**
  * Three, two, one.
@@ -14,22 +14,51 @@ import { COUNT_IN_TICKS, COUNT_IN_TICK_MS } from '@/lib/game'
  * The timings come from src/lib/game.ts rather than living here, because the
  * server budgets for this pause when it sets the deadline. If the two ever
  * disagree, the player loses the difference.
+ *
+ * Which is why the count is read off one start time rather than run as three
+ * chained setTimeouts. A chain can only ever be late: each link fires no
+ * earlier than its due time, waits for React to render the new digit, and only
+ * then schedules the next — so on a slow phone three ticks took rather more
+ * than three times COUNT_IN_TICK_MS, and every millisecond of that came out of
+ * the answer window the server had already written down. Anchored to
+ * `startedAt`, a late frame shows the right digit late instead of pushing the
+ * finish line back, and the count-in lands on COUNT_IN_MS on every device.
  */
 export function Countdown({ onDone }: { onDone: () => void }) {
   const [count, setCount] = useState(COUNT_IN_TICKS)
 
+  // onDone is a fresh closure on every render of the parent. Held in a ref so
+  // the loop below can call the current one without depending on it — a
+  // dependency there would restart the count mid-count.
+  const done = useRef(onDone)
   useEffect(() => {
-    if (count === 0) {
-      onDone()
-      return
-    }
+    done.current = onDone
+  })
 
-    const timer = setTimeout(() => setCount((n) => n - 1), COUNT_IN_TICK_MS)
-    return () => clearTimeout(timer)
-    // onDone is recreated on every render of the parent; depending on it would
-    // restart the countdown mid-count.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [count])
+  useEffect(() => {
+    const startedAt = performance.now()
+    let showing = COUNT_IN_TICKS
+
+    let frame = requestAnimationFrame(function tick() {
+      const elapsed = performance.now() - startedAt
+
+      if (elapsed >= COUNT_IN_MS) {
+        setCount(0)
+        done.current()
+        return
+      }
+
+      const next = COUNT_IN_TICKS - Math.floor(elapsed / COUNT_IN_TICK_MS)
+      if (next !== showing) {
+        showing = next
+        setCount(next)
+      }
+
+      frame = requestAnimationFrame(tick)
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [])
 
   if (count === 0) return null
 

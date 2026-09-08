@@ -8,6 +8,7 @@ import { ChevronLeft, Coins, Play, RefreshCw, RotateCcw, Trophy, Zap } from 'luc
 import { Button, ButtonLink, Card, Pill } from '@/components/ui'
 import { Mascot } from '@/components/mascot'
 import { Countdown } from '@/components/countdown'
+import { usePatternPlayer } from '@/components/use-pattern-player'
 import { LEVELS, answerMsFor, stepsFor } from '@/lib/game'
 import { COINS_PER_PLAY, COINS_PER_RETRY } from '@/lib/money'
 import { naira } from '@/lib/money'
@@ -81,10 +82,12 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     initial.status !== 'playing' ? 'over' : initial.awaitingReplay ? 'decide' : 'ready',
   )
   const [round, setRound] = useState<Round | null>(null)
-  const [lit, setLit] = useState<number | null>(null)
   const [pressed, setPressed] = useState<number | null>(null)
   const [taps, setTaps] = useState<number[]>([])
   const [msLeft, setMsLeft] = useState(0)
+
+  // The pattern plays on its own clock, and owns the lit tile while it does.
+  const { lit, play: playPattern, stop: stopPattern } = usePatternPlayer()
 
   /**
    * When the server stops accepting this level's answer, as a clock time.
@@ -96,6 +99,18 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
    * pauses is accounted for exactly once, by subtraction.
    */
   const deadlineAt = useRef(0)
+  /**
+   * When the clock on screen reaches zero, as a clock time.
+   *
+   * Set at the instant the player's turn begins and read straight out of this
+   * ref by the countdown below. It used to be reconstructed there as `now +
+   * msLeft`, which quietly added however long React took to render the handover
+   * to the player's window — small, but it was time the server had not budgeted
+   * for, and it was on the wrong side of the argument.
+   */
+  const turnEndsAt = useRef(0)
+  /** An answer is already on its way up. See submit(). */
+  const inFlight = useRef(false)
   /** The level whose cheer is on screen right now. */
   const [justCleared, setJustCleared] = useState(0)
 
@@ -148,32 +163,27 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     [initial.attemptId],
   )
 
-  /** Play the pattern out, flash by flash, then hand the grid over. */
+  /** Play the pattern out, then hand the grid over. */
   const showPattern = useCallback(
     (next: Round) => {
       clearTimers()
       setTaps([])
-      setLit(null)
       setPhase('watch')
 
-      let elapsed = 0
-      next.pattern.forEach((tile) => {
-        later(() => setLit(tile), elapsed)
-        later(() => setLit(null), elapsed + next.flashMs)
-        elapsed += next.flashMs + next.gapMs
-      })
-
-      later(() => {
-        // Read the deadline now, at the moment the player's turn actually
-        // starts. Whatever the count-in and the pattern took has already come
-        // out of it, so this is the real number rather than an estimate made
-        // several seconds ago.
-        const serverLeft = deadlineAt.current - Date.now()
-        setMsLeft(Math.max(0, Math.min(next.answerMs, serverLeft)))
+      playPattern(next.pattern, next.flashMs, next.gapMs, () => {
+        // The player's turn starts here, so this is where their clock is set.
+        //
+        // Two things bound it, and it takes whichever runs out first: the
+        // answer window for this level, which is the game, and the server's
+        // deadline, which is the truth. The deadline is read now rather than
+        // estimated earlier, so the count-in and the pattern have already come
+        // out of it by subtraction.
+        turnEndsAt.current = Math.min(Date.now() + next.answerMs, deadlineAt.current)
+        setMsLeft(Math.max(0, turnEndsAt.current - Date.now()))
         setPhase('tap')
-      }, elapsed)
+      })
     },
-    [clearTimers, later],
+    [clearTimers, playPattern],
   )
 
   /**
@@ -206,18 +216,28 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   /** Ask the server to start the level, then show whatever it sends. */
   const beginLevel = useCallback(async () => {
     clearTimers()
+    stopPattern()
     setPhase('sending')
 
     const result = await post('begin', {})
     if (!result) return setPhase('ready')
 
     startRound(result, 'ready')
-  }, [clearTimers, post, startRound])
+  }, [clearTimers, post, startRound, stopPattern])
 
   /** Send the taps and act on the verdict. */
   const submit = useCallback(
     async (finalTaps: number[]) => {
+      // Two things can send an answer — the last tap, and the clock reaching
+      // zero — and in the last sixtieth of a second they can both fire. The
+      // second one would arrive after the server had already cleared the round
+      // and be judged as an answer to a level that is no longer in play, which
+      // the player would read as their good answer being thrown away.
+      if (inFlight.current) return
+      inFlight.current = true
+
       clearTimers()
+      stopPattern()
       // clearTimers has just cancelled the pending un-press from the final tap,
       // so the tile has to be released here or it stays lit through the cheer
       // and into the next level — where it looks like the game giving away the
@@ -226,7 +246,10 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
       setPhase('sending')
 
       const result = await post('answer', { level: state.level, taps: finalTaps })
-      if (!result) return setPhase('decide')
+      if (!result) {
+        inFlight.current = false
+        return setPhase('decide')
+      }
       const next = result.state
 
       setRound(null)
@@ -245,22 +268,23 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
         return
       }
 
+      inFlight.current = false
+
       if (next.awaitingReplay) return setPhase('decide')
 
       setJustCleared(state.level)
       setTaps([])
-      setLit(null)
       setPhase('cleared')
       later(() => setPhase('ready'), CLEARED_MS)
     },
-    [clearTimers, initial.attemptId, later, post, router, state.level],
+    [clearTimers, initial.attemptId, later, post, router, state.level, stopPattern],
   )
 
   /** The countdown, while it is the player's turn. */
   useEffect(() => {
     if (phase !== 'tap') return
 
-    const endsAt = Date.now() + msLeft
+    const endsAt = turnEndsAt.current
     const tick = setInterval(() => {
       const remaining = endsAt - Date.now()
 
@@ -277,8 +301,8 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     }, 60)
 
     return () => clearInterval(tick)
-    // msLeft is the starting value for this run of the clock, set once when the
-    // phase turns to 'tap'. Re-running on every tick would restart the clock.
+    // The clock runs off turnEndsAt, an absolute moment fixed when the turn
+    // began, so this only ever needs starting and stopping with the phase.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase])
 
@@ -287,19 +311,40 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   }, [taps])
 
   const onTap = (tile: number) => {
-    if (phase !== 'tap' || !round) return
+    if (phase !== 'tap' || !round || inFlight.current) return
 
     setPressed(tile)
     later(() => setPressed(null), 120)
 
-    const next = [...taps, tile]
-    setTaps(next)
-
-    if (next.length >= round.pattern.length) void submit(next)
+    // Added to whatever is already recorded, not to `taps` as this render saw
+    // it. The two are the same right up until two taps land before React has
+    // committed the first, and then `[...taps, tile]` writes the second one
+    // over the first and a tap is simply gone. It takes a busy phone and a fast
+    // thumb, which is to say level 10 — thirteen taps in five seconds — and the
+    // player sees "that was not the pattern" having tapped the pattern.
+    setTaps((current) => [...current, tile])
   }
+
+  /**
+   * The pattern is complete: send it.
+   *
+   * Fired off the taps React has committed rather than from the tap that
+   * finished them, for the same reason. It goes out on its own tick so that
+   * sending is never something this effect does on the spot, and submit()
+   * refuses to be entered twice, so the clock running out at the same moment
+   * costs nothing.
+   */
+  useEffect(() => {
+    if (phase !== 'tap' || !round) return
+    if (taps.length < round.pattern.length) return
+
+    const send = setTimeout(() => void submit(taps), 0)
+    return () => clearTimeout(send)
+  }, [phase, round, taps, submit])
 
   /** Pay to carry on from this level, once the free replay is gone. */
   const retry = async () => {
+    stopPattern()
     setPhase('sending')
     const result = await post('retry', {})
     if (!result) return setPhase('decide')
@@ -308,6 +353,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
 
   /** Spend the one free replay. */
   const replay = async () => {
+    stopPattern()
     setPhase('sending')
     const result = await post('replay', {})
     if (!result) return setPhase('decide')

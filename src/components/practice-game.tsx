@@ -6,6 +6,7 @@ import { GraduationCap, RotateCcw, Zap } from 'lucide-react'
 import { Button, ButtonLink, Card, Pill } from './ui'
 import { Mascot } from './mascot'
 import { Countdown } from './countdown'
+import { usePatternPlayer } from './use-pattern-player'
 import { answerMsFor, flashMsFor, gapMsFor, makePattern, stepsFor } from '@/lib/game'
 
 /**
@@ -28,10 +29,16 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
   const [level, setLevel] = useState(1)
   const [phase, setPhase] = useState<Phase>('ready')
   const [pattern, setPattern] = useState<number[]>([])
-  const [lit, setLit] = useState<number | null>(null)
   const [pressed, setPressed] = useState<number | null>(null)
   const [taps, setTaps] = useState<number[]>([])
   const [msLeft, setMsLeft] = useState(0)
+
+  // The same player the real game uses, so practice runs at the same speed the
+  // paid version does. A practice level that drifts long is a practice level
+  // that teaches the wrong rhythm.
+  const { lit, play: playPattern, stop: stopPattern } = usePatternPlayer()
+  /** When the clock on screen reaches zero, as a clock time. */
+  const endsAt = useRef(0)
 
   const timers = useRef<Array<ReturnType<typeof setTimeout>>>([])
   const clearTimers = useCallback(() => {
@@ -46,34 +53,26 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
   /** Draw the pattern and start counting in. Nothing is shown yet. */
   const start = useCallback(() => {
     clearTimers()
+    stopPattern()
     setPattern(makePattern(level))
     setTaps([])
-    setLit(null)
     setPressed(null)
     setPhase('counting')
-  }, [clearTimers, level])
+  }, [clearTimers, level, stopPattern])
 
   /** Play the pattern out, once the count has reached zero. */
   const showPattern = useCallback(
     (next: number[]) => {
       clearTimers()
-      const flashMs = flashMsFor(level)
-      const gapMs = gapMsFor(level)
       setPhase('watch')
 
-      let elapsed = 0
-      next.forEach((tile) => {
-        later(() => setLit(tile), elapsed)
-        later(() => setLit(null), elapsed + flashMs)
-        elapsed += flashMs + gapMs
-      })
-
-      later(() => {
+      playPattern(next, flashMsFor(level), gapMsFor(level), () => {
+        endsAt.current = Date.now() + answerMsFor(level)
         setMsLeft(answerMsFor(level))
         setPhase('tap')
-      }, elapsed)
+      })
     },
-    [clearTimers, later, level],
+    [clearTimers, level, playPattern],
   )
 
   // The countdown, once it is the player's turn.
@@ -85,14 +84,13 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
   useEffect(() => {
     if (phase !== 'tap') return
 
-    const endsAt = Date.now() + msLeft
+    const until = endsAt.current
     const tick = setInterval(() => {
-      const left = endsAt - Date.now()
+      const left = until - Date.now()
       if (left <= 0) {
         clearInterval(tick)
         setMsLeft(0)
         setPressed(null)
-        setLit(null)
         setPhase('wrong')
         return
       }
@@ -100,8 +98,8 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
     }, 60)
 
     return () => clearInterval(tick)
-    // msLeft seeds this clock once, when the phase turns to 'tap'.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // The clock runs off endsAt, an absolute moment fixed when the turn began,
+    // so this only ever needs starting and stopping with the phase.
   }, [phase])
 
   const onTap = (tile: number) => {
@@ -110,31 +108,38 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
     setPressed(tile)
     later(() => setPressed(null), 120)
 
-    const next = [...taps, tile]
-    setTaps(next)
+    // Added to whatever is already recorded rather than to `taps` as this
+    // render saw it, so that two taps landing before React has committed the
+    // first cannot lose one. Same as the real game.
+    setTaps((current) => [...current, tile])
+  }
 
-    // Wrong the moment it is wrong, rather than at the end of the sequence.
-    if (next[next.length - 1] !== pattern[next.length - 1]) {
-      clearTimers()
-      setPressed(null)
-      setTaps([])
-      setLit(null)
-      setPhase('wrong')
-      return
-    }
+  /**
+   * Judge the taps so far: wrong the moment they are wrong, rather than at the
+   * end of the sequence, and right when the pattern is complete.
+   *
+   * Off the committed taps and on its own tick, for the same reasons as the
+   * real game.
+   */
+  useEffect(() => {
+    if (phase !== 'tap' || taps.length === 0) return
 
-    if (next.length === pattern.length) {
+    const wrong = taps.some((tap, index) => tap !== pattern[index])
+    if (!wrong && taps.length < pattern.length) return
+
+    const settle = setTimeout(() => {
       clearTimers()
-      // clearTimers has just cancelled the pending un-press from this very tap,
+      // clearTimers has just cancelled the pending un-press from the last tap,
       // so the tile has to be released here or it stays lit into the next
       // level — where it looks like the game giving away the first tile of a
       // pattern it has not drawn yet. Same reason the dots are emptied.
       setPressed(null)
       setTaps([])
-      setLit(null)
-      setPhase(level >= PRACTICE_LEVELS ? 'done' : 'right')
-    }
-  }
+      setPhase(wrong ? 'wrong' : level >= PRACTICE_LEVELS ? 'done' : 'right')
+    }, 0)
+
+    return () => clearTimeout(settle)
+  }, [clearTimers, level, pattern, phase, taps])
 
   const nextLevel = () => {
     setLevel((current) => current + 1)

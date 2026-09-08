@@ -15,5 +15,5 @@ export async function POST(request: Request) {
   const level = Number(found.body.level)
   const taps = found.body.taps
 
-  return Response.json(await judge(found.attempt, level, taps))
+  return Response.json(await judge(found.attempt, level, taps, found.arrivedAt))
 }

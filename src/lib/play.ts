@@ -181,13 +181,20 @@ async function recordMiss(attempt: Attempt, message: string): Promise<GameState>
  *
  * Three situations, in order:
  *
- *  - A pattern is already out for this level and its time has not run out.
- *    Send the same one back with the time that is actually left. Reloading the
- *    page mid-level therefore costs the seconds it took to reload, rather than
- *    handing out a fresh pattern and a fresh clock.
+ *  - A pattern is already out for this level and there is still enough time to
+ *    play the whole thing: the count-in, the pattern, and the answer. Send the
+ *    same one back — never a fresh one, or reloading would be a way to shop for
+ *    an easier pattern — with the time that is actually left.
  *
- *  - A pattern is out and its time has run out. That is a miss, whether the
- *    player closed the tab, lost signal, or simply sat there. Judge it as one.
+ *  - A pattern is out and there is not enough time left to play it properly.
+ *    That is a miss. It has to be, because the alternative is handing somebody
+ *    a level they cannot win: they would count in, watch the pattern, tap it
+ *    back perfectly and be told they were out of time, which is exactly the
+ *    complaint this whole file exists to avoid. It happens when a page is
+ *    reloaded mid-level, when signal drops, and — the one that actually bit —
+ *    when the first `begin` request fails and the screen quietly offers the
+ *    start button again. A miss says so straight away and leaves the replay,
+ *    the paid carry-on and the free one intact.
  *
  *  - Nothing is out. Generate a new pattern, write down when it went out, and
  *    work out the deadline from that.
@@ -209,8 +216,13 @@ export async function beginLevel(attempt: Attempt): Promise<GameState> {
 
   if (attempt.pattern && attempt.pattern_level === attempt.level && attempt.deadline_at) {
     const msRemaining = new Date(attempt.deadline_at).getTime() - now
+    // What the level still needs: three, two, one, the pattern, then the answer
+    // window. The latency allowance is deliberately not in this sum — it is
+    // there to pay for the network, not to be spent in advance on a round that
+    // is already short.
+    const needed = COUNT_IN_MS + showMsFor(attempt.level) + answerMsFor(attempt.level)
 
-    if (msRemaining > 0) {
+    if (msRemaining >= needed) {
       const plan = planFor(attempt.level)
       return {
         ...stateOf(attempt),
@@ -224,7 +236,7 @@ export async function beginLevel(attempt: Attempt): Promise<GameState> {
       }
     }
 
-    return recordMiss(attempt, 'Time ran out on that one.')
+    return recordMiss(attempt, 'That level ran out while the screen was away.')
   }
 
   const plan = planFor(attempt.level)
@@ -337,11 +349,17 @@ export async function spendReplay(attempt: Attempt): Promise<GameState> {
  * set. Neither number comes from the browser, so a doctored clock, a replayed
  * request or a hand-written fetch all lose the same way an honest slow thumb
  * does.
+ *
+ * `arrivedAt` is when the request reached this server, stamped by the route
+ * before it went and asked Supabase who was calling. It is not Date.now() here,
+ * and the difference is two round trips the player would otherwise be charged
+ * for having their session checked.
  */
 export async function judge(
   attempt: Attempt,
   level: number,
   taps: unknown,
+  arrivedAt: number = Date.now(),
 ): Promise<GameState> {
   const admin = supabaseAdmin()
 
@@ -353,8 +371,25 @@ export async function judge(
     return stateOf(attempt, 'That answer was for a different round.')
   }
 
-  const late = !attempt.deadline_at || Date.now() > new Date(attempt.deadline_at).getTime()
-  if (late) return recordMiss(attempt, 'Time ran out on that one.')
+  const late = !attempt.deadline_at || arrivedAt > new Date(attempt.deadline_at).getTime()
+
+  if (late) {
+    // Say so in the log, with the numbers. Being told you are out of time
+    // having answered inside it is the worst thing this game can do to
+    // somebody, and it is not something to diagnose by guesswork a second
+    // time: how late, at which level, and whether the answer was actually
+    // right are the three facts that separate a slow thumb from a clock this
+    // server is getting wrong.
+    const over = attempt.deadline_at
+      ? arrivedAt - new Date(attempt.deadline_at).getTime()
+      : null
+    console.warn(
+      `[spendbox] late answer on attempt ${attempt.id} at level ${attempt.level}: ` +
+        `${over === null ? 'no deadline was set' : `${over}ms past the deadline`}, ` +
+        `answer was ${matches(attempt.pattern, taps) ? 'correct' : 'wrong'}`,
+    )
+    return recordMiss(attempt, 'Time ran out on that one.')
+  }
 
   if (!matches(attempt.pattern, taps)) {
     return recordMiss(attempt, 'That was not the pattern.')
