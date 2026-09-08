@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { Check, CheckCircle2 } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
+import { Footer } from '@/components/footer'
 import { ButtonLink, Card, Problem } from '@/components/ui'
 import { BankCard } from '@/components/bank-card'
 import { Mascot } from '@/components/mascot'
@@ -107,6 +108,8 @@ export default async function ClaimPage() {
           )}
         </section>
       </main>
+
+      <Footer />
     </>
   )
 }

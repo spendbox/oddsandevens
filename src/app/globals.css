@@ -156,6 +156,10 @@ html {
   background: var(--color-ink);
   /* iOS: stop the whole page rubber-banding while somebody hammers the grid. */
   overscroll-behavior-y: none;
+  /* A backstop, not the fix. Decorative glows are clipped where they are drawn;
+     this only catches a future one that is not, so a stray blur can never give
+     the whole site a sideways scrollbar. */
+  overflow-x: hidden;
 }
 
 body {

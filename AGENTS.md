@@ -79,6 +79,13 @@ structural.
   — lays out with a running cursor, never fixed coordinates. The title is the
   creator's text and can be one line or two, and a layout tuned for one of those
   quietly overlaps for the other.
+- The front-page counters add `STATS_BASELINE` in `src/lib/money.ts` to the real
+  totals. That baseline is a launch figure presented to readers as history —
+  treat changing it as a claim being made, not a setting being tuned.
+- Beating your own box pays the prize once. `claim_win` is where that lives.
+- Written pages (terms, privacy, how it works, responsible play) share
+  `src/components/legal-page.tsx`, and the contact address has one home in
+  `src/lib/contact.ts`.
 - A gate that can be closed by a missing environment variable should say so
   rather than 404. `/admin` is the worked example: no list at all explains
   itself, a list that excludes you is a 404.

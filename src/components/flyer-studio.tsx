@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { Download, Share2 } from 'lucide-react'
+import { Download, FileText, Share2 } from 'lucide-react'
 import { Button, Card } from './ui'
 import { naira } from '@/lib/money'
-import { drawFlyer, FLYER_STYLES, type FlyerData, type FlyerStyle } from '@/lib/flyers'
+import { drawFlyer, FLYER_SIZE, FLYER_STYLES, type FlyerData, type FlyerStyle } from '@/lib/flyers'
+import { jpegToPdf } from '@/lib/pdf'
 import type { Box } from '@/lib/types'
 
 /**
@@ -38,6 +39,7 @@ export function FlyerStudio({ box }: { box: Box }) {
     const data: FlyerData = {
       code: box.code,
       title: box.title || `Box ${box.code}`,
+      description: box.description,
       prize: naira(box.prize_naira),
       creator: box.creator_name || 'a player',
       url: `${origin}/b/${box.code}`,
@@ -60,20 +62,42 @@ export function FlyerStudio({ box }: { box: Box }) {
       }, 'image/png')
     })
 
-  const download = async (style: FlyerStyle) => {
-    setBusy(style)
-    const file = await fileFor(style)
-    setBusy(null)
-    if (!file) return
-
-    const url = URL.createObjectURL(file)
+  const save = (blob: Blob, name: string) => {
+    const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = file.name
+    link.download = name
     link.click()
     // Revoked on the next tick: revoking immediately can cancel the download
     // in some browsers before it has read the blob.
     setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  const download = async (style: FlyerStyle) => {
+    setBusy(style)
+    const file = await fileFor(style)
+    setBusy(null)
+    if (file) save(file, file.name)
+  }
+
+  /**
+   * The same flyer as a PDF.
+   *
+   * JPEG rather than PNG inside it: a PDF's DCTDecode filter takes JPEG
+   * directly, so the image goes in as-is with nothing to re-encode, and these
+   * are photographic gradients where JPEG is the right format anyway.
+   */
+  const downloadPdf = async (style: FlyerStyle) => {
+    const canvas = canvases.current[style]
+    if (!canvas) return
+
+    setBusy(style)
+    try {
+      const jpeg = canvas.toDataURL('image/jpeg', 0.92)
+      save(jpegToPdf(jpeg, FLYER_SIZE), `spendbox-${box.code}-${style}.pdf`)
+    } finally {
+      setBusy(null)
+    }
   }
 
   const share = async (style: FlyerStyle) => {
@@ -118,7 +142,7 @@ export function FlyerStudio({ box }: { box: Box }) {
             <p className="mt-3 font-semibold">{name}</p>
             <p className="mt-0.5 text-xs text-dusk">{note}</p>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-3 grid gap-2">
               <Button
                 type="button"
                 tone="gold"
@@ -128,23 +152,34 @@ export function FlyerStudio({ box }: { box: Box }) {
               >
                 <Share2 size={15} /> Share
               </Button>
-              <Button
-                type="button"
-                tone="ghost"
-                size="sm"
-                disabled={busy === style}
-                onClick={() => download(style)}
-              >
-                <Download size={15} /> PNG
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  tone="ghost"
+                  size="sm"
+                  disabled={busy === style}
+                  onClick={() => download(style)}
+                >
+                  <Download size={15} /> PNG
+                </Button>
+                <Button
+                  type="button"
+                  tone="ghost"
+                  size="sm"
+                  disabled={busy === style}
+                  onClick={() => downloadPdf(style)}
+                >
+                  <FileText size={15} /> PDF
+                </Button>
+              </div>
             </div>
           </Card>
         ))}
       </div>
 
       <p className="mt-3 px-1 text-xs text-dusk">
-        Swipe for more. These are made fresh every time you open this page, so they always
-        show your box&apos;s current name and picture details.
+        Swipe for more. These are drawn fresh every time you open this page, so they always
+        carry your box&apos;s current name and description.
       </p>
     </div>
   )

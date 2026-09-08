@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Package, Trophy } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
+import { Footer } from '@/components/footer'
 import { Button, ButtonLink, Card, Empty, Pill, Problem } from '@/components/ui'
 import { BankCard } from '@/components/bank-card'
 import { PasswordSetup } from '@/components/password-setup'
@@ -159,6 +160,8 @@ export default async function AccountPage() {
           </form>
         </div>
       </main>
+
+      <Footer />
     </>
   )
 }

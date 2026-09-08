@@ -1,11 +1,13 @@
-import { Coins, Link2, Package, Sparkles, Zap } from 'lucide-react'
-import { ButtonLink, Card, Pill } from '@/components/ui'
+import { Coins, Link2, Package, Zap } from 'lucide-react'
+import { ButtonLink, Card } from '@/components/ui'
 import { SiteHeader } from '@/components/site-header'
+import { Footer } from '@/components/footer'
 import { DemoGrid } from '@/components/demo-grid'
 import { Mascot } from '@/components/mascot'
 import { CardDeck } from '@/components/card-deck'
 import { LevelExample } from '@/components/level-example'
 import { optionalProfile } from '@/lib/session'
+import { siteStats } from '@/lib/stats'
 import { LEVELS } from '@/lib/game'
 import { MIN_TOPUP_COINS, NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money'
 
@@ -13,7 +15,7 @@ import { MIN_TOPUP_COINS, NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money
 const SHOWN_LEVELS = [1, 5, 10]
 
 export default async function LandingPage() {
-  const profile = await optionalProfile()
+  const [profile, stats] = await Promise.all([optionalProfile(), siteStats()])
   const start = profile ? '/home' : '/enter'
 
   return (
@@ -29,11 +31,7 @@ export default async function LandingPage() {
         {/* ---------------------------- the hook ------------------------- */}
         <section className="relative mx-auto grid max-w-5xl items-center gap-10 px-4 py-12 sm:py-16 md:grid-cols-2 md:gap-14">
           <div className="animate-rise">
-            <Pill tone="gold">
-              <Sparkles size={13} /> Free to create · {naira(PRIZE_NAIRA)} a box
-            </Pill>
-
-            <h1 className="mt-5 text-[2.7rem] leading-[1.03] font-bold tracking-tight sm:text-6xl">
+            <h1 className=" text-[2.7rem] leading-[1.03] font-bold tracking-tight sm:text-6xl">
               Create your box <span className="prize">free</span>.
               <br />
               <span className="text-mist">Share it. Earn.</span>
@@ -49,7 +47,7 @@ export default async function LandingPage() {
               <ButtonLink href={start} size="lg" tone="gold">
                 <Zap size={18} /> Create my box — free
               </ButtonLink>
-              <ButtonLink href="#how" size="lg" tone="ghost">
+              <ButtonLink href="/how-it-works" size="lg" tone="ghost">
                 How it works
               </ButtonLink>
             </div>
@@ -60,8 +58,29 @@ export default async function LandingPage() {
           </div>
         </section>
 
+        {/* ---------------------------- the proof ------------------------ */}
+        <section className="relative mx-auto max-w-5xl px-4 pb-8">
+          {/* Sized to the widest thing that can land here. "₦4,000,000" at
+              text-3xl is 184px, which does not fit a half-width card on a
+              360px phone — it widened the whole document by 16px. */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <Card className="text-center !px-3 sm:!px-6">
+              <p className="tabular text-2xl leading-none font-bold text-violet-soft sm:text-4xl">
+                {stats.boxes.toLocaleString('en-NG')}
+              </p>
+              <p className="mt-2 text-xs text-mist sm:text-sm">boxes created</p>
+            </Card>
+            <Card className="text-center !px-3 sm:!px-6">
+              <p className="prize tabular text-2xl leading-none font-bold sm:text-4xl">
+                {naira(stats.paidOut)}
+              </p>
+              <p className="mt-2 text-xs text-mist sm:text-sm">paid out so far</p>
+            </Card>
+          </div>
+        </section>
+
         {/* ---------------------------- the deck ------------------------- */}
-        <section id="how" className="relative scroll-mt-20 py-8">
+        <section className="relative py-8">
           <div className="mx-auto mb-5 max-w-5xl px-4">
             <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
               Create. Share. Earn.
@@ -144,7 +163,7 @@ export default async function LandingPage() {
                     {level === 1
                       ? 'Four flashes and two seconds. Almost everybody clears this one.'
                       : level === LEVELS
-                        ? 'Thirteen flashes in five seconds. This is what ₦200,000 is guarding.'
+                        ? 'Thirteen flashes in five seconds. This is what guards your prize.'
                         : 'Eight flashes, three seconds, and the flashes are getting quicker.'}
                   </p>
                 </Card>
@@ -173,15 +192,10 @@ export default async function LandingPage() {
               <Zap size={18} /> Create my box — free
             </ButtonLink>
           </Card>
-
-          <footer className="mt-12 border-t border-white/8 pt-8 text-sm text-dusk">
-            <p>
-              Spendbox is a game of skill played for money. Coins are non-refundable once
-              spent. Please only play with money you can afford to lose.
-            </p>
-          </footer>
         </section>
       </main>
+
+      <Footer />
     </>
   )
 }

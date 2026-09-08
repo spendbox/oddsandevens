@@ -4,7 +4,7 @@ import { useActionState } from 'react'
 import { ArrowLeft, ArrowRight, LogIn, Sparkles } from 'lucide-react'
 import { Button, Field, Note, Problem } from '@/components/ui'
 import { PasswordField } from '@/components/password-field'
-import { checkEmail, signIn, signUp, sendReset, type EnterState } from './actions'
+import { enterStep, type EnterState } from './actions'
 
 const START: EnterState = { step: 'email' }
 
@@ -15,21 +15,16 @@ const START: EnterState = { step: 'email' }
  * necessarily know whether they already have an account here — they know their
  * email address. So the first step takes that and the app works out which of
  * the two this is, and the second step asks for the right thing.
+ *
+ * One action and one piece of state for all of it. Every button in here is a
+ * submit carrying an `intent`, including "use a different email", which is why
+ * going back actually goes back.
  */
 export function EnterForm({ next }: { next: string }) {
-  const [emailState, emailAction, emailPending] = useActionState(checkEmail, START)
-  const [signInState, signInAction, signInPending] = useActionState(signIn, START)
-  const [signUpState, signUpAction, signUpPending] = useActionState(signUp, START)
-  const [resetState, resetAction, resetPending] = useActionState(sendReset, START)
+  const [state, action, pending] = useActionState(enterStep, START)
 
-  // The latest step any of the four actions has reported.
-  const state = [signUpState, signInState, resetState, emailState].find(
-    (candidate) => candidate.step && candidate.step !== 'email',
-  )
-  const step = state?.step ?? 'email'
-  const email = state?.email ?? emailState.email ?? ''
-  const problem =
-    signUpState.problem ?? signInState.problem ?? resetState.problem ?? emailState.problem
+  const step = state.step ?? 'email'
+  const email = state.email ?? ''
 
   if (step === 'email') {
     return (
@@ -40,7 +35,10 @@ export function EnterForm({ next }: { next: string }) {
           confirmation email to wait for.
         </p>
 
-        <form action={emailAction} className="grid gap-4">
+        <form action={action} className="grid gap-4">
+          <input type="hidden" name="intent" value="check" />
+          <input type="hidden" name="next" value={next} />
+
           <Field
             label="Email"
             name="email"
@@ -53,11 +51,11 @@ export function EnterForm({ next }: { next: string }) {
             defaultValue={email}
           />
 
-          {problem ? <Problem>{problem}</Problem> : null}
+          {state.problem ? <Problem>{state.problem}</Problem> : null}
 
-          <Button type="submit" tone="gold" size="lg" disabled={emailPending} className="w-full">
-            {emailPending ? 'One moment…' : 'Continue'}
-            {emailPending ? null : <ArrowRight size={18} />}
+          <Button type="submit" tone="gold" size="lg" disabled={pending} className="w-full">
+            {pending ? 'One moment…' : 'Continue'}
+            {pending ? null : <ArrowRight size={18} />}
           </Button>
         </form>
       </div>
@@ -65,8 +63,6 @@ export function EnterForm({ next }: { next: string }) {
   }
 
   const creating = step === 'create'
-  const action = creating ? signUpAction : signInAction
-  const pending = creating ? signUpPending : signInPending
 
   return (
     <div className="animate-rise">
@@ -77,6 +73,7 @@ export function EnterForm({ next }: { next: string }) {
       <p className="mb-6 truncate text-lg font-semibold">{email}</p>
 
       <form action={action} className="grid gap-4">
+        <input type="hidden" name="intent" value={creating ? 'signup' : 'signin'} />
         <input type="hidden" name="next" value={next} />
         <input type="hidden" name="email" value={email} />
 
@@ -89,14 +86,12 @@ export function EnterForm({ next }: { next: string }) {
           autoComplete={creating ? 'new-password' : 'current-password'}
           placeholder={creating ? 'At least 6 characters' : 'Enter your password'}
           hint={
-            creating
-              ? 'Tap the eye to check it. You can pick a display name later.'
-              : undefined
+            creating ? 'Tap the eye to check it. You can pick a display name later.' : undefined
           }
         />
 
-        {problem ? <Problem>{problem}</Problem> : null}
-        {resetState.sentReset ? (
+        {state.problem ? <Problem>{state.problem}</Problem> : null}
+        {state.sentReset ? (
           <Note>
             If that address has an account, a reset link is on its way. Check your inbox, and
             your spam folder.
@@ -108,28 +103,30 @@ export function EnterForm({ next }: { next: string }) {
         </Button>
       </form>
 
+      {/* Both of these are submits into the same action, carrying a different
+          intent. That is what makes going back reliable. */}
       <div className="mt-5 flex items-center justify-between gap-3 text-sm">
-        {/* Submitting the email step again with a blank address is what takes us
-            back, so this is a real form rather than client-side state. */}
-        <form action={emailAction}>
-          <input type="hidden" name="email" value="" />
+        <form action={action}>
+          <input type="hidden" name="intent" value="back" />
           <button
             type="submit"
-            className="flex items-center gap-1.5 text-dusk hover:text-mist"
+            disabled={pending}
+            className="flex items-center gap-1.5 text-dusk transition hover:text-mist active:scale-95 disabled:opacity-50"
           >
             <ArrowLeft size={14} /> Use a different email
           </button>
         </form>
 
         {creating ? null : (
-          <form action={resetAction}>
+          <form action={action}>
+            <input type="hidden" name="intent" value="reset" />
             <input type="hidden" name="email" value={email} />
             <button
               type="submit"
-              disabled={resetPending}
-              className="font-medium text-mist underline underline-offset-4 hover:text-chalk disabled:opacity-50"
+              disabled={pending}
+              className="font-medium text-mist underline underline-offset-4 transition hover:text-chalk active:scale-95 disabled:opacity-50"
             >
-              {resetPending ? 'Sending…' : 'Forgot password?'}
+              Forgot password?
             </button>
           </form>
         )}

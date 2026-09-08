@@ -33,10 +33,13 @@ export function DemoGrid() {
   const lit = step >= 0 && step % 2 === 0 ? DEMO[step / 2] : null
 
   return (
-    <div className="relative">
+    // The glow is bigger than the grid and blurred well past that again, so it
+    // is clipped here. Left to spill, it widened the document and gave the
+    // whole page a sideways scroll of about eighteen pixels.
+    <div className="relative isolate overflow-hidden py-8">
       <div
         aria-hidden
-        className="absolute -inset-8 -z-10 animate-drift rounded-full bg-violet/25 blur-3xl"
+        className="absolute inset-4 -z-10 animate-drift rounded-full bg-violet/25 blur-3xl"
       />
       <Grid lit={lit} mood="showing" disabled pressed={null} onTap={() => {}} />
     </div>

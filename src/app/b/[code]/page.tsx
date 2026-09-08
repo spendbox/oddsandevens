@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import { ChevronDown, Coins, Lock, Pencil, Play, Trophy, Unlock, Zap } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
+import { Footer } from '@/components/footer'
 import { Button, ButtonLink, Card, Pill, Problem } from '@/components/ui'
 import { ShareLink } from '@/components/share-link'
 import { FlyerStudio } from '@/components/flyer-studio'
@@ -267,6 +268,8 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
           </Card>
         ) : null}
       </main>
+
+      <Footer />
     </>
   )
 }
