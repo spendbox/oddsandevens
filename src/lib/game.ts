@@ -141,13 +141,19 @@ export function matches(pattern: number[], taps: unknown): taps is number[] {
  * A tolerance on the server's deadline, in milliseconds.
  *
  * The clock the player sees starts when the last flash goes out. The server's
- * starts when it hands over the pattern, which is a network trip earlier, and
- * a phone on Nigerian mobile data can easily lose most of a second to that.
- * Without this, a slow connection would fail honest players on time they never
- * had. It is deliberately generous; it buys nobody an extra tap, because the
- * hard part of level 10 is the tapping, not the third of a second.
+ * has been running since it handed the pattern over, and between those two
+ * moments sits a whole round trip: the response coming down, and the answer
+ * going back up. On Nigerian mobile data either leg can be most of a second.
+ *
+ * 2.2 seconds, which is 1.2 plus a full extra second added deliberately after
+ * players kept being told they were out of time having answered inside it. It
+ * is invisible: the clock on screen still counts the real answer window, and
+ * this only decides how late an answer may arrive and still be honest. It buys
+ * nobody an extra tap — at level 10 the hard part is thirteen taps, not two
+ * seconds of slack — and the alternative is charging people a coin for a
+ * network they cannot control.
  */
-export const LATENCY_GRACE_MS = 1_200
+export const LATENCY_GRACE_MS = 2_200
 
 /** A human sentence for a level, used on the box page's difficulty preview. */
 export function describe(level: number): string {

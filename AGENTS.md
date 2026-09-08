@@ -90,6 +90,12 @@ structural.
   level then ran 1.2 seconds short of the clock the player could see — 60% of a
   level-1 window, and it cost people coins. The client holds the deadline as an
   absolute moment, never as a duration, so pauses subtract themselves.
+- That deadline is anchored to when the request went out, never to when the
+  reply arrived. Anchoring to the reply puts the screen's clock one network hop
+  later than the server's, and the answer going back costs another — which
+  rejected honest answers on any round trip over about 300ms, i.e. most phones.
+  Every path that starts a level goes through `startRound` so there is one place
+  to get this right rather than four.
 - Deleting a player cascades to their boxes, attempts, ledger and payouts.
   `/admin/users` refuses while they have an open box or money owed, and warns
   what the payment history loses. Never make that path quieter.

@@ -44,10 +44,12 @@ does, and the server budgets for it — `COUNT_IN_MS` in `src/lib/game.ts` is pa
 of the deadline, not just a screen animation. It was not, once, and every level
 quietly ran 1.2 seconds short of the clock the player could see.
 
-**One free replay per game, then a coin a go.** Miss a level and you can take
-it again — new pattern, same level, no charge. After that, a retry costs one
-coin and you keep every level you have already cleared. The run only ends when
-the wallet is empty or the player walks away.
+**One free replay per game, then a choice.** Miss a level and you can take it
+again — new pattern, same level, no charge. After that, missing does not end the
+run: it offers two ways forward. Carry on from the level you are stuck on for
+**2 coins**, keeping every level already cleared, or start again from level 1
+for **1 coin**. The run only ends when neither is affordable, or the player
+walks away.
 
 **Every box comes with three promo flyers.** Square PNGs a creator can post to
 WhatsApp, Instagram or X, drawn in the browser from the box's live details —
@@ -88,7 +90,8 @@ Nothing else in the app sends email.
 | One coin | ₦100 |
 | Smallest top-up | 5 coins (₦500) |
 | One game | 1 coin |
-| Retrying a level, after the free replay | 1 coin |
+| Carrying on from a level, after the free replay | 2 coins |
+| Starting again from level 1 | 1 coin |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
 | Beating **your own** box | ₦100,000 once, not twice |
 

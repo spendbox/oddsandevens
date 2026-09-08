@@ -10,7 +10,7 @@ import {
   showMsFor,
   answerMsFor,
 } from './game'
-import { COINS_PER_PLAY } from './money'
+import { COINS_PER_PLAY, COINS_PER_RETRY } from './money'
 import type { Attempt, Box, Profile } from './types'
 
 /**
@@ -151,10 +151,11 @@ async function recordMiss(attempt: Attempt, message: string): Promise<GameState>
 
   const coins = wallet?.coins ?? 0
 
-  // The free replay is gone. The run is not over while there is a coin to
-  // spend on it — awaiting_replay stays true and the screen offers a paid
-  // retry. It only ends when they cannot, or will not, pay.
-  if (attempt.replays_left <= 0 && coins < COINS_PER_PLAY) {
+  // The free replay is gone. The run stays open while either way forward is
+  // still affordable — carrying on from here, or starting again — and the
+  // screen offers whichever they can pay for. It only ends when neither is
+  // possible, which means the cheaper of the two.
+  if (attempt.replays_left <= 0 && coins < Math.min(COINS_PER_PLAY, COINS_PER_RETRY)) {
     const ended = await endAttempt(attempt.id, 'failed')
     return stateOf(ended ?? { ...attempt, status: 'failed' }, message, coins)
   }
@@ -284,7 +285,7 @@ export async function buyRetry(attempt: Attempt): Promise<GameState> {
   const { data, error } = await admin.rpc('buy_replay', {
     p_attempt: attempt.id,
     p_user: attempt.user_id,
-    p_cost: COINS_PER_PLAY,
+    p_cost: COINS_PER_RETRY,
   })
 
   const row = Array.isArray(data) ? data[0] : data
@@ -294,8 +295,8 @@ export async function buyRetry(attempt: Attempt): Promise<GameState> {
   if (!row.bought) {
     const problem =
       row.problem === 'not enough coins'
-        ? 'You are out of coins. Top up and start a fresh game.'
-        : 'Could not buy a retry.'
+        ? `Carrying on costs ${COINS_PER_RETRY} coins. Start again for ${COINS_PER_PLAY}, or top up.`
+        : 'Could not carry on from here.'
     return stateOf(attempt, problem)
   }
 
@@ -414,4 +415,53 @@ export async function judge(
       ? 'You beat the box.'
       : 'You cleared all ten — but somebody else got there first.',
   )
+}
+
+/**
+ * Give up on this run and open a fresh one at level 1.
+ *
+ * The alternative to paying to carry on. Ends the current attempt properly —
+ * as failed, because that is what it is — and then starts a new one through
+ * exactly the same path as pressing play on the box page, so it costs the same
+ * coin and is subject to the same checks.
+ *
+ * The order matters: the attempt has to be closed before the new one is asked
+ * for, because a player is only allowed one live attempt per box and
+ * start_attempt would otherwise hand back the very run they are trying to
+ * leave.
+ */
+export async function restartAttempt(
+  attempt: Attempt,
+  profile: Profile,
+): Promise<GameState & { attemptId: string }> {
+  const admin = supabaseAdmin()
+
+  if (attempt.status === 'playing') await endAttempt(attempt.id, 'failed')
+
+  const { data } = await admin.from('boxes').select('*').eq('id', attempt.box_id).maybeSingle()
+  const box = data as Box | null
+
+  if (!box) {
+    return { ...stateOf({ ...attempt, status: 'failed' }), attemptId: attempt.id }
+  }
+
+  const started = await startAttempt(box, profile)
+
+  if (!started.ok) {
+    return {
+      ...stateOf({ ...attempt, status: 'failed' }, started.problem, started.coinsLeft),
+      attemptId: attempt.id,
+    }
+  }
+
+  const fresh = await loadAttempt(started.attemptId, profile.id)
+
+  return {
+    ...stateOf(
+      fresh ?? { ...attempt, id: started.attemptId, status: 'playing', level: 1, levels_cleared: 0 },
+      undefined,
+      started.coinsLeft,
+    ),
+    attemptId: started.attemptId,
+  }
 }
