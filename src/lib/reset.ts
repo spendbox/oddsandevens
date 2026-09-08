@@ -19,8 +19,14 @@ import { sendEmail, emailShell } from './email'
 
 const LIFETIME_MINUTES = 45
 
-/** How many resets one account may ask for in an hour before we stop sending. */
-const MAX_PER_HOUR = 3
+/**
+ * How many resets one account may ask for in an hour before we stop sending.
+ *
+ * Six rather than three: three is plenty to stop this being used as a way to
+ * post mail to somebody, and not plenty when the person hitting the button is
+ * the one who just deployed it and is testing.
+ */
+const MAX_PER_HOUR = 6
 
 function hashOf(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -34,17 +40,43 @@ function hashOf(token: string): string {
  * find out who has an account here, which is nobody's business — so every
  * outcome, including the rate-limited one, looks the same from outside.
  */
-export async function sendResetLink(rawEmail: string, origin: string): Promise<void> {
+export type ResetOutcome =
+  | 'sent'
+  | 'no-such-account'
+  | 'rate-limited'
+  | 'token-write-failed'
+  | 'send-failed'
+
+export async function sendResetLink(rawEmail: string, origin: string): Promise<ResetOutcome> {
   const email = rawEmail.trim().toLowerCase()
+
+  /**
+   * Say what happened, to the server log only.
+   *
+   * This function used to have three bare `return`s in it — no account, rate
+   * limited, token write failed — and every one of them meant no email and no
+   * trace of why. From the outside that is indistinguishable from a broken
+   * mailer, and it is exactly how a rate limit spent an afternoon looking like
+   * an outage. The browser still learns nothing either way; the operator now
+   * learns everything.
+   */
+  const report = (outcome: ResetOutcome, detail?: unknown): ResetOutcome => {
+    const line = `[spendbox] password reset for ${email}: ${outcome}`
+    if (outcome === 'sent') console.log(line)
+    else console.error(line, detail ?? '')
+    return outcome
+  }
+
   const admin = supabaseAdmin()
 
-  const { data: profile } = await admin
+  const { data: profile, error: lookupError } = await admin
     .from('profiles')
     .select('id, display_name')
     .eq('email', email)
     .maybeSingle()
 
-  if (!profile) return
+  if (lookupError) return report('token-write-failed', lookupError)
+  if (!profile) return report('no-such-account')
 
   const anHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
   const { count } = await admin
@@ -53,41 +85,50 @@ export async function sendResetLink(rawEmail: string, origin: string): Promise<v
     .eq('user_id', profile.id)
     .gte('created_at', anHourAgo)
 
-  if ((count ?? 0) >= MAX_PER_HOUR) return
+  if ((count ?? 0) >= MAX_PER_HOUR) {
+    return report('rate-limited', `${count} in the last hour, limit ${MAX_PER_HOUR}`)
+  }
 
   const token = randomBytes(32).toString('hex')
 
-  const { error } = await admin.from('password_resets').insert({
+  const { error: insertError } = await admin.from('password_resets').insert({
     user_id: profile.id,
     token_hash: hashOf(token),
     expires_at: new Date(Date.now() + LIFETIME_MINUTES * 60 * 1000).toISOString(),
   })
 
-  if (error) return
+  // Almost always: migration 0005 has not been run, so the table is not there.
+  if (insertError) return report('token-write-failed', insertError)
 
   const link = `${origin}/reset?token=${token}`
   const name = profile.display_name || 'there'
 
-  await sendEmail({
-    to: email,
-    subject: 'Reset your Spendbox password',
-    html: emailShell({
-      heading: 'Choose a new password',
-      body:
-        `Hi ${escapeHtml(name)}, here is the link to set a new password on your ` +
-        `Spendbox account. It works once and expires in ${LIFETIME_MINUTES} minutes.`,
-      buttonLabel: 'Set a new password',
-      buttonUrl: link,
-      footer:
-        'Did not request this? Ignore this email — nothing has changed and your current ' +
-        'password still works.',
-    }),
-    text:
-      `Hi ${name},\n\n` +
-      `Here is the link to set a new password on your Spendbox account. ` +
-      `It works once and expires in ${LIFETIME_MINUTES} minutes.\n\n${link}\n\n` +
-      `Did not request this? Ignore this email. Nothing has changed.`,
-  })
+  try {
+    await sendEmail({
+      to: email,
+      subject: 'Reset your Spendbox password',
+      html: emailShell({
+        heading: 'Choose a new password',
+        body:
+          `Hi ${escapeHtml(name)}, here is the link to set a new password on your ` +
+          `Spendbox account. It works once and expires in ${LIFETIME_MINUTES} minutes.`,
+        buttonLabel: 'Set a new password',
+        buttonUrl: link,
+        footer:
+          'Did not request this? Ignore this email — nothing has changed and your current ' +
+          'password still works.',
+      }),
+      text:
+        `Hi ${name},\n\n` +
+        `Here is the link to set a new password on your Spendbox account. ` +
+        `It works once and expires in ${LIFETIME_MINUTES} minutes.\n\n${link}\n\n` +
+        `Did not request this? Ignore this email. Nothing has changed.`,
+    })
+  } catch (error) {
+    return report('send-failed', error)
+  }
+
+  return report('sent')
 }
 
 /** Escape text going into the HTML body of an email. */

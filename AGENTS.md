@@ -73,6 +73,11 @@ structural.
 - All outbound email goes through Resend, in `src/lib/email.ts`. Supabase's
   mailer is never used — it is rate limited hard enough to fail silently in
   production. Anything that needs to email somebody adds a function there.
+- A path that is deliberately silent to the browser must never also be silent to
+  the operator. `sendResetLink` had three bare `return`s — no account, rate
+  limited, token write failed — and each meant no email and no trace, which is
+  indistinguishable from a broken mailer. Every branch now reports itself to the
+  server log and `/admin/email` shows the whole chain and will send a real test.
 - Every level counts in from three before the pattern plays, in the real game
   and the practice run. The clock does not start until the last flash is out.
 - Anything that happens between the server issuing a pattern and the player's
