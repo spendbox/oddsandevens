@@ -187,7 +187,7 @@ into Vercel under Settings → Environment Variables:
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same page, the "anon" key |
-| `SUPABASE_SERVICE_ROLE_KEY` | same page, the "service_role" key — **required** |
+| `SUPABASE_SERVICE_ROLE_KEY` | same page, the "service_role" key — **required** to play |
 | `PAYSTACK_SECRET_KEY` | Paystack → Settings → API Keys |
 | `RESEND_API_KEY` | resend.com → API Keys. All email goes through it |
 | `EMAIL_FROM` | e.g. `Spendbox <hello@yourdomain.com>` |
@@ -203,8 +203,13 @@ page says so and prints the exact line to add, rather than pretending not to
 exist. So if you cannot get in, open `/admin` while signed in and it will tell
 you what to set. Remember to redeploy — Vercel reads these at build time.
 
-`SUPABASE_SERVICE_ROLE_KEY` is not optional here. Every coin spent and every
-answer judged goes through it. Never give it a `NEXT_PUBLIC_` prefix.
+`SUPABASE_SERVICE_ROLE_KEY` is not optional for anything that matters: every
+coin spent and every answer judged goes through it. Never give it a
+`NEXT_PUBLIC_` prefix.
+
+The site will still build and the landing page will still render without it —
+the front-page counters fall back to their baseline rather than taking the
+deploy down — but nobody can play, top up or be paid until it is set.
 
 **4. The Paystack webhook.** Paystack → Settings → API Keys & Webhooks → set the
 webhook URL to `https://your-domain/api/paystack/webhook`. Without it, a player

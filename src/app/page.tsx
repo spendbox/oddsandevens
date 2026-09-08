@@ -14,6 +14,17 @@ import { MIN_TOPUP_COINS, NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money
 /** The three levels worth showing: the first, the middle, and the wall. */
 const SHOWN_LEVELS = [1, 5, 10]
 
+/**
+ * Rendered per request, never at build time.
+ *
+ * It shows who is signed in and two live counters, so a prerendered copy would
+ * be wrong for everybody. It also has to be said out loud: `optionalProfile()`
+ * and `siteStats()` run in the same Promise.all, and a build-time render used
+ * to reach the database before the cookie read had marked the route dynamic —
+ * which turned a missing key into a failed deploy of the whole site.
+ */
+export const dynamic = 'force-dynamic'
+
 export default async function LandingPage() {
   const [profile, stats] = await Promise.all([optionalProfile(), siteStats()])
   const start = profile ? '/home' : '/enter'

@@ -1,5 +1,5 @@
 import 'server-only'
-import { supabaseAdmin } from './supabase/admin'
+import { adminConfigured, supabaseAdmin } from './supabase/admin'
 import { STATS_BASELINE } from './money'
 
 /**
@@ -13,21 +13,36 @@ import { STATS_BASELINE } from './money'
  */
 export type SiteStats = { boxes: number; paidOut: number }
 
+const BASELINE_ONLY: SiteStats = {
+  boxes: STATS_BASELINE.boxes,
+  paidOut: STATS_BASELINE.paidOutNaira,
+}
+
 export async function siteStats(): Promise<SiteStats> {
-  const admin = supabaseAdmin()
+  // Two numbers on a marketing page are never worth taking the front page down
+  // for. Without a service-role key — or with the database unreachable — this
+  // returns the baseline and the page renders. Anything that moves money is
+  // held to a completely different standard and is entitled to throw.
+  if (!adminConfigured()) return BASELINE_ONLY
 
-  const [boxes, payouts] = await Promise.all([
-    admin.from('boxes').select('*', { count: 'exact', head: true }),
-    admin.from('payouts').select('amount_naira').eq('status', 'paid'),
-  ])
+  try {
+    const admin = supabaseAdmin()
 
-  const paid = (payouts.data ?? []).reduce(
-    (total, row) => total + (row.amount_naira ?? 0),
-    0,
-  )
+    const [boxes, payouts] = await Promise.all([
+      admin.from('boxes').select('*', { count: 'exact', head: true }),
+      admin.from('payouts').select('amount_naira').eq('status', 'paid'),
+    ])
 
-  return {
-    boxes: STATS_BASELINE.boxes + (boxes.count ?? 0),
-    paidOut: STATS_BASELINE.paidOutNaira + paid,
+    const paid = (payouts.data ?? []).reduce(
+      (total, row) => total + (row.amount_naira ?? 0),
+      0,
+    )
+
+    return {
+      boxes: STATS_BASELINE.boxes + (boxes.count ?? 0),
+      paidOut: STATS_BASELINE.paidOutNaira + paid,
+    }
+  } catch {
+    return BASELINE_ONLY
   }
 }

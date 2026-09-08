@@ -32,3 +32,14 @@ export function supabaseAdmin() {
   const { url } = supabaseEnv()
   return createClient(url, key.trim(), { auth: { persistSession: false } })
 }
+
+/**
+ * Is the service-role key present?
+ *
+ * For the few places that would rather do less than fail. Anything that moves
+ * money still calls supabaseAdmin() directly and is entitled to throw — a
+ * payment must never be quietly skipped because a key is missing.
+ */
+export function adminConfigured(): boolean {
+  return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim())
+}

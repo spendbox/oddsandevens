@@ -141,8 +141,14 @@ function background(context: CanvasRenderingContext2D) {
   context.fillRect(0, 0, SIZE, SIZE)
 }
 
-/** How tall the footer block is, so layouts know where they must stop. */
-const FOOTER_HEIGHT = 118
+/**
+ * The band at the bottom the footer owns, plus clear air above it.
+ *
+ * Bigger than the wordmark itself on purpose. Content that stops exactly where
+ * the footer starts is not overlapping, but it reads as crowded — which is
+ * what "too close to the URL" means.
+ */
+const FOOTER_HEIGHT = 190
 
 /** The wordmark, bottom-left on every design. */
 function footer(context: CanvasRenderingContext2D, url: string) {
@@ -284,40 +290,39 @@ function drawBold(context: CanvasRenderingContext2D, data: FlyerData) {
   const inner = SIZE - MARGIN * 2
   const blocks: Block[] = []
 
-  blocks.push(textBlock(context, ['BEAT THE PATTERN · TAKE THE BOX'], 30, 700, GOLD, 40, GAP.loose))
+  blocks.push(
+    textBlock(context, ['BEAT THE PATTERN · TAKE THE BOX'], 30, 700, GOLD, 40, GAP.section),
+  )
 
   const gradient = context.createLinearGradient(MARGIN, 0, SIZE - MARGIN, 0)
   gradient.addColorStop(0, GOLD)
   gradient.addColorStop(0.5, '#ffe9a8')
   gradient.addColorStop(1, '#ff9a3c')
-  const prizeSize = fitText(context, data.prize, inner, 700, 168, 84)
+  const prizeSize = fitText(context, data.prize, inner, 700, 176, 84)
   blocks.push(
-    textBlock(context, [data.prize], prizeSize, 700, gradient, prizeSize * 1.05, GAP.loose),
+    textBlock(context, [data.prize], prizeSize, 700, gradient, prizeSize * 1.02, GAP.section),
   )
 
-  context.font = font(600, 44)
-  blocks.push(textBlock(context, wrap(context, data.title, inner, 2), 44, 600, CHALK, 58, GAP.normal))
+  context.font = font(600, 46)
+  blocks.push(
+    textBlock(context, wrap(context, data.title, inner, 2), 46, 600, CHALK, 60, GAP.normal),
+  )
 
   if (data.description) {
-    context.font = font(400, 29)
-    const lines = wrap(context, data.description, inner - 60, 2)
+    context.font = font(400, 30)
+    const lines = wrap(context, data.description, inner - 40, 3)
     if (lines.length > 0) {
-      blocks.push(textBlock(context, lines, 29, 400, MIST, 42, GAP.loose))
+      blocks.push(textBlock(context, lines, 30, 400, MIST, 44, GAP.loose))
     }
   }
 
-  const grid = 200
-  blocks.push({
-    height: grid,
-    gapAfter: GAP.normal,
-    draw: (top) => miniGrid(context, SIZE / 2 - grid / 2, top, grid, [0, 4, 5, 7]),
-  })
-
+  // No grid on this one. Design two is the grid; drawing it here as well was
+  // what made the flyer whose entire job is the number feel packed.
   blocks.push(
     textBlock(context, [`Box ${data.code} · by ${data.creator}`], 27, 500, DUSK, 36, 0),
   )
 
-  stack(blocks, MARGIN + 20, SIZE - MARGIN - FOOTER_HEIGHT)
+  stack(blocks, MARGIN + 30, SIZE - FOOTER_HEIGHT)
   footer(context, data.url)
 }
 
@@ -366,7 +371,7 @@ function drawGrid(context: CanvasRenderingContext2D, data: FlyerData) {
 
   blocks.push(textBlock(context, ['to whoever beats it first'], 26, 500, DUSK, 34, 0))
 
-  stack(blocks, MARGIN, SIZE - MARGIN - FOOTER_HEIGHT)
+  stack(blocks, MARGIN, SIZE - FOOTER_HEIGHT)
   footer(context, data.url)
 }
 
@@ -382,7 +387,7 @@ function drawTicket(context: CanvasRenderingContext2D, data: FlyerData) {
   const cardX = MARGIN - 12
   const cardW = SIZE - cardX * 2
   const cardY = 128
-  const cardH = SIZE - cardY - MARGIN - FOOTER_HEIGHT + 34
+  const cardH = SIZE - cardY - FOOTER_HEIGHT + 46
   const tear = cardY + cardH * 0.68
 
   context.save()
