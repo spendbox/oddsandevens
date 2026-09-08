@@ -1,4 +1,6 @@
+import { Coins, Link2, Package, Sparkles } from 'lucide-react'
 import { ButtonLink, Card, Pill } from '@/components/ui'
+import { Mascot } from '@/components/mascot'
 import { SiteHeader } from '@/components/site-header'
 import { DemoGrid } from '@/components/demo-grid'
 import { optionalProfile } from '@/lib/session'
@@ -20,7 +22,7 @@ export default async function LandingPage() {
         <section className="relative grid items-center gap-10 py-12 sm:py-16 md:grid-cols-2 md:gap-14">
           <div className="animate-rise">
             <Pill tone="gold">
-              <span aria-hidden>💰</span> Free to create · {naira(PRIZE_NAIRA)} a box
+              <Sparkles size={13} /> Free to create · {naira(PRIZE_NAIRA)} a box
             </Pill>
 
             <h1 className="mt-5 text-[2.7rem] leading-[1.03] font-bold tracking-tight sm:text-6xl">
@@ -64,19 +66,19 @@ export default async function LandingPage() {
             {[
               {
                 step: 'Create',
-                emoji: '📦',
+                Icon: Package,
                 title: 'Free, in one tap',
                 body: `Your box carries ${naira(PRIZE_NAIRA)} from the moment it exists. You are never charged for making it, or for anyone playing it.`,
               },
               {
                 step: 'Share',
-                emoji: '🔗',
+                Icon: Link2,
                 title: 'Send the link anywhere',
                 body: 'WhatsApp, X, a group chat. Anyone who opens it can try — each attempt costs the player one coin, not you.',
               },
               {
                 step: 'Earn',
-                emoji: '💰',
+                Icon: Coins,
                 title: 'You get paid too',
                 body: `Somebody beats it and takes ${naira(PRIZE_NAIRA)}. You take ${naira(PRIZE_NAIRA)} for having made the box.`,
               },
@@ -89,9 +91,7 @@ export default async function LandingPage() {
                   {index + 1}
                 </span>
                 <div className="relative">
-                  <div className="text-3xl" aria-hidden>
-                    {step.emoji}
-                  </div>
+                  <step.Icon size={30} className="text-gold" />
                   <p className="mt-3 text-xs font-semibold tracking-[0.2em] text-gold uppercase">
                     {step.step}
                   </p>
@@ -151,7 +151,8 @@ export default async function LandingPage() {
         {/* ---------------------------------------------------------------- */}
         <section className="relative py-8">
           <Card className="bg-linear-to-br from-gold/18 via-violet/12 to-cyan/10 text-center">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            <Mascot mood="excited" size={110} className="mx-auto" />
+            <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
               Create your box free. Share it. Earn.
             </h2>
             <p className="mx-auto mt-3 max-w-md text-mist">

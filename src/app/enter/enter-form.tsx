@@ -1,108 +1,139 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState } from 'react'
+import { ArrowLeft, ArrowRight, LogIn, Sparkles } from 'lucide-react'
 import { Button, Field, Note, Problem } from '@/components/ui'
 import { PasswordField } from '@/components/password-field'
-import { enter, enterWithPassword, sendReset, type EnterState } from './actions'
+import { checkEmail, signIn, signUp, sendReset, type EnterState } from './actions'
 
-const EMPTY: EnterState = {}
+const START: EnterState = { step: 'email' }
 
 /**
- * One field to start with: an email.
+ * Two steps: your email, then your password.
  *
- * Most people arriving here have just tapped somebody's box link and want to
- * play. They type an email and they are in. The password field only appears for
- * accounts that have a password — which means accounts with money attached,
- * because setting one is what claiming a prize requires.
+ * Not a pair of tabs. Somebody arriving from a shared box link does not
+ * necessarily know whether they already have an account here — they know their
+ * email address. So the first step takes that and the app works out which of
+ * the two this is, and the second step asks for the right thing.
  */
 export function EnterForm({ next }: { next: string }) {
-  const [emailState, emailAction, emailPending] = useActionState(enter, EMPTY)
-  const [passState, passAction, passPending] = useActionState(enterWithPassword, EMPTY)
-  const [resetState, resetAction, resetPending] = useActionState(sendReset, EMPTY)
-  const [typed, setTyped] = useState('')
+  const [emailState, emailAction, emailPending] = useActionState(checkEmail, START)
+  const [signInState, signInAction, signInPending] = useActionState(signIn, START)
+  const [signUpState, signUpAction, signUpPending] = useActionState(signUp, START)
+  const [resetState, resetAction, resetPending] = useActionState(sendReset, START)
 
-  // Once any step tells us this account has a password, stay on that step.
-  const known = passState.email ?? emailState.email ?? ''
-  const locked = Boolean(emailState.needsPassword || passState.needsPassword)
-  const problem = passState.problem ?? emailState.problem ?? resetState.problem
+  // The latest step any of the four actions has reported.
+  const state = [signUpState, signInState, resetState, emailState].find(
+    (candidate) => candidate.step && candidate.step !== 'email',
+  )
+  const step = state?.step ?? 'email'
+  const email = state?.email ?? emailState.email ?? ''
+  const problem =
+    signUpState.problem ?? signInState.problem ?? resetState.problem ?? emailState.problem
 
-  if (locked) {
+  if (step === 'email') {
     return (
       <div className="animate-rise">
-        <p className="mb-1 text-sm text-mist">Welcome back</p>
-        <p className="mb-6 truncate text-lg font-semibold">{known}</p>
+        <h1 className="text-2xl font-bold tracking-tight">Sign in or create an account</h1>
+        <p className="mt-2 mb-6 text-sm leading-relaxed text-mist">
+          An email and a password. That is the whole sign-up — no username to think of, no
+          confirmation email to wait for.
+        </p>
 
-        <form action={passAction} className="grid gap-4">
-          <input type="hidden" name="next" value={next} />
-          <input type="hidden" name="email" value={known} />
-
-          <PasswordField
-            label="Your password"
-            name="password"
+        <form action={emailAction} className="grid gap-4">
+          <Field
+            label="Email"
+            name="email"
+            type="email"
             required
             autoFocus
-            autoComplete="current-password"
-            placeholder="Enter your password"
+            autoComplete="email"
+            inputMode="email"
+            placeholder="you@example.com"
+            defaultValue={email}
           />
 
           {problem ? <Problem>{problem}</Problem> : null}
-          {resetState.sentReset ? (
-            <Note>
-              If that address has an account, a reset link is on its way. Check your inbox,
-              and your spam folder.
-            </Note>
-          ) : null}
 
-          <Button type="submit" size="lg" disabled={passPending} className="w-full">
-            {passPending ? 'One moment…' : 'Sign in'}
+          <Button type="submit" tone="gold" size="lg" disabled={emailPending} className="w-full">
+            {emailPending ? 'One moment…' : 'Continue'}
+            {emailPending ? null : <ArrowRight size={18} />}
           </Button>
-        </form>
-
-        <form action={resetAction} className="mt-4 text-center">
-          <input type="hidden" name="email" value={known} />
-          <button
-            type="submit"
-            disabled={resetPending}
-            className="text-sm font-medium text-mist underline underline-offset-4
-                       hover:text-chalk disabled:opacity-50"
-          >
-            {resetPending ? 'Sending…' : 'Forgot your password? Email me a reset link'}
-          </button>
         </form>
       </div>
     )
   }
 
+  const creating = step === 'create'
+  const action = creating ? signUpAction : signInAction
+  const pending = creating ? signUpPending : signInPending
+
   return (
     <div className="animate-rise">
-      <h1 className="text-2xl font-bold tracking-tight">Your email is all it takes</h1>
-      <p className="mt-2 mb-6 text-sm leading-relaxed text-mist">
-        No sign-up form, no confirmation email. Type your address and start playing. You
-        only set a password when you win something and want to claim it.
+      <p className="mb-1 flex items-center gap-2 text-sm text-mist">
+        {creating ? <Sparkles size={15} className="text-gold" /> : <LogIn size={15} />}
+        {creating ? 'Creating your account' : 'Welcome back'}
       </p>
+      <p className="mb-6 truncate text-lg font-semibold">{email}</p>
 
-      <form action={emailAction} className="grid gap-4">
+      <form action={action} className="grid gap-4">
         <input type="hidden" name="next" value={next} />
+        <input type="hidden" name="email" value={email} />
 
-        <Field
-          label="Email"
-          name="email"
-          type="email"
+        <PasswordField
+          label={creating ? 'Choose a password' : 'Your password'}
+          name="password"
           required
+          minLength={6}
           autoFocus
-          autoComplete="email"
-          inputMode="email"
-          placeholder="you@example.com"
-          value={typed}
-          onChange={(event) => setTyped(event.target.value)}
+          autoComplete={creating ? 'new-password' : 'current-password'}
+          placeholder={creating ? 'At least 6 characters' : 'Enter your password'}
+          hint={
+            creating
+              ? 'Tap the eye to check it. You can pick a display name later.'
+              : undefined
+          }
         />
 
         {problem ? <Problem>{problem}</Problem> : null}
+        {resetState.sentReset ? (
+          <Note>
+            If that address has an account, a reset link is on its way. Check your inbox, and
+            your spam folder.
+          </Note>
+        ) : null}
 
-        <Button type="submit" tone="gold" size="lg" disabled={emailPending} className="w-full">
-          {emailPending ? 'One moment…' : 'Continue'}
+        <Button type="submit" tone="gold" size="lg" disabled={pending} className="w-full">
+          {pending ? 'One moment…' : creating ? 'Create account and play' : 'Sign in'}
         </Button>
       </form>
+
+      <div className="mt-5 flex items-center justify-between gap-3 text-sm">
+        {/* Submitting the email step again with a blank address is what takes us
+            back, so this is a real form rather than client-side state. */}
+        <form action={emailAction}>
+          <input type="hidden" name="email" value="" />
+          <button
+            type="submit"
+            className="flex items-center gap-1.5 text-dusk hover:text-mist"
+          >
+            <ArrowLeft size={14} /> Use a different email
+          </button>
+        </form>
+
+        {creating ? null : (
+          <form action={resetAction}>
+            <input type="hidden" name="email" value={email} />
+            <button
+              type="submit"
+              disabled={resetPending}
+              className="font-medium text-mist underline underline-offset-4 hover:text-chalk disabled:opacity-50"
+            >
+              {resetPending ? 'Sending…' : 'Forgot password?'}
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   )
 }

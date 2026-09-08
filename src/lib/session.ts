@@ -1,14 +1,8 @@
 import { redirect } from 'next/navigation'
 import { supabaseServer } from './supabase/server'
 import { supabaseAdmin } from './supabase/admin'
+import { nameFromEmail } from './accounts'
 import type { Profile } from './types'
-
-/** A friendly name from an email address, for someone who hasn't set one. */
-export function nameFromEmail(email: string | undefined | null): string {
-  const local = (email ?? '').split('@')[0].replace(/[^a-z0-9]/gi, ' ').trim()
-  if (!local) return 'Player'
-  return local.charAt(0).toUpperCase() + local.slice(1, 20)
-}
 
 /**
  * Fetch the profile for a signed-in user, creating it the first time.

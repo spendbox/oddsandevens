@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Package, Trophy } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Button, ButtonLink, Card, Empty, Pill, Problem } from '@/components/ui'
 import { BankForm } from '@/components/bank-form'
@@ -74,9 +75,11 @@ export default async function AccountPage() {
               <ul className="divide-y divide-white/6">
                 {payouts.map((payout) => (
                   <li key={payout.id} className="flex items-center gap-3 px-5 py-4">
-                    <span className="text-2xl" aria-hidden>
-                      {payout.role === 'winner' ? '🏆' : '📦'}
-                    </span>
+                    {payout.role === 'winner' ? (
+                      <Trophy size={22} className="shrink-0 text-gold" />
+                    ) : (
+                      <Package size={22} className="shrink-0 text-violet-soft" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">{payout.note}</p>
                       <p className="text-xs text-dusk">

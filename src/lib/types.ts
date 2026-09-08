@@ -21,6 +21,8 @@ export type Box = {
   creator_id: string
   creator_name: string
   title: string
+  description: string
+  image_url: string
   prize_naira: number
   status: 'open' | 'won'
   winner_id: string | null

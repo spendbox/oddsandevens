@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Coins, Gamepad2, PartyPopper, Trophy, Unlock, X } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { ButtonLink, Card, Pill, Problem } from '@/components/ui'
 import { requireProfile } from '@/lib/session'
@@ -35,7 +36,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
 
       <main className="mx-auto max-w-3xl px-4 py-8 pb-24">
         <h1 className="text-3xl font-bold tracking-tight">
-          Hey {profile.display_name || 'there'} 👋
+          Hey {profile.display_name || 'there'}
         </h1>
         <p className="mt-1.5 text-mist">
           Create a box free, share it, earn {naira(PRIZE_NAIRA)} when someone beats it.
@@ -54,8 +55,8 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
 
         {owed.length > 0 ? (
           <Card className="mt-6 border-gold/40 bg-gold/10">
-            <p className="font-semibold text-gold">
-              🎉 You are owed {naira(owed.reduce((sum, payout) => sum + payout.amount_naira, 0))}
+            <p className="flex items-center gap-2 font-semibold text-gold">
+              <PartyPopper size={18} /> You are owed {naira(owed.reduce((sum, payout) => sum + payout.amount_naira, 0))}
             </p>
             <p className="mt-1.5 text-sm text-mist">
               Two quick steps and it is on its way to your bank account.
@@ -74,7 +75,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
               {MIN_TOPUP_COINS} coins — and creating your own box is always free.
             </p>
             <ButtonLink href="/wallet" size="sm" className="mt-4">
-              Fill your wallet
+              <Coins size={16} /> Fill your wallet
             </ButtonLink>
           </Card>
         ) : null}
@@ -85,7 +86,9 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
             <Card className="bg-linear-to-br from-gold/12 via-violet/10 to-cyan/8">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <Pill tone="lime">🔓 Your box is live</Pill>
+                  <Pill tone="lime">
+                    <Unlock size={13} /> Your box is live
+                  </Pill>
                   <h2 className="mt-3 truncate text-2xl font-bold tracking-tight">
                     {openBox.title || `Box ${openBox.code}`}
                   </h2>
@@ -128,9 +131,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
                       href={`/b/${box.code}`}
                       className="flex items-center gap-3 px-5 py-4 transition hover:bg-white/4"
                     >
-                      <span className="text-2xl" aria-hidden>
-                        🏆
-                      </span>
+                      <Trophy size={22} className="shrink-0 text-gold" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">
                           {box.title || `Box ${box.code}`}
@@ -163,7 +164,13 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
                       className="grid size-9 shrink-0 place-items-center rounded-full bg-white/6 text-sm"
                       aria-hidden
                     >
-                      {attempt.status === 'won' ? '🏆' : attempt.status === 'failed' ? '💥' : '🎮'}
+                      {attempt.status === 'won' ? (
+                        <Trophy size={16} className="text-gold" />
+                      ) : attempt.status === 'failed' ? (
+                        <X size={16} className="text-rose" />
+                      ) : (
+                        <Gamepad2 size={16} className="text-cyan" />
+                      )}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">

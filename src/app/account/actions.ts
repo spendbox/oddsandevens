@@ -5,7 +5,7 @@ import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveAccount, PaystackError } from '@/lib/paystack'
-import { setPassword } from '@/lib/guest'
+import { setPassword } from '@/lib/accounts'
 
 export type AccountState = { problem?: string; saved?: boolean }
 

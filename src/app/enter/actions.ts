@@ -2,26 +2,35 @@
 
 import { redirect } from 'next/navigation'
 import { supabaseServer } from '@/lib/supabase/server'
-import { enterWithEmail } from '@/lib/guest'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { accountExists, nameFromEmail } from '@/lib/accounts'
 import { emailConfigured } from '@/lib/email'
 import { sendResetLink } from '@/lib/reset'
 import { siteOrigin } from '@/lib/site'
 
 /**
- * Getting in.
+ * Signing in and signing up — an email and a password, and nothing else.
  *
- * There is one field to start with: an email address. If that address has no
- * password, the player is simply let in — see src/lib/guest.ts for why that is
- * safe and where it stops. If it does have one, the form asks for it.
+ * Asked in two steps rather than as a tabbed form. Nobody arriving at a game
+ * knows or cares whether they already have an account here; they know their
+ * email address. So the first step takes that, works out which of the two this
+ * is, and the second step asks for the right thing: your password, or a
+ * password to choose.
  *
- * Nobody is ever sent away to check an inbox before they can play. The only
- * email Spendbox sends is a password reset, and only when asked for.
+ * No username is ever asked for. A display name is derived from the address and
+ * can be changed later on the account page, because a name field at the door is
+ * a hurdle between somebody and the box link they just tapped.
+ *
+ * There is no confirmation email. That is a Supabase setting, not something
+ * this code decides: Authentication → Sign In / Providers → Email → turn off
+ * "Confirm email". If it is left on, signUp returns no session and the person
+ * is stuck, so that exact case is detected and explained.
  */
 
 export type EnterState = {
   problem?: string
-  /** The form asks for a password once we know the account has one. */
-  needsPassword?: boolean
+  /** Which step the form is on, and for whom. */
+  step?: 'email' | 'password' | 'create'
   email?: string
   sentReset?: boolean
 }
@@ -33,43 +42,81 @@ function safeNext(raw: unknown): string {
   return value.startsWith('/') && !value.startsWith('//') ? value : '/home'
 }
 
-/** Step one: an email, and nothing else. */
-export async function enter(_state: EnterState, formData: FormData): Promise<EnterState> {
+/** Step one: who are you? */
+export async function checkEmail(_state: EnterState, formData: FormData): Promise<EnterState> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  const next = safeNext(formData.get('next'))
 
-  const result = await enterWithEmail(email)
-
-  if (!result.ok) {
-    if ('needsPassword' in result) return { needsPassword: true, email }
-    return { problem: result.problem, email }
+  if (!email.includes('@') || email.length < 4) {
+    return { step: 'email', problem: 'That does not look like an email address.' }
   }
 
-  redirect(next)
+  return { step: (await accountExists(email)) ? 'password' : 'create', email }
 }
 
-/** Step two, only for accounts that have a password. */
-export async function enterWithPassword(
-  _state: EnterState,
-  formData: FormData,
-): Promise<EnterState> {
+/** Step two, for somebody who already has an account. */
+export async function signIn(_state: EnterState, formData: FormData): Promise<EnterState> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
   const password = String(formData.get('password') ?? '')
   const next = safeNext(formData.get('next'))
 
-  if (!password) return { needsPassword: true, email, problem: 'Enter your password.' }
+  if (!password) return { step: 'password', email, problem: 'Enter your password.' }
 
   const supabase = await supabaseServer()
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
     return {
-      needsPassword: true,
+      step: 'password',
       email,
       problem: error.message.toLowerCase().includes('invalid')
         ? 'That password does not match this account.'
         : error.message,
     }
+  }
+
+  redirect(next)
+}
+
+/** Step two, for somebody new. */
+export async function signUp(_state: EnterState, formData: FormData): Promise<EnterState> {
+  const email = String(formData.get('email') ?? '').trim().toLowerCase()
+  const password = String(formData.get('password') ?? '')
+  const next = safeNext(formData.get('next'))
+
+  if (password.length < 6) {
+    return { step: 'create', email, problem: 'Use a password of at least 6 characters.' }
+  }
+
+  const supabase = await supabaseServer()
+  const { data, error } = await supabase.auth.signUp({ email, password })
+
+  if (error) {
+    return {
+      step: 'create',
+      email,
+      problem: error.message.toLowerCase().includes('already')
+        ? 'There is already an account with that email. Go back and sign in instead.'
+        : error.message,
+    }
+  }
+
+  if (!data.session) {
+    return {
+      step: 'create',
+      email,
+      problem:
+        'The account was made, but Supabase is set to require an email confirmation. ' +
+        'Turn it off under Authentication → Sign In / Providers → Email → "Confirm email", ' +
+        'then sign in.',
+    }
+  }
+
+  if (data.user) {
+    const admin = supabaseAdmin()
+    await admin.from('profiles').upsert(
+      { id: data.user.id, email, display_name: nameFromEmail(email), password_set: true },
+      { onConflict: 'id' },
+    )
   }
 
   redirect(next)
@@ -84,11 +131,11 @@ export async function enterWithPassword(
  */
 export async function sendReset(_state: EnterState, formData: FormData): Promise<EnterState> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  if (!email.includes('@')) return { problem: 'Enter your email address first.', email }
+  if (!email.includes('@')) return { step: 'email', problem: 'Enter your email address first.' }
 
   if (!emailConfigured()) {
     return {
-      needsPassword: true,
+      step: 'password',
       email,
       problem:
         'Password resets are not set up on this deployment: RESEND_API_KEY and EMAIL_FROM ' +
@@ -105,7 +152,7 @@ export async function sendReset(_state: EnterState, formData: FormData): Promise
     // tells the sender whether that address has an account.
   }
 
-  return { sentReset: true, email, needsPassword: true }
+  return { step: 'password', email, sentReset: true }
 }
 
 export async function signOut() {

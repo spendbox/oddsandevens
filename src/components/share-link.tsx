@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
+import { Check, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui'
 
 /** Nothing to subscribe to: the origin does not change while the page is open. */
@@ -54,7 +55,15 @@ export function ShareLink({ code, title }: { code: string; title: string }) {
         <p className="truncate font-mono text-sm text-mist">{origin ? url : `/b/${code}`}</p>
       </div>
       <Button type="button" tone="ghost" onClick={share} className="shrink-0">
-        {copied ? '✓ Copied' : 'Share link'}
+        {copied ? (
+          <>
+            <Check size={16} /> Copied
+          </>
+        ) : (
+          <>
+            <Share2 size={16} /> Share link
+          </>
+        )}
       </Button>
     </div>
   )

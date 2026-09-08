@@ -39,9 +39,10 @@ timed.
 **Every run generates its own patterns.** Nobody can learn a box by heart, and
 no two games are the same.
 
-**One free replay per game.** Miss a level and you can take it again — new
-pattern, same level, no charge. Miss again and the game is over; the next go
-costs another coin.
+**One free replay per game, then a coin a go.** Miss a level and you can take
+it again — new pattern, same level, no charge. After that, a retry costs one
+coin and you keep every level you have already cleared. The run only ends when
+the wallet is empty or the player walks away.
 
 **Every box has a free practice run.** `/b/CODE/try` plays the first three
 levels for real, with no coin and no prize, so nobody pays a coin to find out
@@ -50,10 +51,14 @@ worth cheating for, so there is nothing for a server to referee.
 
 ## Getting in
 
-**An email is all it takes.** No sign-up form, no confirmation link. Type an
-address and you are playing. What that creates is not a second-class guest: it
-is a real account with a real wallet and a real history, tracked from the first
-tap.
+**An email and a password.** That is the whole sign-up — no username to think
+of, no confirmation email to wait for. A display name is derived from the
+address and can be changed later on the account page, because a name field at
+the door is a hurdle between somebody and the box link they just tapped.
+
+Asked in two steps rather than as a tabbed form: the first takes the email, the
+app works out whether that is a sign-in or a sign-up, and the second asks for
+the right thing.
 
 **Password resets are sent by us, through Resend** — not by Supabase's built-in
 mailer, which is rate limited hard enough that resets quietly stop arriving
@@ -62,22 +67,7 @@ a SHA-256 of them in the database, single-use, 45 minutes, three per hour per
 account. A leaked backup of that table cannot reset a single password, because
 the thing in the email cannot be worked back out of the thing in the row.
 
-Nothing else in the app sends email. Getting in on an email alone sends no mail
-at all — the session hand-off uses Supabase's admin `generateLink`, which exists
-precisely to generate links "to be sent via a custom email provider" and
-dispatches nothing itself.
-
-**A password is what claiming a prize requires.** Setting one is step one of the
-claim flow, and it changes the account permanently: from then on the email alone
-will not open it, and the password is the only way in. So an account with a prize
-attached to it can never be opened by a stranger typing the address.
-
-The residual risk is worth stating plainly: between topping up and setting a
-password, unspent coins sit in an account that somebody who guesses the email
-could open. The app pushes toward setting a password once there is a balance and
-requires one before any money leaves, but that window is the price of letting
-people play without signing up. Close it by requiring a password at top-up if
-you would rather not carry it.
+Nothing else in the app sends email.
 
 ## The money
 
@@ -87,6 +77,7 @@ you would rather not carry it.
 | One coin | ₦100 |
 | Smallest top-up | 5 coins (₦500) |
 | One game | 1 coin |
+| Retrying a level, after the free replay | 1 coin |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
 
 Coins are bought through Paystack. Winnings are paid out **by hand**, by bank
@@ -163,7 +154,12 @@ supabase/migrations/0002_policies.sql
 supabase/migrations/0003_functions.sql
 supabase/migrations/0004_guests_and_banks.sql
 supabase/migrations/0005_password_resets.sql
+supabase/migrations/0006_retries_and_box_art.sql
 ```
+
+0006 also creates a public `box-images` storage bucket. If your Supabase project
+blocks writes to `storage.buckets` from the SQL editor, make it by hand under
+Storage → New bucket, named `box-images`, public.
 
 **2. Turn off email confirmation.** Authentication → Sign In / Providers →
 Email → uncheck **Confirm email**. Entering is meant to be an email and nothing
@@ -183,7 +179,7 @@ into Vercel under Settings → Environment Variables:
 | `PAYSTACK_SECRET_KEY` | Paystack → Settings → API Keys |
 | `RESEND_API_KEY` | resend.com → API Keys. All email goes through it |
 | `EMAIL_FROM` | e.g. `Spendbox <hello@yourdomain.com>` |
-| `ADMIN_EMAILS` | who can open `/admin`, comma-separated |
+| `ADMIN_EMAILS` | who can open `/admin`. Defaults to `spendbox@gmail.com` |
 
 `EMAIL_FROM` must be on a domain **verified in Resend**. Their onboarding sender
 works without a domain but only delivers to your own address — which looks fine
@@ -215,6 +211,8 @@ src/lib/wallet.ts      turning a Paystack payment into coins, exactly once
 src/lib/money.ts       every price in the product, in one file
 src/components/grid.tsx        the nine tiles
 src/components/practice-game.tsx  the free example run
+src/components/mascot.tsx      Boxy, in five moods
+src/components/prize-box.tsx   the animated box on every box page
 supabase/migrations/   the schema, the policies, and the three atomic functions
 ```
 

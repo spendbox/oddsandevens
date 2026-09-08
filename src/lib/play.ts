@@ -9,6 +9,7 @@ import {
   showMsFor,
   answerMsFor,
 } from './game'
+import { COINS_PER_PLAY } from './money'
 import type { Attempt, Box, Profile } from './types'
 
 /**
@@ -79,6 +80,8 @@ export type GameState = {
   levelsCleared: number
   replaysLeft: number
   awaitingReplay: boolean
+  /** Coins in the wallet, so the miss screen knows what it can offer. */
+  coins?: number
   /** Present only while a level is actually running. */
   round?: {
     pattern: number[]
@@ -91,8 +94,9 @@ export type GameState = {
   message?: string
 }
 
-function stateOf(attempt: Attempt, message?: string): GameState {
+function stateOf(attempt: Attempt, message?: string, coins?: number): GameState {
   return {
+    coins,
     attemptId: attempt.id,
     status: attempt.status,
     level: attempt.level,
@@ -136,9 +140,22 @@ async function endAttempt(attemptId: string, status: 'won' | 'failed') {
 async function recordMiss(attempt: Attempt, message: string): Promise<GameState> {
   const admin = supabaseAdmin()
 
-  if (attempt.replays_left <= 0) {
+  // What is in the wallet decides what the miss screen can offer, so it is read
+  // here rather than leaving the screen to ask separately and possibly disagree.
+  const { data: wallet } = await admin
+    .from('profiles')
+    .select('coins')
+    .eq('id', attempt.user_id)
+    .maybeSingle()
+
+  const coins = wallet?.coins ?? 0
+
+  // The free replay is gone. The run is not over while there is a coin to
+  // spend on it — awaiting_replay stays true and the screen offers a paid
+  // retry. It only ends when they cannot, or will not, pay.
+  if (attempt.replays_left <= 0 && coins < COINS_PER_PLAY) {
     const ended = await endAttempt(attempt.id, 'failed')
-    return stateOf(ended ?? { ...attempt, status: 'failed' }, message)
+    return stateOf(ended ?? { ...attempt, status: 'failed' }, message, coins)
   }
 
   const { data } = await admin
@@ -154,7 +171,7 @@ async function recordMiss(attempt: Attempt, message: string): Promise<GameState>
     .select('*')
     .maybeSingle()
 
-  return stateOf((data as Attempt) ?? attempt, message)
+  return stateOf((data as Attempt) ?? attempt, message, coins)
 }
 
 /**
@@ -241,6 +258,42 @@ export async function beginLevel(attempt: Attempt): Promise<GameState> {
   }
 }
 
+/**
+ * Spend a coin to take the level again, once the free replay is gone.
+ *
+ * Everything that matters happens inside buy_replay: the balance check, the
+ * deduction, the ledger line and clearing the miss are one transaction, so a
+ * player can never be charged for a retry they do not get, or get one they were
+ * not charged for.
+ */
+export async function buyRetry(attempt: Attempt): Promise<GameState> {
+  const admin = supabaseAdmin()
+
+  if (attempt.status !== 'playing') return stateOf(attempt)
+  if (!attempt.awaiting_replay) return stateOf(attempt)
+
+  const { data, error } = await admin.rpc('buy_replay', {
+    p_attempt: attempt.id,
+    p_user: attempt.user_id,
+    p_cost: COINS_PER_PLAY,
+  })
+
+  const row = Array.isArray(data) ? data[0] : data
+
+  if (error || !row) return stateOf(attempt, 'Could not buy a retry. Try again.')
+
+  if (!row.bought) {
+    const problem =
+      row.problem === 'not enough coins'
+        ? 'You are out of coins. Top up and start a fresh game.'
+        : 'Could not buy a retry.'
+    return stateOf(attempt, problem)
+  }
+
+  const fresh = (await loadAttempt(attempt.id, attempt.user_id)) ?? attempt
+  return beginLevel(fresh)
+}
+
 /** Spend the one free replay and put the player back on the same level. */
 export async function spendReplay(attempt: Attempt): Promise<GameState> {
   const admin = supabaseAdmin()
@@ -248,8 +301,7 @@ export async function spendReplay(attempt: Attempt): Promise<GameState> {
   if (attempt.status !== 'playing') return stateOf(attempt)
   if (!attempt.awaiting_replay) return stateOf(attempt)
   if (attempt.replays_left <= 0) {
-    const ended = await endAttempt(attempt.id, 'failed')
-    return stateOf(ended ?? attempt, 'No replays left.')
+    return stateOf(attempt, 'No free replays left — a retry costs a coin.')
   }
 
   // `replays_left = replays_left - 1` guarded by the same condition it depends

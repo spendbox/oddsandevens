@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Grid, type GridMood } from '@/components/grid'
+import { ChevronLeft, Coins, RotateCcw, Trophy, Zap } from 'lucide-react'
 import { Button, ButtonLink, Card, Pill } from '@/components/ui'
+import { Mascot } from '@/components/mascot'
 import { LEVELS, answerMsFor, stepsFor } from '@/lib/game'
 import { naira } from '@/lib/money'
 import type { Box } from '@/lib/types'
@@ -25,6 +27,8 @@ type GameState = {
   levelsCleared: number
   replaysLeft: number
   awaitingReplay: boolean
+  /** Coins in the wallet, so the miss screen knows what it can offer. */
+  coins?: number
   round?: Round
   message?: string
 }
@@ -161,6 +165,11 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
   const submit = useCallback(
     async (finalTaps: number[]) => {
       clearTimers()
+      // clearTimers has just cancelled the pending un-press from the final tap,
+      // so the tile has to be released here or it stays lit through the cheer
+      // and into the next level — where it looks like the game giving away the
+      // first tile of a pattern that has not been drawn yet.
+      setPressed(null)
       setPhase('sending')
 
       const next = await post('answer', { level: state.level, taps: finalTaps })
@@ -185,6 +194,8 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
       if (next.awaitingReplay) return setPhase('missed')
 
       setJustCleared(state.level)
+      setTaps([])
+      setLit(null)
       setPhase('cleared')
       later(() => setPhase('ready'), CLEARED_MS)
     },
@@ -233,6 +244,20 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     if (next.length >= round.pattern.length) void submit(next)
   }
 
+  /** Buy another go at this level once the free replay is gone. */
+  const retry = async () => {
+    setPhase('sending')
+    const next = await post('retry', {})
+    if (!next) return setPhase('missed')
+
+    setState(next)
+    if (next.status !== 'playing') return setPhase('over')
+    if (next.awaitingReplay || !next.round) return setPhase('missed')
+
+    setRound(next.round)
+    showPattern(next.round)
+  }
+
   const replay = async () => {
     setPhase('sending')
     const next = await post('replay', {})
@@ -263,9 +288,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
 
     return (
       <div className="animate-rise text-center">
-        <p className="text-7xl" aria-hidden>
-          {won ? '🏆' : '💥'}
-        </p>
+        <Mascot mood={won ? 'excited' : 'sad'} size={140} className="mx-auto" />
 
         <h1 className="mt-4 text-3xl font-bold tracking-tight">
           {won ? 'You beat the box' : `Level ${state.levelsCleared + 1} got you`}
@@ -281,12 +304,12 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
 
         <div className="mt-8 grid gap-3">
           {won ? (
-            <ButtonLink href="/account" tone="gold" size="lg">
-              Add bank details
+            <ButtonLink href="/claim" tone="gold" size="lg">
+              <Trophy size={18} /> Claim your winnings
             </ButtonLink>
           ) : !beatenByBox ? (
             <ButtonLink href={`/b/${box.code}`} tone="gold" size="lg">
-              Try again · 1 coin
+              <Zap size={18} /> Try again · 1 coin
             </ButtonLink>
           ) : null}
 
@@ -300,27 +323,50 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
 
   // ------------------------------------------------------------ a miss
   if (phase === 'missed') {
+    const freeReplay = state.replaysLeft > 0
+    const canPay = (state.coins ?? 0) >= 1
+
     return (
       <div className="animate-rise text-center">
-        <p className="text-6xl" aria-hidden>
-          😵‍💫
-        </p>
+        <Mascot mood="sad" size={132} className="mx-auto" />
+
         <h1 className="mt-4 text-2xl font-bold tracking-tight">
           {state.message ?? 'That was not the pattern.'}
         </h1>
+
         <p className="mt-2 text-mist">
-          You have {state.replaysLeft} free {state.replaysLeft === 1 ? 'replay' : 'replays'} left.
-          Use it and level {state.level} starts again with a brand new pattern.
+          {freeReplay
+            ? `You still have your free replay. Use it and level ${state.level} starts again with a brand new pattern.`
+            : canPay
+              ? `Your free replay is gone. You can buy another go at level ${state.level} for one coin, and keep the ${state.levelsCleared} levels you have already cleared.`
+              : 'Your free replay is gone and your wallet is empty.'}
         </p>
 
         <div className="mt-8 grid gap-3">
-          <Button onClick={replay} tone="gold" size="lg" disabled={state.replaysLeft < 1}>
-            ↻ Replay level {state.level} · free
-          </Button>
+          {freeReplay ? (
+            <Button onClick={replay} tone="gold" size="lg">
+              <RotateCcw size={18} /> Replay level {state.level} — free
+            </Button>
+          ) : canPay ? (
+            <Button onClick={retry} tone="gold" size="lg">
+              <Coins size={18} /> Retry level {state.level} — 1 coin
+            </Button>
+          ) : (
+            <ButtonLink href="/wallet" tone="gold" size="lg">
+              <Coins size={18} /> Top up to keep going
+            </ButtonLink>
+          )}
+
           <ButtonLink href="/home" tone="ghost" size="lg">
             Give up
           </ButtonLink>
         </div>
+
+        {!freeReplay && canPay ? (
+          <p className="mt-4 text-xs text-dusk">
+            You have {state.coins} {state.coins === 1 ? 'coin' : 'coins'} left.
+          </p>
+        ) : null}
       </div>
     )
   }
@@ -330,12 +376,18 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
     <div className="no-select">
       {/* progress through the ten levels */}
       <div className="mb-5 flex items-center gap-3">
-        <Link href={`/b/${box.code}`} className="text-sm text-dusk hover:text-mist">
-          ← Box {box.code}
+        <Link
+          href={`/b/${box.code}`}
+          className="flex items-center gap-1 text-sm text-dusk hover:text-mist"
+        >
+          <ChevronLeft size={15} /> Box {box.code}
         </Link>
         <div className="ml-auto flex items-center gap-2">
           <Pill tone={state.replaysLeft > 0 ? 'cyan' : 'quiet'}>
-            ↻ {state.replaysLeft} replay{state.replaysLeft === 1 ? '' : 's'}
+            <RotateCcw size={13} /> {state.replaysLeft} free
+          </Pill>
+          <Pill tone="gold">
+            <Coins size={13} /> {state.coins ?? 0}
           </Pill>
         </div>
       </div>
