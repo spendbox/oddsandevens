@@ -1,3 +1,4 @@
+import { PendingDot } from '@/components/pending-dot'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
@@ -127,19 +128,19 @@ export default async function AdminPage() {
                 href="/admin/users"
                 className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
               >
-                Players <ArrowRight size={14} />
+                Players <ArrowRight size={14} /> <PendingDot />
               </Link>
               <Link
                 href="/admin/payouts"
                 className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
               >
-                Payouts <ArrowRight size={14} />
+                Payouts <ArrowRight size={14} /> <PendingDot />
               </Link>
               <Link
                 href="/admin/email"
                 className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
               >
-                Email <ArrowRight size={14} />
+                Email <ArrowRight size={14} /> <PendingDot />
               </Link>
             </div>
           </div>
@@ -157,6 +158,7 @@ export default async function AdminPage() {
                     >
                       <span className="tabular w-20 shrink-0 font-mono text-sm text-dusk">
                         {box.code}
+                        <PendingDot />
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">
@@ -205,7 +207,10 @@ function Stat({
 
   const body = (
     <Card className={href ? 'transition hover:border-violet/45' : undefined}>
-      <p className="text-xs font-semibold tracking-wider text-dusk uppercase">{label}</p>
+      <p className="text-xs font-semibold tracking-wider text-dusk uppercase">
+        {label}
+        {href ? <PendingDot /> : null}
+      </p>
       <p className={`tabular mt-1.5 text-2xl font-bold ${tones[tone]}`}>{value}</p>
     </Card>
   )

@@ -1,3 +1,4 @@
+import { PendingDot } from '@/components/pending-dot'
 import Link from 'next/link'
 import { ButtonLink, Card, Problem } from '@/components/ui'
 import { Logo } from '@/components/site-header'
@@ -24,6 +25,7 @@ export default async function ResetPage({ searchParams }: PageProps<'/reset'>) {
       <Link href="/" className="mb-8 flex items-center justify-center gap-3">
         <Logo size={40} />
         <span className="text-2xl font-bold tracking-tight">Spendbox</span>
+        <PendingDot />
       </Link>
 
       <Card>

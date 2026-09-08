@@ -10,10 +10,10 @@ import {
   Copy,
   CreditCard,
   Landmark,
-  Loader,
   RefreshCw,
 } from 'lucide-react'
-import { Button, Card, Pill, Problem } from '@/components/ui'
+import { Button, Card, Pill, Problem, Spinner } from '@/components/ui'
+import { SubmitDot } from '@/components/pending-dot'
 import {
   MAX_TOPUP_COINS,
   MIN_TOPUP_COINS,
@@ -82,7 +82,9 @@ type Transfer = {
 
 type Stage =
   | { kind: 'choose' }
-  | { kind: 'opening' }
+  // Which amount is being opened, so the pack that was tapped is the one that
+  // spins rather than the whole grid going grey.
+  | { kind: 'opening'; coins: number }
   | { kind: 'waiting'; transfer: Transfer }
   | { kind: 'paid'; coins: number }
 
@@ -121,7 +123,7 @@ export function TopUp() {
   const open = useCallback(async (coins: number) => {
     setProblem(null)
     setCardInstead(false)
-    setStage({ kind: 'opening' })
+    setStage({ kind: 'opening', coins })
 
     try {
       const response = await fetch('/api/pay/transfer', {
@@ -242,7 +244,8 @@ export function TopUp() {
     )
   }
 
-  const busy = stage.kind === 'opening'
+  const opening = stage.kind === 'opening' ? stage.coins : null
+  const busy = opening !== null
 
   return (
     <div>
@@ -259,17 +262,25 @@ export function TopUp() {
             type="button"
             disabled={busy}
             onClick={() => void open(pack.coins)}
-            className="pane relative w-full rounded-3xl p-5 text-left transition
-                       hover:border-gold/50 active:scale-[0.98]
-                       disabled:pointer-events-none disabled:opacity-50"
+            aria-busy={opening === pack.coins || undefined}
+            className={
+              'pane relative w-full rounded-3xl p-5 text-left transition ' +
+              'hover:border-gold/50 active:scale-[0.98] disabled:pointer-events-none ' +
+              (opening === pack.coins
+                ? 'border-gold/50 opacity-95'
+                : busy
+                  ? 'opacity-40'
+                  : '')
+            }
           >
             {pack.popular ? (
               <span className="absolute -top-2.5 right-4">
                 <Pill tone="gold">Popular</Pill>
               </span>
             ) : null}
-            <p className="text-xs font-semibold tracking-wider text-dusk uppercase">
+            <p className="flex items-center gap-2 text-xs font-semibold tracking-wider text-dusk uppercase">
               {pack.label}
+              {opening === pack.coins ? <Spinner className="size-3.5 text-gold" /> : null}
             </p>
             <p className="tabular mt-1.5 text-3xl font-bold">
               {pack.coins}
@@ -326,6 +337,7 @@ export function TopUp() {
             tone="gold"
             size="lg"
             disabled={!customValid || busy}
+            busy={opening === custom}
             onClick={() => void open(custom)}
           >
             <Landmark size={18} />
@@ -336,7 +348,7 @@ export function TopUp() {
 
       {busy ? (
         <p className="mt-4 flex items-center justify-center gap-2 text-sm text-mist">
-          <Loader size={15} className="animate-spin" /> Opening an account for your transfer…
+          <Spinner className="size-4" /> Opening an account for your transfer…
         </p>
       ) : null}
 
@@ -352,6 +364,7 @@ export function TopUp() {
                        underline-offset-4 hover:text-mist"
           >
             <CreditCard size={15} /> Pay with a card instead
+            <SubmitDot />
           </button>
         </form>
       ) : null}
@@ -556,7 +569,7 @@ function Waiting({
       ) : (
         <Card className="mt-4">
           <p className="flex items-center gap-2.5 text-sm font-medium">
-            <Loader size={16} className="shrink-0 animate-spin text-gold" />
+            <Spinner className="text-gold" />
             Waiting for your transfer…
           </p>
           <p className="mt-2 text-sm leading-relaxed text-mist">
@@ -569,18 +582,11 @@ function Waiting({
             tone="ghost"
             size="lg"
             className="mt-4 w-full"
-            disabled={checking}
+            busy={checking}
             onClick={() => void check(true)}
           >
-            {checking ? (
-              <>
-                <Loader size={17} className="animate-spin" /> Checking…
-              </>
-            ) : (
-              <>
-                <RefreshCw size={17} /> I have sent it — check now
-              </>
-            )}
+            {checking ? null : <RefreshCw size={17} />}
+            {checking ? 'Checking…' : 'I have sent it — check now'}
           </Button>
         </Card>
       )}

@@ -1,3 +1,4 @@
+import { PendingDot } from '@/components/pending-dot'
 import Link from 'next/link'
 import { Package, Trophy } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
@@ -148,6 +149,7 @@ export default async function AccountPage() {
               className="text-sm font-medium text-cyan underline underline-offset-4"
             >
               Admin dashboard
+              <PendingDot />
             </Link>
           ) : (
             <span />

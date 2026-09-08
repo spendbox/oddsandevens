@@ -1,3 +1,4 @@
+import { PendingDot } from '@/components/pending-dot'
 import Link from 'next/link'
 import { Card } from '@/components/ui'
 import { Logo } from '@/components/site-header'
@@ -18,6 +19,7 @@ export default async function EnterPage({ searchParams }: PageProps<'/enter'>) {
       <Link href="/" className="mb-8 flex items-center justify-center gap-3">
         <Logo size={40} />
         <span className="text-2xl font-bold tracking-tight">Spendbox</span>
+        <PendingDot />
       </Link>
 
       {params.reset === '1' ? (

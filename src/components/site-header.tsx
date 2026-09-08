@@ -19,6 +19,7 @@ export function SiteHeader({ profile }: { profile: Profile | null }) {
         >
           <Logo />
           <span className="text-lg font-bold tracking-tight">Spendbox</span>
+          <PendingDot />
         </Link>
 
         <div className="ml-auto flex items-center gap-2">
@@ -46,6 +47,7 @@ export function SiteHeader({ profile }: { profile: Profile | null }) {
                 aria-label="Your account"
               >
                 <User size={17} />
+                <PendingDot />
               </Link>
             </>
           ) : (

@@ -82,6 +82,23 @@ structural.
   page that has room for it.
 - Icons come from `lucide-react`. No emoji in the interface — they render
   differently on every platform and cannot take a brand colour.
+- Nothing in this app is instant, so no control is allowed to look idle while it
+  is working. `Button` and `ButtonLink` in `src/components/button.tsx` work it
+  out for themselves — a submit watches `useFormStatus`, a link watches
+  `useLinkStatus`, and an onClick that returns a promise is busy until it
+  settles — so a new screen gets this without being told, and `busy` forces it
+  on for work that started elsewhere. A control styled as text rather than as a
+  button takes `PendingDot` (links) or `SubmitDot` (submits). A busy control
+  keeps its label and grows a spinner: swapping the text changes the width, and
+  a control that resizes under a thumb is one that gets mis-tapped. Busy dims to
+  80% and disabled to 40% — they must not look the same.
+- The exception is anything on the game's own clock. Grid tiles, the count-in
+  and the level card are local and immediate; a spinner there would be a lie and
+  would cost taps. Feedback in the game is the press animation.
+- Every route has a `loading.tsx`, including the one at the root of `src/app`
+  that catches any route without its own. Next renders it the instant a
+  navigation starts, which is the difference between a tap that visibly did
+  something and a tap that did nothing for a second and got tapped again.
 - A box can be renamed, described and given a picture, but never deleted. While
   it is open it is a standing ₦100,000 promise to everyone who has paid to play
   it.

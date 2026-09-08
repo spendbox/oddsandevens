@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { ImagePlus, X } from 'lucide-react'
-import { Button } from './ui'
+import { Button, Spinner } from './ui'
 
 /**
  * Choosing a picture for a box.
@@ -95,8 +95,8 @@ export function ImagePicker({
                      border border-dashed border-white/15 text-mist transition
                      hover:border-violet/50 hover:text-chalk"
         >
-          <ImagePlus size={26} />
-          <span className="text-sm font-medium">Add a picture</span>
+          {busy ? <Spinner className="size-6" /> : <ImagePlus size={26} />}
+          <span className="text-sm font-medium">{busy ? 'Preparing…' : 'Add a picture'}</span>
           <span className="text-xs text-dusk">JPEG, PNG or WebP</span>
         </button>
       )}
@@ -107,7 +107,7 @@ export function ImagePicker({
           tone="ghost"
           size="sm"
           className="mt-3"
-          disabled={busy}
+          busy={busy}
           onClick={() => inputRef.current?.click()}
         >
           {busy ? 'Preparing…' : 'Choose another'}

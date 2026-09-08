@@ -1,5 +1,6 @@
 'use client'
 
+import { SubmitDot } from '@/components/pending-dot'
 import { useActionState } from 'react'
 import { ArrowLeft, ArrowRight, LogIn, Sparkles } from 'lucide-react'
 import { Button, Field, Note, Problem } from '@/components/ui'
@@ -114,6 +115,7 @@ export function EnterForm({ next }: { next: string }) {
             className="flex items-center gap-1.5 text-dusk transition hover:text-mist active:scale-95 disabled:opacity-50"
           >
             <ArrowLeft size={14} /> Use a different email
+            <SubmitDot />
           </button>
         </form>
 
@@ -127,6 +129,7 @@ export function EnterForm({ next }: { next: string }) {
               className="font-medium text-mist underline underline-offset-4 transition hover:text-chalk active:scale-95 disabled:opacity-50"
             >
               Forgot password?
+              <SubmitDot />
             </button>
           </form>
         )}
