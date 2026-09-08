@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { Check, CheckCircle2 } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { ButtonLink, Card, Problem } from '@/components/ui'
-import { BankForm } from '@/components/bank-form'
+import { BankCard } from '@/components/bank-card'
 import { Mascot } from '@/components/mascot'
 import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
@@ -67,7 +67,7 @@ export default async function ClaimPage() {
             {naira(total)}
           </p>
           <p className="mt-3 text-mist">
-            Tell us where to send it and it is on its way by bank transfer.
+            Tell us where to send it. Payouts are made by bank transfer within one week.
           </p>
         </div>
 
@@ -78,7 +78,7 @@ export default async function ClaimPage() {
             </p>
             <p className="mt-1.5 text-sm text-mist">
               {naira(total)} is queued for transfer to {profile.account_name} at{' '}
-              {profile.bank_name}. Payouts are sent by hand, so give it a little time.
+              {profile.bank_name}. Payouts are made by bank transfer within one week.
             </p>
             <ButtonLink href="/home" tone="ghost" size="sm" className="mt-5">
               Back to your box
@@ -102,7 +102,7 @@ export default async function ClaimPage() {
             <Problem>{banksProblem}</Problem>
           ) : (
             <Card>
-              <BankForm profile={profile} banks={banks} />
+              <BankCard profile={profile} banks={banks} />
             </Card>
           )}
         </section>

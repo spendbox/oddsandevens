@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Package, Trophy } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Button, ButtonLink, Card, Empty, Pill, Problem } from '@/components/ui'
-import { BankForm } from '@/components/bank-form'
+import { BankCard } from '@/components/bank-card'
 import { PasswordSetup } from '@/components/password-setup'
 import { NameForm } from './name-form'
 import { isAdmin, requireProfile } from '@/lib/session'
@@ -54,7 +54,8 @@ export default async function AccountPage() {
               You are owed {naira(owed.reduce((sum, payout) => sum + payout.amount_naira, 0))}
             </p>
             <p className="mt-1.5 text-sm text-mist">
-              Finish the two steps below and it will be transferred to you.
+              Add the account to send it to and it goes out by bank transfer within one
+              week.
             </p>
             <ButtonLink href="/claim" tone="gold" size="sm" className="mt-4">
               Claim it
@@ -134,7 +135,7 @@ export default async function AccountPage() {
             <Problem>{banksProblem}</Problem>
           ) : (
             <Card>
-              <BankForm profile={profile} banks={banks} />
+              <BankCard profile={profile} banks={banks} />
             </Card>
           )}
         </section>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { Button, Note, Problem } from '@/components/ui'
 import type { Bank } from '@/lib/paystack'
 import type { Profile } from '@/lib/types'
@@ -14,9 +14,25 @@ import { verifyAndSaveBank, type BankState } from '@/app/account/actions'
  * after saving is the bank's answer, not the player's guess. If it is not their
  * name, they have typed something wrong and can see that immediately.
  */
-export function BankForm({ profile, banks }: { profile: Profile; banks: Bank[] }) {
+export function BankForm({
+  profile,
+  banks,
+  onSaved,
+}: {
+  profile: Profile
+  banks: Bank[]
+  /** Told when a save lands, so a wrapper can drop back to the card view. */
+  onSaved?: () => void
+}) {
   const [state, action, pending] = useActionState<BankState, FormData>(verifyAndSaveBank, {})
   const [bankCode, setBankCode] = useState(profile.bank_code)
+
+  // The action has reported a good save; let the parent close the form.
+  useEffect(() => {
+    if (state.saved && state.accountName) onSaved?.()
+    // onSaved is recreated each render; depending on it would fire repeatedly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.saved, state.accountName])
 
   const chosen = banks.find((bank) => bank.code === bankCode)
   const verified = profile.account_verified_at && !state.problem

@@ -12,13 +12,28 @@
  */
 export type Mood = 'happy' | 'excited' | 'sad' | 'thinking' | 'sleeping'
 
+/**
+ * How each mood moves. Small amounts: the point is that Boxy looks alive, not
+ * that it demands attention while somebody is trying to read the page behind it.
+ */
+const MOTION: Record<Mood, string> = {
+  happy: 'animate-boxy-bob',
+  excited: 'animate-boxy-jump',
+  sad: 'animate-boxy-sway',
+  thinking: 'animate-boxy-sway',
+  sleeping: 'animate-boxy-breathe',
+}
+
 export function Mascot({
   mood = 'happy',
   size = 120,
+  animate = true,
   className,
 }: {
   mood?: Mood
   size?: number
+  /** Turn the movement off where a still drawing reads better. */
+  animate?: boolean
   className?: string
 }) {
   return (
@@ -27,7 +42,7 @@ export function Mascot({
       height={size}
       viewBox="0 0 120 120"
       fill="none"
-      className={className}
+      className={[animate ? MOTION[mood] : '', className].filter(Boolean).join(' ')}
       role="img"
       aria-label="Boxy, the Spendbox mascot"
     >
@@ -49,7 +64,11 @@ export function Mascot({
       <ellipse cx="60" cy="62" rx="52" ry="50" fill="url(#boxy-glow)" />
 
       {/* The lid tips back when Boxy is excited, as if something is coming out. */}
-      <g transform={mood === 'excited' ? 'rotate(-13 30 40)' : undefined}>
+      <g
+        transform={mood === 'excited' ? 'rotate(-13 30 40)' : undefined}
+        className={animate && mood === 'excited' ? 'animate-boxy-lid' : undefined}
+        style={{ transformOrigin: '30px 40px' }}
+      >
         <rect x="20" y="30" width="80" height="20" rx="8" fill="url(#boxy-lid)" />
         <rect x="53" y="30" width="14" height="20" fill="#0ea5c4" opacity="0.55" />
       </g>
@@ -72,8 +91,22 @@ export function Mascot({
           </>
         ) : (
           <>
-            <ellipse cx="43" cy="70" rx="5.5" ry={mood === 'excited' ? 7 : 6} />
-            <ellipse cx="77" cy="70" rx="5.5" ry={mood === 'excited' ? 7 : 6} />
+            <ellipse
+              cx="43"
+              cy="70"
+              rx="5.5"
+              ry={mood === 'excited' ? 7 : 6}
+              className={animate ? 'animate-boxy-blink' : undefined}
+              style={{ transformOrigin: '43px 70px' }}
+            />
+            <ellipse
+              cx="77"
+              cy="70"
+              rx="5.5"
+              ry={mood === 'excited' ? 7 : 6}
+              className={animate ? 'animate-boxy-blink' : undefined}
+              style={{ transformOrigin: '77px 70px' }}
+            />
             {/* A highlight in each eye is most of what makes it read as cute. */}
             <circle cx="45" cy="68" r="2" fill="#ffffff" />
             <circle cx="79" cy="68" r="2" fill="#ffffff" />

@@ -5,6 +5,7 @@ import { Grid, type GridMood } from './grid'
 import { GraduationCap, RotateCcw, Zap } from 'lucide-react'
 import { Button, ButtonLink, Card, Pill } from './ui'
 import { Mascot } from './mascot'
+import { Countdown } from './countdown'
 import { answerMsFor, flashMsFor, gapMsFor, makePattern, stepsFor } from '@/lib/game'
 
 /**
@@ -21,7 +22,7 @@ import { answerMsFor, flashMsFor, gapMsFor, makePattern, stepsFor } from '@/lib/
  */
 const PRACTICE_LEVELS = 3
 
-type Phase = 'ready' | 'watch' | 'tap' | 'right' | 'wrong' | 'done'
+type Phase = 'ready' | 'counting' | 'watch' | 'tap' | 'right' | 'wrong' | 'done'
 
 export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: boolean }) {
   const [level, setLevel] = useState(1)
@@ -42,29 +43,38 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
   }, [])
   useEffect(() => clearTimers, [clearTimers])
 
+  /** Draw the pattern and start counting in. Nothing is shown yet. */
   const start = useCallback(() => {
     clearTimers()
-    const next = makePattern(level)
-    const flashMs = flashMsFor(level)
-    const gapMs = gapMsFor(level)
-
-    setPattern(next)
+    setPattern(makePattern(level))
     setTaps([])
     setLit(null)
-    setPhase('watch')
+    setPressed(null)
+    setPhase('counting')
+  }, [clearTimers, level])
 
-    let elapsed = 0
-    next.forEach((tile) => {
-      later(() => setLit(tile), elapsed)
-      later(() => setLit(null), elapsed + flashMs)
-      elapsed += flashMs + gapMs
-    })
+  /** Play the pattern out, once the count has reached zero. */
+  const showPattern = useCallback(
+    (next: number[]) => {
+      clearTimers()
+      const flashMs = flashMsFor(level)
+      const gapMs = gapMsFor(level)
+      setPhase('watch')
 
-    later(() => {
-      setMsLeft(answerMsFor(level))
-      setPhase('tap')
-    }, elapsed)
-  }, [clearTimers, later, level])
+      let elapsed = 0
+      next.forEach((tile) => {
+        later(() => setLit(tile), elapsed)
+        later(() => setLit(null), elapsed + flashMs)
+        elapsed += flashMs + gapMs
+      })
+
+      later(() => {
+        setMsLeft(answerMsFor(level))
+        setPhase('tap')
+      }, elapsed)
+    },
+    [clearTimers, later, level],
+  )
 
   // The countdown, once it is the player's turn.
   const tapsRef = useRef<number[]>([])
@@ -188,7 +198,11 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
 
       <div className="mb-5 flex h-[7.5rem] flex-col justify-center text-center">
         <p className="text-sm font-semibold tracking-[0.2em] text-dusk uppercase">
-          {phase === 'right' ? 'Nice' : phase === 'wrong' ? 'Not quite' : `Level ${level}`}
+          {phase === 'right'
+            ? 'Nice'
+            : phase === 'wrong'
+              ? 'Not quite'
+              : `Level ${level}`}
         </p>
 
         {phase === 'tap' ? (
@@ -198,13 +212,15 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
           </p>
         ) : (
           <p className="mt-1 text-2xl font-bold text-mist">
-            {phase === 'watch'
-              ? 'Watch…'
-              : phase === 'right'
-                ? 'Perfect'
-                : phase === 'wrong'
-                  ? 'Try that again'
-                  : `${steps} flashes`}
+            {phase === 'counting'
+              ? 'Get ready'
+              : phase === 'watch'
+                ? 'Watch…'
+                : phase === 'right'
+                  ? 'Perfect'
+                  : phase === 'wrong'
+                    ? 'Try that again'
+                    : `${steps} flashes`}
           </p>
         )}
 
@@ -219,7 +235,11 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
         </div>
       </div>
 
-      <Grid lit={lit} mood={mood} disabled={phase !== 'tap'} pressed={pressed} onTap={onTap} />
+      <div className="relative">
+        <Grid lit={lit} mood={mood} disabled={phase !== 'tap'} pressed={pressed} onTap={onTap} />
+
+        {phase === 'counting' ? <Countdown onDone={() => showPattern(pattern)} /> : null}
+      </div>
 
       <div className="mt-5 flex items-center justify-center gap-1.5" aria-hidden>
         {Array.from({ length: steps }, (_, index) => (

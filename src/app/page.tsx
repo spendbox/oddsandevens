@@ -1,11 +1,16 @@
-import { Coins, Link2, Package, Sparkles } from 'lucide-react'
+import { Coins, Link2, Package, Sparkles, Zap } from 'lucide-react'
 import { ButtonLink, Card, Pill } from '@/components/ui'
-import { Mascot } from '@/components/mascot'
 import { SiteHeader } from '@/components/site-header'
 import { DemoGrid } from '@/components/demo-grid'
+import { Mascot } from '@/components/mascot'
+import { CardDeck } from '@/components/card-deck'
+import { LevelExample } from '@/components/level-example'
 import { optionalProfile } from '@/lib/session'
-import { LEVELS, planFor, stepsFor } from '@/lib/game'
+import { LEVELS } from '@/lib/game'
 import { MIN_TOPUP_COINS, NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money'
+
+/** The three levels worth showing: the first, the middle, and the wall. */
+const SHOWN_LEVELS = [1, 5, 10]
 
 export default async function LandingPage() {
   const profile = await optionalProfile()
@@ -15,11 +20,14 @@ export default async function LandingPage() {
     <>
       <SiteHeader profile={profile} />
 
-      <main className="relative mx-auto max-w-5xl px-4 pb-24">
-        <div aria-hidden className="arcade-floor pointer-events-none absolute inset-x-0 top-0 h-[70vh]" />
+      <main className="relative pb-24">
+        <div
+          aria-hidden
+          className="arcade-floor pointer-events-none absolute inset-x-0 top-0 h-[70vh]"
+        />
 
-        {/* ---------------------------------------------------------------- */}
-        <section className="relative grid items-center gap-10 py-12 sm:py-16 md:grid-cols-2 md:gap-14">
+        {/* ---------------------------- the hook ------------------------- */}
+        <section className="relative mx-auto grid max-w-5xl items-center gap-10 px-4 py-12 sm:py-16 md:grid-cols-2 md:gap-14">
           <div className="animate-rise">
             <Pill tone="gold">
               <Sparkles size={13} /> Free to create · {naira(PRIZE_NAIRA)} a box
@@ -39,16 +47,12 @@ export default async function LandingPage() {
 
             <div className="mt-8 flex flex-wrap gap-3">
               <ButtonLink href={start} size="lg" tone="gold">
-                Create my box — free
+                <Zap size={18} /> Create my box — free
               </ButtonLink>
               <ButtonLink href="#how" size="lg" tone="ghost">
                 How it works
               </ButtonLink>
             </div>
-
-            <p className="mt-5 text-sm text-dusk">
-              No sign-up form. Your email is all it takes to start.
-            </p>
           </div>
 
           <div className="animate-rise [animation-delay:120ms]">
@@ -56,100 +60,106 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
+        {/* ---------------------------- the deck ------------------------- */}
         <section id="how" className="relative scroll-mt-20 py-8">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            Create. Share. Earn.
-          </h2>
+          <div className="mx-auto mb-5 max-w-5xl px-4">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              Create. Share. Earn.
+            </h2>
+            <p className="mt-2 text-mist">Swipe through — it is three steps.</p>
+          </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            {[
-              {
-                step: 'Create',
-                Icon: Package,
-                title: 'Free, in one tap',
-                body: `Your box carries ${naira(PRIZE_NAIRA)} from the moment it exists. You are never charged for making it, or for anyone playing it.`,
-              },
-              {
-                step: 'Share',
-                Icon: Link2,
-                title: 'Send the link anywhere',
-                body: 'WhatsApp, X, a group chat. Anyone who opens it can try — each attempt costs the player one coin, not you.',
-              },
-              {
-                step: 'Earn',
-                Icon: Coins,
-                title: 'You get paid too',
-                body: `Somebody beats it and takes ${naira(PRIZE_NAIRA)}. You take ${naira(PRIZE_NAIRA)} for having made the box.`,
-              },
-            ].map((step, index) => (
-              <Card key={step.step} className="relative overflow-hidden">
-                <span
-                  aria-hidden
-                  className="absolute -top-3 -right-1 text-7xl font-bold text-white/4"
-                >
-                  {index + 1}
-                </span>
-                <div className="relative">
-                  <step.Icon size={30} className="text-gold" />
-                  <p className="mt-3 text-xs font-semibold tracking-[0.2em] text-gold uppercase">
-                    {step.step}
-                  </p>
-                  <h3 className="mt-1 font-semibold">{step.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-mist">{step.body}</p>
+          <div className="mx-auto max-w-5xl">
+            <CardDeck label="How Spendbox works">
+              <Card className="h-full">
+                <Package size={30} className="text-gold" />
+                <p className="mt-3 text-xs font-semibold tracking-[0.2em] text-gold uppercase">
+                  Create
+                </p>
+                <h3 className="mt-1 text-lg font-semibold">Free, in one tap</h3>
+                <p className="mt-2 text-sm leading-relaxed text-mist">
+                  Your box carries {naira(PRIZE_NAIRA)} from the moment it exists. You are
+                  never charged for making it, or for anyone playing it.
+                </p>
+                <div className="mt-5">
+                  <Mascot mood="happy" size={90} />
                 </div>
               </Card>
-            ))}
+
+              <Card className="h-full">
+                <Link2 size={30} className="text-cyan" />
+                <p className="mt-3 text-xs font-semibold tracking-[0.2em] text-cyan uppercase">
+                  Share
+                </p>
+                <h3 className="mt-1 text-lg font-semibold">Send the link anywhere</h3>
+                <p className="mt-2 text-sm leading-relaxed text-mist">
+                  WhatsApp, X, a group chat. We even draw you three flyers to post. Each
+                  attempt costs the player one coin, not you.
+                </p>
+                <div className="mt-5">
+                  <Mascot mood="thinking" size={90} />
+                </div>
+              </Card>
+
+              <Card className="h-full">
+                <Coins size={30} className="text-lime" />
+                <p className="mt-3 text-xs font-semibold tracking-[0.2em] text-lime uppercase">
+                  Earn
+                </p>
+                <h3 className="mt-1 text-lg font-semibold">You get paid too</h3>
+                <p className="mt-2 text-sm leading-relaxed text-mist">
+                  Somebody beats it and takes {naira(PRIZE_NAIRA)}. You take{' '}
+                  {naira(PRIZE_NAIRA)} for having made the box. Paid by transfer within a
+                  week.
+                </p>
+                <div className="mt-5">
+                  <Mascot mood="excited" size={90} />
+                </div>
+              </Card>
+            </CardDeck>
           </div>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
+        {/* ---------------------------- the climb ------------------------ */}
         <section className="relative py-8">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            What players are up against
-          </h2>
-          <p className="mt-2 max-w-2xl text-mist">
-            Ten patterns on a grid of nine tiles. Each one is longer and faster than the last,
-            and the clock only just keeps up. Every run is generated fresh, so nobody can
-            learn a box by heart.
-          </p>
+          <div className="mx-auto mb-5 max-w-5xl px-4">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              What players are up against
+            </h2>
+            <p className="mt-2 max-w-2xl text-mist">
+              Ten patterns on a grid of nine tiles, each longer and faster than the last.
+              These are playing at their real speed — watch level {LEVELS}.
+            </p>
+          </div>
 
-          <Card className="mt-6 overflow-hidden !p-0">
-            <ul className="divide-y divide-white/6">
-              {Array.from({ length: LEVELS }, (_, index) => {
-                const level = index + 1
-                const plan = planFor(level)
-                const share = (level / LEVELS) * 100
+          <div className="mx-auto max-w-5xl">
+            <CardDeck label="Example levels">
+              {SHOWN_LEVELS.map((level) => (
+                <Card key={level} className="h-full">
+                  <p className="mb-4 text-xs font-semibold tracking-[0.2em] text-dusk uppercase">
+                    {level === 1 ? 'Where it starts' : level === LEVELS ? 'The wall' : 'Halfway'}
+                  </p>
+                  <LevelExample level={level} />
+                  <p className="mt-5 text-sm leading-relaxed text-mist">
+                    {level === 1
+                      ? 'Four flashes and two seconds. Almost everybody clears this one.'
+                      : level === LEVELS
+                        ? 'Thirteen flashes in five seconds. This is what ₦200,000 is guarding.'
+                        : 'Eight flashes, three seconds, and the flashes are getting quicker.'}
+                  </p>
+                </Card>
+              ))}
+            </CardDeck>
+          </div>
 
-                return (
-                  <li key={level} className="flex items-center gap-4 px-5 py-3">
-                    <span className="tabular w-14 shrink-0 text-sm font-semibold text-dusk">
-                      Lv {level}
-                    </span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/6">
-                      <div
-                        className="h-full rounded-full bg-linear-to-r from-cyan via-violet to-rose"
-                        style={{ width: `${share}%` }}
-                      />
-                    </div>
-                    <span className="tabular w-32 shrink-0 text-right text-sm text-mist sm:w-40">
-                      {stepsFor(level)} flashes ·{' '}
-                      <span className="text-chalk">{plan.answerMs / 1000}s</span>
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          </Card>
-
-          <p className="mt-3 text-sm text-dusk">
-            One free replay per game, in case a thumb slips. Every box has a free practice run,
-            so nobody pays to find out how it works.
+          <p className="mx-auto mt-5 max-w-5xl px-4 text-sm text-dusk">
+            One free replay per game, then a coin a go. Every box has a free practice run, so
+            nobody pays to find out how it works.
           </p>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
-        <section className="relative py-8">
+        {/* ---------------------------- the ask -------------------------- */}
+        <section className="relative mx-auto max-w-5xl px-4 py-8">
           <Card className="bg-linear-to-br from-gold/18 via-violet/12 to-cyan/10 text-center">
             <Mascot mood="excited" size={110} className="mx-auto" />
             <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
@@ -160,17 +170,17 @@ export default async function LandingPage() {
               {naira(NAIRA_PER_COIN)} a go, {MIN_TOPUP_COINS} coins minimum.
             </p>
             <ButtonLink href={start} tone="gold" size="lg" className="mt-6">
-              Create my box — free
+              <Zap size={18} /> Create my box — free
             </ButtonLink>
           </Card>
-        </section>
 
-        <footer className="relative border-t border-white/8 pt-8 text-sm text-dusk">
-          <p>
-            Spendbox is a game of skill played for money. Coins are non-refundable once spent.
-            Please only play with money you can afford to lose.
-          </p>
-        </footer>
+          <footer className="mt-12 border-t border-white/8 pt-8 text-sm text-dusk">
+            <p>
+              Spendbox is a game of skill played for money. Coins are non-refundable once
+              spent. Please only play with money you can afford to lose.
+            </p>
+          </footer>
+        </section>
       </main>
     </>
   )

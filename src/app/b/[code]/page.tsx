@@ -4,7 +4,8 @@ import { ChevronDown, Coins, Lock, Pencil, Play, Trophy, Unlock, Zap } from 'luc
 import { SiteHeader } from '@/components/site-header'
 import { Button, ButtonLink, Card, Pill, Problem } from '@/components/ui'
 import { ShareLink } from '@/components/share-link'
-import { PrizeBox } from '@/components/prize-box'
+import { FlyerStudio } from '@/components/flyer-studio'
+import { TileReel } from '@/components/tile-reel'
 import { Mascot } from '@/components/mascot'
 import { optionalProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
@@ -75,9 +76,10 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
             {isOpen ? 'Open' : 'Already won'} · Box {box.code}
           </Pill>
 
-          {/* The box itself, rather than a sentence about what is in it. */}
+          {/* The grid, doing the thing the player will be asked to do. An
+              illustration of a box was decoration; this is the game. */}
           <div className="mt-6">
-            <PrizeBox amount={box.prize_naira} open={!isOpen} />
+            <TileReel amount={box.prize_naira} dim={!isOpen} />
           </div>
 
           <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">
@@ -96,8 +98,7 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
             <>
               <p className="text-center text-mist">
                 Clear all {LEVELS} patterns and{' '}
-                <strong className="text-chalk">{naira(box.prize_naira)} is yours</strong>.{' '}
-                {box.creator_name || 'The creator'} is paid the same.
+                <strong className="text-chalk">{naira(box.prize_naira)} is yours</strong>.
               </p>
 
               {problem === 'coins' ? (
@@ -164,7 +165,8 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
                       year: 'numeric',
                     })
                   : null}{' '}
-                · {naira(box.prize_naira)} each to them and {box.creator_name || 'the creator'}.
+                · {naira(box.prize_naira)} to them, and {naira(box.prize_naira)} to whoever
+                made it.
               </p>
 
               <div className="mt-6 grid gap-3">
@@ -205,6 +207,11 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
               </ButtonLink>
             </div>
             <ShareLink code={box.code} title={box.title || `Box ${box.code}`} />
+
+            <div className="mt-6">
+              <p className="mb-3 text-sm font-semibold">Flyers you can post</p>
+              <FlyerStudio box={box} />
+            </div>
           </Card>
         ) : null}
 
@@ -251,8 +258,8 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
             <Mascot mood="excited" size={96} className="mx-auto" />
             <p className="mt-2 font-semibold">Want one of these of your own?</p>
             <p className="mt-1.5 text-sm text-mist">
-              Creating a box is free. Share it, and when somebody finally beats it you earn{' '}
-              {naira(PRIZE_NAIRA)} — the same as the winner.
+              Creating a box is free. Share it, and when somebody finally beats it you
+              earn {naira(PRIZE_NAIRA)}.
             </p>
             <ButtonLink href={profile ? '/home' : '/enter'} tone="gold" className="mt-4">
               Create your box — free

@@ -1,14 +1,15 @@
 import Link from 'next/link'
-import { Coins, Gamepad2, PartyPopper, Trophy, Unlock, X } from 'lucide-react'
+import { Coins, Gamepad2, Package, PartyPopper, Trophy, Unlock, Wallet, X } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { ButtonLink, Card, Pill, Problem } from '@/components/ui'
 import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import { LEVELS } from '@/lib/game'
-import { MIN_TOPUP_COINS, PRIZE_NAIRA, naira } from '@/lib/money'
+import { MIN_TOPUP_COINS, PRIZE_NAIRA, coinsToNaira, naira } from '@/lib/money'
 import type { Attempt, Box, Payout } from '@/lib/types'
 import { CreateBox } from './create-box'
 import { ShareLink } from '@/components/share-link'
+import { FlyerStudio } from '@/components/flyer-studio'
 
 export const metadata = { title: 'Your box' }
 
@@ -67,50 +68,98 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
           </Card>
         ) : null}
 
-        {profile.coins < 1 ? (
-          <Card className="mt-6 border-cyan/30 bg-cyan/8">
-            <p className="font-semibold text-cyan">Your wallet is empty</p>
-            <p className="mt-1.5 text-sm text-mist">
-              You need a coin to play someone&apos;s box. The smallest top-up is{' '}
-              {MIN_TOPUP_COINS} coins — and creating your own box is always free.
-            </p>
-            <ButtonLink href="/wallet" size="sm" className="mt-4">
-              <Coins size={16} /> Fill your wallet
+        {/* Wallet and box, side by side. One costs money and one is free, and
+            both are things somebody lands on this page wanting to do. */}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <Card
+            className={
+              'flex flex-col ' +
+              (profile.coins < 1
+                ? 'border-cyan/35 bg-cyan/10'
+                : 'bg-linear-to-br from-cyan/10 to-violet/10')
+            }
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold tracking-[0.2em] text-cyan uppercase">
+                  Your wallet
+                </p>
+                <p className="tabular mt-2 text-4xl font-bold">
+                  {profile.coins}
+                  <span className="ml-2 text-base font-medium text-mist">
+                    {profile.coins === 1 ? 'coin' : 'coins'}
+                  </span>
+                </p>
+                <p className="mt-1 text-sm text-mist">
+                  {profile.coins < 1
+                    ? 'You need a coin to play someone else\u2019s box.'
+                    : `Worth ${naira(coinsToNaira(profile.coins))} · ${profile.coins} ${profile.coins === 1 ? 'game' : 'games'}`}
+                </p>
+              </div>
+              <Wallet size={26} className="shrink-0 text-cyan" />
+            </div>
+
+            <ButtonLink href="/wallet" size="md" className="mt-5 w-full sm:w-auto">
+              <Coins size={17} /> Top up
             </ButtonLink>
+
+            <p className="mt-3 text-xs text-dusk">
+              {MIN_TOPUP_COINS} coins minimum ({naira(coinsToNaira(MIN_TOPUP_COINS))}).
+              Creating a box is always free.
+            </p>
           </Card>
-        ) : null}
+
+          {openBox ? (
+            <Card className="flex flex-col bg-linear-to-br from-gold/12 to-violet/10">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold tracking-[0.2em] text-gold uppercase">
+                    Your box
+                  </p>
+                  <p className="tabular mt-2 text-4xl font-bold text-gold">
+                    {naira(openBox.prize_naira)}
+                  </p>
+                  <p className="mt-1 truncate text-sm text-mist">
+                    {openBox.title || `Box ${openBox.code}`}
+                  </p>
+                </div>
+                <Package size={26} className="shrink-0 text-gold" />
+              </div>
+
+              <ButtonLink
+                href={`/b/${openBox.code}`}
+                tone="gold"
+                size="md"
+                className="mt-5 w-full sm:w-auto"
+              >
+                Open it
+              </ButtonLink>
+
+              <p className="mt-3 text-xs text-dusk">
+                {openBox.attempts_count} {openBox.attempts_count === 1 ? 'try' : 'tries'} so
+                far · best level {openBox.best_level} of {LEVELS}
+              </p>
+            </Card>
+          ) : null}
+        </div>
 
         {/* ---------------- one box at a time --------------------------- */}
         <section className="mt-8">
           {openBox ? (
             <Card className="bg-linear-to-br from-gold/12 via-violet/10 to-cyan/8">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <Pill tone="lime">
-                    <Unlock size={13} /> Your box is live
-                  </Pill>
-                  <h2 className="mt-3 truncate text-2xl font-bold tracking-tight">
-                    {openBox.title || `Box ${openBox.code}`}
-                  </h2>
-                  <p className="tabular mt-1 text-sm text-mist">
-                    {openBox.attempts_count}{' '}
-                    {openBox.attempts_count === 1 ? 'person has tried' : 'people have tried'} ·
-                    best level {openBox.best_level} of {LEVELS}
-                  </p>
-                </div>
-                <p className="tabular shrink-0 text-2xl font-bold text-gold">
-                  {naira(openBox.prize_naira)}
-                </p>
-              </div>
+              <Pill tone="lime">
+                <Unlock size={13} /> Your box is live
+              </Pill>
 
-              <p className="mt-5 mb-3 text-sm font-semibold">Share it and start earning</p>
+              <p className="mt-4 mb-3 text-sm font-semibold">Share it and start earning</p>
               <ShareLink code={openBox.code} title={openBox.title || `Box ${openBox.code}`} />
 
-              <ButtonLink href={`/b/${openBox.code}`} tone="ghost" size="sm" className="mt-4">
-                Open your box page
-              </ButtonLink>
+              <div className="mt-5">
+                <p className="mb-3 text-sm font-semibold">Flyers you can post</p>
+                <FlyerStudio box={openBox} />
+              </div>
 
-              <p className="mt-4 text-xs text-dusk">
+              <p className="mt-5 text-xs text-dusk">
                 You can create your next box once this one has been beaten.
               </p>
             </Card>
