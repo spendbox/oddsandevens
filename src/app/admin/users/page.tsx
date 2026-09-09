@@ -36,7 +36,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
     { data: boxes },
     { data: payouts },
     { data: topups },
-    { data: settings },
+    settingsRow,
     boxCount,
   ] = await Promise.all([
     people,
@@ -46,6 +46,17 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
     admin.from('settings').select('max_boxes').maybeSingle(),
     admin.from('boxes').select('*', { count: 'exact', head: true }),
   ])
+
+  // The limit is read, not assumed. A missing settings table or a missing row
+  // both mean the cap migrations have not been applied — in which case there
+  // is no cap running at all, and showing a confident "0" or a confident
+  // "10,000" would both be inventions. Say which it is instead, and let the
+  // card explain itself.
+  const limitProblem = settingsRow.error
+    ? settingsRow.error.message
+    : settingsRow.data
+      ? null
+      : 'no settings row'
 
   // Tallied here rather than with a query per player: a hundred rows on screen
   // must not become three hundred round trips.
@@ -94,7 +105,11 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
         </div>
 
         <section className="mt-8">
-          <BoxLimit current={settings?.max_boxes ?? 0} used={boxCount.count ?? 0} />
+          <BoxLimit
+            current={settingsRow.data?.max_boxes ?? null}
+            used={boxCount.count ?? 0}
+            unreadable={limitProblem}
+          />
         </section>
 
         <form className="mt-8">
