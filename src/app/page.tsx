@@ -9,7 +9,7 @@ import { LevelExample } from '@/components/level-example'
 import { optionalProfile } from '@/lib/session'
 import { siteStats } from '@/lib/stats'
 import { LEVELS } from '@/lib/game'
-import { MIN_TOPUP_COINS, NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money'
+import { NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money'
 
 /** The three levels worth showing: the first, the middle, and the wall. */
 const SHOWN_LEVELS = [1, 5, 10]
@@ -123,8 +123,8 @@ export default async function LandingPage() {
                 </p>
                 <h3 className="mt-1 text-lg font-semibold">Send the link anywhere</h3>
                 <p className="mt-2 text-sm leading-relaxed text-mist">
-                  WhatsApp, X, a group chat. We even draw you three flyers to post. Each
-                  attempt costs the player one coin, not you.
+                  WhatsApp, X, a group chat. We even draw you three flyers to post. Anyone who
+                  opens it can play for free, so the link is worth sending.
                 </p>
                 <div className="mt-5">
                   <Mascot mood="thinking" size={90} />
@@ -183,8 +183,8 @@ export default async function LandingPage() {
           </div>
 
           <p className="mx-auto mt-5 max-w-5xl px-4 text-sm text-dusk">
-            One free replay per game, then a coin a go. Every box has a free practice run, so
-            nobody pays to find out how it works.
+            Playing is free and so is starting over. Coins are only for carrying on from a level
+            that beat you, instead of going back to level 1.
           </p>
         </section>
 
@@ -196,8 +196,9 @@ export default async function LandingPage() {
               Create your box free. Share it. Earn.
             </h2>
             <p className="mx-auto mt-3 max-w-md text-mist">
-              It takes one tap and costs nothing. Playing someone else&apos;s box costs{' '}
-              {naira(NAIRA_PER_COIN)} a go, {MIN_TOPUP_COINS} coins minimum.
+              It takes one tap and costs nothing. Playing someone else&apos;s box costs nothing
+              either — coins, at {naira(NAIRA_PER_COIN)} each, only buy you the right to carry
+              on from a level you missed.
             </p>
             <ButtonLink href={start} tone="gold" size="lg" className="mt-6">
               <Zap size={18} /> Create my box — free

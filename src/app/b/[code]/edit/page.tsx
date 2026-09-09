@@ -54,7 +54,7 @@ export default async function EditBoxPage({ params }: PageProps<'/b/[code]/edit'
               currency: 'NGN',
               maximumFractionDigits: 0,
             }).format(box.prize_naira)}{' '}
-            promise to everyone who has spent a coin on it. Boxes end by being beaten.
+            promise to everyone playing it. Boxes end by being beaten.
           </p>
         </Card>
       </main>

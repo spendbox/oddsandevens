@@ -20,8 +20,8 @@ const STEPS = [
     Icon: Link2,
     title: 'You share the link',
     body:
-      'Anyone who opens it can try. Each attempt costs the player one coin — you are never ' +
-      'charged for anyone playing your box.',
+      'Anyone who opens it can play, free — so the link is worth sending to anybody. You are ' +
+      'never charged for anyone playing your box.',
   },
   {
     Icon: Coins,

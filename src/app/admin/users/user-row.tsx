@@ -120,7 +120,7 @@ export function UserRow({ player }: { player: PlayerRow }) {
           {blocked ? (
             <p className="text-xs text-dusk">
               {player.openBoxes > 0
-                ? 'Has an open box — people have paid to play it, so it cannot be deleted yet.'
+                ? 'Has an open box — people are playing it, so it cannot be deleted yet.'
                 : 'Still owed a payout — settle it before deleting the account.'}
             </p>
           ) : (

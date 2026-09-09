@@ -17,7 +17,7 @@ const MAX_BYTES = 4 * 1024 * 1024
  *
  * A creator owns the name, the description and the picture. They do not own the
  * box's existence: there is no delete, here or anywhere. A live box is a
- * standing ₦100,000 promise to everyone who has spent a coin on it, and letting
+ * standing ₦100,000 promise to everyone playing it, and letting
  * the person who owes that money make it disappear is the one change that would
  * break the deal. Boxes end by being beaten, not by being removed.
  *

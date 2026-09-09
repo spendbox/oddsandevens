@@ -15,17 +15,35 @@ export const MIN_TOPUP_COINS = 5
 /** The largest top-up in one go. A bigger number is almost always a typo. */
 export const MAX_TOPUP_COINS = 500
 
-/** What one attempt at a box costs. */
-export const COINS_PER_PLAY = 1
+/**
+ * What it costs to open a run at a box, from level 1.
+ *
+ * Nothing. A player who has never seen Spendbox before can tap Play and be
+ * inside the game, and a box link is worth sharing precisely because the
+ * person it is sent to is not asked for money to find out what it is.
+ *
+ * The money is made further up. Level 1 is free; level 8, with seven cleared
+ * levels behind it, is worth paying to keep — and that is what `retryCostFor`
+ * below is for. Anyone who wants to go back to the start may always do so for
+ * nothing, so nobody is ever locked out of the game, only out of the progress
+ * they had made in it.
+ *
+ * It is a number rather than a flag so that a price can be put back on the
+ * first level by changing this one line, and every screen that quotes it —
+ * they all read it from here — follows.
+ */
+export const COINS_PER_PLAY = 0
 
 /**
  * What it costs to carry on from the level you are stuck on, once the free
  * replay is gone.
  *
- * Always more than starting over, because it is always worth more: you keep
- * every level you have already cleared. Somebody stuck on level 8 can pay to
- * stay there or one coin to go back to level 1, and that choice has to have a
- * real price attached or nobody would ever start again.
+ * This is the only thing in the game anybody pays for. Starting over is free,
+ * so what is being sold here is never access to the game — it is the levels
+ * already cleared, which are the one thing a fresh run cannot hand back.
+ * Somebody stuck on level 8 can pay to stay there or go back to level 1 for
+ * nothing, and that choice has to have a real price attached or nobody would
+ * ever pay it.
  *
  * The price climbs because what it buys climbs with it. Carrying on at level 2
  * saves a player one cleared level; carrying on at level 9 saves them eight,
@@ -92,6 +110,19 @@ export function naira(amount: number): string {
 
 export function coinWord(coins: number): string {
   return `${coins} ${coins === 1 ? 'coin' : 'coins'}`
+}
+
+/**
+ * A price, the way a button says it.
+ *
+ * "0 coins" is not a price anybody reads as free, and free is the whole point
+ * of the first level — so the word is produced here rather than left to each
+ * screen to remember. Every place that quotes the cost of starting a game goes
+ * through this, which is why setting COINS_PER_PLAY back to 1 puts the price
+ * back on all of them at once.
+ */
+export function priceLabel(coins: number): string {
+  return coins <= 0 ? 'Free' : coinWord(coins)
 }
 
 /**

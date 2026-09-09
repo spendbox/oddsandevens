@@ -11,6 +11,7 @@ import {
   RETRY_PRICES,
   coinsToNaira,
   naira,
+  priceLabel,
 } from '@/lib/money'
 
 export const metadata = {
@@ -36,23 +37,29 @@ export default async function HowItWorksPage() {
           You keep <strong>one open box at a time</strong>. When yours is beaten you can make
           another. You can rename it, describe it and give it a picture whenever you like —
           but a box cannot be deleted, because while it is open it is a standing promise to
-          everyone who has already paid to play it.
+          everyone who is playing it.
         </p>
       </Section>
 
       <Section heading="Playing a box">
         <p>
-          Each attempt costs <strong>one coin</strong>. A coin is {naira(NAIRA_PER_COIN)}, and
-          the smallest top-up is {MIN_TOPUP_COINS} coins ({naira(coinsToNaira(MIN_TOPUP_COINS))}
-          ). Coins are bought through Paystack.
+          Starting a game is <strong>free</strong>. Open any box link, tap Play, and you are on
+          level 1 with all {LEVELS} levels and the whole {naira(PRIZE_NAIRA)} in front of you,
+          having paid nothing.
+        </p>
+        <p>
+          Coins are for one thing: <strong>carrying on from a level you missed</strong>, instead
+          of going back to the start. A coin is {naira(NAIRA_PER_COIN)} and the smallest top-up
+          is {MIN_TOPUP_COINS} coins ({naira(coinsToNaira(MIN_TOPUP_COINS))}), bought through
+          Paystack. What that costs, level by level, is further down this page.
         </p>
         <p>
           The creator of a box is never charged for anyone playing it. Players pay; creators
           do not.
         </p>
         <p>
-          Every box has a <strong>free practice run</strong> — three levels, no coin, no prize
-          — so nobody has to pay to find out what the game is.
+          Every box also has a <strong>free practice run</strong> — three levels, no box, no
+          prize — so you can see the game before you take a real run at it.
         </p>
       </Section>
 
@@ -100,9 +107,10 @@ export default async function HowItWorksPage() {
           it again — same level, brand new pattern, no charge.
         </p>
         <p>
-          After that you have a choice. Carrying on from where you are keeps every level you
-          have already cleared, and costs more the further up you are — because the further
-          up you are, the more it is saving you.
+          After that you have a choice, and only one side of it costs anything. Carrying on
+          from where you are keeps every level you have already cleared, and costs more the
+          further up you are — because the further up you are, the more it is saving you.
+          Going back to level 1 is free, as often as you like.
         </p>
 
         <Card className="!p-0">
@@ -117,16 +125,17 @@ export default async function HowItWorksPage() {
             ))}
             <li className="flex items-center justify-between px-5 py-3">
               <span className="text-sm text-mist">Starting again from level 1</span>
-              <span className="tabular text-sm font-semibold text-chalk">
-                {COINS_PER_PLAY} coin
+              <span className="tabular text-sm font-semibold text-lime">
+                {priceLabel(COINS_PER_PLAY)}
               </span>
             </li>
           </ul>
         </Card>
 
         <p>
-          Starting again is always the cheap option and always costs you your cleared levels.
-          Your run only ends when you are out of coins or you walk away.
+          Starting again always costs you your cleared levels, and never costs you a coin. Your
+          run only ends when you walk away from it — being out of coins can cost you your
+          progress, but it can never stop you playing.
         </p>
       </Section>
 

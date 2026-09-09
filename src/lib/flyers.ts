@@ -481,7 +481,9 @@ function drawTicket(context: CanvasRenderingContext2D, data: FlyerData) {
 
   // Above the tear: what it is, and what it is worth.
   const upper: Block[] = []
-  upper.push(textBlock(context, ['ONE ATTEMPT · ONE COIN'], 26, 700, GOLD, 34, GAP.normal))
+  // The line people read before they decide whether to tap: playing costs
+  // nothing, and on a flyer that is the whole pitch.
+  upper.push(textBlock(context, ['FREE TO PLAY · TEN PATTERNS'], 26, 700, GOLD, 34, GAP.normal))
 
   context.font = font(600, 42)
   upper.push(textBlock(context, wrap(context, data.title, inner, 2), 42, 600, CHALK, 54, GAP.tight))

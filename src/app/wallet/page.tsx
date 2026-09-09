@@ -6,9 +6,11 @@ import { supabaseServer } from '@/lib/supabase/server'
 import { ArrowDownLeft, Gamepad2 } from 'lucide-react'
 import { paymentsConfigured } from '@/lib/paystack'
 import {
+  CHEAPEST_RETRY,
   MAX_TOPUP_COINS,
   MIN_TOPUP_COINS,
   NAIRA_PER_COIN,
+  coinWord,
   coinsToNaira,
   naira,
 } from '@/lib/money'
@@ -58,9 +60,16 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
               {profile.coins === 1 ? 'coin' : 'coins'}
             </span>
           </p>
+          {/* Coins no longer count games — games are free. What they count is
+              how many missed levels you can carry on from, and the cheapest of
+              those is the honest headline: at level 8 it buys fewer. */}
           <p className="mt-1 text-mist">
-            worth {naira(coinsToNaira(profile.coins))} · {profile.coins}{' '}
-            {profile.coins === 1 ? 'game' : 'games'}
+            worth {naira(coinsToNaira(profile.coins))} ·{' '}
+            {profile.coins >= CHEAPEST_RETRY
+              ? `carries you on from ${Math.floor(profile.coins / CHEAPEST_RETRY)} missed ${
+                  Math.floor(profile.coins / CHEAPEST_RETRY) === 1 ? 'level' : 'levels'
+                }`
+              : `playing is free · ${coinWord(CHEAPEST_RETRY)} carries you on from a missed level`}
           </p>
         </Card>
 
@@ -88,9 +97,10 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
         <section className="mt-8">
           <h2 className="text-xl font-bold tracking-tight">Add coins</h2>
           <p className="mt-1.5 text-sm text-mist">
-            One coin is {naira(NAIRA_PER_COIN)} and buys one attempt at any box. Minimum{' '}
-            {MIN_TOPUP_COINS} coins. Pay by transfer from your bank app — the account to send to
-            appears right here, and your coins land by themselves.
+            Playing a box is free. Coins are for carrying on from a level that beat you — from{' '}
+            {coinWord(CHEAPEST_RETRY)}, more the further up you are. One coin is{' '}
+            {naira(NAIRA_PER_COIN)}, minimum {MIN_TOPUP_COINS}. Pay by transfer from your bank
+            app — the account to send to appears right here, and your coins land by themselves.
           </p>
 
           <div className="mt-5">

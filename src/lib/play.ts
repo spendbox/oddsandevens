@@ -10,7 +10,7 @@ import {
   showMsFor,
   answerMsFor,
 } from './game'
-import { CHEAPEST_RETRY, COINS_PER_PLAY, retryCostFor } from './money'
+import { CHEAPEST_RETRY, COINS_PER_PLAY, coinWord, retryCostFor } from './money'
 import type { Attempt, Box, Profile } from './types'
 
 /**
@@ -31,7 +31,18 @@ export type StartResult =
   | { ok: true; attemptId: string; resumed: boolean; coinsLeft: number }
   | { ok: false; problem: string; coinsLeft?: number }
 
-/** Take a coin and open a run. Or hand back the run already in progress. */
+/**
+ * Open a run at a box. Or hand back the run already in progress.
+ *
+ * Free, from level 1, every time — `COINS_PER_PLAY` says so and the cost is
+ * passed down to start_attempt rather than assumed there, so the price of a
+ * game is decided in one file and charged in one place. What a player pays for
+ * is carrying on from a level they missed; see `buyRetry`.
+ *
+ * Resuming rather than restarting still matters just as much with nothing to
+ * charge: a player who reloads mid-level has not started a second game, and
+ * handing them a fresh one would quietly throw away the levels they cleared.
+ */
 export async function startAttempt(box: Box, profile: Profile): Promise<StartResult> {
   const admin = supabaseAdmin()
 
@@ -39,7 +50,7 @@ export async function startAttempt(box: Box, profile: Profile): Promise<StartRes
     p_box: box.id,
     p_user: profile.id,
     p_name: profile.display_name,
-    p_cost: 1,
+    p_cost: COINS_PER_PLAY,
   })
 
   if (error) return { ok: false, problem: 'Could not start the game. Try again.' }
@@ -59,7 +70,7 @@ export async function startAttempt(box: Box, profile: Profile): Promise<StartRes
   }
 }
 
-/** Load an attempt, but only for the person who paid for it. */
+/** Load an attempt, but only for the person whose run it is. */
 export async function loadAttempt(attemptId: string, userId: string): Promise<Attempt | null> {
   const admin = supabaseAdmin()
 
@@ -135,8 +146,9 @@ async function endAttempt(attemptId: string, status: 'won' | 'failed') {
  *
  * A replay costs nothing but there is only one, and spending it is the player's
  * choice, so this does not spend it — it parks the run in `awaiting_replay` and
- * lets the screen offer the button. With no replay left, the run is over and
- * the next go costs another coin.
+ * lets the screen offer the button. With no replay left the run is not over
+ * either: the screen offers the two ways on from here, paying to carry on from
+ * this level or going back to level 1 for nothing.
  */
 async function recordMiss(attempt: Attempt, message: string): Promise<GameState> {
   const admin = supabaseAdmin()
@@ -151,10 +163,13 @@ async function recordMiss(attempt: Attempt, message: string): Promise<GameState>
 
   const coins = wallet?.coins ?? 0
 
-  // The free replay is gone. The run stays open while either way forward is
-  // still affordable — carrying on from here, or starting again — and the
-  // screen offers whichever they can pay for. It only ends when neither is
-  // possible, which means the cheaper of the two.
+  // The free replay is gone, and the run stays open while either way forward is
+  // still open to them — carrying on from here, or starting again from level 1.
+  // Starting again is free, so in practice this never ends a run any more, and
+  // that is the point: nobody is ever shown a dead end for want of a coin. It
+  // is still written as the cheaper of the two prices rather than deleted,
+  // because putting a price back on the first level must not silently leave a
+  // penniless player parked on a screen offering two things they cannot buy.
   if (attempt.replays_left <= 0 && coins < Math.min(COINS_PER_PLAY, CHEAPEST_RETRY)) {
     const ended = await endAttempt(attempt.id, 'failed')
     return stateOf(ended ?? { ...attempt, status: 'failed' }, message, coins)
@@ -281,7 +296,13 @@ export async function beginLevel(attempt: Attempt): Promise<GameState> {
 }
 
 /**
- * Spend a coin to take the level again, once the free replay is gone.
+ * Pay to take the level again, once the free replay is gone.
+ *
+ * The one thing in the game that costs money. What it buys is the levels
+ * already cleared — starting over from level 1 is free — so the price climbs
+ * with the level, and `retryCostFor` is the only place that decides it. The
+ * browser never sends the cost up; it is worked out here from the level on the
+ * stored row and handed to the database.
  *
  * Everything that matters happens inside buy_replay: the balance check, the
  * deduction, the ledger line and clearing the miss are one transaction, so a
@@ -307,8 +328,8 @@ export async function buyRetry(attempt: Attempt): Promise<GameState> {
   if (!row.bought) {
     const problem =
       row.problem === 'not enough coins'
-        ? `Carrying on from level ${attempt.level} costs ${retryCostFor(attempt.level)} coins. ` +
-          `Start again for ${COINS_PER_PLAY}, or top up.`
+        ? `Carrying on from level ${attempt.level} costs ${coinWord(retryCostFor(attempt.level))}. ` +
+          `Starting again from level 1 is free, or top up to keep your levels.`
         : 'Could not carry on from here.'
     return stateOf(attempt, problem)
   }
@@ -324,7 +345,7 @@ export async function spendReplay(attempt: Attempt): Promise<GameState> {
   if (attempt.status !== 'playing') return stateOf(attempt)
   if (!attempt.awaiting_replay) return stateOf(attempt)
   if (attempt.replays_left <= 0) {
-    return stateOf(attempt, 'No free replays left — a retry costs a coin.')
+    return stateOf(attempt, 'No free replays left — carrying on from here costs coins.')
   }
 
   // `replays_left = replays_left - 1` guarded by the same condition it depends
@@ -456,10 +477,11 @@ export async function judge(
 /**
  * Give up on this run and open a fresh one at level 1.
  *
- * The alternative to paying to carry on. Ends the current attempt properly —
- * as failed, because that is what it is — and then starts a new one through
- * exactly the same path as pressing play on the box page, so it costs the same
- * coin and is subject to the same checks.
+ * The alternative to paying to carry on, and free — it is the same thing as
+ * pressing play on the box page, and that costs nothing. Ends the current
+ * attempt properly — as failed, because that is what it is — and then starts a
+ * new one through exactly that path, so it is subject to exactly the same
+ * checks and cannot become a cheaper back door into a box.
  *
  * The order matters: the attempt has to be closed before the new one is asked
  * for, because a player is only allowed one live attempt per box and
