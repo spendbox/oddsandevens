@@ -63,6 +63,19 @@ export const RETRY_PRICES = [
 /** The prize on a box — paid twice over: once to the creator, once to the winner. */
 export const PRIZE_NAIRA = 100_000
 
+/**
+ * How many boxes may exist in total, until an admin says otherwise.
+ *
+ * Every box ever made is a standing ₦100,000 promise, and ₦200,000 once it is
+ * beaten, so this is the ceiling on what the platform has committed to. The
+ * live number lives in the `settings` table and is changed from /admin/users
+ * without a deploy — this is only the value a fresh database starts at, and
+ * what the admin screen falls back to when it cannot read the table at all.
+ * The database repeats it as a column default in
+ * supabase/migrations/0009_box_limit_default.sql.
+ */
+export const DEFAULT_MAX_BOXES = 10_000
+
 /** Paystack counts in kobo. One naira is one hundred of them. */
 export function nairaToKobo(naira: number): number {
   return Math.round(naira * 100)
