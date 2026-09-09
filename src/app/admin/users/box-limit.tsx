@@ -71,9 +71,9 @@ export function BoxLimit({
         <p className="mt-3 flex items-start gap-2 rounded-2xl border border-gold/30 bg-gold/10 px-4 py-3 text-sm text-gold">
           <TriangleAlert size={16} className="mt-0.5 shrink-0" />
           <span>
-            This database has no box limit stored, so nothing is stopping boxes being made.
-            Run the migrations in <code>supabase/migrations</code> — 0008 and 0009 — then
-            save a limit here. ({unreadable ?? 'no settings row'})
+            This database has no box limit stored, so nothing is stopping boxes being
+            made. Run <code>supabase/migrations/0009_box_limit_default.sql</code> against
+            it, then save a limit here. ({unreadable ?? 'no settings row'})
           </span>
         </p>
       )}

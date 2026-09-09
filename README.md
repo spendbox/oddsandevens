@@ -182,7 +182,13 @@ supabase/migrations/0005_password_resets.sql
 supabase/migrations/0006_retries_and_box_art.sql
 supabase/migrations/0007_self_win_and_stats.sql
 supabase/migrations/0008_settings_and_limits.sql
+supabase/migrations/0009_box_limit_default.sql
 ```
+
+0009 is the one that makes the box limit work, and it sets up everything that
+limit needs on its own — so a database that somehow skipped 0008 can be fixed by
+running 0009 alone. Skip it and there is no cap on how many boxes may exist, and
+the limit on /admin/users cannot be changed.
 
 0006 also creates a public `box-images` storage bucket. If your Supabase project
 blocks writes to `storage.buckets` from the SQL editor, make it by hand under

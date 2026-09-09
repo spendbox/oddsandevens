@@ -157,9 +157,9 @@ function limitProblem(error: { code?: string; message?: string }): string {
 
   if (missing) {
     return (
-      'This database has no box limit to change yet. Run the migrations in ' +
-      'supabase/migrations — 0008_settings_and_limits.sql and ' +
-      '0009_box_limit_default.sql — then try again.'
+      'This database has no box limit to change yet. Run ' +
+      'supabase/migrations/0009_box_limit_default.sql against it — that file ' +
+      'sets up everything the limit needs on its own — then try again.'
     )
   }
 
