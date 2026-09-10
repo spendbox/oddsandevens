@@ -58,6 +58,13 @@ structural.
   makes the price defensible — it sells the cleared levels, not access to the
   game — and it is why a player with no coins is never stopped, only sent back
   to level 1. Nothing may put a coin between somebody and a box link.
+- A run comes with one free replay in somebody else's box and none in your own:
+  `freeReplaysFor` in `money.ts`. The creator is already paid when their box is
+  beaten, so the free go at beating it themselves is what they give up; they
+  still play and still pay to carry on like anybody else. The number is written
+  onto the attempt by `start_attempt` at the moment the run opens, from the box
+  row against the signed-in profile — never from anything the browser said —
+  and `replays_left` on the row is the only thing consulted afterwards.
 - Carrying on from a missed level is priced by level, not flat: `retryCostFor`
   in `money.ts`, 2 coins at levels 1-3, 3 at 4-7, 5 at 8-10. The server charges
   what that function says — the cost is passed into `buy_replay`, never sent up

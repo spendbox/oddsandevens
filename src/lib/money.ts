@@ -64,6 +64,29 @@ export function retryCostFor(level: number): number {
 }
 
 /**
+ * How many free replays a run comes with.
+ *
+ * One, in somebody else's box: miss a level and you may take it again, same
+ * level, new pattern, nothing to pay. It is there so that one unlucky level —
+ * a bus, a notification, a thumb in the wrong place — does not end a run the
+ * player was winning.
+ *
+ * None, in your own. A creator is already paid ₦100,000 when their box is
+ * beaten, so a free go at beating it themselves is the platform handing them
+ * a second run at their own prize at its own expense. They may still play it,
+ * and still carry on from a level by paying for it like anybody else — what
+ * they do not get is the free one.
+ *
+ * The server decides this, at the moment the run is opened, from the box's
+ * creator and the person asking. The browser is not asked and could not be
+ * believed: the number goes into `start_attempt` the same way the price of a
+ * retry goes into `buy_replay`.
+ */
+export function freeReplaysFor(isOwnBox: boolean): number {
+  return isOwnBox ? 0 : 1
+}
+
+/**
  * The least a retry can ever cost.
  *
  * Used where the question is "can this player afford to keep going at all"

@@ -103,8 +103,8 @@ export default async function HowItWorksPage() {
 
       <Section heading="Replays and retries">
         <p>
-          Every game comes with <strong>one free replay</strong>. Miss a level and you can take
-          it again — same level, brand new pattern, no charge.
+          A run at somebody else&apos;s box comes with <strong>one free replay</strong>. Miss a
+          level and you can take it again — same level, brand new pattern, no charge.
         </p>
         <p>
           After that you have a choice, and only one side of it costs anything. Carrying on
@@ -136,6 +136,12 @@ export default async function HowItWorksPage() {
           Starting again always costs you your cleared levels, and never costs you a coin. Your
           run only ends when you walk away from it — being out of coins can cost you your
           progress, but it can never stop you playing.
+        </p>
+        <p>
+          One exception, and it is the only one: a run at <strong>your own box has no free
+          replay</strong>. You are paid {naira(PRIZE_NAIRA)} when your box is beaten, so the
+          free go at beating it yourself is the one thing you give up. You can still play it,
+          and still pay to carry on from a level, exactly like anybody else.
         </p>
       </Section>
 

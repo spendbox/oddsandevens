@@ -10,7 +10,13 @@ import {
   showMsFor,
   answerMsFor,
 } from './game'
-import { CHEAPEST_RETRY, COINS_PER_PLAY, coinWord, retryCostFor } from './money'
+import {
+  CHEAPEST_RETRY,
+  COINS_PER_PLAY,
+  coinWord,
+  freeReplaysFor,
+  retryCostFor,
+} from './money'
 import type { Attempt, Box, Profile } from './types'
 
 /**
@@ -42,6 +48,10 @@ export type StartResult =
  * Resuming rather than restarting still matters just as much with nothing to
  * charge: a player who reloads mid-level has not started a second game, and
  * handing them a fresh one would quietly throw away the levels they cleared.
+ *
+ * What the run comes with is settled here too, and only here: one free replay
+ * in somebody else's box, none in your own. Whose box it is, is the box row
+ * against the signed-in profile — never anything the browser said.
  */
 export async function startAttempt(box: Box, profile: Profile): Promise<StartResult> {
   const admin = supabaseAdmin()
@@ -51,6 +61,7 @@ export async function startAttempt(box: Box, profile: Profile): Promise<StartRes
     p_user: profile.id,
     p_name: profile.display_name,
     p_cost: COINS_PER_PLAY,
+    p_replays: freeReplaysFor(box.creator_id === profile.id),
   })
 
   if (error) return { ok: false, problem: 'Could not start the game. Try again.' }
@@ -338,14 +349,21 @@ export async function buyRetry(attempt: Attempt): Promise<GameState> {
   return beginLevel(fresh)
 }
 
-/** Spend the one free replay and put the player back on the same level. */
+/**
+ * Spend the free replay and put the player back on the same level.
+ *
+ * How many the run had was decided when it was opened — none, in your own box —
+ * so this does not need to know whose box it is. `replays_left` on the row is
+ * the whole answer, and a run that started with none simply never gets past
+ * the check below.
+ */
 export async function spendReplay(attempt: Attempt): Promise<GameState> {
   const admin = supabaseAdmin()
 
   if (attempt.status !== 'playing') return stateOf(attempt)
   if (!attempt.awaiting_replay) return stateOf(attempt)
   if (attempt.replays_left <= 0) {
-    return stateOf(attempt, 'No free replays left — carrying on from here costs coins.')
+    return stateOf(attempt, 'No free replay on this run — carrying on from here costs coins.')
   }
 
   // `replays_left = replays_left - 1` guarded by the same condition it depends

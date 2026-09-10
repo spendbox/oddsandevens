@@ -50,7 +50,10 @@ having paid nothing. Nobody is ever asked for money to find out whether they can
 do this, and a box link is worth sending to somebody with an empty wallet.
 
 **One free replay per game, then a choice.** Miss a level and you can take it
-again — new pattern, same level, no charge. After that, missing does not end the
+again — new pattern, same level, no charge. Not in your own box, though: the
+creator is paid ₦100,000 when it is beaten, so the free go at beating it
+themselves is the one thing they do not get. `freeReplaysFor` in `money.ts`
+says so, and the server writes the number onto the run when it opens it. After that, missing does not end the
 run: it offers two ways forward. Carry on from the level you are stuck on,
 keeping every level already cleared, or start again from level 1 for **nothing**.
 Carrying on costs **2 coins at levels 1–3, 3 at levels 4–7 and 5 at levels
@@ -98,6 +101,7 @@ Nothing else in the app sends email.
 | One coin | ₦100 |
 | Smallest top-up | 5 coins (₦500) |
 | One game, from level 1 | Free |
+| Free replays in a run | 1 in somebody else's box, 0 in your own |
 | Carrying on from a level, after the free replay | 2 coins at levels 1–3, 3 at 4–7, 5 at 8–10 |
 | Starting again from level 1 | Free |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
