@@ -9,6 +9,7 @@ import { adminsConfigured, isAdmin, requireProfile } from '@/lib/session'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { LEVELS } from '@/lib/game'
 import { NAIRA_PER_COIN, naira } from '@/lib/money'
+import { livePrize } from '@/lib/settings'
 import type { Box, Payout } from '@/lib/types'
 import { AdminNotConfigured } from './not-configured'
 
@@ -39,7 +40,7 @@ export default async function AdminPage() {
   // head: true with an exact count asks Postgres for the number and sends back
   // no rows at all, which is what a dashboard wants — the tallies here should
   // not get slower as the tables fill up.
-  const [players, boxesOpen, boxesWon, attempts, topups, payouts, recentBoxes] =
+  const [players, boxesOpen, boxesWon, attempts, topups, payouts, recentBoxes, prize] =
     await Promise.all([
       admin.from('profiles').select('*', { count: 'exact', head: true }),
       admin.from('boxes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
@@ -52,6 +53,12 @@ export default async function AdminPage() {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(8),
+      // What a box made right now is worth. It is on this page because it is the
+      // number every other number here is a consequence of, and because the one
+      // place it can be changed is not somewhere anybody would think to look for
+      // it — the card that edits it sits on the Players screen, next to the box
+      // limit, and this is what points at it.
+      livePrize(),
     ])
 
   const coinsSold = (topups.data ?? []).reduce((sum, row) => sum + (row.coins ?? 0), 0)
@@ -83,7 +90,7 @@ export default async function AdminPage() {
           <h2 className="mb-3 text-sm font-semibold tracking-[0.2em] text-dusk uppercase">
             Money
           </h2>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat label="Coins sold" value={coinsSold.toLocaleString('en-NG')} tone="cyan" />
             <Stat label="Taken in" value={naira(revenue)} tone="lime" />
             <Stat
@@ -91,6 +98,12 @@ export default async function AdminPage() {
               value={naira(owed)}
               tone={owed > 0 ? 'gold' : 'quiet'}
               href="/admin/payouts"
+            />
+            <Stat
+              label="Prize on a new box"
+              value={naira(prize)}
+              tone="violet"
+              href="/admin/users"
             />
           </div>
 

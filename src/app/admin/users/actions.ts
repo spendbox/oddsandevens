@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { isAdmin, requireProfile } from '@/lib/session'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { MAX_PRIZE_NAIRA, naira } from '@/lib/money'
 
 export type DeleteState = { problem?: string; done?: string }
 
@@ -164,4 +165,95 @@ function limitProblem(error: { code?: string; message?: string }): string {
   }
 
   return `Could not save that limit: ${message || 'the database refused it.'}`
+}
+
+export type PrizeState = { problem?: string; saved?: number }
+
+/**
+ * Change what a box is worth.
+ *
+ * The prize used to be a constant in `money.ts`, which meant moving it was a
+ * deploy — the same problem the box limit had, and worse, because this is the
+ * number the whole platform is built around. It lives in the settings row now
+ * and a trigger stamps it onto every box as it is created, so what is stored
+ * here is what the next box is worth, whatever anything else says.
+ *
+ * Three things this deliberately does not do.
+ *
+ * It does not touch boxes that already exist. An open box is a standing promise
+ * to everyone who has paid to play it and the amount is the promise; the screen
+ * says so, and says how many boxes are still carrying the old figure.
+ *
+ * It does not accept a number above `MAX_PRIZE_NAIRA`. A beaten box pays its
+ * prize twice, so a stray zero is a seven-figure liability created by a
+ * keystroke that nothing downstream would question.
+ *
+ * And, like the box limit, it reports the number the database hands back rather
+ * than the one that was typed — `set_prize` returns what it stored — so a write
+ * that lands somewhere unexpected shows the truth instead of an echo.
+ */
+export async function setPrize(_state: PrizeState, formData: FormData): Promise<PrizeState> {
+  const { profile } = await requireProfile()
+  if (!isAdmin(profile.email)) return { problem: 'Not allowed.' }
+
+  // Typed with commas or a naira sign more often than not. Strip them rather
+  // than refusing an amount that was perfectly clear.
+  const typed = String(formData.get('prize_naira') ?? '').replace(/[₦,\s]/g, '')
+  const raw = Number(typed)
+
+  if (!typed || !Number.isFinite(raw) || raw <= 0) {
+    return { problem: 'Give an amount in naira, more than zero.' }
+  }
+
+  if (raw > MAX_PRIZE_NAIRA) {
+    return {
+      problem:
+        `${naira(MAX_PRIZE_NAIRA)} is the most that can be set here, and that is a guard ` +
+        'against a stray zero rather than a rule — every box pays its prize twice when it ' +
+        `is beaten, so ${naira(raw)} would be a ${naira(raw * 2)} promise. Raise ` +
+        'MAX_PRIZE_NAIRA in src/lib/money.ts if you really mean it.',
+    }
+  }
+
+  const wanted = Math.floor(raw)
+  const admin = supabaseAdmin()
+  const { data, error } = await admin.rpc('set_prize', { p_naira: wanted })
+
+  if (error) {
+    console.error('[admin] set_prize failed', error)
+    return { problem: prizeProblem(error) }
+  }
+
+  const saved = typeof data === 'number' ? data : wanted
+
+  // Every public page quotes the prize, and all of them read it through
+  // livePrize(). They are all stale the moment this write lands.
+  for (const path of ['/', '/home', '/enter', '/how-it-works', '/terms', '/admin', '/admin/users']) {
+    revalidatePath(path)
+  }
+
+  return { saved }
+}
+
+/** The same translation as `limitProblem`, for the same two failures. */
+function prizeProblem(error: { code?: string; message?: string }): string {
+  const code = error.code ?? ''
+  const message = error.message ?? ''
+
+  const missing =
+    code === 'PGRST202' ||
+    code === 'PGRST205' ||
+    code === '42883' ||
+    code === '42P01' ||
+    code === '42703' ||
+    /could not find the (function|table|column)/i.test(message)
+
+  if (missing) {
+    return (
+      'This database has no editable prize yet. Run the migration in ' +
+      'supabase/migrations — 0012_editable_prize.sql — then try again.'
+    )
+  }
+
+  return `Could not save that prize: ${message || 'the database refused it.'}`
 }

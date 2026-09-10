@@ -435,7 +435,7 @@ export function Game({
             ? state.message === 'You beat the box.'
               ? `${naira(box.prize_naira)} is yours, and the same goes to ${box.creator_name || 'the creator'}. Add your bank details and it will be sent by transfer.`
               : 'You cleared all ten — but somebody else got to this box first.'
-            : `You cleared ${state.levelsCleared} of ${LEVELS}. Going again costs nothing.`}
+            : `You cleared ${state.levelsCleared} of ${LEVELS}. Another go is ${priceLabel(COINS_PER_PLAY).toLowerCase()}.`}
         </p>
 
         <div className="mt-8 grid gap-3">
@@ -544,17 +544,18 @@ export function Game({
             detail={
               canStartAgain
                 ? 'A brand new run, and your cleared levels are reset.'
-                : `You need ${coinWord(COINS_PER_PLAY)} for this.`
+                : `A fresh run is ${coinWord(COINS_PER_PLAY)}, and your wallet is short.`
             }
             price={priceLabel(COINS_PER_PLAY)}
           />
         </div>
 
-        {/* The top-up prompt belongs to the choice that actually costs money.
-            Starting again is free, so a player is never stuck — but somebody
+        {/* The top-up prompt belongs to the choice that costs the most. Somebody
             nine levels up who cannot afford to stay there is about to lose all
-            nine, and that is the moment worth showing them the wallet. */}
-        {!canContinue && !freeReplay && state.levelsCleared > 0 ? (
+            nine, and that is the moment worth showing them the wallet — and if
+            they cannot afford a fresh go either, the wallet is the only way on
+            from here at all. */}
+        {(!canContinue || !canStartAgain) && !freeReplay && state.levelsCleared > 0 ? (
           <ButtonLink href="/wallet" tone="gold" size="lg" className="mt-4 w-full">
             <Coins size={18} /> Top up to keep your {state.levelsCleared}{' '}
             {state.levelsCleared === 1 ? 'level' : 'levels'}

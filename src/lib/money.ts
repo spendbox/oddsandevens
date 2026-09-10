@@ -18,32 +18,32 @@ export const MAX_TOPUP_COINS = 500
 /**
  * What it costs to open a run at a box, from level 1.
  *
- * Nothing. A player who has never seen Spendbox before can tap Play and be
- * inside the game, and a box link is worth sharing precisely because the
- * person it is sent to is not asked for money to find out what it is.
+ * One coin. A run at a box puts the whole prize in front of somebody for the
+ * price of a single coin, and that is what a go costs — the same coin whether
+ * the run is their first of the day or their tenth, and the same coin again
+ * for going back to level 1 after a miss, because that is a new run.
  *
- * The money is made further up. Level 1 is free; level 8, with seven cleared
- * levels behind it, is worth paying to keep — and that is what `retryCostFor`
- * below is for. Anyone who wants to go back to the start may always do so for
- * nothing, so nobody is ever locked out of the game, only out of the progress
- * they had made in it.
+ * The rest of the money is made further up. Level 8, with seven cleared levels
+ * behind it, is worth more than a fresh start — and that is what `retryCostFor`
+ * below is for. Going back to the start is never more than this one coin, so
+ * nobody is ever locked out of the progress they had made for want of the
+ * larger sum.
  *
- * It is a number rather than a flag so that a price can be put back on the
- * first level by changing this one line, and every screen that quotes it —
- * they all read it from here — follows.
+ * It is a number rather than a flag so that the price can be moved — to zero
+ * included — by changing this one line, and every screen that quotes it (they
+ * all read it from here, through `priceLabel` or `playPricePhrase`) follows.
  */
-export const COINS_PER_PLAY = 0
+export const COINS_PER_PLAY = 1
 
 /**
  * What it costs to carry on from the level you are stuck on, once the free
  * replay is gone.
  *
- * This is the only thing in the game anybody pays for. Starting over is free,
- * so what is being sold here is never access to the game — it is the levels
- * already cleared, which are the one thing a fresh run cannot hand back.
- * Somebody stuck on level 8 can pay to stay there or go back to level 1 for
- * nothing, and that choice has to have a real price attached or nobody would
- * ever pay it.
+ * Starting over costs a coin, so what is being sold here is never access to
+ * the game — it is the levels already cleared, which are the one thing a fresh
+ * run cannot hand back. Somebody stuck on level 8 can pay to stay there or go
+ * back to level 1 for a single coin, and the gap between those two prices has
+ * to be a real one or nobody would ever pay the larger.
  *
  * The price climbs because what it buys climbs with it. Carrying on at level 2
  * saves a player one cleared level; carrying on at level 9 saves them eight,
@@ -101,8 +101,30 @@ export const RETRY_PRICES = [
   { levels: '8–10', coins: RETRY_BANDS[0].coins },
 ]
 
-/** The prize on a box — paid twice over: once to the creator, once to the winner. */
+/**
+ * The prize on a box — paid twice over: once to the creator, once to the winner.
+ *
+ * This is the figure a fresh database starts at and the one every page falls
+ * back to when it cannot read the settings table. The live number lives in
+ * `settings.prize_naira` and is changed from /admin/users without a deploy —
+ * see `livePrize()` in `src/lib/settings.ts`. A box keeps the prize it was
+ * created with for as long as it exists, because that is what was promised to
+ * the people playing it; changing this moves the prize on boxes made from then
+ * on. The database repeats it as a column default in
+ * supabase/migrations/0001_schema.sql and 0012_editable_prize.sql.
+ */
 export const PRIZE_NAIRA = 100_000
+
+/**
+ * The most an admin may set the prize to.
+ *
+ * Not a rule about what a box is worth — it is a guard against a stray zero.
+ * Every box carries its prize twice over when it is beaten, so a slip that
+ * turns ₦100,000 into ₦1,000,000 is a ₦2,000,000 promise made by a keystroke,
+ * and nothing downstream would question it. A ceiling that has to be raised in
+ * code is the cheapest possible check on that.
+ */
+export const MAX_PRIZE_NAIRA = 1_000_000
 
 /**
  * How many boxes may exist in total, until an admin says otherwise.
@@ -138,14 +160,26 @@ export function coinWord(coins: number): string {
 /**
  * A price, the way a button says it.
  *
- * "0 coins" is not a price anybody reads as free, and free is the whole point
- * of the first level — so the word is produced here rather than left to each
- * screen to remember. Every place that quotes the cost of starting a game goes
- * through this, which is why setting COINS_PER_PLAY back to 1 puts the price
- * back on all of them at once.
+ * "0 coins" is not a price anybody reads as free — so the word is produced here
+ * rather than left to each screen to remember. Every place that quotes the cost
+ * of starting a game goes through this, which is why moving COINS_PER_PLAY
+ * moves the price on all of them at once.
  */
 export function priceLabel(coins: number): string {
   return coins <= 0 ? 'Free' : coinWord(coins)
+}
+
+/**
+ * The same price, the way a sentence says it: "is free", or "costs 1 coin".
+ *
+ * Prose is where a price change goes wrong. A button label is one word and a
+ * screen that forgets to read it looks obviously stale, but a paragraph saying
+ * "playing is free" underneath a button charging a coin is a lie the eye slides
+ * straight over — and it was written down in nine places. This puts the verb
+ * with the number, so the sentence follows COINS_PER_PLAY wherever it goes.
+ */
+export function playPricePhrase(coins: number = COINS_PER_PLAY): string {
+  return coins <= 0 ? 'is free' : `costs ${coinWord(coins)}`
 }
 
 /**

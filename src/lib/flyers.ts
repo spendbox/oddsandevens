@@ -22,6 +22,8 @@
  * text somebody else types.
  */
 
+import { COINS_PER_PLAY, priceLabel } from './money'
+
 export type FlyerStyle = 'bold' | 'grid' | 'ticket'
 
 export type FlyerData = {
@@ -481,9 +483,21 @@ function drawTicket(context: CanvasRenderingContext2D, data: FlyerData) {
 
   // Above the tear: what it is, and what it is worth.
   const upper: Block[] = []
-  // The line people read before they decide whether to tap: playing costs
-  // nothing, and on a flyer that is the whole pitch.
-  upper.push(textBlock(context, ['FREE TO PLAY · TEN PATTERNS'], 26, 700, GOLD, 34, GAP.normal))
+  // The line people read before they decide whether to tap: what a go costs,
+  // in the same words the Play button uses, read from money.ts rather than
+  // written on here — a flyer is downloaded and posted somewhere we cannot
+  // correct it, so it must never be able to advertise a price that has moved.
+  upper.push(
+    textBlock(
+      context,
+      [`${priceLabel(COINS_PER_PLAY).toUpperCase()} TO PLAY · TEN PATTERNS`],
+      26,
+      700,
+      GOLD,
+      34,
+      GAP.normal,
+    ),
+  )
 
   context.font = font(600, 42)
   upper.push(textBlock(context, wrap(context, data.title, inner, 2), 42, 600, CHALK, 54, GAP.tight))

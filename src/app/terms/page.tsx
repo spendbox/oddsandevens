@@ -1,13 +1,23 @@
 import { LegalPage, Section } from '@/components/legal-page'
 import { optionalProfile } from '@/lib/session'
 import { CONTACT_EMAIL } from '@/lib/contact'
-import { MIN_TOPUP_COINS, NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money'
+import {
+  COINS_PER_PLAY,
+  MIN_TOPUP_COINS,
+  NAIRA_PER_COIN,
+  naira,
+  priceLabel,
+} from '@/lib/money'
+import { livePrize } from '@/lib/settings'
 import { LEVELS } from '@/lib/game'
 
 export const metadata = { title: 'Terms and conditions' }
 
 export default async function TermsPage() {
-  const profile = await optionalProfile()
+  // The prize is what an admin has set it to, not what the code was written
+  // with. These are the terms people are held to; a figure here that no longer
+  // matches what a box carries is the worst possible place to be out of date.
+  const [profile, prize] = await Promise.all([optionalProfile(), livePrize()])
 
   return (
     <LegalPage
@@ -45,6 +55,12 @@ export default async function TermsPage() {
           the payment.
         </p>
         <p>
+          A go at a box is {priceLabel(COINS_PER_PLAY).toLowerCase()}, charged when the game
+          opens. Carrying on from a level you missed, rather than starting again, costs more
+          and is priced by the level; the amounts are set out on the How it works page. Going
+          back to level 1 is a new go, at {priceLabel(COINS_PER_PLAY).toLowerCase()}.
+        </p>
+        <p>
           <strong>Coins are non-refundable once spent</strong>, including on an attempt you
           lose. Unspent coins have no cash value and cannot be transferred or withdrawn.
         </p>
@@ -52,12 +68,14 @@ export default async function TermsPage() {
 
       <Section heading="4. Boxes and prizes">
         <p>
-          Creating a box is free. Every box carries a prize of {naira(PRIZE_NAIRA)}. A box can
-          be beaten once, by the first player to clear all {LEVELS} levels.
+          Creating a box is free. A box created today carries a prize of {naira(prize)}, and
+          keeps that amount for as long as it exists — the prize on new boxes can change, but
+          never on a box that already exists. A box can be beaten once, by the first player to
+          clear all {LEVELS} levels.
         </p>
         <p>
-          When a box is beaten, {naira(PRIZE_NAIRA)} is owed to the winning player and{' '}
-          {naira(PRIZE_NAIRA)} to the person who created it.{' '}
+          When a box is beaten, the prize shown on that box is owed to the winning player and
+          the same amount again to the person who created it.{' '}
           <strong>
             If the creator beats their own box, the prize is paid once, not twice.
           </strong>

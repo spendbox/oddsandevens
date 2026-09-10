@@ -6,7 +6,13 @@ import { ButtonLink, Card, Pill, Problem } from '@/components/ui'
 import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import { LEVELS } from '@/lib/game'
-import { CHEAPEST_RETRY, PRIZE_NAIRA, coinsToNaira, naira } from '@/lib/money'
+import {
+  CHEAPEST_RETRY,
+  coinsToNaira,
+  naira,
+  playPricePhrase,
+} from '@/lib/money'
+import { livePrize } from '@/lib/settings'
 import type { Attempt, Box, Payout } from '@/lib/types'
 import { CreateBox } from './create-box'
 import { ShareLink } from '@/components/share-link'
@@ -22,10 +28,14 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
   const supabase = await supabaseServer()
   const params = await searchParams
 
-  const [{ data: boxes }, { data: attempts }, { data: payouts }] = await Promise.all([
+  const [{ data: boxes }, { data: attempts }, { data: payouts }, prize] = await Promise.all([
     supabase.from('boxes').select('*').eq('creator_id', profile.id).order('created_at', { ascending: false }).limit(20),
     supabase.from('attempts').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(8),
     supabase.from('payouts').select('*').eq('user_id', profile.id).eq('status', 'pending'),
+    // What a box made right now would be worth. Their own box, further down,
+    // shows what it was actually made with — those are different numbers the
+    // day after an admin moves the prize, and both are true.
+    livePrize(),
   ])
 
   const myBoxes = (boxes ?? []) as Box[]
@@ -45,7 +55,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
           Hey {profile.display_name || 'there'}
         </h1>
         <p className="mt-1.5 text-mist">
-          Create a box free, share it, earn {naira(PRIZE_NAIRA)} when someone beats it.
+          Create a box free, share it, earn {naira(prize)} when someone beats it.
         </p>
 
         {params.problem === 'box' ? (
@@ -81,8 +91,9 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
           </Card>
         ) : null}
 
-        {/* Wallet and box, side by side. One costs money and one is free, and
-            both are things somebody lands on this page wanting to do. */}
+        {/* Wallet and box, side by side. One is what a player spends and one is
+            what a creator earns, and both are things somebody lands on this
+            page wanting to do. */}
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <Card
             className={
@@ -105,7 +116,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
                 </p>
                 <p className="mt-1 text-sm text-mist">
                   {profile.coins < CHEAPEST_RETRY
-                    ? 'Playing is free. Coins carry you on from a level that beat you.'
+                    ? `A go ${playPricePhrase()}. More coins carry you on from a level that beat you.`
                     : `Worth ${naira(coinsToNaira(profile.coins))} · carries you on from ${Math.floor(profile.coins / CHEAPEST_RETRY)} missed ${Math.floor(profile.coins / CHEAPEST_RETRY) === 1 ? 'level' : 'levels'}`}
                 </p>
               </div>
@@ -181,7 +192,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
               </p>
             </Card>
           ) : (
-            <CreateBox />
+            <CreateBox prize={prize} />
           )}
         </section>
 

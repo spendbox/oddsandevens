@@ -16,12 +16,12 @@ import {
   CHEAPEST_RETRY,
   COINS_PER_PLAY,
   NAIRA_PER_COIN,
-  PRIZE_NAIRA,
   coinWord,
   freeReplaysFor,
   naira,
   priceLabel,
 } from '@/lib/money'
+import { livePrize } from '@/lib/settings'
 import type { Box } from '@/lib/types'
 import { play } from './actions'
 
@@ -55,12 +55,18 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
   const box = await loadBox(code)
   if (!box) notFound()
 
+  // What THIS box is worth is on the box row and nowhere else — it was fixed
+  // when the box was made and is what its players were promised. The live
+  // setting is only for the card at the bottom, which is an invitation to make
+  // a new one.
+  const newBoxPrize = await livePrize()
+
   const isMine = profile?.id === box.creator_id
   const isOpen = box.status === 'open'
-  // Playing costs nothing, so nothing here is gated on the wallet. The balance
-  // only decides which sentence sits under the button: what a player will want
-  // coins for is carrying on from a level they miss, and that is worth knowing
-  // before they are standing at it rather than after.
+  // A go costs coins, so this decides which button is shown: play, or top up.
+  // The balance also decides the sentence underneath, because what a player
+  // will next want coins for is carrying on from a level they miss, and that is
+  // worth knowing before they are standing at it rather than after.
   const canAfford = (profile?.coins ?? 0) >= COINS_PER_PLAY
   const canCarryOn = (profile?.coins ?? 0) >= CHEAPEST_RETRY
   // A run at your own box comes with no free replay — the same rule the server
@@ -123,8 +129,8 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
               {problem === 'coins' ? (
                 <div className="mt-5">
                   <Problem>
-                    That game could not be opened. Try again, or top up if you were carrying on
-                    from a level.
+                    A go is {coinWord(COINS_PER_PLAY)}, and your wallet was short — top up and
+                    the box is waiting.
                   </Problem>
                 </div>
               ) : null}
@@ -169,13 +175,13 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
 
               <p className="mt-4 text-center text-sm text-dusk">
                 {!profile
-                  ? `Starting is free. Coins — ${naira(NAIRA_PER_COIN)} each — are only for carrying on from a level you miss.`
+                  ? `A go is ${priceLabel(COINS_PER_PLAY).toLowerCase()} — coins are ${naira(NAIRA_PER_COIN)} each. Carrying on from a level you miss costs more.`
                   : freeReplays < 1
-                    ? 'Starting is free. Your own box gives you no free replay, so a level you miss ' +
-                      'costs coins to carry on from, or nothing to start over.'
+                    ? `A go is ${priceLabel(COINS_PER_PLAY).toLowerCase()}. Your own box gives you no free replay, so a level you miss ` +
+                      'costs coins to carry on from, or another go to start over.'
                     : canCarryOn
-                      ? `Starting is free, with one free replay. You have ${coinWord(profile.coins)} for carrying on from a level you miss.`
-                      : `Starting is free, with one free replay. After that, carrying on from a level you miss is from ${coinWord(CHEAPEST_RETRY)}.`}
+                      ? `A go is ${priceLabel(COINS_PER_PLAY).toLowerCase()}, with one free replay. You have ${coinWord(profile.coins)} in hand.`
+                      : `A go is ${priceLabel(COINS_PER_PLAY).toLowerCase()}, with one free replay. After that, carrying on from a level you miss is from ${coinWord(CHEAPEST_RETRY)}.`}
               </p>
             </>
           ) : (
@@ -286,7 +292,7 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
             <p className="mt-2 font-semibold">Want one of these of your own?</p>
             <p className="mt-1.5 text-sm text-mist">
               Creating a box is free. Share it, and when somebody finally beats it you
-              earn {naira(PRIZE_NAIRA)}.
+              earn {naira(newBoxPrize)}.
             </p>
             <ButtonLink href={profile ? '/home' : '/enter'} tone="gold" className="mt-4">
               Create your box — free

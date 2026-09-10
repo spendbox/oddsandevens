@@ -9,7 +9,14 @@ import { LevelExample } from '@/components/level-example'
 import { optionalProfile } from '@/lib/session'
 import { siteStats } from '@/lib/stats'
 import { LEVELS } from '@/lib/game'
-import { NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money'
+import {
+  COINS_PER_PLAY,
+  NAIRA_PER_COIN,
+  naira,
+  playPricePhrase,
+  priceLabel,
+} from '@/lib/money'
+import { livePrize } from '@/lib/settings'
 
 /** The three levels worth showing: the first, the middle, and the wall. */
 const SHOWN_LEVELS = [1, 5, 10]
@@ -17,16 +24,22 @@ const SHOWN_LEVELS = [1, 5, 10]
 /**
  * Rendered per request, never at build time.
  *
- * It shows who is signed in and two live counters, so a prerendered copy would
- * be wrong for everybody. It also has to be said out loud: `optionalProfile()`
- * and `siteStats()` run in the same Promise.all, and a build-time render used
- * to reach the database before the cookie read had marked the route dynamic —
- * which turned a missing key into a failed deploy of the whole site.
+ * It shows who is signed in, two live counters and the prize an admin can move,
+ * so a prerendered copy would be wrong for everybody. It also has to be said out
+ * loud: `optionalProfile()`, `siteStats()` and `livePrize()` run in the same
+ * Promise.all, and a build-time render used to reach the database before the
+ * cookie read had marked the route dynamic — which turned a missing key into a
+ * failed deploy of the whole site. All three of the others report rather than
+ * throw, so the worst this page can do now is show the baseline figures.
  */
 export const dynamic = 'force-dynamic'
 
 export default async function LandingPage() {
-  const [profile, stats] = await Promise.all([optionalProfile(), siteStats()])
+  const [profile, stats, prize] = await Promise.all([
+    optionalProfile(),
+    siteStats(),
+    livePrize(),
+  ])
   const start = profile ? '/home' : '/enter'
 
   return (
@@ -50,7 +63,7 @@ export default async function LandingPage() {
 
             <p className="mt-5 max-w-md text-lg leading-relaxed text-mist">
               Making a box costs you nothing. Send the link to anyone. When somebody finally
-              beats it, they win {naira(PRIZE_NAIRA)} —{' '}
+              beats it, they win {naira(prize)} —{' '}
               <strong className="text-chalk">and so do you.</strong>
             </p>
 
@@ -108,7 +121,7 @@ export default async function LandingPage() {
                 </p>
                 <h3 className="mt-1 text-lg font-semibold">Free, in one tap</h3>
                 <p className="mt-2 text-sm leading-relaxed text-mist">
-                  Your box carries {naira(PRIZE_NAIRA)} from the moment it exists. You are
+                  Your box carries {naira(prize)} from the moment it exists. You are
                   never charged for making it, or for anyone playing it.
                 </p>
                 <div className="mt-5">
@@ -123,8 +136,8 @@ export default async function LandingPage() {
                 </p>
                 <h3 className="mt-1 text-lg font-semibold">Send the link anywhere</h3>
                 <p className="mt-2 text-sm leading-relaxed text-mist">
-                  WhatsApp, X, a group chat. We even draw you three flyers to post. Anyone who
-                  opens it can play for free, so the link is worth sending.
+                  WhatsApp, X, a group chat. We even draw you three flyers to post. A go at it
+                  {' '}{playPricePhrase()}, so the link is worth sending.
                 </p>
                 <div className="mt-5">
                   <Mascot mood="thinking" size={90} />
@@ -138,8 +151,8 @@ export default async function LandingPage() {
                 </p>
                 <h3 className="mt-1 text-lg font-semibold">You get paid too</h3>
                 <p className="mt-2 text-sm leading-relaxed text-mist">
-                  Somebody beats it and takes {naira(PRIZE_NAIRA)}. You take{' '}
-                  {naira(PRIZE_NAIRA)} for having made the box. Paid by transfer within a
+                  Somebody beats it and takes {naira(prize)}. You take{' '}
+                  {naira(prize)} for having made the box. Paid by transfer within a
                   week.
                 </p>
                 <div className="mt-5">
@@ -183,8 +196,8 @@ export default async function LandingPage() {
           </div>
 
           <p className="mx-auto mt-5 max-w-5xl px-4 text-sm text-dusk">
-            Playing is free and so is starting over. Coins are only for carrying on from a level
-            that beat you, instead of going back to level 1.
+            A go {playPricePhrase()}, and so does starting over from level 1. Carrying on from
+            the level that beat you costs more, and that is the only other thing coins buy.
           </p>
         </section>
 
@@ -196,9 +209,9 @@ export default async function LandingPage() {
               Create your box free. Share it. Earn.
             </h2>
             <p className="mx-auto mt-3 max-w-md text-mist">
-              It takes one tap and costs nothing. Playing someone else&apos;s box costs nothing
-              either — coins, at {naira(NAIRA_PER_COIN)} each, only buy you the right to carry
-              on from a level you missed.
+              It takes one tap and costs nothing — you are never charged for making a box or
+              for anybody playing it. A go at someone else&apos;s box is{' '}
+              {priceLabel(COINS_PER_PLAY).toLowerCase()}, and a coin is {naira(NAIRA_PER_COIN)}.
             </p>
             <ButtonLink href={start} tone="gold" size="lg" className="mt-6">
               <Zap size={18} /> Create my box — free

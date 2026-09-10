@@ -7,12 +7,13 @@ import {
   COINS_PER_PLAY,
   MIN_TOPUP_COINS,
   NAIRA_PER_COIN,
-  PRIZE_NAIRA,
   RETRY_PRICES,
+  coinWord,
   coinsToNaira,
   naira,
   priceLabel,
 } from '@/lib/money'
+import { livePrize } from '@/lib/settings'
 
 export const metadata = {
   title: 'How it works',
@@ -20,7 +21,10 @@ export const metadata = {
 }
 
 export default async function HowItWorksPage() {
-  const profile = await optionalProfile()
+  // The page that explains the money has to quote the money that is actually
+  // being offered, so the prize comes from the settings row rather than the
+  // constant it falls back to.
+  const [profile, prize] = await Promise.all([optionalProfile(), livePrize()])
 
   return (
     <LegalPage
@@ -30,8 +34,9 @@ export default async function HowItWorksPage() {
     >
       <Section heading="Making a box">
         <p>
-          Anyone with an account can make a box, and it costs nothing. Every box carries{' '}
-          <strong>{naira(PRIZE_NAIRA)}</strong> from the moment it exists.
+          Anyone with an account can make a box, and it costs nothing. A box made today
+          carries <strong>{naira(prize)}</strong> from the moment it exists, and holds that
+          amount for as long as it stands.
         </p>
         <p>
           You keep <strong>one open box at a time</strong>. When yours is beaten you can make
@@ -43,15 +48,16 @@ export default async function HowItWorksPage() {
 
       <Section heading="Playing a box">
         <p>
-          Starting a game is <strong>free</strong>. Open any box link, tap Play, and you are on
-          level 1 with all {LEVELS} levels and the whole {naira(PRIZE_NAIRA)} in front of you,
-          having paid nothing.
+          A go at a box is <strong>{coinWord(COINS_PER_PLAY)}</strong>. Open any box link, tap
+          Play, and you are on level 1 with all {LEVELS} levels and the whole {naira(prize)} in
+          front of you, for {naira(coinsToNaira(COINS_PER_PLAY))}.
         </p>
         <p>
-          Coins are for one thing: <strong>carrying on from a level you missed</strong>, instead
-          of going back to the start. A coin is {naira(NAIRA_PER_COIN)} and the smallest top-up
-          is {MIN_TOPUP_COINS} coins ({naira(coinsToNaira(MIN_TOPUP_COINS))}), bought through
-          Paystack. What that costs, level by level, is further down this page.
+          A coin is {naira(NAIRA_PER_COIN)} and the smallest top-up is {MIN_TOPUP_COINS} coins
+          ({naira(coinsToNaira(MIN_TOPUP_COINS))}), bought through Paystack. The only other
+          thing coins buy is <strong>carrying on from a level you missed</strong> instead of
+          going back to the start, and what that costs, level by level, is further down this
+          page.
         </p>
         <p>
           The creator of a box is never charged for anyone playing it. Players pay; creators
@@ -107,10 +113,10 @@ export default async function HowItWorksPage() {
           level and you can take it again — same level, brand new pattern, no charge.
         </p>
         <p>
-          After that you have a choice, and only one side of it costs anything. Carrying on
-          from where you are keeps every level you have already cleared, and costs more the
-          further up you are — because the further up you are, the more it is saving you.
-          Going back to level 1 is free, as often as you like.
+          After that you have a choice, and one side of it costs more. Carrying on from where
+          you are keeps every level you have already cleared, and costs more the further up you
+          are — because the further up you are, the more it is saving you. Going back to level 1
+          is a fresh go at {coinWord(COINS_PER_PLAY)}, as often as you like.
         </p>
 
         <Card className="!p-0">
@@ -133,13 +139,13 @@ export default async function HowItWorksPage() {
         </Card>
 
         <p>
-          Starting again always costs you your cleared levels, and never costs you a coin. Your
-          run only ends when you walk away from it — being out of coins can cost you your
-          progress, but it can never stop you playing.
+          Starting again always costs you your cleared levels, and never more than the price of
+          a fresh go. Being out of coins can cost you your progress; topping up by the smallest
+          amount puts you back at level 1 with {MIN_TOPUP_COINS} goes in hand.
         </p>
         <p>
           One exception, and it is the only one: a run at <strong>your own box has no free
-          replay</strong>. You are paid {naira(PRIZE_NAIRA)} when your box is beaten, so the
+          replay</strong>. You are paid the prize when your box is beaten, so the
           free go at beating it yourself is the one thing you give up. You can still play it,
           and still pay to carry on from a level, exactly like anybody else.
         </p>
@@ -151,13 +157,14 @@ export default async function HowItWorksPage() {
           be beaten once — whoever gets there first takes it.
         </p>
         <p>
-          Normally the prize is paid <strong>twice</strong>: {naira(PRIZE_NAIRA)} to the player
-          who beat it, and {naira(PRIZE_NAIRA)} to whoever created it.
+          Normally the prize is paid <strong>twice</strong>: the amount shown on the box to the
+          player who beat it, and the same again to whoever created it. On a box made today
+          that is {naira(prize)} each, {naira(prize * 2)} in all.
         </p>
         <Card className="border-gold/30 bg-gold/8">
           <p className="text-sm leading-relaxed text-chalk">
-            <strong>If you beat your own box, you are paid {naira(PRIZE_NAIRA)} once</strong> —
-            not twice. You cannot collect both halves of a box you made yourself.
+            <strong>If you beat your own box, you are paid the prize once</strong> — not
+            twice. You cannot collect both halves of a box you made yourself.
           </p>
         </Card>
       </Section>

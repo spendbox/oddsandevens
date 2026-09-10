@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { AdminNotConfigured } from '../not-configured'
 import { UserRow, type PlayerRow } from './user-row'
 import { BoxLimit } from './box-limit'
+import { PrizeAmount } from './prize-amount'
 import type { Box, Payout, Profile } from '@/lib/types'
 
 export const metadata = { title: 'Players' }
@@ -37,6 +38,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
     { data: payouts },
     { data: topups },
     settingsRow,
+    prizeRow,
+    openBoxPrizes,
     boxCount,
   ] = await Promise.all([
     people,
@@ -44,6 +47,12 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
     admin.from('payouts').select('user_id, amount_naira, status').eq('status', 'pending'),
     admin.from('topups').select('user_id, amount_kobo').eq('status', 'success'),
     admin.from('settings').select('max_boxes').maybeSingle(),
+    // Asked for on its own rather than added to the select above. A column that
+    // does not exist yet fails the whole query it is named in, and the prize is
+    // the newer of the two settings — reading them together would mean a
+    // database missing 0012 showed the box limit as unreadable as well.
+    admin.from('settings').select('prize_naira').maybeSingle(),
+    admin.from('boxes').select('prize_naira').eq('status', 'open'),
     admin.from('boxes').select('*', { count: 'exact', head: true }),
   ])
 
@@ -57,6 +66,25 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
     : settingsRow.data
       ? null
       : 'no settings row'
+
+  // Same question for the prize, one migration later. A missing column reads
+  // exactly like a missing row from here, and both mean 0012 has not been run.
+  const prizeProblem = prizeRow.error
+    ? prizeRow.error.message
+    : prizeRow.data
+      ? null
+      : 'no settings row'
+
+  // What the boxes people are playing right now are actually worth. A prize
+  // change never rewrites them, so an admin who has just moved the number needs
+  // to see which figure is still out there and on how many boxes.
+  const openPrizes = new Map<number, number>()
+  for (const box of (openBoxPrizes.data ?? []) as Pick<Box, 'prize_naira'>[]) {
+    openPrizes.set(box.prize_naira, (openPrizes.get(box.prize_naira) ?? 0) + 1)
+  }
+  const stillOpen = [...openPrizes.entries()]
+    .map(([prize, count]) => ({ prize, count }))
+    .sort((a, b) => b.count - a.count)
 
   // Tallied here rather than with a query per player: a hundred rows on screen
   // must not become three hundred round trips.
@@ -104,11 +132,16 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
           <Pill tone="rose">Staff only</Pill>
         </div>
 
-        <section className="mt-8">
+        <section className="mt-8 grid gap-3">
           <BoxLimit
             current={settingsRow.data?.max_boxes ?? null}
             used={boxCount.count ?? 0}
             unreadable={limitProblem}
+          />
+          <PrizeAmount
+            current={prizeRow.data?.prize_naira ?? null}
+            stillOpen={stillOpen}
+            unreadable={prizeProblem}
           />
         </section>
 

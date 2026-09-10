@@ -2,7 +2,8 @@ import { PendingDot } from '@/components/pending-dot'
 import Link from 'next/link'
 import { Card } from '@/components/ui'
 import { Logo } from '@/components/site-header'
-import { PRIZE_NAIRA, naira } from '@/lib/money'
+import { naira } from '@/lib/money'
+import { livePrize } from '@/lib/settings'
 import { EnterForm } from './enter-form'
 
 export const metadata = { title: 'Play' }
@@ -13,6 +14,7 @@ export default async function EnterPage({ searchParams }: PageProps<'/enter'>) {
   const next =
     typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/home'
   const problem = typeof params.problem === 'string' ? params.problem : null
+  const prize = await livePrize()
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-10">
@@ -40,7 +42,7 @@ export default async function EnterPage({ searchParams }: PageProps<'/enter'>) {
       </Card>
 
       <p className="mt-6 text-center text-sm text-dusk">
-        Create a box free · share it · earn {naira(PRIZE_NAIRA)} when someone beats it
+        Create a box free · share it · earn {naira(prize)} when someone beats it
       </p>
     </main>
   )
