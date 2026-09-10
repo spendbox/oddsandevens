@@ -18,6 +18,7 @@ import {
   NAIRA_PER_COIN,
   PRIZE_NAIRA,
   coinWord,
+  freeReplaysFor,
   naira,
   priceLabel,
 } from '@/lib/money'
@@ -62,6 +63,10 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
   // before they are standing at it rather than after.
   const canAfford = (profile?.coins ?? 0) >= COINS_PER_PLAY
   const canCarryOn = (profile?.coins ?? 0) >= CHEAPEST_RETRY
+  // A run at your own box comes with no free replay — the same rule the server
+  // applies when it opens the run, read from the same function, so the screen
+  // cannot promise something the game will not give.
+  const freeReplays = freeReplaysFor(isMine)
   const problem = typeof query.problem === 'string' ? query.problem : null
 
   return (
@@ -163,11 +168,14 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
               </ButtonLink>
 
               <p className="mt-4 text-center text-sm text-dusk">
-                {profile
-                  ? canCarryOn
-                    ? `Starting is free. You have ${coinWord(profile.coins)} for carrying on from a level you miss.`
-                    : `Starting is free. Coins are only for carrying on from a level you miss — from ${coinWord(CHEAPEST_RETRY)}.`
-                  : `Starting is free. Coins — ${naira(NAIRA_PER_COIN)} each — are only for carrying on from a level you miss.`}
+                {!profile
+                  ? `Starting is free. Coins — ${naira(NAIRA_PER_COIN)} each — are only for carrying on from a level you miss.`
+                  : freeReplays < 1
+                    ? 'Starting is free. Your own box gives you no free replay, so a level you miss ' +
+                      'costs coins to carry on from, or nothing to start over.'
+                    : canCarryOn
+                      ? `Starting is free, with one free replay. You have ${coinWord(profile.coins)} for carrying on from a level you miss.`
+                      : `Starting is free, with one free replay. After that, carrying on from a level you miss is from ${coinWord(CHEAPEST_RETRY)}.`}
               </p>
             </>
           ) : (

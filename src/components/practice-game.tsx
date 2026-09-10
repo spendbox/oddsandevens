@@ -267,7 +267,7 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
           <Card className="text-center">
             <p className="text-sm leading-relaxed text-mist">
               {phase === 'wrong'
-                ? 'That is all a miss costs in practice. In a real box you would have one free replay.'
+                ? 'That is all a miss costs in practice. In somebody else\u2019s box you would have one free replay.'
                 : phase === 'right'
                   ? `Level ${level} down. Level ${level + 1} is one flash longer and a little quicker.`
                   : `${steps} tiles will flash. Tap them back in the same order. The clock only starts when the last flash goes out.`}

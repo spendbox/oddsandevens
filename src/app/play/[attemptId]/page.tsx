@@ -29,6 +29,12 @@ export default async function PlayPage({ params }: PageProps<'/play/[attemptId]'
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-8">
       <Game
         box={box}
+        /* Whose box this is decides what the screen may promise: a run at your
+           own comes with no free replay, and the player should be told that
+           where they would otherwise be looking for one. It is worked out here,
+           from the box row and the signed-in profile, because the game screen
+           is a browser and is never told who anybody is. */
+        ownBox={box.creator_id === profile.id}
         initial={{
           attemptId: attempt.id,
           status: attempt.status,

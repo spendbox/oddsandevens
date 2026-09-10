@@ -76,7 +76,16 @@ const CHEERS = [
   { word: 'One more!', note: 'Level 10 is all that is left.' },
 ]
 
-export function Game({ initial, box }: { initial: GameState; box: Box }) {
+export function Game({
+  initial,
+  box,
+  ownBox,
+}: {
+  initial: GameState
+  box: Box
+  /** Their own box, which is the run that comes with no free replay. */
+  ownBox: boolean
+}) {
   const router = useRouter()
 
   const [state, setState] = useState<GameState>(initial)
@@ -473,6 +482,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
           <p className="mt-2 text-sm text-mist">
             You have {state.levelsCleared} of {LEVELS}{' '}
             {state.levelsCleared === 1 ? 'level' : 'levels'} cleared.
+            {ownBox && !freeReplay ? ' Your own box comes with no free replay.' : ''}
           </p>
         </div>
 
@@ -571,8 +581,11 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
       <div className="mb-5 flex items-center gap-3">
         <BackLink href={`/b/${box.code}`}>Box {box.code}</BackLink>
         <div className="ml-auto flex items-center gap-2">
+          {/* "0 free" on a run that never had one reads like something was
+              spent. Say which it is. */}
           <Pill tone={state.replaysLeft > 0 ? 'cyan' : 'quiet'}>
-            <RotateCcw size={13} /> {state.replaysLeft} free
+            <RotateCcw size={13} />{' '}
+            {ownBox && state.replaysLeft < 1 ? 'no replay' : `${state.replaysLeft} free`}
           </Pill>
           <Pill tone="gold">
             <Coins size={13} /> {state.coins ?? 0}
