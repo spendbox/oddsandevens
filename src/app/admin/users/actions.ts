@@ -60,9 +60,9 @@ export async function deletePlayer(
   if (openBoxes && openBoxes.length > 0) {
     return {
       problem:
-        `They have an open box (${openBoxes.map((box) => box.code).join(', ')}). People have ` +
-        'paid to play it, so it cannot be deleted out from under them. Wait until it is ' +
-        'beaten, then delete the account.',
+        `They have an open box (${openBoxes.map((box) => box.code).join(', ')}). People are ` +
+        'playing it, and some have spent coins on it, so it cannot be deleted out from ' +
+        'under them. Wait until it is beaten, then delete the account.',
     }
   }
 

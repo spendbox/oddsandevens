@@ -3,8 +3,9 @@
 **Create your box free. Share it. Earn.**
 
 A box holds ₦100,000. Making one is free and you keep one at a time. Anyone with
-the link can try to beat it, and each try costs the player one coin — never the
-creator. Beating a box means clearing ten patterns in a row against a clock that
+the link can try to beat it, also free — the only thing a player ever pays for is
+carrying on from a level that beat them, and the creator is never charged for
+anything. Beating a box means clearing ten patterns in a row against a clock that
 never gets kinder. Whoever does it first takes ₦100,000 — and the person who
 made the box takes ₦100,000 too.
 
@@ -44,14 +45,19 @@ does, and the server budgets for it — `COUNT_IN_MS` in `src/lib/game.ts` is pa
 of the deadline, not just a screen animation. It was not, once, and every level
 quietly ran 1.2 seconds short of the clock the player could see.
 
+**Starting a game is free.** Tap Play on any open box and you are on level 1,
+having paid nothing. Nobody is ever asked for money to find out whether they can
+do this, and a box link is worth sending to somebody with an empty wallet.
+
 **One free replay per game, then a choice.** Miss a level and you can take it
 again — new pattern, same level, no charge. After that, missing does not end the
 run: it offers two ways forward. Carry on from the level you are stuck on,
-keeping every level already cleared, or start again from level 1 for **1 coin**.
+keeping every level already cleared, or start again from level 1 for **nothing**.
 Carrying on costs **2 coins at levels 1–3, 3 at levels 4–7 and 5 at levels
 8–10** — it is priced by what it saves you, and eight cleared levels is most of
-the way to ₦100,000. The run only ends when neither is affordable, or the player
-walks away.
+the way to ₦100,000. That is the only thing in the game anybody pays for: not
+the game, the progress. A player with no coins is never stopped, only sent back
+to level 1, and the run ends when they walk away from it.
 
 **Every box comes with three promo flyers.** Square PNGs a creator can post to
 WhatsApp, Instagram or X, drawn in the browser from the box's live details —
@@ -60,8 +66,8 @@ machinery: nothing is stored, so nothing can go stale. On a phone they go
 straight into the share sheet as a real file.
 
 **Every box has a free practice run.** `/b/CODE/try` plays the first three
-levels for real, with no coin and no prize, so nobody pays a coin to find out
-what they are buying. Practice runs entirely in the browser — there is no result
+levels for real, with no box and no prize, so somebody sent a link can see what
+the game is without even signing in. Practice runs entirely in the browser — there is no result
 worth cheating for, so there is nothing for a server to referee.
 
 ## Getting in
@@ -91,9 +97,9 @@ Nothing else in the app sends email.
 | Making a box | Free |
 | One coin | ₦100 |
 | Smallest top-up | 5 coins (₦500) |
-| One game | 1 coin |
+| One game, from level 1 | Free |
 | Carrying on from a level, after the free replay | 2 coins at levels 1–3, 3 at 4–7, 5 at 8–10 |
-| Starting again from level 1 | 1 coin |
+| Starting again from level 1 | Free |
 | Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
 | Beating **your own** box | ₦100,000 once, not twice |
 

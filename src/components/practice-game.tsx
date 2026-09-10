@@ -8,6 +8,7 @@ import { Mascot } from './mascot'
 import { Countdown } from './countdown'
 import { usePatternPlayer } from './use-pattern-player'
 import { answerMsFor, flashMsFor, gapMsFor, makePattern, stepsFor } from '@/lib/game'
+import { COINS_PER_PLAY, priceLabel } from '@/lib/money'
 
 /**
  * The example run: the real game, with nothing at stake.
@@ -173,7 +174,10 @@ export function PracticeGame({ boxCode, canPlay }: { boxCode: string; canPlay: b
 
         <div className="mt-8 grid gap-3">
           <ButtonLink href={`/b/${boxCode}`} tone="gold" size="lg">
-            <Zap size={18} /> {canPlay ? 'Play the real box · 1 coin' : 'Back to the box'}
+            <Zap size={18} />{' '}
+            {canPlay
+              ? `Play the real box · ${priceLabel(COINS_PER_PLAY).toLowerCase()}`
+              : 'Back to the box'}
           </ButtonLink>
           <Button
             tone="ghost"

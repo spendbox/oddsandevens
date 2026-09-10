@@ -12,7 +12,15 @@ import { optionalProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import { tidyBoxCode } from '@/lib/codes'
 import { LEVELS, planFor, stepsFor } from '@/lib/game'
-import { MIN_TOPUP_COINS, NAIRA_PER_COIN, PRIZE_NAIRA, naira } from '@/lib/money'
+import {
+  CHEAPEST_RETRY,
+  COINS_PER_PLAY,
+  NAIRA_PER_COIN,
+  PRIZE_NAIRA,
+  coinWord,
+  naira,
+  priceLabel,
+} from '@/lib/money'
 import type { Box } from '@/lib/types'
 import { play } from './actions'
 
@@ -48,7 +56,12 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
 
   const isMine = profile?.id === box.creator_id
   const isOpen = box.status === 'open'
-  const canAfford = (profile?.coins ?? 0) >= 1
+  // Playing costs nothing, so nothing here is gated on the wallet. The balance
+  // only decides which sentence sits under the button: what a player will want
+  // coins for is carrying on from a level they miss, and that is worth knowing
+  // before they are standing at it rather than after.
+  const canAfford = (profile?.coins ?? 0) >= COINS_PER_PLAY
+  const canCarryOn = (profile?.coins ?? 0) >= CHEAPEST_RETRY
   const problem = typeof query.problem === 'string' ? query.problem : null
 
   return (
@@ -104,7 +117,10 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
 
               {problem === 'coins' ? (
                 <div className="mt-5">
-                  <Problem>You need at least one coin to play. Top up and come back.</Problem>
+                  <Problem>
+                    That game could not be opened. Try again, or top up if you were carrying on
+                    from a level.
+                  </Problem>
                 </div>
               ) : null}
               {problem === 'closed' ? (
@@ -127,7 +143,7 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
                   <form action={play}>
                     <input type="hidden" name="code" value={box.code} />
                     <Button type="submit" tone="gold" size="lg" className="w-full">
-                      <Zap size={18} /> Play · 1 coin
+                      <Zap size={18} /> Play · {priceLabel(COINS_PER_PLAY).toLowerCase()}
                     </Button>
                   </form>
                 ) : (
@@ -148,8 +164,10 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
 
               <p className="mt-4 text-center text-sm text-dusk">
                 {profile
-                  ? `You have ${profile.coins} ${profile.coins === 1 ? 'coin' : 'coins'}. One game costs one.`
-                  : `Coins are ${naira(NAIRA_PER_COIN)} each, ${MIN_TOPUP_COINS} minimum.`}
+                  ? canCarryOn
+                    ? `Starting is free. You have ${coinWord(profile.coins)} for carrying on from a level you miss.`
+                    : `Starting is free. Coins are only for carrying on from a level you miss — from ${coinWord(CHEAPEST_RETRY)}.`
+                  : `Starting is free. Coins — ${naira(NAIRA_PER_COIN)} each — are only for carrying on from a level you miss.`}
               </p>
             </>
           ) : (

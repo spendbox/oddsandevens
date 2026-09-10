@@ -121,8 +121,8 @@ export default async function TermsPage() {
           >
             {CONTACT_EMAIL}
           </a>
-          . Any box you have open stays open until it is beaten, because other people have
-          paid to play it.
+          . Any box you have open stays open until it is beaten, because other people are
+          playing it and some of them have spent coins on it.
         </p>
       </Section>
 

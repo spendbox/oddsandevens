@@ -49,6 +49,15 @@ structural.
   write from the app.
 - Prices live in `src/lib/money.ts`; the difficulty curve lives in
   `src/lib/game.ts`. Neither number should be written down anywhere else.
+- Starting a game costs nothing. `COINS_PER_PLAY` is 0, and every screen that
+  quotes the price of a game reads it from `money.ts` through `priceLabel`, so
+  putting a price back on level 1 is one line. The cost is still passed into
+  `start_attempt` rather than assumed there, and a free start skips the wallet
+  and the ledger rather than writing a zero to both.
+- Coins buy exactly one thing: carrying on from a missed level. That is what
+  makes the price defensible — it sells the cleared levels, not access to the
+  game — and it is why a player with no coins is never stopped, only sent back
+  to level 1. Nothing may put a coin between somebody and a box link.
 - Carrying on from a missed level is priced by level, not flat: `retryCostFor`
   in `money.ts`, 2 coins at levels 1-3, 3 at 4-7, 5 at 8-10. The server charges
   what that function says — the cost is passed into `buy_replay`, never sent up

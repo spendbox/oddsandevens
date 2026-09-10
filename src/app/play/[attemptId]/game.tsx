@@ -12,7 +12,7 @@ import { BackLink } from '@/components/back-link'
 import { PendingDot } from '@/components/pending-dot'
 import { usePatternPlayer } from '@/components/use-pattern-player'
 import { LEVELS, answerMsFor, stepsFor } from '@/lib/game'
-import { COINS_PER_PLAY, retryCostFor } from '@/lib/money'
+import { COINS_PER_PLAY, coinWord, priceLabel, retryCostFor } from '@/lib/money'
 import { naira } from '@/lib/money'
 import type { Box } from '@/lib/types'
 
@@ -426,7 +426,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
             ? state.message === 'You beat the box.'
               ? `${naira(box.prize_naira)} is yours, and the same goes to ${box.creator_name || 'the creator'}. Add your bank details and it will be sent by transfer.`
               : 'You cleared all ten — but somebody else got to this box first.'
-            : `You cleared ${state.levelsCleared} of ${LEVELS}. Another coin, another go.`}
+            : `You cleared ${state.levelsCleared} of ${LEVELS}. Going again costs nothing.`}
         </p>
 
         <div className="mt-8 grid gap-3">
@@ -436,7 +436,7 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
             </ButtonLink>
           ) : !beatenByBox ? (
             <ButtonLink href={`/b/${box.code}`} tone="gold" size="lg">
-              <Zap size={18} /> Try again · 1 coin
+              <Zap size={18} /> Try again · {priceLabel(COINS_PER_PLAY).toLowerCase()}
             </ButtonLink>
           ) : null}
 
@@ -517,9 +517,9 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
               detail={
                 canContinue
                   ? `Keep all ${state.levelsCleared} levels you have cleared.`
-                  : `You need ${carryOn} coins for this.`
+                  : `You need ${coinWord(carryOn)} for this.`
               }
-              price={`${carryOn} coins`}
+              price={coinWord(carryOn)}
             />
           )}
 
@@ -534,15 +534,20 @@ export function Game({ initial, box }: { initial: GameState; box: Box }) {
             detail={
               canStartAgain
                 ? 'A brand new run, and your cleared levels are reset.'
-                : 'You need a coin for this.'
+                : `You need ${coinWord(COINS_PER_PLAY)} for this.`
             }
-            price={`${COINS_PER_PLAY} coin`}
+            price={priceLabel(COINS_PER_PLAY)}
           />
         </div>
 
-        {!canStartAgain ? (
+        {/* The top-up prompt belongs to the choice that actually costs money.
+            Starting again is free, so a player is never stuck — but somebody
+            nine levels up who cannot afford to stay there is about to lose all
+            nine, and that is the moment worth showing them the wallet. */}
+        {!canContinue && !freeReplay && state.levelsCleared > 0 ? (
           <ButtonLink href="/wallet" tone="gold" size="lg" className="mt-4 w-full">
-            <Coins size={18} /> Top up to keep playing
+            <Coins size={18} /> Top up to keep your {state.levelsCleared}{' '}
+            {state.levelsCleared === 1 ? 'level' : 'levels'}
           </ButtonLink>
         ) : null}
 

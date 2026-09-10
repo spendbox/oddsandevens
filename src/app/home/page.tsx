@@ -6,7 +6,7 @@ import { ButtonLink, Card, Pill, Problem } from '@/components/ui'
 import { requireProfile } from '@/lib/session'
 import { supabaseServer } from '@/lib/supabase/server'
 import { LEVELS } from '@/lib/game'
-import { PRIZE_NAIRA, coinsToNaira, naira } from '@/lib/money'
+import { CHEAPEST_RETRY, PRIZE_NAIRA, coinsToNaira, naira } from '@/lib/money'
 import type { Attempt, Box, Payout } from '@/lib/types'
 import { CreateBox } from './create-box'
 import { ShareLink } from '@/components/share-link'
@@ -104,9 +104,9 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
                   </span>
                 </p>
                 <p className="mt-1 text-sm text-mist">
-                  {profile.coins < 1
-                    ? 'You need a coin to play someone else\u2019s box.'
-                    : `Worth ${naira(coinsToNaira(profile.coins))} · ${profile.coins} ${profile.coins === 1 ? 'game' : 'games'}`}
+                  {profile.coins < CHEAPEST_RETRY
+                    ? 'Playing is free. Coins carry you on from a level that beat you.'
+                    : `Worth ${naira(coinsToNaira(profile.coins))} · carries you on from ${Math.floor(profile.coins / CHEAPEST_RETRY)} missed ${Math.floor(profile.coins / CHEAPEST_RETRY) === 1 ? 'level' : 'levels'}`}
                 </p>
               </div>
               <Wallet size={26} className="shrink-0 text-cyan" />

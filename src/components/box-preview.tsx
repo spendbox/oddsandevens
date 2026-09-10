@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { Lock, Unlock, Zap } from 'lucide-react'
 import { Pill } from './ui'
 import { TileReel } from './tile-reel'
-import { naira } from '@/lib/money'
+import { COINS_PER_PLAY, naira, priceLabel } from '@/lib/money'
 import type { Box } from '@/lib/types'
 
 /**
@@ -73,7 +73,7 @@ export function BoxPreview({
         )}
 
         <div className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-linear-to-b from-gold to-[#e8a615] px-5 py-2.5 text-sm font-semibold text-ink">
-          <Zap size={15} /> Play · 1 coin
+          <Zap size={15} /> Play · {priceLabel(COINS_PER_PLAY).toLowerCase()}
         </div>
 
         <p className="mt-3 text-[11px] text-dusk">
