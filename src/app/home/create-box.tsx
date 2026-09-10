@@ -5,32 +5,40 @@ import { useFormStatus } from 'react-dom'
 import { ArrowRight, Coins, Link2, Package } from 'lucide-react'
 import { Button, Card, Field } from '@/components/ui'
 import { LEVELS } from '@/lib/game'
-import { PRIZE_NAIRA, naira } from '@/lib/money'
+import { naira, playPricePhrase } from '@/lib/money'
 import { createBox } from './actions'
 
-const STEPS = [
-  {
-    Icon: Package,
-    title: 'Your box holds ' + naira(PRIZE_NAIRA),
-    body:
-      'Making it costs you nothing. The prize sits on the box from the moment it exists, ' +
-      'and it stays there until somebody beats it.',
-  },
-  {
-    Icon: Link2,
-    title: 'You share the link',
-    body:
-      'Anyone who opens it can play, free — so the link is worth sending to anybody. You are ' +
-      'never charged for anyone playing your box.',
-  },
-  {
-    Icon: Coins,
-    title: 'Somebody beats it, you both earn',
-    body:
-      `They have to clear all ${LEVELS} patterns against the clock. When someone finally does, ` +
-      `they get ${naira(PRIZE_NAIRA)} — and so do you.`,
-  },
-]
+/**
+ * The prize is a prop rather than a constant, because it is a number an admin
+ * can move from /admin/users and this card is the last thing somebody reads
+ * before committing to a box. Quoting a stale figure here would be promising
+ * one amount and creating another.
+ */
+function boxSteps(prize: number) {
+  return [
+    {
+      Icon: Package,
+      title: 'Your box holds ' + naira(prize),
+      body:
+        'Making it costs you nothing. The prize sits on the box from the moment it exists, ' +
+        'and it stays there until somebody beats it.',
+    },
+    {
+      Icon: Link2,
+      title: 'You share the link',
+      body:
+        `Anyone who opens it can take a go — a go ${playPricePhrase()} — so the link is worth ` +
+        'sending to anybody. You are never charged for anyone playing your box.',
+    },
+    {
+      Icon: Coins,
+      title: 'Somebody beats it, you both earn',
+      body:
+        `They have to clear all ${LEVELS} patterns against the clock. When someone finally does, ` +
+        `they get ${naira(prize)} — and so do you.`,
+    },
+  ]
+}
 
 function Submit() {
   const { pending } = useFormStatus()
@@ -49,15 +57,16 @@ function Submit() {
  * creator is paid too — and all three are the reasons to do it. So they are
  * shown one at a time, in that order, before the button that commits.
  */
-export function CreateBox() {
+export function CreateBox({ prize }: { prize: number }) {
   const [step, setStep] = useState(0)
-  const onLastStep = step === STEPS.length - 1
-  const current = STEPS[step]
+  const steps = boxSteps(prize)
+  const onLastStep = step === steps.length - 1
+  const current = steps[step]
 
   return (
     <Card className="bg-linear-to-br from-gold/12 via-violet/10 to-cyan/8">
       <div className="mb-5 flex gap-1.5" aria-hidden>
-        {STEPS.map((_, index) => (
+        {steps.map((_, index) => (
           <div
             key={index}
             className={
@@ -99,7 +108,7 @@ export function CreateBox() {
           </Button>
           <button
             type="button"
-            onClick={() => setStep(STEPS.length - 1)}
+            onClick={() => setStep(steps.length - 1)}
             className="text-sm text-mist underline underline-offset-4 hover:text-chalk"
           >
             Skip — I know how it works

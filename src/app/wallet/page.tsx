@@ -7,6 +7,7 @@ import { ArrowDownLeft, Gamepad2 } from 'lucide-react'
 import { paymentsConfigured } from '@/lib/paystack'
 import {
   CHEAPEST_RETRY,
+  COINS_PER_PLAY,
   MAX_TOPUP_COINS,
   MIN_TOPUP_COINS,
   NAIRA_PER_COIN,
@@ -60,16 +61,17 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
               {profile.coins === 1 ? 'coin' : 'coins'}
             </span>
           </p>
-          {/* Coins no longer count games — games are free. What they count is
-              how many missed levels you can carry on from, and the cheapest of
-              those is the honest headline: at level 8 it buys fewer. */}
+          {/* Coins count goes first, because that is what somebody looking at
+              this screen is about to spend them on. Carrying on from a missed
+              level is the other thing they buy, and it is quoted at its
+              cheapest — at level 8 the same coins buy fewer. */}
           <p className="mt-1 text-mist">
             worth {naira(coinsToNaira(profile.coins))} ·{' '}
-            {profile.coins >= CHEAPEST_RETRY
-              ? `carries you on from ${Math.floor(profile.coins / CHEAPEST_RETRY)} missed ${
-                  Math.floor(profile.coins / CHEAPEST_RETRY) === 1 ? 'level' : 'levels'
-                }`
-              : `playing is free · ${coinWord(CHEAPEST_RETRY)} carries you on from a missed level`}
+            {profile.coins >= COINS_PER_PLAY
+              ? `${Math.floor(profile.coins / COINS_PER_PLAY)} ${
+                  Math.floor(profile.coins / COINS_PER_PLAY) === 1 ? 'go' : 'goes'
+                } at a box`
+              : `a go is ${coinWord(COINS_PER_PLAY)}`}
           </p>
         </Card>
 
@@ -97,10 +99,11 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
         <section className="mt-8">
           <h2 className="text-xl font-bold tracking-tight">Add coins</h2>
           <p className="mt-1.5 text-sm text-mist">
-            Playing a box is free. Coins are for carrying on from a level that beat you — from{' '}
-            {coinWord(CHEAPEST_RETRY)}, more the further up you are. One coin is{' '}
-            {naira(NAIRA_PER_COIN)}, minimum {MIN_TOPUP_COINS}. Pay by transfer from your bank
-            app — the account to send to appears right here, and your coins land by themselves.
+            A go at a box is {coinWord(COINS_PER_PLAY)}. Carrying on from a level that beat
+            you, instead of starting over, is from {coinWord(CHEAPEST_RETRY)} — more the
+            further up you are. One coin is {naira(NAIRA_PER_COIN)}, minimum {MIN_TOPUP_COINS}.
+            Pay by transfer from your bank app — the account to send to appears right here, and
+            your coins land by themselves.
           </p>
 
           <div className="mt-5">

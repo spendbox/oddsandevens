@@ -10,9 +10,11 @@ export const metadata = { title: 'Practice run' }
 /**
  * The free example run for a box.
  *
- * Public, and so is the real thing: playing a box costs nothing. This is here
- * for the person who has just been sent a link and wants to know what the game
- * even is before they tap Play — no sign-in, no wallet, no box on the line.
+ * Public, like the box page itself, and free where the real thing is not. It is
+ * here for the person who has just been sent a link and wants to know what the
+ * game even is before they spend a coin on it — no sign-in, no wallet, no box on
+ * the line. Nobody should have to pay to find out what they are being asked to
+ * play.
  */
 export default async function PracticePage({ params }: PageProps<'/b/[code]/try'>) {
   const { code } = await params
@@ -33,8 +35,9 @@ export default async function PracticePage({ params }: PageProps<'/b/[code]/try'
         Box {box.code}
       </BackLink>
 
-      {/* Nothing about the wallet decides this any more: if the box is still
-          open, the run at the end of the practice is free to take. */}
+      {/* `canPlay` is about the box, not the wallet: the button at the end of
+          the practice is a link to the box page, and that page is the one place
+          that knows what a go costs and whether this player can cover it. */}
       <PracticeGame boxCode={box.code} canPlay={box.status === 'open'} />
     </main>
   )

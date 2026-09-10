@@ -49,15 +49,22 @@ structural.
   write from the app.
 - Prices live in `src/lib/money.ts`; the difficulty curve lives in
   `src/lib/game.ts`. Neither number should be written down anywhere else.
-- Starting a game costs nothing. `COINS_PER_PLAY` is 0, and every screen that
-  quotes the price of a game reads it from `money.ts` through `priceLabel`, so
-  putting a price back on level 1 is one line. The cost is still passed into
-  `start_attempt` rather than assumed there, and a free start skips the wallet
-  and the ledger rather than writing a zero to both.
-- Coins buy exactly one thing: carrying on from a missed level. That is what
-  makes the price defensible — it sells the cleared levels, not access to the
-  game — and it is why a player with no coins is never stopped, only sent back
-  to level 1. Nothing may put a coin between somebody and a box link.
+- A game costs `COINS_PER_PLAY`, currently 1. Every screen that quotes that
+  price reads it from `money.ts` — `priceLabel` for a button or a table cell,
+  `playPricePhrase` for a sentence — so moving it, to zero included, is one
+  line. Prose is the part that goes wrong: a paragraph still saying "playing is
+  free" under a button charging a coin is a lie the eye slides over, which is
+  why the phrase is a function and not a string. The cost is passed into
+  `start_attempt` rather than assumed there, and a free start (a zero price)
+  skips the wallet and the ledger rather than writing a zero to both.
+- Reloading a run in progress must never charge a second time. `start_attempt`
+  looks for the live attempt before it looks at the wallet, and every path that
+  opens a game goes through it.
+- Coins buy two things and only two: a go at a box, and carrying on from a
+  missed level rather than starting over. Starting over is always the cheaper of
+  the two, so a player is never priced out of their own progress by the larger
+  sum — and a run whose owner can afford neither is ended on the spot and sent
+  to the wallet, never parked on a fork with both choices greyed out.
 - A run comes with one free replay in somebody else's box and none in your own:
   `freeReplaysFor` in `money.ts`. The creator is already paid when their box is
   beaten, so the free go at beating it themselves is what they give up; they
@@ -223,6 +230,24 @@ structural.
   totals. That baseline is a launch figure presented to readers as history —
   treat changing it as a claim being made, not a setting being tuned.
 - Beating your own box pays the prize once. `claim_win` is where that lives.
+- The prize is a setting, not a constant. `settings.prize_naira` is the live
+  figure, changed at `/admin/users`; `PRIZE_NAIRA` in `money.ts` is only what a
+  fresh database starts at and what a page falls back to when the table cannot
+  be read. Server components read it through `livePrize()` in
+  `src/lib/settings.ts`, which never throws and never reaches for the service
+  role — the settings row is public, and a marketing number is not worth a stack
+  trace on a box link. A client component takes it as a prop.
+- The trigger in `0012_editable_prize.sql` stamps that figure onto every box as
+  it is inserted, because boxes are created through the caller's own client and
+  a prize in that payload is exactly the kind of thing the browser does not get
+  to decide. The app still sends what it believes; the trigger overrules it.
+- Changing the prize never touches a box that already exists. An open box is a
+  standing promise to everyone who has paid to play it and the amount is the
+  promise, so `/admin/users` says which figures are still out there and on how
+  many boxes rather than pretending the change was retroactive.
+- `MAX_PRIZE_NAIRA` is a typo guard, not a policy. Every box pays its prize
+  twice when it is beaten, so a stray zero is a seven-figure liability made by a
+  keystroke.
 - Written pages (terms, privacy, how it works, responsible play) share
   `src/components/legal-page.tsx`, and the contact address has one home in
   `src/lib/contact.ts`.

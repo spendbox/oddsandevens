@@ -3,11 +3,16 @@
 **Create your box free. Share it. Earn.**
 
 A box holds ₦100,000. Making one is free and you keep one at a time. Anyone with
-the link can try to beat it, also free — the only thing a player ever pays for is
-carrying on from a level that beat them, and the creator is never charged for
+the link can take a go for one coin — ₦100 — and the creator is never charged for
 anything. Beating a box means clearing ten patterns in a row against a clock that
 never gets kinder. Whoever does it first takes ₦100,000 — and the person who
 made the box takes ₦100,000 too.
+
+The prize is what an admin has set it to. ₦100,000 is where it starts and what
+every page falls back to; the live figure lives in the `settings` table, is
+changed at `/admin/users` without a deploy, and is stamped onto each box as it is
+created. A box that already exists keeps the amount it was made with, because
+that amount is a promise to everybody playing it.
 
 ---
 
@@ -45,9 +50,14 @@ does, and the server budgets for it — `COUNT_IN_MS` in `src/lib/game.ts` is pa
 of the deadline, not just a screen animation. It was not, once, and every level
 quietly ran 1.2 seconds short of the clock the player could see.
 
-**Starting a game is free.** Tap Play on any open box and you are on level 1,
-having paid nothing. Nobody is ever asked for money to find out whether they can
-do this, and a box link is worth sending to somebody with an empty wallet.
+**A go costs one coin.** Tap Play on any open box and you are on level 1 with
+₦100,000 in front of you for ₦100. `COINS_PER_PLAY` in `src/lib/money.ts` is the
+only place that number is written down, and every screen that quotes the price of
+a game reads it from there — through `priceLabel` for a button, `playPricePhrase`
+for a sentence — so moving it, to zero included, is one line. The cost is passed
+into `start_attempt` rather than assumed there, and reloading a run in progress is
+never charged twice: the function looks for the live attempt before it looks at
+the wallet.
 
 **One free replay per game, then a choice.** Miss a level and you can take it
 again — new pattern, same level, no charge. Not in your own box, though: the
@@ -55,12 +65,14 @@ creator is paid ₦100,000 when it is beaten, so the free go at beating it
 themselves is the one thing they do not get. `freeReplaysFor` in `money.ts`
 says so, and the server writes the number onto the run when it opens it. After that, missing does not end the
 run: it offers two ways forward. Carry on from the level you are stuck on,
-keeping every level already cleared, or start again from level 1 for **nothing**.
-Carrying on costs **2 coins at levels 1–3, 3 at levels 4–7 and 5 at levels
-8–10** — it is priced by what it saves you, and eight cleared levels is most of
-the way to ₦100,000. That is the only thing in the game anybody pays for: not
-the game, the progress. A player with no coins is never stopped, only sent back
-to level 1, and the run ends when they walk away from it.
+keeping every level already cleared, or start again from level 1 for the price of
+a fresh go. Carrying on costs **2 coins at levels 1–3, 3 at levels 4–7 and 5 at
+levels 8–10** — it is priced by what it saves you, and eight cleared levels is
+most of the way to ₦100,000. Going back to the start is always the cheaper of the
+two, so nobody is ever priced out of their progress by the larger sum. A run ends
+when the player walks away from it, or when the wallet cannot cover either way
+forward — and then the end screen sends them to the wallet rather than parking
+them on a fork they cannot take.
 
 **Every box comes with three promo flyers.** Square PNGs a creator can post to
 WhatsApp, Instagram or X, drawn in the browser from the box's live details —
@@ -100,15 +112,21 @@ Nothing else in the app sends email.
 | Making a box | Free |
 | One coin | ₦100 |
 | Smallest top-up | 5 coins (₦500) |
-| One game, from level 1 | Free |
+| One game, from level 1 | 1 coin (₦100) |
 | Free replays in a run | 1 in somebody else's box, 0 in your own |
 | Carrying on from a level, after the free replay | 2 coins at levels 1–3, 3 at 4–7, 5 at 8–10 |
-| Starting again from level 1 | Free |
-| Beating a box | ₦100,000 to the winner, ₦100,000 to the creator |
-| Beating **your own** box | ₦100,000 once, not twice |
+| Starting again from level 1 | 1 coin — it is a fresh game |
+| Beating a box | the box's prize to the winner, the same again to the creator |
+| Beating **your own** box | the prize once, not twice |
+
+The prize is editable at `/admin/users`, up to `MAX_PRIZE_NAIRA` — a ceiling that
+exists only to catch a stray zero, since every box pays out twice what it says.
+Changing it moves the prize on boxes made from then on; boxes that already exist
+keep theirs, and the admin screen says how many are still carrying another
+figure.
 
 There is also a ceiling on how many boxes may exist at all, since every one of
-them is a standing ₦100,000 promise. It starts at 500 and is editable at
+them is a standing six-figure promise. It starts at 10,000 and is editable at
 `/admin/users` without a deploy.
 
 Beating your own box pays the prize **once**. Paying both halves would hand
@@ -180,7 +198,7 @@ download is the difference between "instant" and "is it broken?".
 
 ## Setting it up
 
-**1. The database.** In Supabase → SQL Editor, run these four files in order:
+**1. The database.** In Supabase → SQL Editor, run these files in order:
 
 ```
 supabase/reset.sql              wipes the old project clean
@@ -192,7 +210,16 @@ supabase/migrations/0005_password_resets.sql
 supabase/migrations/0006_retries_and_box_art.sql
 supabase/migrations/0007_self_win_and_stats.sql
 supabase/migrations/0008_settings_and_limits.sql
+supabase/migrations/0009_box_limit_default.sql
+supabase/migrations/0010_free_first_level.sql
+supabase/migrations/0011_no_free_replay_on_your_own_box.sql
+supabase/migrations/0012_editable_prize.sql
 ```
+
+Every one of them is safe to run twice, so a database already part-way up this
+list can be brought the rest of the way by running what is missing. Until 0012 is
+applied the prize is not editable: `/admin/users` says so in as many words, and
+every box is made at the built-in ₦100,000.
 
 0006 also creates a public `box-images` storage bucket. If your Supabase project
 blocks writes to `storage.buckets` from the SQL editor, make it by hand under
