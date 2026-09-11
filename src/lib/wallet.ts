@@ -12,9 +12,14 @@ import { verifyPayment } from './paystack'
  *
  *   1. Paystack is asked directly. Never take the browser's word for it.
  *   2. The amount is checked against what we asked for.
- *   3. The topup row is flipped pending -> success in one conditional update.
- *      Exactly one caller can win that. Everyone else stops there.
+ *   3. The topup row is flipped to success in one conditional update. Exactly
+ *      one caller can win that. Everyone else stops there.
  *   4. Only the winner adds the coins.
+ *
+ * A row already marked 'failed' is claimed too, and that is deliberate. A
+ * failure is a guess about money that had not arrived yet; money arriving is a
+ * fact. Where the two disagree the money wins, and a player whose payment was
+ * written off early still gets the coins they paid for when it lands.
  */
 export type CreditResult =
   | { ok: true; coins: number; alreadyCredited: boolean }
@@ -37,11 +42,17 @@ export async function creditTopup(reference: string): Promise<CreditResult> {
   const payment = await verifyPayment(reference)
 
   if (payment.status !== 'success') {
-    await admin
-      .from('topups')
-      .update({ status: 'failed' })
-      .eq('reference', reference)
-      .eq('status', 'pending')
+    // 'failed' and 'reversed' are verdicts about the money. Everything else —
+    // 'abandoned' above all, which is what verify calls a transfer nobody has
+    // made yet — is a payment still in progress, and writing it off here is how
+    // a row stops being able to take the money when it does arrive.
+    if (payment.status === 'failed' || payment.status === 'reversed') {
+      await admin
+        .from('topups')
+        .update({ status: 'failed' })
+        .eq('reference', reference)
+        .eq('status', 'pending')
+    }
 
     return { ok: false, reason: `Paystack says this payment ${payment.status}.` }
   }
@@ -58,11 +69,14 @@ export async function creditTopup(reference: string): Promise<CreditResult> {
     return { ok: false, reason: 'The amount paid was less than the amount due.' }
   }
 
+  // Paystack has confirmed the money. Anything not already credited is claimed
+  // — a row an earlier verdict wrote off included; see above. Still one update,
+  // so still exactly one winner.
   const { data: claimed } = await admin
     .from('topups')
     .update({ status: 'success', paid_at: new Date().toISOString() })
     .eq('reference', reference)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'failed'])
     .select('*')
     .maybeSingle()
 
