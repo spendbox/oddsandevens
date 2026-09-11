@@ -60,6 +60,18 @@ const POLL_MS = 4_000
 const POLL_FOR_MS = 45 * 60_000
 
 /**
+ * How long to keep looking after the account's own clock has run out.
+ *
+ * Money sent at twenty-nine minutes past does not land at twenty-nine minutes
+ * past: it leaves one bank, crosses the switch and arrives a little later, and
+ * the player is holding a phone that says the payment they just made has
+ * expired. That is the complaint this exists to answer. The clock stops when
+ * Paystack says the account stops, because that is the truth about the account
+ * — but the screen keeps asking, and keeps saying it is asking.
+ */
+const GRACE_MS = 10 * 60_000
+
+/**
  * Where an open transfer is remembered, so that reloading the page — or coming
  * back to a tab the phone quietly discarded while the banking app was open —
  * does not lose the account number somebody is halfway through paying into.
@@ -125,6 +137,12 @@ export function TopUp() {
     setCardInstead(false)
     setStage({ kind: 'opening', coins })
 
+    // Stamped before the request goes out rather than after the reply lands.
+    // The window comes back as a length, and this is the moment it started; on
+    // a slow connection, anchoring it to the reply would quietly hand back time
+    // the account does not have. Same reason a level anchors to the request.
+    const asked = Date.now()
+
     try {
       const response = await fetch('/api/pay/transfer', {
         method: 'POST',
@@ -132,6 +150,7 @@ export function TopUp() {
         body: JSON.stringify({ coins }),
       })
       const body = (await response.json()) as Partial<Transfer> & {
+        expiresInMs?: number
         problem?: string
         cardInstead?: boolean
       }
@@ -143,7 +162,18 @@ export function TopUp() {
         return
       }
 
-      const transfer = body as Transfer
+      // The deadline is kept as a moment on this device's clock, worked out
+      // from the length the server gave: a reload, or a tab the phone discarded
+      // while the banking app was open, then comes back to the same deadline
+      // rather than a fresh one — and a device whose clock is wrong is wrong in
+      // the same direction here as it is on screen, which is to say not at all.
+      const transfer: Transfer = {
+        ...(body as Transfer),
+        expiresAt:
+          typeof body.expiresInMs === 'number'
+            ? new Date(asked + body.expiresInMs).toISOString()
+            : (body.expiresAt ?? null),
+      }
       remember(transfer)
       setStage({ kind: 'waiting', transfer })
     } catch {
@@ -391,11 +421,16 @@ function Waiting({
   onAbandon: () => void
 }) {
   const [copied, setCopied] = useState(false)
-  const [msLeft, setMsLeft] = useState<number | null>(null)
+  const [now, setNow] = useState<number | null>(null)
   const [checking, setChecking] = useState(false)
 
   const expiresAt = transfer.expiresAt ? new Date(transfer.expiresAt).getTime() : 0
-  const expired = msLeft !== null && msLeft <= 0
+  const msLeft = now === null ? null : Math.max(0, expiresAt - now)
+
+  /** The account has closed. */
+  const expired = now !== null && expiresAt > 0 && now >= expiresAt
+  /** Closed, but a transfer sent just before it closed is still in the air. */
+  const gone = expired && now !== null && now >= expiresAt + GRACE_MS
 
   // Held as an absolute moment and read against the clock, never counted down
   // from a duration: a duration goes stale the instant the tab is backgrounded,
@@ -404,10 +439,15 @@ function Waiting({
   useEffect(() => {
     if (!expiresAt) return
 
-    const tick = () => setMsLeft(Math.max(0, expiresAt - Date.now()))
+    const tick = () => setNow(Date.now())
     tick()
 
-    const timer = setInterval(tick, 1_000)
+    const timer = setInterval(() => {
+      tick()
+      // Nothing left to count, and nothing left to wait for.
+      if (Date.now() >= expiresAt + GRACE_MS) clearInterval(timer)
+    }, 1_000)
+
     return () => clearInterval(timer)
   }, [expiresAt])
 
@@ -443,15 +483,16 @@ function Waiting({
     [onPaid, onProblem, transfer.coins, transfer.reference],
   )
 
-  // Ask every few seconds, and once more the moment the account expires — money
-  // sent in the last few seconds still counts.
+  // Ask every few seconds, through the account's own expiry and for the grace
+  // period after it, and once more the moment it expires — money sent in the
+  // last few seconds is money sent, and it arrives after the clock has stopped.
   const checkRef = useRef(check)
   useEffect(() => {
     checkRef.current = check
   })
 
   useEffect(() => {
-    if (expired) return
+    if (gone) return
 
     const until = Date.now() + POLL_FOR_MS
     const poll = setInterval(() => {
@@ -463,7 +504,7 @@ function Waiting({
     }, POLL_MS)
 
     return () => clearInterval(poll)
-  }, [expired])
+  }, [gone])
 
   // One last look the moment the account expires: money sent in the final few
   // seconds is still money sent.
@@ -556,7 +597,7 @@ function Waiting({
         </dl>
       </Card>
 
-      {expired ? (
+      {gone ? (
         <Card className="mt-4 text-center">
           <p className="text-sm text-mist">
             That account has expired. If you sent the money anyway it will still be found and
@@ -564,6 +605,32 @@ function Waiting({
           </p>
           <Button tone="gold" size="lg" className="mt-4 w-full" onClick={onAbandon}>
             <RefreshCw size={17} /> Start a new transfer
+          </Button>
+        </Card>
+      ) : expired ? (
+        /* The clock has run out but the money may well be in the air. Saying
+           "expired, start again" here is how somebody who has just transferred
+           ends up transferring twice. */
+        <Card className="mt-4">
+          <p className="flex items-center gap-2.5 text-sm font-medium">
+            <Spinner className="text-gold" />
+            Still watching for your transfer…
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-mist">
+            That account has stopped accepting new transfers, but one you have already sent is
+            still on its way and still counts. Your coins are added the moment it lands. Do not
+            send it again.
+          </p>
+
+          <Button
+            tone="ghost"
+            size="lg"
+            className="mt-4 w-full"
+            busy={checking}
+            onClick={() => void check(true)}
+          >
+            {checking ? null : <RefreshCw size={17} />}
+            {checking ? 'Checking…' : 'I have sent it — check now'}
           </Button>
         </Card>
       ) : (

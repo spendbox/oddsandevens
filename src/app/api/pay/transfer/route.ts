@@ -78,7 +78,17 @@ export async function POST(request: Request) {
       expiresAt: new Date(Date.now() + WINDOW_MINUTES * 60_000),
     })
 
-    return Response.json({ ...account, coins, naira })
+    // The window goes back as a length as well as a moment. The screen holds
+    // the deadline against its own clock, and a phone an hour out — which is
+    // most of the reason a clock reads wrong at all — would take an absolute
+    // time for an account that had already closed. Given the distance from now,
+    // it anchors that to the moment it asked, the way a level does.
+    return Response.json({
+      ...account,
+      coins,
+      naira,
+      expiresInMs: Math.max(0, new Date(account.expiresAt).getTime() - Date.now()),
+    })
   } catch (error) {
     await admin.from('topups').update({ status: 'failed' }).eq('reference', reference)
 

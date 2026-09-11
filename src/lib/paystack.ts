@@ -170,8 +170,8 @@ export type TransferAccount = {
   accountName: string
   accountNumber: string
   bankName: string
-  /** ISO time, or null if Paystack did not give the account an expiry. */
-  expiresAt: string | null
+  /** ISO time. Always set, and decided here rather than taken on trust. */
+  expiresAt: string
 }
 
 /** Shapes Paystack has used for this response. Read defensively. */
@@ -185,6 +185,69 @@ type ChargeResponse = {
   account_expires_at?: string
   expires_at?: string
   display_text?: string
+}
+
+/**
+ * Never hand back a window with less than this left in it.
+ *
+ * `account_expires_at` has come back from this endpoint in more than one shape,
+ * including without a timezone on it at all, so a value that lands in the past
+ * or a couple of minutes from now is a timestamp we have read wrong far more
+ * often than it is an account that really closes that soon. Read literally, it
+ * puts an expired card in front of somebody who has not even opened their
+ * banking app yet, and what the player sees is the payment timing out on them.
+ */
+const MIN_WINDOW_MS = 5 * 60_000
+
+/** Paystack's timestamps, when they carry no offset at all, are Lagos time. */
+const WAT = '+01:00'
+
+/**
+ * Paystack's idea of a time, as a moment.
+ *
+ * `2026-09-11T12:30:00.000Z` and `2026-09-11 12:30:00` have both come back from
+ * here, and the second one handed to a browser means whatever that phone's
+ * timezone happens to be — which is how a thirty minute window turns into an
+ * expired one on a handset set to the wrong city, or an hour short on one set
+ * to the right one. Anything without an offset is read as WAT, on the server,
+ * once.
+ */
+function paystackTime(value: string | undefined): number | null {
+  const text = value?.trim()
+  if (!text) return null
+
+  const zoned = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text)
+  const at = new Date(zoned ? text.replace(' ', 'T') : `${text.replace(' ', 'T')}${WAT}`).getTime()
+
+  return Number.isFinite(at) ? at : null
+}
+
+/**
+ * When the account really closes.
+ *
+ * We asked for a window and Paystack answered; this is the one place the two
+ * are reconciled. Their answer wins when it is sane — the account is theirs,
+ * and if they close it sooner the clock on screen should say so — but an answer
+ * already in the past, or minutes from it, is refused in favour of the window
+ * we asked for. The refusal is logged, because "every transfer on this business
+ * expires the moment it opens" is something the operator needs to be told
+ * rather than left to piece together out of support messages.
+ */
+function closesAt(theirs: string | undefined, asked: Date, reference: string): number {
+  const ours = asked.getTime()
+  const paystack = paystackTime(theirs)
+
+  if (paystack === null) return ours
+
+  if (paystack < Date.now() + MIN_WINDOW_MS) {
+    console.warn(
+      `[spendbox] Paystack says the account for ${reference} expires at ${theirs}, which is ` +
+        'too soon to be true. Showing the window we asked for instead.',
+    )
+    return ours
+  }
+
+  return Math.min(paystack, ours)
 }
 
 export async function chargeByTransfer(args: {
@@ -222,7 +285,9 @@ export async function chargeByTransfer(args: {
     accountName: data.account_name ?? 'Paystack',
     accountNumber: data.account_number,
     bankName: bank || 'Bank',
-    expiresAt: data.account_expires_at ?? data.expires_at ?? null,
+    expiresAt: new Date(
+      closesAt(data.account_expires_at ?? data.expires_at, args.expiresAt, args.reference),
+    ).toISOString(),
   }
 }
 
