@@ -3,6 +3,7 @@ import { supabaseServer } from './supabase/server'
 import { supabaseAdmin } from './supabase/admin'
 import { supabaseConfigured } from './supabase/env'
 import { nameFromEmail } from './accounts'
+import { welcomeCoin } from './welcome'
 import type { Profile } from './types'
 
 /**
@@ -30,7 +31,19 @@ async function loadOrCreateProfile(userId: string, email: string): Promise<Profi
     .select('*')
     .maybeSingle()
 
-  if (created) return created as Profile
+  if (created) {
+    // The free coin, at the one moment there is such a thing as a new account.
+    // It never throws and it never blocks: somebody whose connection has had
+    // its share still gets in, they just get in with an empty wallet.
+    const given = await welcomeCoin(userId)
+
+    // The row above was read before the coin landed, so it says zero. Handing
+    // that back sends somebody who has just been given a coin to a screen
+    // telling them they have none, and they reload to find out we were lying —
+    // which is worse than not giving them one at all. The database has just
+    // added exactly this much to a wallet nothing else can have touched yet.
+    return { ...(created as Profile), coins: (created as Profile).coins + given }
+  }
 
   // Lost a race with another tab creating the same row. Read it back.
   const { data: raced } = await admin

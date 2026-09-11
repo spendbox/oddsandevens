@@ -10,6 +10,8 @@ import { AdminNotConfigured } from '../not-configured'
 import { UserRow, type PlayerRow } from './user-row'
 import { BoxLimit } from './box-limit'
 import { PrizeAmount } from './prize-amount'
+import { WelcomeCoin } from './welcome-coin'
+import { maskIp, moneySnapshot, welcomeIps } from '@/lib/admin-insights'
 import type { Box, Payout, Profile } from '@/lib/types'
 
 export const metadata = { title: 'Players' }
@@ -39,8 +41,11 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
     { data: topups },
     settingsRow,
     prizeRow,
+    welcomeRow,
     openBoxPrizes,
     boxCount,
+    snapshot,
+    connections,
   ] = await Promise.all([
     people,
     admin.from('boxes').select('creator_id, status'),
@@ -52,8 +57,15 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
     // the newer of the two settings — reading them together would mean a
     // database missing 0012 showed the box limit as unreadable as well.
     admin.from('settings').select('prize_naira').maybeSingle(),
+    // And again for the free coin, one migration later still. Three reads of
+    // the same row rather than one, because a column that does not exist yet
+    // fails the whole query it is named in — and a database missing 0014 must
+    // not make the prize and the box limit look unreadable too.
+    admin.from('settings').select('welcome_coins, welcome_max_per_ip').maybeSingle(),
     admin.from('boxes').select('prize_naira').eq('status', 'open'),
     admin.from('boxes').select('*', { count: 'exact', head: true }),
+    moneySnapshot(),
+    welcomeIps(8),
   ])
 
   // The limit is read, not assumed. A missing settings table or a missing row
@@ -72,6 +84,14 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
   const prizeProblem = prizeRow.error
     ? prizeRow.error.message
     : prizeRow.data
+      ? null
+      : 'no settings row'
+
+  // Same question again for the free coin. Both columns arrive together, so
+  // either one missing means 0014 has not been run.
+  const welcomeProblem = welcomeRow.error
+    ? welcomeRow.error.message
+    : welcomeRow.data
       ? null
       : 'no settings row'
 
@@ -142,6 +162,22 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
             current={prizeRow.data?.prize_naira ?? null}
             stillOpen={stillOpen}
             unreadable={prizeProblem}
+          />
+          <WelcomeCoin
+            current={welcomeRow.data?.welcome_coins ?? null}
+            perIp={welcomeRow.data?.welcome_max_per_ip ?? null}
+            given={snapshot.exact ? snapshot.coinsGiven : 0}
+            claims={snapshot.exact ? snapshot.welcomeClaims : 0}
+            connections={
+              connections.ok
+                ? connections.rows.map((row) => ({
+                    ip: maskIp(row.ip),
+                    claims: row.claims,
+                    coins: row.coins,
+                  }))
+                : []
+            }
+            unreadable={welcomeProblem}
           />
         </section>
 

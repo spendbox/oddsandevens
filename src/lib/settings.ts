@@ -2,7 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { readSupabaseEnv } from './supabase/env'
-import { PRIZE_NAIRA } from './money'
+import { PRIZE_NAIRA, WELCOME_COINS } from './money'
 
 /**
  * The numbers an admin can change without a deploy, read from the settings row.
@@ -59,3 +59,38 @@ export const liveSettings = cache(async (): Promise<LiveSettings> => {
 export async function livePrize(): Promise<number> {
   return (await liveSettings()).prizeNaira
 }
+
+/**
+ * How many coins a new player is given, as the settings row says.
+ *
+ * Asked for on its own rather than added to the select above, and that is not
+ * tidiness — a column that does not exist yet fails the whole query it is named
+ * in. Reading the two together would mean a database without 0014 applied
+ * showed the prize as unreadable as well, and the prize is quoted on the
+ * landing page and on every box. The same reasoning splits these two reads on
+ * /admin/users.
+ *
+ * Falls back to the figure in `money.ts` and never throws, for the same reason
+ * the prize does: the only thing this number is used for is a sentence, and a
+ * sentence is never worth a stack trace.
+ */
+export const liveWelcomeCoins = cache(async (): Promise<number> => {
+  const env = readSupabaseEnv()
+  if (!env.ok) return WELCOME_COINS
+
+  try {
+    const supabase = createClient(env.settings.url, env.settings.key, {
+      auth: { persistSession: false },
+    })
+
+    const { data } = await supabase.from('settings').select('welcome_coins').maybeSingle()
+    const coins = data?.welcome_coins
+
+    // Zero is a real answer here, unlike the prize: an admin may switch the
+    // free coin off, and every screen that mentions it drops the sentence
+    // rather than promising something nobody will get.
+    return typeof coins === 'number' && coins >= 0 ? coins : WELCOME_COINS
+  } catch {
+    return WELCOME_COINS
+  }
+})

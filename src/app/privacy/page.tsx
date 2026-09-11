@@ -31,6 +31,13 @@ export default async function PrivacyPage() {
           <strong>What you have done here:</strong> coins bought and spent, boxes made, games
           played, and prizes owed or paid.
         </p>
+        <p>
+          <strong>The internet connection you signed up on.</strong> Every new player is given
+          a free coin, and one connection may only claim so many — otherwise one person with
+          fifty accounts takes fifty free shots at the prize money. We keep the address your
+          sign-up came from, and nothing else about it: no location, no device, and nothing on
+          any request after that one. It is never shown to other players.
+        </p>
       </Section>
 
       <Section heading="What we do not keep">

@@ -135,7 +135,7 @@ export default async function AdminTransactionsPage({
             tone="cyan"
             hint={
               snapshot.exact
-                ? `${snapshot.coinsSpent.toLocaleString('en-NG')} spent, ${snapshot.coinsHeld.toLocaleString('en-NG')} still in wallets`
+                ? `${snapshot.coinsGiven.toLocaleString('en-NG')} more were given free`
                 : undefined
             }
           />
@@ -152,6 +152,43 @@ export default async function AdminTransactionsPage({
             hint={`of ${snapshot.players.toLocaleString('en-NG')} accounts`}
           />
         </section>
+
+        {snapshot.exact ? (
+          <Card className="mt-3">
+            <p className="text-xs font-semibold tracking-wider text-dusk uppercase">
+              Where the coins are
+            </p>
+            {/* Spelled out as a sum rather than left as four tiles, because the
+                only useful thing about these numbers is that they agree. Coins
+                given away are not coins sold, and the moment the free coin
+                existed "sold minus spent" stopped equalling what is in wallets —
+                a dashboard that no longer adds up reads as broken long before
+                anybody works out why. */}
+            <p className="tabular mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+              <Part value={snapshot.coinsSold} label="sold" tone="text-cyan" />
+              <span className="text-dusk">+</span>
+              <Part value={snapshot.coinsGiven} label="given free" tone="text-gold" />
+              <span className="text-dusk">−</span>
+              <Part value={snapshot.coinsSpent} label="spent" tone="text-violet-soft" />
+              <span className="text-dusk">=</span>
+              <Part value={snapshot.coinsHeld} label="in wallets" tone="text-lime" />
+            </p>
+            {snapshot.coinsSold + snapshot.coinsGiven - snapshot.coinsSpent !==
+            snapshot.coinsHeld ? (
+              <p className="mt-2 text-xs text-rose">
+                Those do not balance. Every coin should reach a wallet through the ledger, so
+                a gap means something moved a balance without writing a line — worth finding.
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-dusk">
+                {snapshot.welcomeClaims.toLocaleString('en-NG')}{' '}
+                {snapshot.welcomeClaims === 1 ? 'player has' : 'players have'} had the free
+                coin. It is money given away, never money taken in, so it is counted here and
+                nowhere near what has come in.
+              </p>
+            )}
+          </Card>
+        ) : null}
 
         {snapshot.paymentsFailed > 0 ? (
           <p className="mt-3 text-sm text-dusk">
@@ -347,6 +384,16 @@ export default async function AdminTransactionsPage({
 
       <Footer />
     </>
+  )
+}
+
+/** One term in the coin sum, so the four of them line up the same way. */
+function Part({ value, label, tone }: { value: number; label: string; tone: string }) {
+  return (
+    <span className="whitespace-nowrap">
+      <span className={`font-bold ${tone}`}>{value.toLocaleString('en-NG')}</span>{' '}
+      <span className="text-dusk">{label}</span>
+    </span>
   )
 }
 

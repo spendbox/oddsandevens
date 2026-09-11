@@ -57,6 +57,35 @@ structural.
   why the phrase is a function and not a string. The cost is passed into
   `start_attempt` rather than assumed there, and a free start (a zero price)
   skips the wallet and the ledger rather than writing a zero to both.
+- Every player gets one free coin, once. `WELCOME_COINS` in `money.ts` is the
+  fallback; the live figure is `settings.welcome_coins`, and
+  `grant_welcome_coin` in `0014_welcome_coin.sql` reads it straight from that
+  row rather than taking it as an argument — the opposite of how a price is
+  handled, because nothing quotes this to anybody before it happens and an
+  argument would be one more way to give away money by mistake. The grant is one
+  row per player in `welcome_grants`, keyed on their id, so a second tab, a
+  retry or a re-run of the migration all land on the same row. Prose goes
+  through `welcomeCoinPhrase`, so setting the number to zero takes the promise
+  off the screens with it.
+- The free coin is capped by the connection it was claimed on, because it is a
+  real go at the prize and fifty accounts on one phone is fifty free shots at
+  it. `clientIp()` in `src/lib/welcome.ts` reads `x-vercel-forwarded-for` first
+  and otherwise the LAST entry of `x-forwarded-for` — the first entry is
+  whatever the browser typed, and reading it hands anybody a fresh connection
+  per account. IPv6 is reduced to its /64. An unknown address never counts
+  against anybody: a missing header must not cost a player their coin. The cap
+  is never one — shared connections are the normal case here — and it lives in
+  `settings.welcome_max_per_ip` so it can be raised the moment it turns out to
+  be locking out a hostel.
+- Giving the coin must never fail a sign-up. `welcomeCoin()` never throws, and
+  every refusal — off, already, ip, no profile — is named in the server log,
+  because "nobody is getting their free coin" is exactly the kind of thing that
+  goes unnoticed for a month.
+- Coins given are not coins sold. `admin_money_snapshot` counts them apart and
+  `/admin/transactions` prints the sum — sold plus given minus spent is what is
+  in wallets — because the moment a coin could arrive without being bought, a
+  dashboard that still said "sold minus spent" stopped adding up. Any new way of
+  putting a coin in a wallet belongs in that sum.
 - Reloading a run in progress must never charge a second time. `start_attempt`
   looks for the live attempt before it looks at the wallet, and every path that
   opens a game goes through it.

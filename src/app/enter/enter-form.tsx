@@ -5,6 +5,7 @@ import { useActionState } from 'react'
 import { ArrowLeft, ArrowRight, LogIn, Sparkles } from 'lucide-react'
 import { Button, Field, Note, Problem } from '@/components/ui'
 import { PasswordField } from '@/components/password-field'
+import { welcomeCoinPhrase } from '@/lib/money'
 import { enterStep, type EnterState } from './actions'
 
 const START: EnterState = { step: 'email' }
@@ -21,7 +22,14 @@ const START: EnterState = { step: 'email' }
  * submit carrying an `intent`, including "use a different email", which is why
  * going back actually goes back.
  */
-export function EnterForm({ next }: { next: string }) {
+export function EnterForm({
+  next,
+  welcomeCoins,
+}: {
+  next: string
+  /** How many free coins a new account is given. Zero means the offer is off. */
+  welcomeCoins: number
+}) {
   const [state, action, pending] = useActionState(enterStep, START)
 
   const step = state.step ?? 'email'
@@ -77,6 +85,15 @@ export function EnterForm({ next }: { next: string }) {
         <input type="hidden" name="intent" value={creating ? 'signup' : 'signin'} />
         <input type="hidden" name="next" value={next} />
         <input type="hidden" name="email" value={email} />
+
+        {/* Said on the step where it is true and nowhere else. The number comes
+            from the settings row, so an admin switching the free coin off takes
+            this sentence with it rather than leaving a promise nobody keeps. */}
+        {creating && welcomeCoins > 0 ? (
+          <Note>
+            New here, so {welcomeCoinPhrase(welcomeCoins)} — your first go at a box is on us.
+          </Note>
+        ) : null}
 
         <PasswordField
           label={creating ? 'Choose a password' : 'Your password'}

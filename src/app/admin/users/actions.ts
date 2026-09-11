@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { isAdmin, requireProfile } from '@/lib/session'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { MAX_PRIZE_NAIRA, naira } from '@/lib/money'
+import { MAX_PRIZE_NAIRA, MAX_WELCOME_COINS, naira } from '@/lib/money'
 
 export type DeleteState = { problem?: string; done?: string }
 
@@ -256,4 +256,112 @@ function prizeProblem(error: { code?: string; message?: string }): string {
   }
 
   return `Could not save that prize: ${message || 'the database refused it.'}`
+}
+
+export type WelcomeState = {
+  problem?: string
+  saved?: { coins: number; maxPerIp: number }
+}
+
+/**
+ * Change the free coin, and how many one connection may claim.
+ *
+ * Two numbers in one form because they are one decision. The coin is what a new
+ * player is given so that their first go at a box costs them nothing; the limit
+ * is the only thing standing between that and somebody making forty accounts on
+ * one phone for forty free shots at the prize. Moving one without seeing the
+ * other is how a giveaway gets expensive.
+ *
+ * The limit is the number that will need moving in a hurry, and always upwards.
+ * Shared connections are normal here — a household, a hostel, a shop's wifi,
+ * a whole mobile network behind one address — so the failure this setting will
+ * actually produce is honest players being told their connection has had its
+ * share. That is why it is a setting and not a constant, and why zero is
+ * refused: switching the coin off is `coins` = 0, which says what it means.
+ *
+ * Like the prize, what comes back on screen is what the database stored, never
+ * what was typed.
+ */
+export async function setWelcomeRules(
+  _state: WelcomeState,
+  formData: FormData,
+): Promise<WelcomeState> {
+  const { profile } = await requireProfile()
+  if (!isAdmin(profile.email)) return { problem: 'Not allowed.' }
+
+  const coins = Number(String(formData.get('welcome_coins') ?? '').trim())
+  const perIp = Number(String(formData.get('welcome_max_per_ip') ?? '').trim())
+
+  if (!Number.isFinite(coins) || coins < 0) {
+    return { problem: 'Give a number of free coins, zero or more. Zero switches it off.' }
+  }
+
+  if (coins > MAX_WELCOME_COINS) {
+    return {
+      problem:
+        `${MAX_WELCOME_COINS} is the most that can be given here. That is a guard against ` +
+        'a stray zero, not a rule — every account ever made gets this many.',
+    }
+  }
+
+  if (!Number.isFinite(perIp) || perIp < 1) {
+    return {
+      problem:
+        'One connection has to be allowed at least one free coin. To stop giving them out ' +
+        'at all, set the free coins to zero instead.',
+    }
+  }
+
+  const admin = supabaseAdmin()
+  const { data, error } = await admin.rpc('set_welcome_rules', {
+    p_coins: Math.floor(coins),
+    p_max_per_ip: Math.floor(perIp),
+  })
+
+  if (error) {
+    console.error('[admin] set_welcome_rules failed', error)
+    return { problem: welcomeProblem(error) }
+  }
+
+  // The function returns one row: what is stored.
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { coins?: number; max_per_ip?: number }
+    | null
+
+  const saved = {
+    coins: typeof row?.coins === 'number' ? row.coins : Math.floor(coins),
+    maxPerIp: typeof row?.max_per_ip === 'number' ? row.max_per_ip : Math.floor(perIp),
+  }
+
+  // /enter quotes the free coin on the sign-up step, and reads it through
+  // liveWelcomeCoins(). It is stale the moment this write lands.
+  for (const path of ['/enter', '/admin', '/admin/users', '/admin/transactions']) {
+    revalidatePath(path)
+  }
+
+  return { saved }
+}
+
+/** The same translation as `prizeProblem`, one migration later. */
+function welcomeProblem(error: { code?: string; message?: string }): string {
+  const code = error.code ?? ''
+  const message = error.message ?? ''
+
+  const missing =
+    code === 'PGRST202' ||
+    code === 'PGRST205' ||
+    code === '42883' ||
+    code === '42P01' ||
+    code === '42703' ||
+    /could not find the (function|table|column)/i.test(message)
+
+  if (missing) {
+    return (
+      'This database has no free coin yet. Run the migration in supabase/migrations — ' +
+      '0014_welcome_coin.sql — then try again. It also gives every player who is already ' +
+      'here their coin.'
+    )
+  }
+
+  return `Could not save that: ${message || 'the database refused it.'}`
 }
