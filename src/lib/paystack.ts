@@ -298,6 +298,17 @@ export async function chargeByTransfer(args: {
  * matters: verify calls a payment nobody has made yet "abandoned", which is a
  * verdict, and acting on it would fail a payment the player is still in the
  * middle of making. This endpoint says `pending` and means it.
+ *
+ * `timeout` and `abandoned` are not failures and must never be read as any.
+ * They are Paystack saying the charge *attempt* gave up waiting — the session,
+ * not the account — and they turn up minutes into a transfer somebody is still
+ * in the middle of making, long before the account they are paying into closes.
+ * This was read as a failure once, and it told a player who was queuing at
+ * their bank app that the payment had not gone through while the account was
+ * still sitting there open, waiting for exactly that money.
+ *
+ * Only a verdict about the money itself counts: `failed` and `reversed`.
+ * Everything else is "not yet".
  */
 export type ChargeState = 'pending' | 'success' | 'failed'
 
@@ -307,8 +318,6 @@ export async function chargeStatus(reference: string): Promise<ChargeState> {
   )
 
   if (data.status === 'success') return 'success'
-  if (data.status === 'failed' || data.status === 'reversed' || data.status === 'timeout') {
-    return 'failed'
-  }
+  if (data.status === 'failed' || data.status === 'reversed') return 'failed'
   return 'pending'
 }

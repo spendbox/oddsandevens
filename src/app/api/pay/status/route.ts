@@ -18,7 +18,11 @@ import type { Topup } from '@/lib/types'
  *    function, so the two racing is a non-event.
  *  - A pending charge is left pending. It is the webhook, or the next poll,
  *    that will settle it — nothing here writes 'failed' onto a payment somebody
- *    is still in the middle of making.
+ *    is still in the middle of making. That is not a preference. A row written
+ *    'failed' is not a message, it is a decision: crediting claims the row out
+ *    of 'pending', so a transfer failed by a poll and then actually paid was a
+ *    player's money arriving into a row that could no longer take it. This path
+ *    can say 'paid' and it can say 'waiting'. It cannot say 'failed'.
  */
 export async function POST(request: Request) {
   const profile = await optionalProfile()
@@ -44,23 +48,32 @@ export async function POST(request: Request) {
   if (topup.status === 'success') {
     return Response.json({ state: 'paid', coins: topup.coins })
   }
-  if (topup.status === 'failed') {
-    return Response.json({ state: 'failed' })
-  }
+  // A row marked 'failed' is still asked about rather than answered from here.
+  // The verdict was written before the money arrived, and if Paystack now says
+  // it did arrive, the money outranks the verdict and creditTopup will take the
+  // row back. Only when Paystack agrees it failed is the player told so.
 
   try {
     const charge = await chargeStatus(reference)
 
-    if (charge === 'failed') {
-      await admin
-        .from('topups')
-        .update({ status: 'failed' })
-        .eq('reference', reference)
-        .eq('status', 'pending')
-      return Response.json({ state: 'failed' })
+    if (charge !== 'success') {
+      // Including a charge Paystack has given up on. The account is open until
+      // its own clock says otherwise, the webhook is behind all of this, and a
+      // verdict on somebody's money is not this path's to give — so the honest
+      // answer to "has it landed" is still no, and the row is left alone. A
+      // transfer that never arrives stays pending and is counted as pending on
+      // /admin/transactions, which is where money asked for and never received
+      // is supposed to show up.
+      //
+      // The one failure reported from here is one that was already written on
+      // the row by something entitled to write it. This asks Paystack first
+      // precisely so that such a row can still be taken back if the money is
+      // in fact there.
+      if (charge === 'failed' && topup.status === 'failed') {
+        return Response.json({ state: 'failed' })
+      }
+      return Response.json({ state: 'waiting' })
     }
-
-    if (charge !== 'success') return Response.json({ state: 'waiting' })
 
     const credited = await creditTopup(reference)
 
