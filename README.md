@@ -138,6 +138,19 @@ transfer, within one week**, from the Paystack dashboard — there is no key on 
 move money out on its own. `/admin` is the dashboard and `/admin/payouts` is the
 worklist for whoever sends the transfers.
 
+`/admin/transactions` is every coin purchase: the totals, the top spenders — who
+has paid what, and whether they have spent it or are sitting on a wallet — and
+the payments themselves, searchable by email or by the Paystack reference the
+player is quoting at you. A transfer that never landed is listed as waiting
+rather than folded into income, because a payment somebody is still in the
+middle of making is not money.
+
+`/admin/boxes` is every box arranged by how many **people** have played it, which
+is not the same question as how many goes have been paid for. Two hundred goes
+from four players is four players stuck on a box; forty goes from forty players
+is a box being shared. The list turns round by either, and the quiet end of it is
+where a box nobody has found sits.
+
 **Bank accounts are verified before they are saved.** The player picks their bank
 and types their number; the account name comes back from Paystack's name enquiry
 against NIBSS — the bank's own answer to "who owns this number?" — and that is
@@ -214,12 +227,16 @@ supabase/migrations/0009_box_limit_default.sql
 supabase/migrations/0010_free_first_level.sql
 supabase/migrations/0011_no_free_replay_on_your_own_box.sql
 supabase/migrations/0012_editable_prize.sql
+supabase/migrations/0013_admin_insights.sql
 ```
 
 Every one of them is safe to run twice, so a database already part-way up this
 list can be brought the rest of the way by running what is missing. Until 0012 is
 applied the prize is not editable: `/admin/users` says so in as many words, and
-every box is made at the built-in ₦100,000.
+every box is made at the built-in ₦100,000. Until 0013 is applied the admin
+screens cannot say who is spending or how many people have played a box, and
+they say that rather than guessing — 0013 only reads, and adds nothing you can
+lose.
 
 0006 also creates a public `box-images` storage bucket. If your Supabase project
 blocks writes to `storage.buckets` from the SQL editor, make it by hand under

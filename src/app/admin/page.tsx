@@ -1,27 +1,38 @@
 import { PendingDot } from '@/components/pending-dot'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Trophy, Users } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { Footer } from '@/components/footer'
 import { Card, Empty, Pill } from '@/components/ui'
 import { adminsConfigured, isAdmin, requireProfile } from '@/lib/session'
-import { supabaseAdmin } from '@/lib/supabase/admin'
 import { LEVELS } from '@/lib/game'
-import { NAIRA_PER_COIN, naira } from '@/lib/money'
+import { naira } from '@/lib/money'
 import { livePrize } from '@/lib/settings'
-import type { Box, Payout } from '@/lib/types'
+import {
+  INSIGHTS_MIGRATION,
+  boxActivity,
+  moneySnapshot,
+  topSpenders,
+} from '@/lib/admin-insights'
 import { AdminNotConfigured } from './not-configured'
+import { InsightProblem } from './needs-migration'
+import { Stat } from './stat'
 
 export const metadata = { title: 'Admin' }
 export const dynamic = 'force-dynamic'
 
+/** How many of each list the dashboard previews before handing over to its page. */
+const PREVIEW = 5
+
 /**
  * What is going on, on one screen.
  *
- * Written for the person who runs Spendbox and needs to answer three questions
- * quickly: is anybody playing, is any money coming in, and does anybody need
- * paying. Anything that does not answer one of those is not on this page.
+ * Written for the person who runs Spendbox and needs to answer four questions
+ * quickly: is anybody playing, is any money coming in, who is spending it, and
+ * does anybody need paying. Anything that does not answer one of those is not
+ * on this page — and each of the four has a page of its own behind it, because
+ * a number with nothing behind it is a number you cannot act on.
  */
 export default async function AdminPage() {
   const { profile } = await requireProfile()
@@ -35,44 +46,21 @@ export default async function AdminPage() {
   // somebody who is not an admin should not learn this page exists.
   if (!isAdmin(profile.email)) notFound()
 
-  const admin = supabaseAdmin()
-
-  // head: true with an exact count asks Postgres for the number and sends back
-  // no rows at all, which is what a dashboard wants — the tallies here should
-  // not get slower as the tables fill up.
-  const [players, boxesOpen, boxesWon, attempts, topups, payouts, recentBoxes, prize] =
-    await Promise.all([
-      admin.from('profiles').select('*', { count: 'exact', head: true }),
-      admin.from('boxes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
-      admin.from('boxes').select('*', { count: 'exact', head: true }).eq('status', 'won'),
-      admin.from('attempts').select('*', { count: 'exact', head: true }),
-      admin.from('topups').select('coins, status').eq('status', 'success'),
-      admin.from('payouts').select('amount_naira, status'),
-      admin
-        .from('boxes')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(8),
-      // What a box made right now is worth. It is on this page because it is the
-      // number every other number here is a consequence of, and because the one
-      // place it can be changed is not somewhere anybody would think to look for
-      // it — the card that edits it sits on the Players screen, next to the box
-      // limit, and this is what points at it.
-      livePrize(),
-    ])
-
-  const coinsSold = (topups.data ?? []).reduce((sum, row) => sum + (row.coins ?? 0), 0)
-  const revenue = coinsSold * NAIRA_PER_COIN
-
-  const allPayouts = (payouts.data ?? []) as Pick<Payout, 'amount_naira' | 'status'>[]
-  const owed = allPayouts
-    .filter((payout) => payout.status === 'pending')
-    .reduce((sum, payout) => sum + payout.amount_naira, 0)
-  const paid = allPayouts
-    .filter((payout) => payout.status === 'paid')
-    .reduce((sum, payout) => sum + payout.amount_naira, 0)
-
-  const boxes = (recentBoxes.data ?? []) as Box[]
+  const [snapshot, spenders, busiest, prize] = await Promise.all([
+    // Every total on this page, counted by Postgres over the whole table rather
+    // than by this page over the first page of rows it was handed. See
+    // src/lib/admin-insights.ts — the old way stopped being right at the
+    // thousandth payment and did not say so.
+    moneySnapshot(),
+    topSpenders(PREVIEW),
+    boxActivity('players', PREVIEW),
+    // What a box made right now is worth. It is on this page because it is the
+    // number every other number here is a consequence of, and because the one
+    // place it can be changed is not somewhere anybody would think to look for
+    // it — the card that edits it sits on the Players screen, next to the box
+    // limit, and this is what points at it.
+    livePrize(),
+  ])
 
   return (
     <>
@@ -85,18 +73,38 @@ export default async function AdminPage() {
         </div>
         <p className="mt-1.5 text-mist">Signed in as {profile.email}</p>
 
+        <nav className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <Jump href="/admin/transactions">Transactions</Jump>
+          <Jump href="/admin/boxes">Boxes</Jump>
+          <Jump href="/admin/users">Players</Jump>
+          <Jump href="/admin/payouts">Payouts</Jump>
+          <Jump href="/admin/email">Email</Jump>
+        </nav>
+
         {/* ---------------------------- the money ------------------------ */}
         <section className="mt-8">
           <h2 className="mb-3 text-sm font-semibold tracking-[0.2em] text-dusk uppercase">
             Money
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat label="Coins sold" value={coinsSold.toLocaleString('en-NG')} tone="cyan" />
-            <Stat label="Taken in" value={naira(revenue)} tone="lime" />
+            <Stat
+              label="Taken in"
+              value={naira(snapshot.nairaIn)}
+              tone="lime"
+              href="/admin/transactions"
+              hint={`${snapshot.coinsSold.toLocaleString('en-NG')} coins sold`}
+            />
+            <Stat
+              label="Waiting"
+              value={naira(snapshot.nairaPending)}
+              tone={snapshot.paymentsPending > 0 ? 'gold' : 'quiet'}
+              href="/admin/transactions"
+              hint={`${snapshot.paymentsPending.toLocaleString('en-NG')} transfers not landed`}
+            />
             <Stat
               label="Owed out"
-              value={naira(owed)}
-              tone={owed > 0 ? 'gold' : 'quiet'}
+              value={naira(snapshot.nairaOwed)}
+              tone={snapshot.nairaOwed > 0 ? 'gold' : 'quiet'}
               href="/admin/payouts"
             />
             <Stat
@@ -107,15 +115,28 @@ export default async function AdminPage() {
             />
           </div>
 
-          {owed > revenue ? (
+          {snapshot.nairaOwed > snapshot.nairaIn ? (
             <p className="mt-3 rounded-2xl border border-rose/30 bg-rose/10 px-4 py-3 text-sm text-rose">
               More is owed out than has come in. Every box beaten pays out twice the prize,
               funded by coins — check that the difficulty is holding.
             </p>
           ) : null}
 
-          {paid > 0 ? (
-            <p className="mt-3 text-sm text-dusk">{naira(paid)} has already been paid out.</p>
+          {snapshot.nairaPaid > 0 ? (
+            <p className="mt-3 text-sm text-dusk">
+              {naira(snapshot.nairaPaid)} has already been paid out.
+            </p>
+          ) : null}
+
+          {!snapshot.exact ? (
+            <div className="mt-3">
+              <InsightProblem
+                what="exact totals"
+                file={INSIGHTS_MIGRATION}
+                needsMigration
+                problem=""
+              />
+            </div>
           ) : null}
         </section>
 
@@ -125,45 +146,109 @@ export default async function AdminPage() {
             Activity
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Players" value={String(players.count ?? 0)} tone="violet" />
-            <Stat label="Boxes open" value={String(boxesOpen.count ?? 0)} tone="lime" />
-            <Stat label="Boxes beaten" value={String(boxesWon.count ?? 0)} tone="gold" />
-            <Stat label="Games played" value={String(attempts.count ?? 0)} tone="cyan" />
+            <Stat
+              label="Players"
+              value={snapshot.players.toLocaleString('en-NG')}
+              tone="violet"
+              href="/admin/users"
+              hint={
+                snapshot.exact
+                  ? `${snapshot.playersWhoPlayed.toLocaleString('en-NG')} have played`
+                  : undefined
+              }
+            />
+            <Stat
+              label="Boxes open"
+              value={snapshot.boxesOpen.toLocaleString('en-NG')}
+              tone="lime"
+              href="/admin/boxes"
+            />
+            <Stat
+              label="Boxes beaten"
+              value={snapshot.boxesWon.toLocaleString('en-NG')}
+              tone="gold"
+              href="/admin/boxes"
+            />
+            <Stat
+              label="Games played"
+              value={snapshot.games.toLocaleString('en-NG')}
+              tone="cyan"
+              href="/admin/boxes"
+            />
           </div>
+        </section>
+
+        {/* ---------------------------- who is spending ------------------ */}
+        <section className="mt-10">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+              <Trophy size={18} className="text-gold" /> Top spenders
+            </h2>
+            <Jump href="/admin/transactions">All transactions</Jump>
+          </div>
+
+          {!spenders.ok ? (
+            <InsightProblem
+              what="who is spending"
+              file={INSIGHTS_MIGRATION}
+              needsMigration={spenders.needsMigration}
+              problem={spenders.problem}
+            />
+          ) : spenders.rows.length === 0 ? (
+            <Empty title="No coins bought yet">The first top-up will show up here.</Empty>
+          ) : (
+            <Card className="overflow-hidden !p-0">
+              <ul className="divide-y divide-white/6">
+                {spenders.rows.map((spender, index) => (
+                  <li key={spender.userId} className="flex items-center gap-3 px-5 py-3.5">
+                    <span
+                      className={`tabular w-5 shrink-0 text-sm font-bold ${
+                        index === 0 ? 'text-gold' : 'text-dusk'
+                      }`}
+                    >
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {spender.displayName || spender.email}
+                      </p>
+                      <p className="truncate text-xs text-dusk">
+                        {spender.coinsBought.toLocaleString('en-NG')} coins ·{' '}
+                        {spender.payments} {spender.payments === 1 ? 'payment' : 'payments'}
+                      </p>
+                    </div>
+                    <span className="tabular shrink-0 text-sm font-bold text-lime">
+                      {naira(spender.nairaIn)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
         </section>
 
         {/* ---------------------------- boxes ---------------------------- */}
         <section className="mt-10">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-bold tracking-tight">Newest boxes</h2>
-            <div className="flex items-center gap-4">
-              <Link
-                href="/admin/users"
-                className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
-              >
-                Players <ArrowRight size={14} /> <PendingDot />
-              </Link>
-              <Link
-                href="/admin/payouts"
-                className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
-              >
-                Payouts <ArrowRight size={14} /> <PendingDot />
-              </Link>
-              <Link
-                href="/admin/email"
-                className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
-              >
-                Email <ArrowRight size={14} /> <PendingDot />
-              </Link>
-            </div>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+              <Users size={18} className="text-cyan" /> Busiest boxes
+            </h2>
+            <Jump href="/admin/boxes">Every box</Jump>
           </div>
 
-          {boxes.length === 0 ? (
+          {!busiest.ok ? (
+            <InsightProblem
+              what="how many people have played each box"
+              file={INSIGHTS_MIGRATION}
+              needsMigration={busiest.needsMigration}
+              problem={busiest.problem}
+            />
+          ) : busiest.rows.length === 0 ? (
             <Empty title="No boxes yet">Nobody has made one.</Empty>
           ) : (
             <Card className="overflow-hidden !p-0">
               <ul className="divide-y divide-white/6">
-                {boxes.map((box) => (
+                {busiest.rows.map((box) => (
                   <li key={box.id}>
                     <Link
                       href={`/b/${box.code}`}
@@ -178,8 +263,9 @@ export default async function AdminPage() {
                           {box.title || 'Untitled box'}
                         </p>
                         <p className="text-xs text-dusk">
-                          by {box.creator_name || 'unknown'} · {box.attempts_count} attempts ·
-                          best {box.best_level}/{LEVELS}
+                          by {box.creator_name || 'unknown'} · {box.players}{' '}
+                          {box.players === 1 ? 'player' : 'players'} · {box.games}{' '}
+                          {box.games === 1 ? 'game' : 'games'} · best {box.best_level}/{LEVELS}
                         </p>
                       </div>
                       <Pill tone={box.status === 'won' ? 'gold' : 'lime'}>
@@ -199,34 +285,14 @@ export default async function AdminPage() {
   )
 }
 
-function Stat({
-  label,
-  value,
-  tone,
-  href,
-}: {
-  label: string
-  value: string
-  tone: 'violet' | 'cyan' | 'lime' | 'gold' | 'quiet'
-  href?: string
-}) {
-  const tones = {
-    violet: 'text-violet-soft',
-    cyan: 'text-cyan',
-    lime: 'text-lime',
-    gold: 'text-gold',
-    quiet: 'text-mist',
-  }
-
-  const body = (
-    <Card className={href ? 'transition hover:border-violet/45' : undefined}>
-      <p className="text-xs font-semibold tracking-wider text-dusk uppercase">
-        {label}
-        {href ? <PendingDot /> : null}
-      </p>
-      <p className={`tabular mt-1.5 text-2xl font-bold ${tones[tone]}`}>{value}</p>
-    </Card>
+/** A link to somewhere else in the admin, that says it has been tapped. */
+function Jump({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-1 text-sm font-medium text-cyan underline underline-offset-4"
+    >
+      {children} <ArrowRight size={14} /> <PendingDot />
+    </Link>
   )
-
-  return href ? <Link href={href}>{body}</Link> : body
 }

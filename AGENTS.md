@@ -194,6 +194,26 @@ structural.
 - Deleting a player cascades to their boxes, attempts, ledger and payouts.
   `/admin/users` refuses while they have an open box or money owed, and warns
   what the payment history loses. Never make that path quieter.
+- An admin total is counted by Postgres, never by adding up the rows the app was
+  handed. PostgREST returns a page — a thousand rows by default — so a dashboard
+  that sums a select is right until the thousandth payment and then stops
+  growing without saying so, which is the worst kind of wrong because nothing
+  about it looks broken. The counting lives in `admin_money_snapshot`,
+  `admin_top_spenders` and `admin_box_activity` in `0013_admin_insights.sql`,
+  read through `src/lib/admin-insights.ts`. They are read-only, `security
+  definer`, and granted to `service_role` alone like the money functions,
+  because each of them reads across every player's rows.
+- A number nobody counted is never shown. Where 0013 is missing, the admin
+  screens name the migration to run — `InsightProblem` in
+  `src/app/admin/needs-migration.tsx` — rather than printing a total from what
+  little could be read. The one exception is the money snapshot, which falls
+  back to the old row-by-row sum so an un-migrated deployment keeps the figures
+  it already had, and says on screen that they are approximate.
+- Players and games are different numbers and `/admin/boxes` keeps them apart.
+  `boxes.attempts_count` counts goes; two hundred goes from four people is a box
+  four people are stuck on, and forty goes from forty people is a box being
+  shared. Only one of those is growth, and a single column cannot tell you
+  which.
 - Long-lived visual work that people download — the flyers in `src/lib/flyers.ts`
   — measures its blocks and centres the stack, never fixed coordinates. The
   title and description are the creator's text and vary in length; a layout
