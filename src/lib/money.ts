@@ -87,6 +87,63 @@ export function freeReplaysFor(isOwnBox: boolean): number {
 }
 
 /**
+ * The free coin a player starts with.
+ *
+ * A go at a box costs a coin, which means somebody who has just followed a
+ * shared link cannot play until they have paid — and the link promised them a
+ * game, not a payment screen. So every account is given this much, once, and
+ * the first go is on the house.
+ *
+ * This is the figure a fresh database starts at and the one a screen falls back
+ * to when the settings table cannot be read. The live number is
+ * `settings.welcome_coins`, changed at /admin/users without a deploy, and the
+ * grant itself reads it straight from that row — see
+ * supabase/migrations/0014_welcome_coin.sql. Set it to zero and the free coin
+ * stops, prose included: every sentence that mentions it goes through
+ * `welcomeCoinPhrase`.
+ */
+export const WELCOME_COINS = 1
+
+/**
+ * How many free coins one internet connection may claim.
+ *
+ * The free coin is a real go at ₦100,000, so fifty accounts made on one phone
+ * is fifty free shots at the prize and the obvious thing for somebody to try.
+ * This is what stops it.
+ *
+ * Small, but never one. Shared connections are the normal case here — a
+ * household, a hostel, a shop's wifi, and a whole mobile network behind one
+ * address — so a limit of one would take the free coin away from far more
+ * honest players than farmers. Like the box limit, the live number lives in the
+ * settings table so it can be moved the moment it turns out to be wrong; this
+ * is only what a fresh database starts at.
+ */
+export const MAX_WELCOME_PER_IP = 3
+
+/**
+ * The most free coins an admin may give each new player.
+ *
+ * A typo guard, exactly like `MAX_PRIZE_NAIRA`: every account ever made gets
+ * this many, so a stray zero turns a welcome into a giveaway funded by nobody.
+ * The database repeats it as a check constraint in
+ * supabase/migrations/0014_welcome_coin.sql.
+ */
+export const MAX_WELCOME_COINS = 50
+
+/**
+ * The free coin, the way a sentence says it.
+ *
+ * Empty when there is no free coin, so a screen can drop the whole sentence
+ * rather than print "you get 0 coins free". The same reasoning as
+ * `playPricePhrase`: a paragraph promising something the server no longer gives
+ * is the kind of lie the eye slides straight over.
+ */
+export function welcomeCoinPhrase(coins: number = WELCOME_COINS): string {
+  if (coins <= 0) return ''
+  return coins === 1 ? 'your first coin is free' : `your first ${coins} coins are free`
+}
+
+/**
  * The least a retry can ever cost.
  *
  * Used where the question is "can this player afford to keep going at all"

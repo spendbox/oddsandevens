@@ -76,6 +76,10 @@ export type MoneySnapshot = {
   paymentsFailed: number
   coinsSpent: number
   coinsHeld: number
+  /** Coins handed out rather than sold: the welcome coin, and any other bonus. */
+  coinsGiven: number
+  /** How many players have been given their welcome coin. */
+  welcomeClaims: number
   nairaOwed: number
   nairaPaid: number
   boxesTotal: number
@@ -111,6 +115,8 @@ export async function moneySnapshot(): Promise<MoneySnapshot> {
       paymentsFailed: number(row.payments_failed),
       coinsSpent: number(row.coins_spent),
       coinsHeld: number(row.coins_held),
+      coinsGiven: number(row.coins_given),
+      welcomeClaims: number(row.welcome_claims),
       nairaOwed: number(row.naira_owed),
       nairaPaid: number(row.naira_paid),
       boxesTotal: number(row.boxes_total),
@@ -174,9 +180,11 @@ async function approximateSnapshot(): Promise<MoneySnapshot> {
     nairaFailed: kobo(bounced),
     paymentsFailed: bounced.length,
     // Without the migration there is no cheap way to add up the ledger, and a
-    // guess at coins spent is not worth having. Nothing on screen quotes this
-    // unless the snapshot is exact.
+    // guess at coins spent or given away is not worth having. Nothing on screen
+    // quotes any of these three unless the snapshot is exact.
     coinsSpent: 0,
+    coinsGiven: 0,
+    welcomeClaims: 0,
     coinsHeld: ((wallets.data ?? []) as { coins: number }[]).reduce(
       (sum, row) => sum + row.coins,
       0,
@@ -303,4 +311,61 @@ export async function boxActivity(
   }))
 
   return { ok: true, rows }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Where the free coins are going                                             */
+/* ------------------------------------------------------------------------- */
+
+export type WelcomeIp = {
+  /** The connection, as it is stored. Shown shortened — see `maskIp`. */
+  ip: string
+  claims: number
+  coins: number
+  lastAt: string | null
+}
+
+/**
+ * The connections that have claimed more than one free coin.
+ *
+ * The evidence that the per-connection limit is doing its job, and the only way
+ * to tell whether it is set right. A connection with a queue of accounts behind
+ * it is either a hostel, an office or somebody working through your prize fund,
+ * and nothing but looking will say which.
+ */
+export async function welcomeIps(limit = 8): Promise<Insight<WelcomeIp>> {
+  const admin = supabaseAdmin()
+
+  const { data, error } = await admin.rpc('admin_welcome_ips', { p_limit: limit })
+  if (error) return failed<WelcomeIp>(error)
+
+  const rows = ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    ip: String(row.ip ?? ''),
+    claims: number(row.claims),
+    coins: number(row.coins),
+    lastAt: (row.last_at as string | null) ?? null,
+  }))
+
+  return { ok: true, rows }
+}
+
+/**
+ * An address, shortened for a screen.
+ *
+ * An admin looking at this list needs to tell two connections apart and see how
+ * many accounts sit behind each. They do not need the whole address to do it,
+ * and a page of them is a page of somebody's home details — so the last part is
+ * dropped. The full value stays in the database, where only the service role
+ * can reach it.
+ */
+export function maskIp(ip: string): string {
+  if (!ip) return 'unknown'
+
+  // IPv6 is already stored as the /64 it was handed out on, not one device.
+  if (ip.includes(':')) return ip
+
+  const parts = ip.split('.')
+  if (parts.length !== 4) return ip
+
+  return `${parts[0]}.${parts[1]}.${parts[2]}.x`
 }

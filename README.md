@@ -59,6 +59,28 @@ into `start_attempt` rather than assumed there, and reloading a run in progress 
 never charged twice: the function looks for the live attempt before it looks at
 the wallet.
 
+**The first coin is free.** A go costs a coin, which would leave somebody who has
+just followed a shared link unable to play until they had paid — and the link
+promised them a game, not a payment screen. So every account is given one coin,
+once: everybody who already had an account got theirs when
+`0014_welcome_coin.sql` was run, and everybody who signs up from then on gets
+theirs on the way in.
+
+A free coin is a real go at the prize, so it is limited by the connection it was
+claimed on: three per connection, changeable at `/admin/users`. Fifty accounts
+made on one phone for fifty free shots at ₦100,000 is the obvious thing to try
+and the only version of it a server can see coming. The limit deliberately is not
+one — a household, a hostel, a shop's wifi and whole mobile networks all share an
+address here, so a tight limit turns away far more honest players than farmers,
+and the admin card lists the connections sitting on the limit so it can be
+raised when that is what is happening. IPv6 is counted by the /64 the address was
+handed out on, because otherwise a new address per account is free.
+
+Nothing about the giveaway can fail a sign-up: if the coin cannot be given, the
+account is still made and the reason goes to the server log. Nobody is given two
+— the grant is one row per player, keyed on their id, so a second tab, a retry or
+a re-run of the migration all land on the same row and do nothing.
+
 **One free replay per game, then a choice.** Miss a level and you can take it
 again — new pattern, same level, no charge. Not in your own box, though: the
 creator is paid ₦100,000 when it is beaten, so the free go at beating it
@@ -110,6 +132,7 @@ Nothing else in the app sends email.
 | | |
 |---|---|
 | Making a box | Free |
+| Your first coin | Free — one per player, up to 3 per internet connection |
 | One coin | ₦100 |
 | Smallest top-up | 5 coins (₦500) |
 | One game, from level 1 | 1 coin (₦100) |
@@ -228,6 +251,7 @@ supabase/migrations/0010_free_first_level.sql
 supabase/migrations/0011_no_free_replay_on_your_own_box.sql
 supabase/migrations/0012_editable_prize.sql
 supabase/migrations/0013_admin_insights.sql
+supabase/migrations/0014_welcome_coin.sql
 ```
 
 Every one of them is safe to run twice, so a database already part-way up this
@@ -236,7 +260,8 @@ applied the prize is not editable: `/admin/users` says so in as many words, and
 every box is made at the built-in ₦100,000. Until 0013 is applied the admin
 screens cannot say who is spending or how many people have played a box, and
 they say that rather than guessing — 0013 only reads, and adds nothing you can
-lose.
+lose. 0014 is the free coin: running it gives every player who already has an
+account one coin, once, and is safe to run again — nobody gets a second.
 
 0006 also creates a public `box-images` storage bucket. If your Supabase project
 blocks writes to `storage.buckets` from the SQL editor, make it by hand under

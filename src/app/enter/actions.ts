@@ -7,6 +7,7 @@ import { accountExists, nameFromEmail } from '@/lib/accounts'
 import { emailConfigured } from '@/lib/email'
 import { sendResetLink } from '@/lib/reset'
 import { siteOrigin } from '@/lib/site'
+import { welcomeCoin } from '@/lib/welcome'
 
 /**
  * Signing in and signing up — an email and a password, and nothing else.
@@ -151,6 +152,13 @@ export async function enterStep(_state: EnterState, formData: FormData): Promise
       { id: data.user.id, email, display_name: nameFromEmail(email), password_set: true },
       { onConflict: 'id' },
     )
+
+    // The free coin. Here as well as in loadOrCreateProfile because signing up
+    // writes the profile row itself and never goes through that path, so this
+    // is the only moment a new account passes through on its way to /home.
+    // Granting is keyed on the player in the database, so the two callers
+    // cannot between them hand anybody two. Before the redirect, which throws.
+    await welcomeCoin(data.user.id)
   }
 
   redirect(next)

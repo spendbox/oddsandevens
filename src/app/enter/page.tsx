@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Card } from '@/components/ui'
 import { Logo } from '@/components/site-header'
 import { naira } from '@/lib/money'
-import { livePrize } from '@/lib/settings'
+import { livePrize, liveWelcomeCoins } from '@/lib/settings'
 import { EnterForm } from './enter-form'
 
 export const metadata = { title: 'Play' }
@@ -14,7 +14,7 @@ export default async function EnterPage({ searchParams }: PageProps<'/enter'>) {
   const next =
     typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/home'
   const problem = typeof params.problem === 'string' ? params.problem : null
-  const prize = await livePrize()
+  const [prize, welcomeCoins] = await Promise.all([livePrize(), liveWelcomeCoins()])
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-10">
@@ -38,7 +38,7 @@ export default async function EnterPage({ searchParams }: PageProps<'/enter'>) {
       ) : null}
 
       <Card>
-        <EnterForm next={next} />
+        <EnterForm next={next} welcomeCoins={welcomeCoins} />
       </Card>
 
       <p className="mt-6 text-center text-sm text-dusk">
