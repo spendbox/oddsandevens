@@ -2,11 +2,25 @@ import { Card } from '@/components/ui'
 import { LegalPage, Section } from '@/components/legal-page'
 import { optionalProfile } from '@/lib/session'
 import { CONTACT_EMAIL } from '@/lib/contact'
+import { COINS_PER_PLAY, coinWord, coinsToNaira, naira, retryCostFor } from '@/lib/money'
+import { liveCoinPrice } from '@/lib/settings'
 
 export const metadata = { title: 'Responsible play' }
 
+/**
+ * What a run costs, worked out rather than written down.
+ *
+ * The page has to name a real figure — "it adds up" persuades nobody, a number
+ * does — and a number typed into prose is the one thing on this site guaranteed
+ * to go stale, because the price of a coin is a setting an admin can move and
+ * the price of carrying on is a curve. So the example is assembled from the
+ * same functions the game charges from: one go, the free replay spent, then
+ * carrying on twice in the middle of the ladder.
+ */
+const EXAMPLE_COINS = COINS_PER_PLAY + retryCostFor(5) + retryCostFor(6)
+
 export default async function ResponsiblePlayPage() {
-  const profile = await optionalProfile()
+  const [profile, coinPrice] = await Promise.all([optionalProfile(), liveCoinPrice()])
 
   return (
     <LegalPage
@@ -16,8 +30,10 @@ export default async function ResponsiblePlayPage() {
     >
       <Section heading="What this actually costs">
         <p>
-          Every attempt is money spent, whether you win or not. A run that ends at level 6
-          after three retries has cost four coins — that is ₦400, gone.
+          Every attempt is money spent, whether you win or not. A run that ends at level 6 —
+          one go, the free replay used, then carrying on twice — has cost{' '}
+          {coinWord(EXAMPLE_COINS)}: that is {naira(coinsToNaira(EXAMPLE_COINS, coinPrice))},
+          gone.
         </p>
         <p>
           Most boxes are never beaten. Level 10 asks for thirteen flashes recalled in five

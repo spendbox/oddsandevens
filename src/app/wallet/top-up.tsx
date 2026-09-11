@@ -17,7 +17,6 @@ import { SubmitDot } from '@/components/pending-dot'
 import {
   MAX_TOPUP_COINS,
   MIN_TOPUP_COINS,
-  NAIRA_PER_COIN,
   coinsToNaira,
   naira,
 } from '@/lib/money'
@@ -37,6 +36,13 @@ import { startTopup } from './actions'
  * question, and the coins that follow it, are the server's, through the same
  * function the webhook uses. If this tab is closed halfway the webhook still
  * finishes the job.
+ *
+ * The price comes down as a prop for the same reason. What a coin costs is a
+ * setting an admin can move, and this file is compiled into the browser — a
+ * constant here would be the price as it was when the page was built, quoted
+ * confidently on the pack somebody is about to tap. The amount actually charged
+ * is worked out again on the server when the transfer is opened, and the
+ * account card below shows that figure rather than this one.
  */
 
 /** The packs on offer. The first is the minimum; the rest are round numbers. */
@@ -119,7 +125,7 @@ function recall(): Transfer | null {
   }
 }
 
-export function TopUp() {
+export function TopUp({ nairaPerCoin }: { nairaPerCoin: number }) {
   const router = useRouter()
 
   const [stage, setStage] = useState<Stage>({ kind: 'choose' })
@@ -316,7 +322,9 @@ export function TopUp() {
               {pack.coins}
               <span className="ml-1.5 text-base font-medium text-mist">coins</span>
             </p>
-            <p className="tabular mt-1 text-sm text-gold">{naira(coinsToNaira(pack.coins))}</p>
+            <p className="tabular mt-1 text-sm text-gold">
+              {naira(coinsToNaira(pack.coins, nairaPerCoin))}
+            </p>
           </button>
         ))}
       </div>
@@ -338,7 +346,7 @@ export function TopUp() {
                            focus:ring-2 focus:ring-gold/25"
               />
               <span className="text-sm text-mist">
-                {custom === 1 ? 'coin' : 'coins'} × {naira(NAIRA_PER_COIN)}
+                {custom === 1 ? 'coin' : 'coins'} × {naira(nairaPerCoin)}
               </span>
             </div>
           </label>
@@ -347,14 +355,14 @@ export function TopUp() {
           <div className="flex items-baseline justify-between rounded-2xl bg-black/30 px-4 py-3">
             <span className="text-sm text-mist">You transfer</span>
             <span className="tabular text-2xl font-bold text-gold">
-              {customValid ? naira(coinsToNaira(custom)) : '—'}
+              {customValid ? naira(coinsToNaira(custom, nairaPerCoin)) : '—'}
             </span>
           </div>
 
           {tooFew ? (
             <p className="text-sm text-rose">
               The smallest top-up is {MIN_TOPUP_COINS} coins (
-              {naira(coinsToNaira(MIN_TOPUP_COINS))}).
+              {naira(coinsToNaira(MIN_TOPUP_COINS, nairaPerCoin))}).
             </p>
           ) : null}
           {tooMany ? (
@@ -371,7 +379,9 @@ export function TopUp() {
             onClick={() => void open(custom)}
           >
             <Landmark size={18} />
-            {customValid ? `Pay ${naira(coinsToNaira(custom))} by transfer` : 'Pay by transfer'}
+            {customValid
+              ? `Pay ${naira(coinsToNaira(custom, nairaPerCoin))} by transfer`
+              : 'Pay by transfer'}
           </Button>
         </div>
       </Card>

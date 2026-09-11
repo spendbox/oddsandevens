@@ -6,14 +6,13 @@ import { LEVELS, planFor, stepsFor } from '@/lib/game'
 import {
   COINS_PER_PLAY,
   MIN_TOPUP_COINS,
-  NAIRA_PER_COIN,
   RETRY_PRICES,
   coinWord,
   coinsToNaira,
   naira,
   priceLabel,
 } from '@/lib/money'
-import { livePrize } from '@/lib/settings'
+import { liveCoinPrice, livePrize } from '@/lib/settings'
 
 export const metadata = {
   title: 'How it works',
@@ -24,7 +23,11 @@ export default async function HowItWorksPage() {
   // The page that explains the money has to quote the money that is actually
   // being offered, so the prize comes from the settings row rather than the
   // constant it falls back to.
-  const [profile, prize] = await Promise.all([optionalProfile(), livePrize()])
+  const [profile, prize, coinPrice] = await Promise.all([
+    optionalProfile(),
+    livePrize(),
+    liveCoinPrice(),
+  ])
 
   return (
     <LegalPage
@@ -50,11 +53,11 @@ export default async function HowItWorksPage() {
         <p>
           A go at a box is <strong>{coinWord(COINS_PER_PLAY)}</strong>. Open any box link, tap
           Play, and you are on level 1 with all {LEVELS} levels and the whole {naira(prize)} in
-          front of you, for {naira(coinsToNaira(COINS_PER_PLAY))}.
+          front of you, for {naira(coinsToNaira(COINS_PER_PLAY, coinPrice))}.
         </p>
         <p>
-          A coin is {naira(NAIRA_PER_COIN)} and the smallest top-up is {MIN_TOPUP_COINS} coins
-          ({naira(coinsToNaira(MIN_TOPUP_COINS))}), bought through Paystack. The only other
+          A coin is {naira(coinPrice)} and the smallest top-up is {MIN_TOPUP_COINS} coins
+          ({naira(coinsToNaira(MIN_TOPUP_COINS, coinPrice))}), bought through Paystack. The only other
           thing coins buy is <strong>carrying on from a level you missed</strong> instead of
           going back to the start, and what that costs, level by level, is further down this
           page.

@@ -11,12 +11,11 @@ import { siteStats } from '@/lib/stats'
 import { LEVELS } from '@/lib/game'
 import {
   COINS_PER_PLAY,
-  NAIRA_PER_COIN,
   naira,
   playPricePhrase,
   priceLabel,
 } from '@/lib/money'
-import { livePrize } from '@/lib/settings'
+import { liveCoinPrice, livePrize } from '@/lib/settings'
 
 /** The three levels worth showing: the first, the middle, and the wall. */
 const SHOWN_LEVELS = [1, 5, 10]
@@ -35,10 +34,14 @@ const SHOWN_LEVELS = [1, 5, 10]
 export const dynamic = 'force-dynamic'
 
 export default async function LandingPage() {
-  const [profile, stats, prize] = await Promise.all([
+  const [profile, stats, prize, coinPrice] = await Promise.all([
     optionalProfile(),
     siteStats(),
     livePrize(),
+    // What a coin costs today. Quoted in the same breath as the price of a go,
+    // so it has to come from the same place the wallet charges from rather than
+    // from a constant that was true when this page was written.
+    liveCoinPrice(),
   ])
   const start = profile ? '/home' : '/enter'
 
@@ -211,7 +214,7 @@ export default async function LandingPage() {
             <p className="mx-auto mt-3 max-w-md text-mist">
               It takes one tap and costs nothing — you are never charged for making a box or
               for anybody playing it. A go at someone else&apos;s box is{' '}
-              {priceLabel(COINS_PER_PLAY).toLowerCase()}, and a coin is {naira(NAIRA_PER_COIN)}.
+              {priceLabel(COINS_PER_PLAY).toLowerCase()}, and a coin is {naira(coinPrice)}.
             </p>
             <ButtonLink href={start} tone="gold" size="lg" className="mt-6">
               <Zap size={18} /> Create my box — free

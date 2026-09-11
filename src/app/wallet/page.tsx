@@ -10,11 +10,11 @@ import {
   COINS_PER_PLAY,
   MAX_TOPUP_COINS,
   MIN_TOPUP_COINS,
-  NAIRA_PER_COIN,
   coinWord,
   coinsToNaira,
   naira,
 } from '@/lib/money'
+import { liveCoinPrice } from '@/lib/settings'
 import type { LedgerEntry } from '@/lib/types'
 import { TopUp } from './top-up'
 
@@ -25,6 +25,7 @@ const PROBLEMS: Record<string, string> = {
   maximum: `That is more coins than we sell in one go. Try ${MAX_TOPUP_COINS} or fewer.`,
   start: 'We could not start that payment. Try again.',
   paystack: 'Paystack would not open a checkout just now. Try again in a moment.',
+  price: 'We could not price that just now. Try again in a moment.',
   setup: 'Payments are not set up on this deployment yet.',
   verify: 'We could not confirm that payment. If money left your account, contact support.',
 }
@@ -33,6 +34,12 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
   const { profile } = await requireProfile()
   const supabase = await supabaseServer()
   const params = await searchParams
+
+  // Every figure on this screen is a price, and this is the screen somebody is
+  // about to pay from. The packs, the custom amount and the sentence above them
+  // all come off this one number, which is the same one the transfer route
+  // reads when it opens the payment.
+  const coinPrice = await liveCoinPrice()
 
   const { data } = await supabase
     .from('coin_ledger')
@@ -66,7 +73,7 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
               level is the other thing they buy, and it is quoted at its
               cheapest — at level 8 the same coins buy fewer. */}
           <p className="mt-1 text-mist">
-            worth {naira(coinsToNaira(profile.coins))} ·{' '}
+            worth {naira(coinsToNaira(profile.coins, coinPrice))} ·{' '}
             {profile.coins >= COINS_PER_PLAY
               ? `${Math.floor(profile.coins / COINS_PER_PLAY)} ${
                   Math.floor(profile.coins / COINS_PER_PLAY) === 1 ? 'go' : 'goes'
@@ -101,13 +108,13 @@ export default async function WalletPage({ searchParams }: PageProps<'/wallet'>)
           <p className="mt-1.5 text-sm text-mist">
             A go at a box is {coinWord(COINS_PER_PLAY)}. Carrying on from a level that beat
             you, instead of starting over, is from {coinWord(CHEAPEST_RETRY)} — more the
-            further up you are. One coin is {naira(NAIRA_PER_COIN)}, minimum {MIN_TOPUP_COINS}.
+            further up you are. One coin is {naira(coinPrice)}, minimum {MIN_TOPUP_COINS}.
             Pay by transfer from your bank app — the account to send to appears right here, and
             your coins land by themselves.
           </p>
 
           <div className="mt-5">
-            <TopUp />
+            <TopUp nairaPerCoin={coinPrice} />
           </div>
         </section>
 

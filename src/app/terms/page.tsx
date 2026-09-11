@@ -4,11 +4,11 @@ import { CONTACT_EMAIL } from '@/lib/contact'
 import {
   COINS_PER_PLAY,
   MIN_TOPUP_COINS,
-  NAIRA_PER_COIN,
+  coinsToNaira,
   naira,
   priceLabel,
 } from '@/lib/money'
-import { livePrize } from '@/lib/settings'
+import { liveCoinPrice, livePrize } from '@/lib/settings'
 import { LEVELS } from '@/lib/game'
 
 export const metadata = { title: 'Terms and conditions' }
@@ -17,7 +17,14 @@ export default async function TermsPage() {
   // The prize is what an admin has set it to, not what the code was written
   // with. These are the terms people are held to; a figure here that no longer
   // matches what a box carries is the worst possible place to be out of date.
-  const [profile, prize] = await Promise.all([optionalProfile(), livePrize()])
+  // The price of a coin is read the same way and for a sharper version of the
+  // same reason: these terms say what a player is charged, and a figure here
+  // that no longer matches what the wallet takes is a term nobody agreed to.
+  const [profile, prize, coinPrice] = await Promise.all([
+    optionalProfile(),
+    livePrize(),
+    liveCoinPrice(),
+  ])
 
   return (
     <LegalPage
@@ -50,9 +57,9 @@ export default async function TermsPage() {
 
       <Section heading="3. Coins">
         <p>
-          A coin costs {naira(NAIRA_PER_COIN)}. The smallest top-up is {MIN_TOPUP_COINS}{' '}
-          coins. Coins are bought through Paystack and credited only once Paystack confirms
-          the payment.
+          A coin costs {naira(coinPrice)}. The smallest top-up is {MIN_TOPUP_COINS} coins (
+          {naira(coinsToNaira(MIN_TOPUP_COINS, coinPrice))}). Coins are bought through
+          Paystack and credited only once Paystack confirms the payment.
         </p>
         <p>
           A go at a box is {priceLabel(COINS_PER_PLAY).toLowerCase()}, charged when the game

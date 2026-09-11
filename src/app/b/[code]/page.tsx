@@ -15,13 +15,12 @@ import { LEVELS, planFor, stepsFor } from '@/lib/game'
 import {
   CHEAPEST_RETRY,
   COINS_PER_PLAY,
-  NAIRA_PER_COIN,
   coinWord,
   freeReplaysFor,
   naira,
   priceLabel,
 } from '@/lib/money'
-import { livePrize } from '@/lib/settings'
+import { liveCoinPrice, livePrize } from '@/lib/settings'
 import type { Box } from '@/lib/types'
 import { play } from './actions'
 
@@ -59,7 +58,11 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
   // when the box was made and is what its players were promised. The live
   // setting is only for the card at the bottom, which is an invitation to make
   // a new one.
-  const newBoxPrize = await livePrize()
+  // And what a coin costs today, which is the other half of the sentence under
+  // the play button: a stranger who has just followed this link is being told
+  // what a go costs in coins and what a coin costs in naira, and the second
+  // number has to be the one the wallet will actually ask them for.
+  const [newBoxPrize, coinPrice] = await Promise.all([livePrize(), liveCoinPrice()])
 
   const isMine = profile?.id === box.creator_id
   const isOpen = box.status === 'open'
@@ -175,7 +178,7 @@ export default async function BoxPage({ params, searchParams }: PageProps<'/b/[c
 
               <p className="mt-4 text-center text-sm text-dusk">
                 {!profile
-                  ? `A go is ${priceLabel(COINS_PER_PLAY).toLowerCase()} — coins are ${naira(NAIRA_PER_COIN)} each. Carrying on from a level you miss costs more.`
+                  ? `A go is ${priceLabel(COINS_PER_PLAY).toLowerCase()} — coins are ${naira(coinPrice)} each. Carrying on from a level you miss costs more.`
                   : freeReplays < 1
                     ? `A go is ${priceLabel(COINS_PER_PLAY).toLowerCase()}. Your own box gives you no free replay, so a level you miss ` +
                       'costs coins to carry on from, or another go to start over.'

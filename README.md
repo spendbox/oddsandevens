@@ -3,8 +3,8 @@
 **Create your box free. Share it. Earn.**
 
 A box holds ₦100,000. Making one is free and you keep one at a time. Anyone with
-the link can take a go for one coin — ₦100 — and the creator is never charged for
-anything. Beating a box means clearing ten patterns in a row against a clock that
+the link can take a go for one coin — ₦100 at the price a fresh install starts at
+— and the creator is never charged for anything. Beating a box means clearing ten patterns in a row against a clock that
 never gets kinder. Whoever does it first takes ₦100,000 — and the person who
 made the box takes ₦100,000 too.
 
@@ -13,6 +13,15 @@ every page falls back to; the live figure lives in the `settings` table, is
 changed at `/admin/users` without a deploy, and is stamped onto each box as it is
 created. A box that already exists keeps the amount it was made with, because
 that amount is a promise to everybody playing it.
+
+The price of a coin works the same way. ₦100 is where it starts and what every
+page falls back to; the live figure is in the same `settings` row, is changed at
+`/admin/users` without a deploy, and is read again by the two paths that take
+money at the moment they open the payment. Every screen that quotes a price —
+the landing page, every box page, the wallet and its packs, the terms, How it
+works and Responsible play — reads it from there, so moving it moves all of
+them at once. A transfer somebody has already been given an account for is
+honoured at the amount they were quoted.
 
 ---
 
@@ -51,7 +60,7 @@ of the deadline, not just a screen animation. It was not, once, and every level
 quietly ran 1.2 seconds short of the clock the player could see.
 
 **A go costs one coin.** Tap Play on any open box and you are on level 1 with
-₦100,000 in front of you for ₦100. `COINS_PER_PLAY` in `src/lib/money.ts` is the
+₦100,000 in front of you for the price of one coin. `COINS_PER_PLAY` in `src/lib/money.ts` is the
 only place that number is written down, and every screen that quotes the price of
 a game reads it from there — through `priceLabel` for a button, `playPricePhrase`
 for a sentence — so moving it, to zero included, is one line. The cost is passed
@@ -133,9 +142,9 @@ Nothing else in the app sends email.
 |---|---|
 | Making a box | Free |
 | Your first coin | Free — one per player, up to 3 per internet connection |
-| One coin | ₦100 |
-| Smallest top-up | 5 coins (₦500) |
-| One game, from level 1 | 1 coin (₦100) |
+| One coin | ₦100 to start with, editable at `/admin/users` |
+| Smallest top-up | 5 coins — ₦500 at that price |
+| One game, from level 1 | 1 coin |
 | Free replays in a run | 1 in somebody else's box, 0 in your own |
 | Carrying on from a level, after the free replay | 2 coins at levels 1–3, 3 at 4–7, 5 at 8–10 |
 | Starting again from level 1 | 1 coin — it is a fresh game |
@@ -147,6 +156,16 @@ exists only to catch a stray zero, since every box pays out twice what it says.
 Changing it moves the prize on boxes made from then on; boxes that already exist
 keep theirs, and the admin screen says how many are still carrying another
 figure.
+
+The price of a coin is editable at `/admin/users` too, between
+`MIN_NAIRA_PER_COIN` and `MAX_NAIRA_PER_COIN`. The floor is not squeamishness
+about cheap coins: nobody can buy fewer than five at a time, so a price below it
+would make the smallest possible top-up an amount the transfer fee swallows and
+Paystack may refuse. The ceiling is the same stray-zero guard as
+`MAX_PRIZE_NAIRA`. Changing the price changes what the next payment costs and
+every price quoted on the site; it never reprices a payment already open, and it
+never touches what a coin in a wallet buys — a coin is a go at a box, not a
+stored amount of naira.
 
 There is also a ceiling on how many boxes may exist at all, since every one of
 them is a standing six-figure promise. It starts at 10,000 and is editable at
@@ -252,6 +271,7 @@ supabase/migrations/0011_no_free_replay_on_your_own_box.sql
 supabase/migrations/0012_editable_prize.sql
 supabase/migrations/0013_admin_insights.sql
 supabase/migrations/0014_welcome_coin.sql
+supabase/migrations/0015_coin_price.sql
 ```
 
 Every one of them is safe to run twice, so a database already part-way up this
@@ -261,7 +281,10 @@ every box is made at the built-in ₦100,000. Until 0013 is applied the admin
 screens cannot say who is spending or how many people have played a box, and
 they say that rather than guessing — 0013 only reads, and adds nothing you can
 lose. 0014 is the free coin: running it gives every player who already has an
-account one coin, once, and is safe to run again — nobody gets a second.
+account one coin, once, and is safe to run again — nobody gets a second. Until
+0015 is applied the price of a coin is not editable either: `/admin/users` says
+so, coins are sold at the built-in ₦100, and every screen quotes that — nothing
+is out of step, it simply cannot be changed without a deploy.
 
 0006 also creates a public `box-images` storage bucket. If your Supabase project
 blocks writes to `storage.buckets` from the SQL editor, make it by hand under

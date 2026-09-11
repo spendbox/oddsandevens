@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { isAdmin, requireProfile } from '@/lib/session'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { MAX_PRIZE_NAIRA, MAX_WELCOME_COINS, naira } from '@/lib/money'
+import { MAX_PRIZE_NAIRA, MAX_WELCOME_COINS, coinPriceProblem, naira } from '@/lib/money'
 
 export type DeleteState = { problem?: string; done?: string }
 
@@ -364,4 +364,95 @@ function welcomeProblem(error: { code?: string; message?: string }): string {
   }
 
   return `Could not save that: ${message || 'the database refused it.'}`
+}
+
+export type CoinPriceState = { problem?: string; saved?: number }
+
+/**
+ * Change what a coin costs.
+ *
+ * The price of the only thing this site sells, and until 0015 it was a constant
+ * in `money.ts` — which meant a deploy to change it, and a deploy is the wrong
+ * unit of time for a price. It lives in the settings row now, every screen that
+ * quotes it reads it from there, and the two paths that take money read it
+ * again at the moment they open the payment.
+ *
+ * Three things this deliberately does not do.
+ *
+ * It does not touch a payment somebody is in the middle of making. A top-up row
+ * carries the coins and the amount in kobo it was opened with, and that pair is
+ * what was quoted; a transfer opened at the old price is still honoured at the
+ * old price when the money lands.
+ *
+ * It does not reprice what is already in a wallet. A coin is a go at a box,
+ * not a stored naira balance — "worth ₦x" on the wallet screen is what buying
+ * that many costs today, and it moves with the price like every other quote.
+ *
+ * And it does not take a price the payment gateway cannot work with. Both ends
+ * of that are explained rather than merely refused — see `coinPriceProblem` in
+ * `src/lib/money.ts`, which is also what the check constraint in 0015 says.
+ */
+export async function setCoinPrice(
+  _state: CoinPriceState,
+  formData: FormData,
+): Promise<CoinPriceState> {
+  const { profile } = await requireProfile()
+  if (!isAdmin(profile.email)) return { problem: 'Not allowed.' }
+
+  // Typed with commas or a naira sign more often than not. Strip them rather
+  // than refusing an amount that was perfectly clear.
+  const typed = String(formData.get('naira_per_coin') ?? '').replace(/[₦,\s]/g, '')
+  const raw = Number(typed)
+
+  if (!typed || !Number.isFinite(raw)) {
+    return { problem: 'Give a price in naira.' }
+  }
+
+  const wanted = Math.floor(raw)
+  const refusal = coinPriceProblem(wanted)
+  if (refusal) return { problem: refusal }
+
+  const admin = supabaseAdmin()
+  const { data, error } = await admin.rpc('set_coin_price', { p_naira: wanted })
+
+  if (error) {
+    console.error('[admin] set_coin_price failed', error)
+    return { problem: coinPriceDbProblem(error) }
+  }
+
+  const saved = typeof data === 'number' ? data : wanted
+
+  // Everything is stale the moment this write lands, and that is not a figure
+  // of speech: the header at the top of every page prices the coins in the
+  // player's wallet, so naming paths one at a time here would be a list that
+  // silently goes out of date the next time a screen is added. The whole tree
+  // under the root layout goes instead — the landing page, both wallet screens,
+  // every box page, the written pages and the admin screens with it.
+  revalidatePath('/', 'layout')
+
+  return { saved }
+}
+
+/** The same translation as `prizeProblem`, one migration later again. */
+function coinPriceDbProblem(error: { code?: string; message?: string }): string {
+  const code = error.code ?? ''
+  const message = error.message ?? ''
+
+  const missing =
+    code === 'PGRST202' ||
+    code === 'PGRST205' ||
+    code === '42883' ||
+    code === '42P01' ||
+    code === '42703' ||
+    /could not find the (function|table|column)/i.test(message)
+
+  if (missing) {
+    return (
+      'This database has no editable coin price yet. Run the migration in ' +
+      'supabase/migrations — 0015_coin_price.sql — then try again. Until it is run, coins ' +
+      'are sold at the built-in price and every screen quotes that.'
+    )
+  }
+
+  return `Could not save that price: ${message || 'the database refused it.'}`
 }

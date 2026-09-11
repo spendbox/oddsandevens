@@ -11,7 +11,9 @@ import { UserRow, type PlayerRow } from './user-row'
 import { BoxLimit } from './box-limit'
 import { PrizeAmount } from './prize-amount'
 import { WelcomeCoin } from './welcome-coin'
+import { CoinPrice } from './coin-price'
 import { maskIp, moneySnapshot, welcomeIps } from '@/lib/admin-insights'
+import { NAIRA_PER_COIN } from '@/lib/money'
 import type { Box, Payout, Profile } from '@/lib/types'
 
 export const metadata = { title: 'Players' }
@@ -42,6 +44,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
     settingsRow,
     prizeRow,
     welcomeRow,
+    coinPriceRow,
     openBoxPrizes,
     boxCount,
     snapshot,
@@ -62,6 +65,12 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
     // fails the whole query it is named in — and a database missing 0014 must
     // not make the prize and the box limit look unreadable too.
     admin.from('settings').select('welcome_coins, welcome_max_per_ip').maybeSingle(),
+    // And once more for the price of a coin, one migration later again. Four
+    // reads of one row looks wasteful and is not: each of these settings
+    // arrived in its own migration, and naming a column that does not exist yet
+    // fails the whole query — so sharing a select would mean the newest setting
+    // taking all the older ones down with it on a database that is behind.
+    admin.from('settings').select('naira_per_coin').maybeSingle(),
     admin.from('boxes').select('prize_naira').eq('status', 'open'),
     admin.from('boxes').select('*', { count: 'exact', head: true }),
     moneySnapshot(),
@@ -92,6 +101,13 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
   const welcomeProblem = welcomeRow.error
     ? welcomeRow.error.message
     : welcomeRow.data
+      ? null
+      : 'no settings row'
+
+  // Same question again for the price of a coin, and 0015 this time.
+  const coinPriceProblem = coinPriceRow.error
+    ? coinPriceRow.error.message
+    : coinPriceRow.data
       ? null
       : 'no settings row'
 
@@ -163,8 +179,14 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
             stillOpen={stillOpen}
             unreadable={prizeProblem}
           />
+          <CoinPrice
+            current={coinPriceRow.data?.naira_per_coin ?? null}
+            held={snapshot.exact ? snapshot.coinsHeld : null}
+            unreadable={coinPriceProblem}
+          />
           <WelcomeCoin
             current={welcomeRow.data?.welcome_coins ?? null}
+            nairaPerCoin={coinPriceRow.data?.naira_per_coin ?? NAIRA_PER_COIN}
             perIp={welcomeRow.data?.welcome_max_per_ip ?? null}
             given={snapshot.exact ? snapshot.coinsGiven : 0}
             claims={snapshot.exact ? snapshot.welcomeClaims : 0}
