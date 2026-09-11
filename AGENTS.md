@@ -48,7 +48,9 @@ structural.
   granted to `service_role` alone. Add to those rather than doing a read then a
   write from the app.
 - Prices live in `src/lib/money.ts`; the difficulty curve lives in
-  `src/lib/game.ts`. Neither number should be written down anywhere else.
+  `src/lib/game.ts`. Neither number should be written down anywhere else. What a
+  coin costs is the one price that is a setting rather than a constant — see
+  below — but it still passes through `money.ts` on its way to a screen.
 - A game costs `COINS_PER_PLAY`, currently 1. Every screen that quotes that
   price reads it from `money.ts` — `priceLabel` for a button or a table cell,
   `playPricePhrase` for a sentence — so moving it, to zero included, is one
@@ -57,6 +59,30 @@ structural.
   why the phrase is a function and not a string. The cost is passed into
   `start_attempt` rather than assumed there, and a free start (a zero price)
   skips the wallet and the ledger rather than writing a zero to both.
+- What a coin costs is a setting, not a constant. `settings.naira_per_coin` is
+  the live figure, changed at `/admin/users`; `NAIRA_PER_COIN` in `money.ts` is
+  only what a fresh database starts at and what a page falls back to. Server
+  components read it through `liveCoinPrice()` in `src/lib/settings.ts`, which
+  never throws, and a client component takes it as a prop — a constant compiled
+  into the browser bundle would quote last month's price on the pack somebody is
+  about to tap. `coinsToNaira` takes the price as an argument with no default,
+  which is the enforcement: the compiler asks every caller where its number came
+  from, and the only honest answers are that function or a prop from it.
+- The two paths that take money — `startTopup` and `api/pay/transfer` — read the
+  price again through `coinPriceForCharge()` at the moment they open the
+  payment, never from the screen that asked. It is the one reader of that row
+  allowed to fail: a migration that has not been run means the built-in price
+  and the payment goes ahead, but a read that simply failed means nobody knows
+  what a coin costs and the top-up is refused rather than taken at a figure that
+  may be months old. The `topups` row then carries the coins and the kobo it was
+  opened with, so a price change never reprices a payment already in flight.
+- A coin is a go at a box, not a stored amount of naira. "Worth ₦x" against a
+  wallet balance is the price of buying that many today and moves with the
+  price; what those coins buy does not. `MIN_NAIRA_PER_COIN` is derived from the
+  smallest top-up rather than chosen, because the real floor is the payment
+  underneath: five coins at too low a price is an amount the transfer fee eats
+  and the gateway may refuse. `MAX_NAIRA_PER_COIN` is a typo guard like
+  `MAX_PRIZE_NAIRA`.
 - Every player gets one free coin, once. `WELCOME_COINS` in `money.ts` is the
   fallback; the live figure is `settings.welcome_coins`, and
   `grant_welcome_coin` in `0014_welcome_coin.sql` reads it straight from that

@@ -12,7 +12,7 @@ import {
   naira,
   playPricePhrase,
 } from '@/lib/money'
-import { livePrize } from '@/lib/settings'
+import { liveCoinPrice, livePrize } from '@/lib/settings'
 import type { Attempt, Box, Payout } from '@/lib/types'
 import { CreateBox } from './create-box'
 import { ShareLink } from '@/components/share-link'
@@ -28,15 +28,20 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
   const supabase = await supabaseServer()
   const params = await searchParams
 
-  const [{ data: boxes }, { data: attempts }, { data: payouts }, prize] = await Promise.all([
-    supabase.from('boxes').select('*').eq('creator_id', profile.id).order('created_at', { ascending: false }).limit(20),
-    supabase.from('attempts').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(8),
-    supabase.from('payouts').select('*').eq('user_id', profile.id).eq('status', 'pending'),
-    // What a box made right now would be worth. Their own box, further down,
-    // shows what it was actually made with — those are different numbers the
-    // day after an admin moves the prize, and both are true.
-    livePrize(),
-  ])
+  const [{ data: boxes }, { data: attempts }, { data: payouts }, prize, coinPrice] =
+    await Promise.all([
+      supabase.from('boxes').select('*').eq('creator_id', profile.id).order('created_at', { ascending: false }).limit(20),
+      supabase.from('attempts').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(8),
+      supabase.from('payouts').select('*').eq('user_id', profile.id).eq('status', 'pending'),
+      // What a box made right now would be worth. Their own box, further down,
+      // shows what it was actually made with — those are different numbers the
+      // day after an admin moves the prize, and both are true.
+      livePrize(),
+      // What the coins in their wallet would cost to buy today. A coin is a go at
+      // a box rather than a stored amount of naira, so this is a price quote and
+      // moves when the price does.
+      liveCoinPrice(),
+    ])
 
   const myBoxes = (boxes ?? []) as Box[]
   const myAttempts = (attempts ?? []) as Attempt[]
@@ -117,7 +122,7 @@ export default async function HomePage({ searchParams }: PageProps<'/home'>) {
                 <p className="mt-1 text-sm text-mist">
                   {profile.coins < CHEAPEST_RETRY
                     ? `A go ${playPricePhrase()}. More coins carry you on from a level that beat you.`
-                    : `Worth ${naira(coinsToNaira(profile.coins))} · carries you on from ${Math.floor(profile.coins / CHEAPEST_RETRY)} missed ${Math.floor(profile.coins / CHEAPEST_RETRY) === 1 ? 'level' : 'levels'}`}
+                    : `Worth ${naira(coinsToNaira(profile.coins, coinPrice))} · carries you on from ${Math.floor(profile.coins / CHEAPEST_RETRY)} missed ${Math.floor(profile.coins / CHEAPEST_RETRY) === 1 ? 'level' : 'levels'}`}
                 </p>
               </div>
               <Wallet size={26} className="shrink-0 text-cyan" />

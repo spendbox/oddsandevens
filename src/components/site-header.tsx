@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Coins, User } from 'lucide-react'
-import { naira } from '@/lib/money'
+import { coinsToNaira, naira } from '@/lib/money'
+import { liveCoinPrice } from '@/lib/settings'
 import { Pill } from './ui'
 import { PendingDot } from './pending-dot'
 import { Logo } from './logo'
@@ -9,8 +10,18 @@ import type { Profile } from '@/lib/types'
 /**
  * The bar at the top. On a phone it is a logo, a coin count and a way out —
  * anything more competes with the game for the screen.
+ *
+ * It reads the price of a coin itself rather than taking it as a prop. This bar
+ * is on fifteen screens, and the alternative is fifteen call sites each
+ * remembering to pass a number — which is exactly how the naira beside the coin
+ * count came to be `coins * 100`, written out by hand, on every page of the
+ * site. A server component is allowed to do its own reading, and `liveCoinPrice`
+ * memoises per request, so a page that already asked pays nothing for this.
  */
-export function SiteHeader({ profile }: { profile: Profile | null }) {
+export async function SiteHeader({ profile }: { profile: Profile | null }) {
+  // Only worth asking when there is a balance to price.
+  const coinPrice = profile ? await liveCoinPrice() : 0
+
   return (
     <header className="sticky top-0 z-30 border-b border-white/8 bg-ink/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-5xl items-center gap-3 px-4">
@@ -35,7 +46,7 @@ export function SiteHeader({ profile }: { profile: Profile | null }) {
                   <Coins size={13} />
                   {profile.coins}
                   <span className="hidden text-gold/70 sm:inline">
-                    · {naira(profile.coins * 100)}
+                    · {naira(coinsToNaira(profile.coins, coinPrice))}
                   </span>
                   <PendingDot />
                 </Pill>

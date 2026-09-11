@@ -7,6 +7,7 @@ import {
   coinsToNaira,
   nairaToKobo,
 } from '@/lib/money'
+import { coinPriceForCharge } from '@/lib/settings'
 
 /**
  * Open a bank transfer for a top-up, and hand back the account to pay into.
@@ -52,7 +53,23 @@ export async function POST(request: Request) {
     )
   }
 
-  const naira = coinsToNaira(coins)
+  // What a coin costs, read at the moment the payment is opened rather than
+  // taken from the screen that asked. The browser sends how many coins it
+  // wants and nothing else; the price, and therefore the amount, is the
+  // server's — a wallet tab left open across a price change must not be able to
+  // hold somebody to the old figure, in either direction.
+  let nairaPerCoin: number
+  try {
+    nairaPerCoin = await coinPriceForCharge()
+  } catch (error) {
+    console.error('[spendbox] could not read the coin price for a transfer', error)
+    return Response.json(
+      { problem: 'We could not price that just now. Try again in a moment.' },
+      { status: 503 },
+    )
+  }
+
+  const naira = coinsToNaira(coins, nairaPerCoin)
   const amountKobo = nairaToKobo(naira)
   // Prefixed so it is obvious what it is when it turns up in Paystack's
   // dashboard next to everything else that account is doing.

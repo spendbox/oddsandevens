@@ -6,11 +6,61 @@
  * comments in supabase/migrations/0001_schema.sql.
  */
 
-/** What one coin costs, in naira. */
+/**
+ * What one coin costs, in naira.
+ *
+ * This is the figure a fresh database starts at and the one every screen falls
+ * back to when the settings table cannot be read. The live number is
+ * `settings.naira_per_coin`, changed at /admin/users without a deploy — see
+ * `liveCoinPrice()` in `src/lib/settings.ts`, which server components read it
+ * through and client components take as a prop. The same arrangement as the
+ * prize, for the same reason: a price is exactly the number somebody running
+ * this site needs to move in an afternoon.
+ *
+ * Nothing quotes this constant to a player directly. Every sentence, button and
+ * table cell that names a coin price goes through `coinsToNaira`, which takes
+ * the price as an argument precisely so that the compiler asks every caller
+ * where its number came from. The database repeats this as a column default in
+ * supabase/migrations/0015_coin_price.sql.
+ */
 export const NAIRA_PER_COIN = 100
 
 /** The smallest top-up. Below this the Paystack fee eats the transaction. */
 export const MIN_TOPUP_COINS = 5
+
+/**
+ * The smallest payment worth opening, in naira.
+ *
+ * Not a preference — a bank transfer has a real fee behind it and a gateway
+ * that will refuse an amount small enough to be a rounding error. It is written
+ * here rather than in the admin screen because it is the thing that decides how
+ * cheap a coin may be: the smallest payment this site can open is
+ * `MIN_TOPUP_COINS` coins, so the two numbers together set the floor below.
+ */
+export const MIN_TOPUP_NAIRA = 100
+
+/**
+ * The least a coin may cost.
+ *
+ * Derived, not chosen. A player cannot buy fewer than `MIN_TOPUP_COINS` coins,
+ * so a coin priced below this makes the smallest possible top-up a payment
+ * worth less than it costs to take — and the failure would not look like a
+ * pricing mistake, it would look like Paystack being broken for everybody.
+ * Move either of the two numbers above and this follows.
+ */
+export const MIN_NAIRA_PER_COIN = Math.ceil(MIN_TOPUP_NAIRA / MIN_TOPUP_COINS)
+
+/**
+ * The most a coin may cost.
+ *
+ * A typo guard, exactly like `MAX_PRIZE_NAIRA` and `MAX_WELCOME_COINS`. A stray
+ * zero turns ₦100 a coin into ₦1,000 a coin, and nothing downstream would
+ * question it: the screens would quote the new price perfectly, the smallest
+ * top-up would simply become ₦5,000, and the first sign of trouble would be
+ * nobody buying anything. A ceiling that has to be raised in code is the
+ * cheapest possible check on that.
+ */
+export const MAX_NAIRA_PER_COIN = 10_000
 
 /** The largest top-up in one go. A bigger number is almost always a typo. */
 export const MAX_TOPUP_COINS = 500
@@ -201,8 +251,62 @@ export function nairaToKobo(naira: number): number {
   return Math.round(naira * 100)
 }
 
-export function coinsToNaira(coins: number): number {
-  return coins * NAIRA_PER_COIN
+/**
+ * What this many coins costs, at the price that is actually being charged.
+ *
+ * The price is an argument with no default, and that is the whole point of it.
+ * A default would let a screen quote ₦100 a coin months after an admin moved
+ * the price, silently and while looking entirely correct — the same failure the
+ * prize had before 0012, but on the number a player is about to transfer. With
+ * no default the compiler asks every caller where its price came from, and the
+ * only honest answers are `liveCoinPrice()` on the server or a prop handed down
+ * from it.
+ */
+export function coinsToNaira(coins: number, nairaPerCoin: number): number {
+  return coins * nairaPerCoin
+}
+
+/**
+ * Is this a price a coin may be sold at? The reason, if not.
+ *
+ * Here rather than in the admin action because it is the same question the
+ * check constraint in 0015_coin_price.sql asks, and a constraint violation is
+ * not a sentence anybody can act on. Both ends of it are explained rather than
+ * merely refused: an operator typing ₦5 is not being careless, they are
+ * pricing a game, and they deserve to be told it is the payment underneath that
+ * cannot be that small.
+ */
+export function coinPriceProblem(nairaPerCoin: number): string | null {
+  if (!Number.isFinite(nairaPerCoin) || Math.floor(nairaPerCoin) !== nairaPerCoin) {
+    return 'Give a price in whole naira.'
+  }
+
+  if (nairaPerCoin <= 0) {
+    return (
+      'A coin has to cost something. To hand coins out for nothing, give new players more ' +
+      'free coins instead — that is counted as coins given rather than coins sold.'
+    )
+  }
+
+  if (nairaPerCoin < MIN_NAIRA_PER_COIN) {
+    return (
+      `${naira(MIN_NAIRA_PER_COIN)} is the least a coin can cost. Nobody can buy fewer than ` +
+      `${MIN_TOPUP_COINS} at a time, so anything cheaper makes the smallest top-up ` +
+      `less than ${naira(MIN_TOPUP_NAIRA)} — an amount the transfer fee eats and Paystack ` +
+      'may refuse outright.'
+    )
+  }
+
+  if (nairaPerCoin > MAX_NAIRA_PER_COIN) {
+    return (
+      `${naira(MAX_NAIRA_PER_COIN)} is the most that can be set here, and that is a guard ` +
+      'against a stray zero rather than a rule — at that price the smallest top-up anybody ' +
+      `can make is ${naira(MAX_NAIRA_PER_COIN * MIN_TOPUP_COINS)}. Raise MAX_NAIRA_PER_COIN ` +
+      'in src/lib/money.ts if you really mean it.'
+    )
+  }
+
+  return null
 }
 
 /** "N100,000" — the way a price should read on screen. */

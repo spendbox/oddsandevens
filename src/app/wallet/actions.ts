@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { startCheckout, paymentsConfigured } from '@/lib/paystack'
 import { siteOrigin } from '@/lib/site'
 import { MAX_TOPUP_COINS, MIN_TOPUP_COINS, nairaToKobo, coinsToNaira } from '@/lib/money'
+import { coinPriceForCharge } from '@/lib/settings'
 
 /**
  * Buy coins with a card, on Paystack's own checkout page.
@@ -32,7 +33,24 @@ export async function startTopup(formData: FormData) {
   if (coins < MIN_TOPUP_COINS) redirect('/wallet?problem=minimum')
   if (coins > MAX_TOPUP_COINS) redirect('/wallet?problem=maximum')
 
-  const amountKobo = nairaToKobo(coinsToNaira(coins))
+  // The price is read here, now, rather than taken from the page the player is
+  // standing on. A wallet tab left open across an admin changing the price
+  // would otherwise send somebody to Paystack for yesterday's amount, and the
+  // amount is the one thing on this path the browser must not influence.
+  //
+  // It is also the one read on this page allowed to fail: `coinPriceForCharge`
+  // falls back to the built-in price on a database that has not had 0015 run,
+  // and throws when it simply could not find out — and a top-up retried in a
+  // minute is a far smaller thing than one taken at a price nobody set.
+  let nairaPerCoin: number
+  try {
+    nairaPerCoin = await coinPriceForCharge()
+  } catch (error) {
+    console.error('[spendbox] could not read the coin price for a card top-up', error)
+    redirect('/wallet?problem=price')
+  }
+
+  const amountKobo = nairaToKobo(coinsToNaira(coins, nairaPerCoin))
   // Prefixed so it is obvious what it is when it turns up in Paystack's
   // dashboard next to everything else that account is doing.
   const reference = `sbx_${crypto.randomUUID().replace(/-/g, '')}`

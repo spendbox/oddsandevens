@@ -35,6 +35,7 @@ export type Connection = { ip: string; claims: number; coins: number }
 export function WelcomeCoin({
   current,
   perIp,
+  nairaPerCoin,
   given,
   claims,
   connections,
@@ -42,6 +43,8 @@ export function WelcomeCoin({
 }: {
   current: number | null
   perIp: number | null
+  /** What a coin costs today, so what has been given away can be priced. */
+  nairaPerCoin: number
   /** Coins handed out so far, in total. */
   given: number
   /** How many players have had theirs. */
@@ -148,7 +151,7 @@ export function WelcomeCoin({
           <span className="tabular font-semibold text-chalk">{claims.toLocaleString('en-NG')}</span>{' '}
           {claims === 1 ? 'player has' : 'players have'} had one —{' '}
           <span className="tabular">{given.toLocaleString('en-NG')}</span> coins given away,
-          worth {naira(coinsToNaira(given))} if they had been bought.
+          worth {naira(coinsToNaira(given, nairaPerCoin))} if they had been bought today.
         </p>
       ) : null}
 
