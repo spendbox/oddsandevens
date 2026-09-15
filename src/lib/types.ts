@@ -150,8 +150,20 @@ export interface Doc {
    * two devices show different contents for the same project.
    */
   projectId?: string
-  /** Set when the user deletes it; the row stays so sync can carry the delete. */
+  /**
+   * When it was moved to the trash. The row stays so sync carries the delete
+   * to other devices, and so it can be restored.
+   */
   deletedAt?: number
+  /**
+   * When it was destroyed for good — by the seven-day sweep or by hand.
+   *
+   * The row is kept even then, emptied of its title and blocks. A tombstone
+   * costs a few dozen bytes; removing the row entirely would let another
+   * device that still has its copy push it straight back on the next sync,
+   * and the document would rise from the dead.
+   */
+  purgedAt?: number
 }
 
 /**
