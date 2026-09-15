@@ -1,6 +1,6 @@
 'use client'
 
-import { GripVertical, Plus } from 'lucide-react'
+import { GripVertical, Plus, Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { makeBlock, shortcutFor } from '@/lib/blocks'
 import { blocksToText } from '@/lib/export'
@@ -17,6 +17,7 @@ import type { Block, Doc, TextishBlock } from '@/lib/types'
 import { isTextish } from '@/lib/types'
 import CodeBlock from './code-block'
 import Editable, { placeCaret } from './editable'
+import AiPanel from './ai-panel'
 import FormatToolbar from './format-toolbar'
 import FileBlock from './file-block'
 import FormBlock from './form-block'
@@ -87,6 +88,31 @@ export default function Editor({
    */
   const [blockSel, setBlockSel] = useState<{ anchor: string; focus: string } | null>(null)
   const dragAnchor = useRef<string | null>(null)
+  const [aiOpen, setAiOpen] = useState(false)
+  /**
+   * Whether writing help is available at all.
+   *
+   * The key lives on the server, so the browser cannot see it; the route says
+   * yes or no once, on mount. Unknown until it answers, which is why the
+   * button is not drawn before then — a control that appears and then fails is
+   * worse than one that was never there.
+   */
+  const [aiReady, setAiReady] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetch('/api/ai')
+      .then((r) => r.json())
+      .then((data: { configured?: boolean }) => {
+        if (!cancelled) setAiReady(!!data.configured)
+      })
+      .catch(() => {
+        if (!cancelled) setAiReady(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const container = useRef<HTMLDivElement>(null)
 
   const setBlocks = useCallback(
@@ -387,6 +413,51 @@ export default function Editor({
     const last = created[created.length - 1]
     if (last) setFocus({ id: last.id, caret: 'end' })
     return true
+  }
+
+  /**
+   * What writing help will work on: the selected blocks if any are selected,
+   * otherwise the whole document. Never a silent guess — the panel says which.
+   */
+  const aiSource = (): { text: string; label: string } => {
+    const chosen = selectedBlocks()
+    if (chosen.length) {
+      return {
+        text: blocksToText(chosen),
+        label: `${chosen.length} selected ${chosen.length === 1 ? 'block' : 'blocks'}`,
+      }
+    }
+    return { text: blocksToText(doc.blocks), label: 'the whole document' }
+  }
+
+  /** Turns the result into blocks, replacing the source or following it. */
+  const applyAi = (pasted: PastedBlock[], mode: 'replace' | 'after') => {
+    if (!pasted.length) return
+    const created = pasted.map((item) => {
+      const made = makeBlock(item.type, item.level)
+      if (isTextish(made) || made.type === 'todo') {
+        made.text = item.text
+        made.html = item.html
+        made.indent = item.indent
+      }
+      if (made.type === 'code') made.code = item.text
+      return made
+    })
+
+    const range = selectedRange()
+    const next = range
+      ? mode === 'replace'
+        ? [...doc.blocks.slice(0, range[0]), ...created, ...doc.blocks.slice(range[1] + 1)]
+        : [...doc.blocks.slice(0, range[1] + 1), ...created, ...doc.blocks.slice(range[1] + 1)]
+      : mode === 'replace'
+        ? created
+        : [...doc.blocks, ...created]
+
+    setBlocks(next)
+    setBlockSel(null)
+    bumpRevision()
+    const last = created[created.length - 1]
+    if (last) setFocus({ id: last.id, caret: 'end' })
   }
 
   /** Text typed into a text-ish or todo block. Handles markdown shortcuts. */
@@ -793,10 +864,37 @@ export default function Editor({
         empty space under a document does nothing, which reads as the page
         being finished rather than continuing.
       */}
+      <AiPanel
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        source={aiOpen ? aiSource() : { text: '', label: '' }}
+        title={doc.title}
+        onReplace={(blocks) => applyAi(blocks, 'replace')}
+        onInsert={(blocks) => applyAi(blocks, 'after')}
+      />
+
       {/*
-        The phone's way in. Typing "/" works again now, but a visible button is
-        discoverable in a way an invisible keystroke is not, and on a touch
-        screen there is no gutter to hover.
+        Writing help is the primary action at the bottom of a phone, with
+        inserting a block as the smaller one above it. Inserting is also
+        reachable by typing "/" and from the gutter on a desktop; asking for
+        help with the writing is not reachable any other way, which is what
+        earns it the larger target under the thumb.
+      */}
+      {aiReady && (
+        <button
+          type="button"
+          aria-label="Writing help"
+          onClick={() => setAiOpen(true)}
+          className="fixed right-4 bottom-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-accent)] text-white shadow-lg active:scale-95"
+        >
+          <Sparkles size={20} />
+        </button>
+      )}
+
+      {/*
+        The phone's way in to blocks. Typing "/" works again now, but a visible
+        button is discoverable in a way an invisible keystroke is not, and on a
+        touch screen there is no gutter to hover.
       */}
       <button
         type="button"
@@ -813,9 +911,11 @@ export default function Editor({
           setSlash({ id: fresh.id, at: 0, query: '' })
           setFocus({ id: fresh.id, caret: 'end' })
         }}
-        className="fixed right-4 bottom-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-accent)] text-white shadow-lg active:scale-95 sm:hidden"
+        className={`fixed right-5 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] text-[var(--color-ink)] shadow-md active:scale-95 sm:hidden ${
+          aiReady ? 'bottom-20' : 'bottom-4'
+        }`}
       >
-        <Plus size={22} />
+        <Plus size={20} />
       </button>
 
       <button

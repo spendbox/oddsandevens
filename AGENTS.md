@@ -161,6 +161,28 @@ to work, it is the wrong shape for this app.
   another device push its copy back on the next sync. Free the attachment
   bytes at the same time — they are the part that occupies space.
 
+- **A .docx is a ZIP of XML, and the browser can already unzip it.**
+  `src/lib/zip.ts` is a hand-written container reader/writer over
+  `DecompressionStream('deflate-raw')`; `docx.ts` is the format translation on
+  top. mammoth alone is 2.1MB unpacked. Read the ZIP central directory, never
+  the local headers — a local header may carry zero sizes with the truth in a
+  trailing data descriptor.
+- **An optional property that was never set is absent from the object.**
+  `'html' in block` is false on a freshly made block, which silently dropped
+  the formatting from every imported document. Narrow by block type instead.
+- **The API key lives only on the server.** `src/app/api/ai/route.ts` is the
+  one server route in this app, and the only reason it exists. A key in client
+  code is a key anyone can read out of the bundle and spend.
+- **Writing help never changes the document on its own.** Every result is
+  shown and applied only on request. An assistant that silently rewrites what
+  someone wrote is one they stop trusting the first time it makes a sentence
+  worse, and by then they cannot tell what it changed.
+- **Never capture the pointer on pointerdown** (restated because it recurred):
+  it retargets the following `click` and kills every button inside the element.
+- **A menu that closes on an outside press must test where the press landed**,
+  not rely on stopPropagation. Relying on propagation closed the row menu on
+  pointerdown and unmounted the button before its click could fire.
+
 ## Checking work
 
 `npm test` covers the formula engine, the highlighter and the slash ranking.
