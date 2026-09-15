@@ -140,7 +140,36 @@ export interface Doc {
   blocks: Block[]
   createdAt: number
   updatedAt: number
+  /**
+   * The project this document belongs to, if any.
+   *
+   * A document carries its project rather than a project carrying a list of
+   * documents. That way membership has exactly one home: moving a document
+   * between projects is one field on one row, and there is no second list that
+   * can disagree about where it lives — which is the failure mode that makes
+   * two devices show different contents for the same project.
+   */
+  projectId?: string
   /** Set when the user deletes it; the row stays so sync can carry the delete. */
+  deletedAt?: number
+}
+
+/**
+ * A project is a group of documents, and nothing else.
+ *
+ * Deliberately not a block type — that rule is about the tools inside a
+ * document. This is the axis above: how documents are organised relative to
+ * one another. Keeping it thin matters, because the moment a project grows its
+ * own content it becomes a second kind of document and the model forks.
+ */
+export interface Project {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+  /** Collapsed in the sidebar. A view preference, synced so it travels. */
+  collapsed?: boolean
+  /** A tombstone, like a document's, so a delete reaches the other device. */
   deletedAt?: number
 }
 

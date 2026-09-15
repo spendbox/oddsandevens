@@ -32,6 +32,19 @@ strikethrough, inline code. Or use `Ctrl+B`, `Ctrl+I`, `Ctrl+E`.
 **Moving things.** Drag the grip handle in the left margin, or hold `Alt` and
 press the up and down arrows.
 
+**Projects.** Drag one document onto another in the sidebar and they become a
+project — the same gesture as putting two pieces of paper in one folder. There
+is no "new project" button, because a project with nothing in it is not useful;
+every project starts with two documents already inside.
+
+Once a document is in a project, a bar appears above it listing the others, so
+you can move between them without opening the sidebar. The magnifying glass in
+that bar (or `Ctrl+P`) searches **within that project only** — titles and
+contents. Drag a document onto a project's name to add it, or out to the
+Documents area below to remove it. A project left with one document dissolves
+by itself, so dragging the second one out simply undoes the merge. Ungrouping a
+project never deletes anything; the documents go back to the main list.
+
 **Getting out of the way.** `Ctrl+\` collapses the sidebar. The page runs the
 full width of the window; if you prefer a narrower column for reading, there
 is a toggle at the bottom of the sidebar.
@@ -89,9 +102,10 @@ Without this, Pad still works completely — it just keeps everything on the one
 device, and the corner shows "On this device" instead of a sign-in button.
 
 1. Make a free project at [supabase.com](https://supabase.com).
-2. In its SQL editor, paste and run `supabase/migrations/0001_docs.sql`, then
-   `supabase/migrations/0002_shared_docs.sql` (that second one is what makes
-   **Share a link** work).
+2. In its SQL editor, paste and run the files in `supabase/migrations/` in
+   order: `0001_docs.sql`, then `0002_shared_docs.sql` (which makes **Share a
+   link** work), then `0003_projects.sql` (which syncs projects between
+   devices).
 3. Copy `.env.example` to `.env.local` and fill in the two values from
    Supabase's Settings → API page:
 
@@ -137,6 +151,7 @@ src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
 src/lib/slash-items.ts  what "/" offers, and how a query is ranked
 src/lib/store.ts        saving to the device (IndexedDB), documents and files
 src/lib/sync.ts         optional sync to Supabase
+src/lib/projects.ts     grouping documents, and searching within a group
 src/lib/share.ts        publishing a read-only copy to a link
 src/lib/export.ts       turning a document into markdown or plain text
 src/lib/pdf.ts          reading text out of a PDF (loaded on demand)
@@ -180,6 +195,9 @@ These are real and worth knowing before you rely on them:
 - **A shared link is read-only, and a shared form cannot be answered.**
   Collecting responses from other people needs the answers to go to the server
   rather than into the document, which is the next step for forms.
+- **A project is a flat group, not a folder tree.** There are no projects
+  inside projects, and a document belongs to one project or none. Nesting is a
+  much larger change and, so far, not one anything has asked for.
 - **A scanned PDF imports nothing.** If the PDF is a photograph of a page there
   is no text layer to read, and getting one needs OCR.
 - **Sharing has not been tested against a live database** in this repository,

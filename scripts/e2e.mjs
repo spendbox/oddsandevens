@@ -635,6 +635,123 @@ await page.waitForTimeout(200)
   await page.waitForTimeout(200)
 }
 
+// --- Projects: merging documents, navigating and searching within one -------
+{
+  // Its own documents, so this does not depend on anything above it.
+  const makeDoc = async (title, body) => {
+    await page.locator('button:has-text("New")').first().click()
+    await page.waitForTimeout(400)
+    await page.locator('[aria-label="Document title"]').click()
+    await page.keyboard.type(title)
+    await page.waitForTimeout(150)
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(body)
+    await page.waitForTimeout(350)
+  }
+  await makeDoc('Zeta overview', 'the shape of the launch')
+  await makeDoc('Zeta budget', 'numbers for the launch')
+  await makeDoc('Zeta timeline', 'dates and milestones')
+  await page.waitForTimeout(700)
+
+  /** Drags one sidebar row onto another and drops it. */
+  const dragRowOnto = async (fromTitle, toSelector) => {
+    const from = page.locator(`nav [data-doc-id]:has-text("${fromTitle}")`).first()
+    const to = page.locator(toSelector).first()
+    const fb = await from.boundingBox()
+    const tb = await to.boundingBox()
+    if (!fb || !tb) return false
+    await page.mouse.move(fb.x + 60, fb.y + fb.height / 2)
+    await page.mouse.down()
+    // Past the threshold that separates a drag from a tap.
+    await page.mouse.move(fb.x + 70, fb.y + fb.height / 2 + 5, { steps: 3 })
+    await page.mouse.move(tb.x + 60, tb.y + tb.height / 2, { steps: 12 })
+    await page.waitForTimeout(300)
+    await page.mouse.up()
+    await page.waitForTimeout(700)
+    return true
+  }
+
+  await dragRowOnto('Zeta timeline', 'nav [data-doc-id]:has-text("Zeta budget")')
+  const projectInput = page.locator('nav [data-project-id] input[aria-label="Project name"]').first()
+  const projectName = await projectInput.inputValue().catch(() => null)
+  log('dropping one document onto another creates a project', projectName !== null, String(projectName))
+  log(
+    'the new project is named after the document dropped onto',
+    projectName === 'Zeta budget',
+    String(projectName),
+  )
+  log(
+    'the project shows how many documents are inside',
+    (await page.locator('nav [data-project-id]').first().innerText()).includes('2'),
+  )
+
+  // The bar above the open document.
+  const barName = await page.locator('main input[aria-label="Project name"]').inputValue().catch(() => null)
+  log('a project bar appears above a document in a project', barName !== null, String(barName))
+  const chips = await page.locator('main [data-chip]').allInnerTexts().catch(() => [])
+  log('the bar lists the documents in the project', chips.length === 2, JSON.stringify(chips))
+
+  const sibling = chips.find((c) => c !== 'Zeta timeline') ?? chips[0]
+  await page.locator(`main [data-chip]:has-text("${sibling}")`).first().click()
+  await page.waitForTimeout(700)
+  log(
+    'a chip opens that document',
+    (await page.locator('[aria-label="Document title"]').inputValue()) === sibling,
+  )
+
+  // Search inside the project.
+  await page.locator('[aria-label="Search within this project"]').first().click()
+  await page.waitForTimeout(400)
+  await page.keyboard.type('timeline')
+  await page.waitForTimeout(500)
+  log('searching within a project finds a sibling', (await page.locator('main button:has-text("Zeta timeline")').count()) > 0)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(700)
+  log(
+    'Enter opens the top match',
+    (await page.locator('[aria-label="Document title"]').inputValue()) === 'Zeta timeline',
+  )
+
+  // The search must not reach documents outside the project.
+  await page.locator('[aria-label="Search within this project"]').first().click()
+  await page.waitForTimeout(350)
+  await page.keyboard.type('Zeta overview')
+  await page.waitForTimeout(500)
+  log(
+    'project search is scoped to the project',
+    (await page.evaluate(() => document.body.innerText)).includes('Nothing in this project matches'),
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+
+  // Dropping onto the project header adds a document.
+  await dragRowOnto('Zeta overview', 'nav [data-project-id]')
+  log(
+    'dropping onto the project header adds a document to it',
+    (await page.locator('nav [data-project-id]').first().innerText()).includes('3'),
+  )
+
+  await page.waitForTimeout(600)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1100)
+  log(
+    'projects survive a reload',
+    (await page
+      .locator('nav [data-project-id] input[aria-label="Project name"]')
+      .first()
+      .inputValue()
+      .catch(() => null)) === 'Zeta budget',
+  )
+
+  // An ungrouped document must not show the bar at all.
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  log(
+    'an ungrouped document shows no project bar',
+    (await page.locator('main input[aria-label="Project name"]').count()) === 0,
+  )
+}
+
 // Manifest + service worker, the installable part.
 const manifest = await page.evaluate(async () => {
   const r = await fetch('/manifest.webmanifest')

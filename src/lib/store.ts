@@ -11,15 +11,19 @@
  * 5MB, which one pasted spreadsheet can reach.
  */
 
-import type { Doc } from './types'
+import type { Doc, Project } from './types'
 
 const DB_NAME = 'pad'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const DOCS = 'docs'
 /** Ids of documents changed since the last successful push to the server. */
 const OUTBOX = 'outbox'
 /** Attached file bytes, keyed by the `ref` on a file block. */
 const FILES = 'files'
+/** Projects, which group documents. */
+const PROJECTS = 'projects'
+/** Ids of projects changed since the last successful push. */
+const PROJECT_OUTBOX = 'projectOutbox'
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
@@ -44,6 +48,14 @@ function openDb(): Promise<IDBDatabase | null> {
         if (!db.objectStoreNames.contains(DOCS)) db.createObjectStore(DOCS, { keyPath: 'id' })
         if (!db.objectStoreNames.contains(OUTBOX)) db.createObjectStore(OUTBOX)
         if (!db.objectStoreNames.contains(FILES)) db.createObjectStore(FILES)
+        // Guarded by `contains` rather than by version number, so a browser
+        // upgrading from any earlier version lands in the same shape.
+        if (!db.objectStoreNames.contains(PROJECTS)) {
+          db.createObjectStore(PROJECTS, { keyPath: 'id' })
+        }
+        if (!db.objectStoreNames.contains(PROJECT_OUTBOX)) {
+          db.createObjectStore(PROJECT_OUTBOX)
+        }
       }
       request.onsuccess = () => done(request.result)
       request.onerror = () => done(null)
@@ -59,6 +71,7 @@ function openDb(): Promise<IDBDatabase | null> {
 
 /** Used only when IndexedDB is unavailable, so the session still works. */
 const memory = new Map<string, Doc>()
+const projectMemory = new Map<string, Project>()
 
 function run<T>(
   store: string,
@@ -113,6 +126,45 @@ export async function pendingIds(): Promise<string[]> {
 
 export async function clearPending(id: string): Promise<void> {
   await run(OUTBOX, 'readwrite', (s) => s.delete(id))
+}
+
+/* ------------------------------------------------------------------ projects */
+
+export async function saveProject(project: Project): Promise<void> {
+  projectMemory.set(project.id, project)
+  await run(PROJECTS, 'readwrite', (s) => s.put(project))
+  await run(PROJECT_OUTBOX, 'readwrite', (s) => s.put(project.updatedAt, project.id))
+}
+
+export async function allProjects(): Promise<Project[]> {
+  const stored = await run<Project[]>(PROJECTS, 'readonly', (s) => s.getAll())
+  return (stored ?? [...projectMemory.values()]).filter((p) => !p.deletedAt)
+}
+
+/** Every project including tombstones, which sync needs. */
+export async function allProjectsRaw(): Promise<Project[]> {
+  const stored = await run<Project[]>(PROJECTS, 'readonly', (s) => s.getAll())
+  return stored ?? [...projectMemory.values()]
+}
+
+export async function pendingProjectIds(): Promise<string[]> {
+  const keys = await run<IDBValidKey[]>(PROJECT_OUTBOX, 'readonly', (s) => s.getAllKeys())
+  return (keys ?? []).map(String)
+}
+
+export async function clearPendingProject(id: string): Promise<void> {
+  await run(PROJECT_OUTBOX, 'readwrite', (s) => s.delete(id))
+}
+
+export async function loadProject(id: string): Promise<Project | null> {
+  const stored = await run<Project>(PROJECTS, 'readonly', (s) => s.get(id))
+  return stored ?? projectMemory.get(id) ?? null
+}
+
+/** Accepts a project from the server without marking it as owed back. */
+export async function acceptProjectFromServer(project: Project): Promise<void> {
+  projectMemory.set(project.id, project)
+  await run(PROJECTS, 'readwrite', (s) => s.put(project))
 }
 
 /**
