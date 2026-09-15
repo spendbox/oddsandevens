@@ -124,15 +124,33 @@ export default function Workspace() {
       return [next, ...without].sort((a, b) => b.updatedAt - a.updatedAt)
     })
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      if (latest.current) void saveDoc(latest.current)
-    }, SAVE_DEBOUNCE_MS)
+    // The timer saves the document it was scheduled for, captured here.
+    //
+    // It used to read "whichever document is current" when it fired, which
+    // silently lost work: type a title, switch documents inside the debounce
+    // window, and 400ms later the timer wrote the document you had switched
+    // *to*, leaving the edit unsaved. Anything typed in the last 400ms before
+    // changing documents simply disappeared.
+    saveTimer.current = setTimeout(() => void saveDoc(next), SAVE_DEBOUNCE_MS)
   }, [])
 
   // A debounce means up to SAVE_DEBOUNCE_MS of typing is only in memory. If
   // the tab is closed or hidden in that window it would be lost, so both
   // events flush immediately. pagehide covers mobile Safari, where
   // beforeunload is not reliably delivered.
+  /**
+   * Writes the open document now and cancels any pending debounce.
+   *
+   * Used before anything that reads the store back — switching documents,
+   * deleting one — because a pending timer plus a fresh read is a race that
+   * hands back the version from before the last keystroke.
+   */
+  const flushSave = useCallback(async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = null
+    if (latest.current) await saveDoc(latest.current)
+  }, [])
+
   useEffect(() => {
     const flush = () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -352,6 +370,9 @@ export default function Workspace() {
   /* ------------------------------------------------------------------ actions */
 
   const newDoc = (projectId?: string) => {
+    // Whatever is open keeps its last keystrokes rather than losing them to
+    // the debounce window.
+    void flushSave()
     const fresh = emptyDoc()
     // A document created from inside a project belongs to it immediately;
     // making it loose and asking the user to drag it in would undo the point
@@ -364,8 +385,7 @@ export default function Workspace() {
   }
 
   const openDoc = async (id: string) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    if (latest.current) await saveDoc(latest.current)
+    await flushSave()
     const found = (await loadDoc(id)) ?? docs.find((d) => d.id === id) ?? null
     if (found) setDoc(found)
     setDrawer(false)
