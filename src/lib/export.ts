@@ -42,7 +42,7 @@ function tableToMarkdown(block: Extract<Block, { type: 'table' }>): string {
   return [header, divider, ...rows].map((row) => `| ${row.join(' | ')} |`).join('\n')
 }
 
-function blockToMarkdown(block: Block): string {
+export function blockToMarkdown(block: Block): string {
   switch (block.type) {
     case 'heading':
       return `${'#'.repeat((block.level ?? 1) + 1)} ${inline(block)}`
@@ -84,6 +84,30 @@ function blockToMarkdown(block: Block): string {
     default:
       return inline(block)
   }
+}
+
+/** A run of blocks as markdown, used when copying a multi-block selection. */
+export function blocksToMarkdown(blocks: Block[]): string {
+  return blocks
+    .map(blockToMarkdown)
+    .filter((text) => text.trim() !== '')
+    .join('\n\n')
+}
+
+/** The same run as plain text, for the text/plain half of a copy. */
+export function blocksToText(blocks: Block[]): string {
+  return blocks
+    .map((block) => {
+      if (block.type === 'code') return block.code
+      if (block.type === 'todo') return `${block.done ? '[x]' : '[ ]'} ${block.text}`
+      if (block.type === 'divider') return '---'
+      if (block.type === 'table' || block.type === 'form' || block.type === 'file') {
+        return blockToMarkdown(block)
+      }
+      return block.text
+    })
+    .filter((text) => text.trim() !== '')
+    .join('\n\n')
 }
 
 export function docToMarkdown(doc: Doc): string {

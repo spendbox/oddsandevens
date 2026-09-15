@@ -3,6 +3,7 @@
 import { GripVertical, Plus } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { makeBlock, shortcutFor } from '@/lib/blocks'
+import { blocksToText } from '@/lib/export'
 import type { PastedBlock } from '@/lib/paste'
 import { blockHtml, hasFormatting, sanitizeInline } from '@/lib/rich-text'
 import {
@@ -75,6 +76,17 @@ export default function Editor({
    */
   const [revision, setRevision] = useState(0)
   const bumpRevision = () => setRevision((r) => r + 1)
+  /**
+   * A selection that spans whole blocks.
+   *
+   * Each block is its own contenteditable, and a browser will not extend a
+   * native selection from one into another — which is why dragging past the
+   * end of a line appeared to do nothing at all. Once a drag leaves the block
+   * it started in, the native selection is dropped and this takes over:
+   * whole blocks highlight, and copy, cut, delete and typing act on the run.
+   */
+  const [blockSel, setBlockSel] = useState<{ anchor: string; focus: string } | null>(null)
+  const dragAnchor = useRef<string | null>(null)
   const container = useRef<HTMLDivElement>(null)
 
   const setBlocks = useCallback(
@@ -106,6 +118,106 @@ export default function Editor({
   }, [focus, doc.blocks])
 
   const indexOf = (id: string) => doc.blocks.findIndex((b) => b.id === id)
+
+  /** The inclusive index range a block selection covers, in document order. */
+  const selectedRange = (): [number, number] | null => {
+    if (!blockSel) return null
+    const a = indexOf(blockSel.anchor)
+    const b = indexOf(blockSel.focus)
+    if (a === -1 || b === -1) return null
+    return a <= b ? [a, b] : [b, a]
+  }
+
+  const selectedBlocks = (): Block[] => {
+    const range = selectedRange()
+    return range ? doc.blocks.slice(range[0], range[1] + 1) : []
+  }
+
+  /** Removes the selected run and leaves the caret where it was. */
+  const deleteSelection = (): boolean => {
+    const range = selectedRange()
+    if (!range) return false
+    const next = doc.blocks.filter((_, i) => i < range[0] || i > range[1])
+    const fresh = next.length ? next : [makeBlock('text')]
+    setBlocks(fresh)
+    setBlockSel(null)
+    bumpRevision()
+    const landing = fresh[Math.max(0, range[0] - 1)] ?? fresh[0]
+    if (landing) setFocus({ id: landing.id, caret: 'end' })
+    return true
+  }
+
+  /**
+   * Keyboard and clipboard while whole blocks are selected.
+   *
+   * Bound to the document because the selection is not inside any one block,
+   * so there is no element holding focus to hang these off.
+   */
+  useEffect(() => {
+    if (!blockSel) return
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setBlockSel(null)
+        return
+      }
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        event.preventDefault()
+        deleteSelection()
+        return
+      }
+      // A printable character replaces the selection, the way it would in any
+      // other editor. Modifier combinations are left to the browser.
+      if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault()
+        const range = selectedRange()
+        if (!range) return
+        const replacement = makeBlock('text')
+        if (isTextish(replacement)) replacement.text = event.key
+        const next = [
+          ...doc.blocks.slice(0, range[0]),
+          replacement,
+          ...doc.blocks.slice(range[1] + 1),
+        ]
+        setBlocks(next)
+        setBlockSel(null)
+        bumpRevision()
+        setFocus({ id: replacement.id, caret: 'end' })
+      }
+    }
+
+    const onCopy = (event: ClipboardEvent) => {
+      const blocks = selectedBlocks()
+      if (!blocks.length) return
+      event.preventDefault()
+      // Markdown on the HTML flavour too: it is what survives being pasted
+      // into a plain-text field, and Pad's own paste parser reads it back.
+      event.clipboardData?.setData('text/plain', blocksToText(blocks))
+      event.clipboardData?.setData(
+        'text/html',
+        blocks
+          .map((b) => `<p>${blockHtml(b as { text: string; html?: string })}</p>`)
+          .join(''),
+      )
+    }
+
+    const onCut = (event: ClipboardEvent) => {
+      onCopy(event)
+      deleteSelection()
+    }
+
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('copy', onCopy)
+    document.addEventListener('cut', onCut)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('copy', onCopy)
+      document.removeEventListener('cut', onCut)
+    }
+    // Re-bound whenever the selection or the blocks change, so the handlers
+    // always act on what is on screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blockSel, doc.blocks])
 
   /** Inserts after `id` and puts the caret in the new block. */
   const insertAfter = (id: string, block: Block) => {
@@ -520,7 +632,38 @@ export default function Editor({
       beneath it. On a phone there is no inset at all — the width matters more
       than the handles, and the floating button below covers inserting.
     */
-    <div ref={container} className="relative pb-40 sm:pl-11">
+    <div
+      ref={container}
+      className="relative pb-40 sm:pl-11"
+      onPointerDown={(event) => {
+        // A press inside the gutter is the start of a block drag, not a text
+        // selection, and must not arm this.
+        const target = event.target as Element | null
+        if (target?.closest('[aria-label^="Drag to reorder"]')) return
+        const host = target?.closest<HTMLElement>('[data-block-id]')
+        dragAnchor.current = host?.dataset.blockId ?? null
+        if (blockSel) setBlockSel(null)
+      }}
+      onPointerMove={(event) => {
+        const anchor = dragAnchor.current
+        // buttons === 0 means nothing is held down, so this is just a hover.
+        if (!anchor || event.buttons === 0) return
+        const over = document
+          .elementFromPoint(event.clientX, event.clientY)
+          ?.closest<HTMLElement>('[data-block-id]')
+        const id = over?.dataset.blockId
+        if (!id || id === anchor) return
+        // The drag has left the block it started in. The browser cannot carry
+        // a text selection across the boundary, so drop it and select blocks.
+        window.getSelection()?.removeAllRanges()
+        setBlockSel((current) =>
+          current?.anchor === anchor && current.focus === id ? current : { anchor, focus: id },
+        )
+      }}
+      onPointerUp={() => {
+        dragAnchor.current = null
+      }}
+    >
       <FormatToolbar scope={container} />
       <input
         value={doc.title}
@@ -542,6 +685,13 @@ export default function Editor({
           data-block-id={block.id}
           className={`group/block relative rounded-md ${
             drag?.id === block.id ? 'opacity-40' : ''
+          } ${
+            (() => {
+              const range = selectedRange()
+              return range && blockIndex >= range[0] && blockIndex <= range[1]
+                ? 'bg-[var(--color-accent-soft)]'
+                : ''
+            })()
           }`}
           // Indentation as padding rather than nested markup: a list is still
           // a flat run of blocks, so dragging one out of a sub-list is the
