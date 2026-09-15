@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { blockHtml, hasFormatting, sanitizeInline } from '@/lib/rich-text'
+import { parseClipboard, type PastedBlock } from '@/lib/paste'
+import { blockHtml, hasFormatting, sanitizeInline, stripInvisible } from '@/lib/rich-text'
+import { inlineFormatAt, shouldCapitalise } from '@/lib/smart-typing'
 import { applyFormat } from './format-toolbar'
 
 /**
@@ -47,6 +49,13 @@ export interface EditableProps {
   onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>, api: CaretApi) => void
   onFocus?: () => void
   ariaLabel?: string
+  /**
+   * Called when a paste contains more than one block's worth of content, so
+   * the editor can create the blocks. Returning true means it was handled.
+   */
+  onPasteBlocks?: (blocks: PastedBlock[]) => boolean
+  /** Off inside a spreadsheet cell or anywhere else that is not prose. */
+  smart?: boolean
 }
 
 export interface CaretApi {
@@ -83,6 +92,26 @@ function caretOffset(el: HTMLElement): number {
 }
 
 /**
+ * The text node and offset that a character position lands on.
+ *
+ * A formatted block is a tree — "a <b>bold</b> word" is three text nodes — so
+ * a character offset has to be walked for, not indexed.
+ */
+function pointAt(el: HTMLElement, offset: number): { node: Node; offset: number } {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  let remaining = Math.max(0, offset)
+  let last: Text | null = null
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text
+    if (remaining <= node.data.length) return { node, offset: remaining }
+    remaining -= node.data.length
+    last = node
+  }
+  return last ? { node: last, offset: last.data.length } : { node: el, offset: 0 }
+}
+
+/**
  * Puts the caret at a character offset, clamped to the text that exists.
  *
  * It walks the text nodes rather than assuming a single one, because a
@@ -93,28 +122,14 @@ export function placeCaret(el: HTMLElement, offset: number) {
   const selection = window.getSelection()
   if (!selection) return
 
-  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
-  let remaining = Math.max(0, offset)
-  let target: Text | null = null
-  let within = 0
-
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Text
-    if (remaining <= node.data.length) {
-      target = node
-      within = remaining
-      break
-    }
-    remaining -= node.data.length
-  }
-
+  const point = pointAt(el, offset)
   const range = document.createRange()
-  if (target) {
-    range.setStart(target, within)
-  } else {
-    // An empty block, or an offset past the end.
+  if (point.node === el) {
+    // An empty block has no text node to point into.
     range.selectNodeContents(el)
     range.collapse(false)
+  } else {
+    range.setStart(point.node, point.offset)
   }
   range.collapse(true)
   selection.removeAllRanges()
@@ -133,8 +148,16 @@ export default function Editable({
   onKeyDown,
   onFocus,
   ariaLabel,
+  onPasteBlocks,
+  smart = true,
 }: EditableProps) {
   const ref = useRef<HTMLDivElement>(null)
+  /**
+   * The last thing typing did on the writer's behalf, so one Backspace can
+   * take it back. Without this, an unwanted capital costs a selection and a
+   * retype — and an editor that cannot be told "no" is one people switch off.
+   */
+  const autocorrected = useRef<{ at: number; from: string; to: string } | null>(null)
 
   // Mount: seed the DOM once, then leave it alone.
   useEffect(() => {
@@ -175,6 +198,127 @@ export default function Editable({
     if (forced && document.activeElement === el) placeCaret(el, value.length)
   }, [value, html, revision])
 
+  /** Everything in this block before the caret. */
+  const textBeforeCaret = (el: HTMLElement): string => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return ''
+    const range = selection.getRangeAt(0)
+    if (!el.contains(range.startContainer)) return ''
+    const measure = range.cloneRange()
+    measure.selectNodeContents(el)
+    measure.setEnd(range.startContainer, range.startOffset)
+    return measure.toString()
+  }
+
+  /**
+   * Smart typing is attached as a native `beforeinput` listener, not through
+   * React's `onBeforeInput`.
+   *
+   * React's synthetic version is a polyfill layered over older events, and it
+   * does not reliably carry `inputType` or `data` — which are exactly the two
+   * fields these rules need to tell a typed character from a paste or a
+   * composition. Bound natively, they are always there.
+   */
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+
+    const report = onChange
+    const onBeforeInput = (event: InputEvent) => {
+      if (!smart) return
+      if (event.inputType !== 'insertText' || !event.data) return
+
+      const typed = event.data
+      const before = textBeforeCaret(el)
+
+      // Capitalising the first letter of a sentence. Done by replacing the
+      // keystroke rather than rewriting the text afterwards, so the browser's
+      // own undo history stays intact.
+      if (shouldCapitalise(before, typed)) {
+        event.preventDefault()
+        const upper = typed.toUpperCase()
+        document.execCommand('insertText', false, upper)
+        autocorrected.current = { at: before.length, from: typed, to: upper }
+        report(stripInvisible(el.textContent ?? ''), undefined)
+        return
+      }
+
+      // "**bold**" and friends, applied when the closing marker is typed.
+      const match = inlineFormatAt(before + typed)
+      if (match) {
+        event.preventDefault()
+        // Select the markers already on the page — everything the match covers
+        // except the character being typed, which never arrived — and let
+        // insertHTML replace the lot. Explicit range maths rather than
+        // Selection.modify(), whose repeated calls mutate the range you hold.
+        const selection = window.getSelection()
+        const end = before.length
+        const from = pointAt(el, end - (match.length - 1))
+        const to = pointAt(el, end)
+        if (selection && from.node !== el) {
+          const range = document.createRange()
+          range.setStart(from.node, from.offset)
+          range.setEnd(to.node, to.offset)
+          selection.removeAllRanges()
+          selection.addRange(range)
+          document.execCommand(
+            'insertHTML',
+            false,
+            `<${match.tag}>${match.text
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')}</${match.tag}>`,
+          )
+
+          // Step out of what was just inserted, in two senses.
+          //
+          // insertHTML leaves the caret inside the new element AND leaves the
+          // browser's "typing style" set to it, so the next word joins the
+          // bold instead of following it: "**important** now" became
+          // "<b>important now</b>". Position alone is not enough — the style
+          // has to be turned off too, which is what the toggle below does at a
+          // collapsed caret without touching the document.
+          const anchor = selection.anchorNode
+          const host =
+            anchor?.nodeType === Node.TEXT_NODE
+              ? anchor.parentElement
+              : (anchor as Element | null)
+          const wrapper = host?.closest(match.tag)
+          if (wrapper?.parentNode) {
+            const parent = wrapper.parentNode
+            const index = Array.prototype.indexOf.call(parent.childNodes, wrapper)
+            selection.collapse(parent, index + 1)
+          }
+          if (match.tag === 'b' || match.tag === 'i') {
+            const command = match.tag === 'b' ? 'bold' : 'italic'
+            if (document.queryCommandState(command)) document.execCommand(command)
+          } else if (wrapper?.parentNode) {
+            // `code` has no typing-style command to switch off, so the caret
+            // needs a real character to sit after or the next word is typed
+            // inside the element. The perch is stripped from everything that
+            // is stored, searched or exported.
+            const perch = document.createTextNode('\u200B')
+            wrapper.parentNode.insertBefore(perch, wrapper.nextSibling)
+            const after = document.createRange()
+            after.setStart(perch, 1)
+            after.collapse(true)
+            selection.removeAllRanges()
+            selection.addRange(after)
+          }
+        }
+        const plain = stripInvisible(el.textContent ?? '')
+        const clean = sanitizeInline(el.innerHTML)
+        report(plain, hasFormatting(clean, plain) ? clean : undefined)
+        return
+      }
+
+      autocorrected.current = null
+    }
+
+    el.addEventListener('beforeinput', onBeforeInput)
+    return () => el.removeEventListener('beforeinput', onBeforeInput)
+  }, [onChange, smart])
+
   const api: CaretApi = {
     offset: () => (ref.current ? caretOffset(ref.current) : 0),
     atStart: () => {
@@ -211,7 +355,7 @@ export default function Editable({
 
       const selection = window.getSelection()
       if (!selection || selection.rangeCount === 0) {
-        const text = el.textContent ?? ''
+        const text = stripInvisible(el.textContent ?? '')
         return { before: { text, html: undefined }, after: empty }
       }
 
@@ -222,7 +366,7 @@ export default function Editable({
         setter(range)
         const holder = document.createElement('div')
         holder.appendChild(range.cloneContents())
-        const text = holder.textContent ?? ''
+        const text = stripInvisible(holder.textContent ?? '')
         const clean = sanitizeInline(holder.innerHTML)
         return { text, html: hasFormatting(clean, text) ? clean : undefined }
       }
@@ -249,7 +393,7 @@ export default function Editable({
       onInput={() => {
         const el = ref.current
         if (!el) return
-        const plain = el.textContent ?? ''
+        const plain = stripInvisible(el.textContent ?? '')
         const clean = sanitizeInline(el.innerHTML)
         // Only carry HTML when it says something the plain text does not, so
         // an unformatted block stays a plain string all the way to storage.
@@ -257,6 +401,23 @@ export default function Editable({
       }}
       onFocus={onFocus}
       onKeyDown={(event) => {
+        // Backspace immediately after an automatic capital puts the original
+        // letter back instead of deleting, which is how a word processor lets
+        // you say "no, I meant that".
+        const correction = autocorrected.current
+        if (event.key === 'Backspace' && correction && ref.current) {
+          const before = textBeforeCaret(ref.current)
+          if (before.length === correction.at + correction.to.length) {
+            event.preventDefault()
+            autocorrected.current = null
+            document.execCommand('delete')
+            document.execCommand('insertText', false, correction.from)
+            onChange(stripInvisible(ref.current.textContent ?? ''), undefined)
+            return
+          }
+        }
+        if (event.key !== 'Backspace') autocorrected.current = null
+
         // The shortcuts people already have in their fingers. Handled before
         // the editor's own key handling so a block cannot swallow them.
         if (event.metaKey || event.ctrlKey) {
@@ -272,20 +433,36 @@ export default function Editable({
         onKeyDown?.(event, api)
       }}
       onPaste={(event) => {
-        // Pasted HTML goes through the sanitiser rather than into the block
-        // as-is; a copied web page otherwise drops scripts, links and styling
-        // into storage and then into sync.
+        // Everything pasted goes through the sanitiser; a copied web page
+        // otherwise drops scripts, links and styling into storage and sync.
+        //
+        // Ctrl+Shift+V arrives here with no text/html at all — that is how
+        // browsers implement "paste as plain text" — so it needs no special
+        // case: the plain branch below simply takes over.
         event.preventDefault()
         const html = event.clipboardData.getData('text/html')
         const text = event.clipboardData.getData('text/plain')
-        if (html) {
-          const clean = sanitizeInline(html).replace(/\r?\n/g, ' ')
-          if (clean) {
-            document.execCommand('insertHTML', false, clean)
-            return
+        const blocks = parseClipboard(html, text)
+
+        if (blocks.length === 0) return
+
+        // One block's worth is an insertion into this line, not a new block.
+        if (blocks.length === 1) {
+          const only = blocks[0]
+          if (only.html) document.execCommand('insertHTML', false, only.html)
+          else document.execCommand('insertText', false, only.text)
+          const el = ref.current
+          if (el) {
+            const plain = stripInvisible(el.textContent ?? '')
+            const clean = sanitizeInline(el.innerHTML)
+            onChange(plain, hasFormatting(clean, plain) ? clean : undefined)
           }
+          return
         }
-        document.execCommand('insertText', false, text.replace(/\r?\n/g, ' '))
+
+        // More than that is structure, and belongs in blocks of its own.
+        if (onPasteBlocks?.(blocks)) return
+        document.execCommand('insertText', false, blocks.map((b) => b.text).join('\n'))
       }}
     />
   )

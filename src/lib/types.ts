@@ -40,6 +40,11 @@ export interface TextishBlock {
   html?: string
   /** Heading size. Only read when type is 'heading'. */
   level?: 1 | 2 | 3
+  /**
+   * Nesting depth, set by Tab. Absent means zero — the common case, so it is
+   * not written into every block in storage.
+   */
+  indent?: number
 }
 
 export interface TodoBlock {
@@ -48,6 +53,8 @@ export interface TodoBlock {
   text: string
   /** See TextishBlock.html. */
   html?: string
+  /** See TextishBlock.indent. */
+  indent?: number
   done: boolean
 }
 
