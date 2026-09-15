@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#g)"/>
+  <!-- A text cursor between two serifs: the app's whole promise is that this
+       is blinking and ready the moment the page opens. -->
+  <g stroke="#fff" stroke-width="4.5" stroke-linecap="round" fill="none">
+    <path d="M25 19h14"/>
+    <path d="M32 19v26"/>
+    <path d="M25 45h14"/>
+  </g>
+</svg>
