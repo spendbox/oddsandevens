@@ -5,7 +5,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { makeBlock, shortcutFor } from '@/lib/blocks'
 import type { PastedBlock } from '@/lib/paste'
 import { blockHtml, hasFormatting, sanitizeInline } from '@/lib/rich-text'
-import { bulletFor, colonStartsList, looksLikeTitle, nextIndent } from '@/lib/smart-typing'
+import {
+  bulletFor,
+  colonStartsList,
+  looksLikeTitle,
+  nextIndent,
+  orderedNumber,
+} from '@/lib/smart-typing'
 import type { Block, Doc, TextishBlock } from '@/lib/types'
 import { isTextish } from '@/lib/types'
 import CodeBlock from './code-block'
@@ -152,8 +158,14 @@ export default function Editor({
   }
 
   /** Replaces a block with a new one of another type, carrying text across. */
-  const convert = (id: string, choice: SlashChoice, keepText: string, keepHtml?: string) => {
+  const convert = (
+    id: string,
+    choice: SlashChoice & { ordered?: boolean },
+    keepText: string,
+    keepHtml?: string,
+  ) => {
     const created = makeBlock(choice.type, choice.level)
+    if (created.type === 'bullet' && choice.ordered) created.ordered = true
     if (isTextish(created) || created.type === 'todo') {
       if (keepText) {
         created.text = keepText
@@ -383,6 +395,10 @@ export default function Editor({
         created.html = tail.html
         // A new line in a list stays at the depth of the one above it.
         if (continues || announcesList) created.indent = (block as TextishBlock).indent
+        // And keeps its numbering, which then counts itself.
+        if (created.type === 'bullet' && block.type === 'bullet' && block.ordered) {
+          created.ordered = true
+        }
       }
 
       const index = indexOf(block.id)
@@ -520,7 +536,7 @@ export default function Editor({
         className="mb-2 w-full bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-[var(--color-faint)] sm:text-4xl"
       />
 
-      {doc.blocks.map((block) => (
+      {doc.blocks.map((block, blockIndex) => (
         <div
           key={block.id}
           data-block-id={block.id}
@@ -603,6 +619,8 @@ export default function Editor({
               onTextKeyDown={onTextKeyDown}
               slashOpen={slash?.id === block.id}
               revision={revision}
+              onRemove={() => removeBlock(block.id)}
+              number={orderedNumber(doc.blocks, blockIndex)}
               onPasteBlocks={insertPasted}
               onExtractPdf={onExtractPdf}
             />
@@ -673,8 +691,10 @@ function BlockBody({
   onTextKeyDown,
   slashOpen,
   revision,
+  onRemove,
   onPasteBlocks,
   onExtractPdf,
+  number,
 }: {
   block: Block
   onChange: (next: Block) => void
@@ -695,8 +715,11 @@ function BlockBody({
   ) => void
   slashOpen: boolean
   revision: number
+  onRemove: () => void
   onPasteBlocks: (id: string, blocks: PastedBlock[]) => boolean
   onExtractPdf?: (file: Blob, name: string) => void
+  /** The printed position of an ordered list item. */
+  number: number
 }) {
   if (block.type === 'divider') {
     return <hr className="my-4 border-0 border-t border-[var(--color-line)]" />
@@ -715,7 +738,14 @@ function BlockBody({
   }
 
   if (block.type === 'file') {
-    return <FileBlock block={block} onChange={onChange} onExtractPdf={onExtractPdf} />
+    return (
+      <FileBlock
+        block={block}
+        onChange={onChange}
+        onRemove={onRemove}
+        onExtractPdf={onExtractPdf}
+      />
+    )
   }
 
   if (block.type === 'todo') {
@@ -786,6 +816,22 @@ function BlockBody({
   )
 
   if (block.type === 'bullet') {
+    // A numbered item prints its position, counted from the run above rather
+    // than stored — so Enter continues the sequence and deleting an item
+    // renumbers the rest, with nothing to keep in step.
+    if (block.ordered) {
+      return (
+        <div className="flex items-start gap-2">
+          <span
+            aria-hidden
+            className="mt-[0.15rem] min-w-[1.4rem] shrink-0 text-right text-[var(--color-muted)] tabular-nums"
+          >
+            {number}.
+          </span>
+          <div className="min-w-0 flex-1">{editable}</div>
+        </div>
+      )
+    }
     // Solid, hollow, square — the cycle every word processor uses, so depth is
     // readable without counting the indentation.
     const glyph = bulletFor(block.indent)

@@ -45,6 +45,15 @@ export interface TextishBlock {
    * not written into every block in storage.
    */
   indent?: number
+  /**
+   * A numbered list item, when the block is a bullet.
+   *
+   * The number itself is never stored. It is counted at render time from the
+   * run of items above, which is what makes Enter continue the sequence and
+   * deleting an item renumber the rest — both for free, and both impossible
+   * to get out of step with the document.
+   */
+  ordered?: boolean
 }
 
 export interface TodoBlock {

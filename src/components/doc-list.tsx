@@ -1,7 +1,16 @@
 'use client'
 
-import { ChevronDown, FileText, FolderOpen, GripVertical, Trash2 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import {
+  ChevronDown,
+  FileText,
+  FolderOpen,
+  FolderPlus,
+  GripVertical,
+  LogOut,
+  MoreHorizontal,
+  Trash2,
+} from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { docPreview } from '@/lib/blocks'
 import { groupDocs } from '@/lib/projects'
 import type { Doc, Project } from '@/lib/types'
@@ -32,6 +41,8 @@ export interface DocListProps {
   onRenameProject: (id: string, name: string) => void
   onToggleProject: (id: string) => void
   onDeleteProject: (id: string) => void
+  /** Puts a document into a brand new project of its own. */
+  onNewProject: (docId: string) => void
 }
 
 /** How far a pointer must travel before this counts as a drag and not a tap. */
@@ -59,8 +70,36 @@ export default function DocList({
   onRenameProject,
   onToggleProject,
   onDeleteProject,
+  onNewProject,
 }: DocListProps) {
   const [drag, setDrag] = useState<DragState | null>(null)
+  /** Which row has its menu open. Dragging is not the only way to group. */
+  const [menuFor, setMenuFor] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!menuFor) return
+    /**
+     * Closes on a press outside the menu.
+     *
+     * The test is where the press landed, not whether the menu stopped the
+     * event bubbling. Relying on stopPropagation closed the menu on
+     * pointerdown and unmounted the button before its click could fire, so
+     * every item in it did nothing at all.
+     */
+    const close = (event: Event) => {
+      const target = event.target as Element | null
+      if (target?.closest?.('[role="menu"]')) return
+      setMenuFor(null)
+    }
+    // A scroll closes it too: the menu is positioned against the row, and the
+    // row moves out from under it.
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('scroll', close, true)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('scroll', close, true)
+    }
+  }, [menuFor])
   const start = useRef<{
     id: string
     x: number
@@ -173,7 +212,7 @@ export default function DocList({
       <div
         key={item.id}
         data-doc-id={item.id}
-        className={`group/doc flex items-center gap-1 rounded-md transition-colors ${
+        className={`group/doc relative flex items-center gap-1 rounded-md transition-colors ${
           currentId === item.id
             ? 'bg-[var(--color-accent-soft)]'
             : 'hover:bg-[var(--color-hover)]'
@@ -225,16 +264,79 @@ export default function DocList({
             </span>
           </span>
         </button>
+        {/*
+          Grouping has to be reachable without a drag. A drag is a fine gesture
+          with a mouse and a poor one with a thumb — on a touch screen the same
+          movement is how the list is scrolled — so every project action also
+          lives in this menu. It is always visible on a phone.
+        */}
+        <button
+          type="button"
+          aria-label={`Actions for ${item.title.trim() || 'Untitled'}`}
+          aria-expanded={menuFor === item.id}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (!fromDrag()) setMenuFor(menuFor === item.id ? null : item.id)
+          }}
+          className="shrink-0 rounded p-1 text-[var(--color-faint)] opacity-60 transition-opacity group-focus-within/doc:opacity-100 group-hover/doc:opacity-100 hover:text-[var(--color-ink)] sm:opacity-0"
+        >
+          <MoreHorizontal size={13} />
+        </button>
         <button
           type="button"
           aria-label={`Delete ${item.title.trim() || 'Untitled'}`}
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={() => {
             if (!fromDrag()) onDelete(item.id)
           }}
-          className="mr-1 p-1 text-[var(--color-faint)] opacity-0 transition-opacity group-focus-within/doc:opacity-100 group-hover/doc:opacity-100 hover:text-[var(--color-danger)]"
+          className="mr-1 shrink-0 rounded p-1 text-[var(--color-faint)] opacity-60 transition-opacity group-focus-within/doc:opacity-100 group-hover/doc:opacity-100 hover:text-[var(--color-danger)] sm:opacity-0"
         >
           <Trash2 size={12} />
         </button>
+
+        {menuFor === item.id && (
+          <div
+            role="menu"
+            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute right-2 z-50 mt-1 w-52 translate-y-8 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg"
+          >
+            <p className="px-2.5 pt-1 pb-1 text-[10px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
+              Project
+            </p>
+            {projects
+              .filter((p) => !p.deletedAt && p.id !== item.projectId)
+              .map((project) => (
+                <MenuRow
+                  key={project.id}
+                  icon={<FolderOpen size={13} />}
+                  label={project.name || 'Untitled project'}
+                  onClick={() => {
+                    onMove(item.id, project.id)
+                    setMenuFor(null)
+                  }}
+                />
+              ))}
+            <MenuRow
+              icon={<FolderPlus size={13} />}
+              label="New project…"
+              onClick={() => {
+                onNewProject(item.id)
+                setMenuFor(null)
+              }}
+            />
+            {item.projectId && (
+              <MenuRow
+                icon={<LogOut size={13} />}
+                label="Remove from project"
+                onClick={() => {
+                  onMove(item.id, null)
+                  setMenuFor(null)
+                }}
+              />
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -338,5 +440,27 @@ export default function DocList({
         )}
       </div>
     </nav>
+  )
+}
+
+function MenuRow({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs hover:bg-[var(--color-hover)] sm:py-1.5"
+    >
+      <span className="shrink-0 text-[var(--color-muted)]">{icon}</span>
+      <span className="min-w-0 truncate">{label}</span>
+    </button>
   )
 }

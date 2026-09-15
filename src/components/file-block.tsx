@@ -1,6 +1,6 @@
 'use client'
 
-import { Download, FileText, Paperclip, Trash2, Upload } from 'lucide-react'
+import { Download, FileText, Paperclip, Trash2, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { newId } from '@/lib/id'
 import { deleteFile, loadFile, saveFile } from '@/lib/store'
@@ -31,10 +31,13 @@ const MAX_BYTES = 25 * 1024 * 1024
 export default function FileBlock({
   block,
   onChange,
+  onRemove,
   onExtractPdf,
 }: {
   block: FileBlockData
   onChange: (next: FileBlockData) => void
+  /** Removes the block itself, for when no file is ever chosen. */
+  onRemove: () => void
   /** Offered for PDFs: pull the text out into editable blocks. */
   onExtractPdf?: (file: Blob, name: string) => void
 }) {
@@ -101,7 +104,21 @@ export default function FileBlock({
 
   if (!block.ref) {
     return (
-      <div className="my-2 print:hidden">
+      <div className="group/drop relative my-2 print:hidden">
+        {/*
+          Changing your mind has to be possible. Inserting the block and then
+          deciding against a file used to leave a drop zone with no way to get
+          rid of it short of deleting the line from the keyboard.
+        */}
+        <button
+          type="button"
+          aria-label="Remove this file block"
+          title="Remove this file block"
+          onClick={onRemove}
+          className="absolute top-1 right-1 z-10 rounded p-1 text-[var(--color-faint)] opacity-60 transition-opacity hover:bg-[var(--color-hover)] hover:text-[var(--color-danger)] focus:opacity-100 sm:opacity-0 sm:group-hover/drop:opacity-100"
+        >
+          <X size={13} />
+        </button>
         <button
           type="button"
           onClick={() => input.current?.click()}

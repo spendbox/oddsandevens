@@ -371,6 +371,18 @@ export default function Workspace() {
     [docs, doc?.id],
   )
 
+  /** Puts one document into a new project of its own, from the row menu. */
+  const newProjectWith = useCallback(
+    async (docId: string) => {
+      const source = docs.find((d) => d.id === docId)
+      if (!source) return
+      const project = makeProject(source.title.trim() || 'New project')
+      putProject(project)
+      await setDocProject(docId, project.id)
+    },
+    [docs, putProject, setDocProject],
+  )
+
   /** Dropping one document onto another: a project holding both. */
   const mergeDocs = useCallback(
     async (draggedId: string, targetId: string) => {
@@ -576,6 +588,7 @@ export default function Workspace() {
             }
           }}
           onDeleteProject={(id) => void dissolveProject(id)}
+          onNewProject={(id) => void newProjectWith(id)}
         />
 
         <TrashSection
@@ -612,7 +625,12 @@ export default function Workspace() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center gap-2 px-3 py-2">
+        {/*
+          Sticky as well as outside the scroller. On a desktop the layout
+          already holds it still, but a phone's address bar resizes the visual
+          viewport and can scroll an ancestor, taking the header with it.
+        */}
+        <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-transparent bg-[var(--color-paper)]/95 px-3 py-2 backdrop-blur">
           <button
             type="button"
             onClick={() => setDrawer(true)}
