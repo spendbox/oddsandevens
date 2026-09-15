@@ -108,6 +108,26 @@ to work, it is the wrong shape for this app.
   document. `shared_docs` has its own public-read policy and only holds what
   was deliberately published.
 
+- **A project is the axis above a document, not a block type.** The "one rule"
+  covers the tools inside a document; grouping documents is a different thing
+  and correctly lives outside it. Keep a project thin — the moment it carries
+  content of its own it becomes a second kind of document and the model forks.
+- **Membership lives on the document (`doc.projectId`), never as a list on the
+  project.** One home for the fact, so moving a document is one field on one
+  row and there is no second list that can disagree — which is exactly how two
+  devices end up showing different contents for the same project. A document
+  naming a project that does not exist is shown as ungrouped, never hidden: a
+  dangling id is recoverable, a vanished document looks like data loss.
+- **Projects push before documents in sync**, so a document naming a new
+  project never lands on a device that has not heard of it. Project sync never
+  fails the run: an un-migrated database should cost the user their grouping,
+  not their documents.
+- **Do not mutate a ref inside a memoised callback.** The React Compiler
+  forbids it. `workspace.tsx` keeps `latest` in step with `doc` in a single
+  effect rather than assigning it from each action — which is also one place to
+  forget instead of six. Declare hooks before the callbacks that read them;
+  a callback defined above a `useRef` compiles but the compiler cannot follow it.
+
 ## Checking work
 
 `npm test` covers the formula engine, the highlighter and the slash ranking.

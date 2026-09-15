@@ -15,9 +15,20 @@
  * problem has so far earned.
  */
 
-import { acceptFromServer, allDocsRaw, clearPending, loadDoc, pendingIds } from './store.ts'
+import {
+  acceptFromServer,
+  acceptProjectFromServer,
+  allDocsRaw,
+  allProjectsRaw,
+  clearPending,
+  clearPendingProject,
+  loadDoc,
+  loadProject,
+  pendingIds,
+  pendingProjectIds,
+} from './store.ts'
 import { getSupabase } from './supabase.ts'
-import type { Doc } from './types'
+import type { Doc, Project } from './types'
 
 /** A document as the `docs` table stores it. */
 interface Row {
@@ -25,6 +36,17 @@ interface Row {
   user_id: string
   title: string
   blocks: unknown
+  created_at: number
+  updated_at: number
+  deleted_at: number | null
+  project_id: string | null
+}
+
+interface ProjectRow {
+  id: string
+  user_id: string
+  name: string
+  collapsed: boolean
   created_at: number
   updated_at: number
   deleted_at: number | null
@@ -37,7 +59,31 @@ function toDoc(row: Row): Doc {
     blocks: Array.isArray(row.blocks) ? (row.blocks as Doc['blocks']) : [],
     createdAt: Number(row.created_at) || Date.now(),
     updatedAt: Number(row.updated_at) || Date.now(),
+    ...(row.project_id ? { projectId: row.project_id } : {}),
     ...(row.deleted_at ? { deletedAt: Number(row.deleted_at) } : {}),
+  }
+}
+
+function toProject(row: ProjectRow): Project {
+  return {
+    id: row.id,
+    name: String(row.name ?? ''),
+    createdAt: Number(row.created_at) || Date.now(),
+    updatedAt: Number(row.updated_at) || Date.now(),
+    ...(row.collapsed ? { collapsed: true } : {}),
+    ...(row.deleted_at ? { deletedAt: Number(row.deleted_at) } : {}),
+  }
+}
+
+function toProjectRow(project: Project, userId: string): ProjectRow {
+  return {
+    id: project.id,
+    user_id: userId,
+    name: project.name,
+    collapsed: !!project.collapsed,
+    created_at: project.createdAt,
+    updated_at: project.updatedAt,
+    deleted_at: project.deletedAt ?? null,
   }
 }
 
@@ -49,6 +95,7 @@ function toRow(doc: Doc, userId: string): Row {
     blocks: doc.blocks,
     created_at: doc.createdAt,
     updated_at: doc.updatedAt,
+    project_id: doc.projectId ?? null,
     deleted_at: doc.deletedAt ?? null,
   }
 }
@@ -78,6 +125,23 @@ export async function runSync(userId: string): Promise<{ ok: boolean; changed: b
       }
     }
 
+    // Projects push before documents, so a document that names a new project
+    // never arrives at a device that has not heard of it yet.
+    const projectIds = await pendingProjectIds()
+    if (projectIds.length) {
+      const projects = (await Promise.all(projectIds.map(loadProject))).filter(
+        (p): p is Project => p !== null,
+      )
+      if (projects.length) {
+        const { error } = await db
+          .from('projects')
+          .upsert(projects.map((p) => toProjectRow(p, userId)))
+        // A missing `projects` table means migration 0003 has not been run.
+        // That must not stop documents syncing, so it is not fatal here.
+        if (!error) await Promise.all(projects.map((p) => clearPendingProject(p.id)))
+      }
+    }
+
     const { data, error } = await db.from('docs').select('*').eq('user_id', userId)
     if (error || !data) return { ok: false, changed: false }
 
@@ -91,6 +155,26 @@ export async function runSync(userId: string): Promise<{ ok: boolean; changed: b
         changed = true
       }
     }
+
+    // Projects are pulled after documents and never fail the sync: an
+    // un-migrated database should cost the user their grouping, not their
+    // documents.
+    const { data: projectData, error: projectError } = await db
+      .from('projects')
+      .select('*')
+      .eq('user_id', userId)
+    if (!projectError && projectData) {
+      const mineById = new Map((await allProjectsRaw()).map((p) => [p.id, p]))
+      for (const row of projectData as ProjectRow[]) {
+        const incoming = toProject(row)
+        const existing = mineById.get(incoming.id)
+        if (!existing || incoming.updatedAt > existing.updatedAt) {
+          await acceptProjectFromServer(incoming)
+          changed = true
+        }
+      }
+    }
+
     return { ok: true, changed }
   } catch {
     // Offline, DNS failure, a table that has not been migrated yet — none of
@@ -104,6 +188,15 @@ export async function pushAll(userId: string): Promise<boolean> {
   const db = await getSupabase()
   if (!db) return false
   try {
+    // Projects first, for the same reason as in runSync.
+    const projects = await allProjectsRaw()
+    if (projects.length) {
+      const { error } = await db
+        .from('projects')
+        .upsert(projects.map((p) => toProjectRow(p, userId)))
+      if (!error) await Promise.all(projects.map((p) => clearPendingProject(p.id)))
+    }
+
     const docs = await allDocsRaw()
     if (!docs.length) return true
     const { error } = await db.from('docs').upsert(docs.map((d) => toRow(d, userId)))

@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  FileText,
   Maximize2,
   Menu,
   Minimize2,
@@ -10,19 +9,21 @@ import {
   Plus,
   Search,
   Sun,
-  Trash2,
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { blocksFromLines, docPreview, makeBlock } from '@/lib/blocks'
+import { blocksFromLines, makeBlock } from '@/lib/blocks'
 import { newId } from '@/lib/id'
-import { allDocs, loadDoc, saveDoc } from '@/lib/store'
+import { allDocs, allProjects, loadDoc, saveDoc, saveProject } from '@/lib/store'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
-import { blockText, type Doc } from '@/lib/types'
+import { docsInProject, makeProject, mergedProjectName, searchDocs, shouldDissolve } from '@/lib/projects'
+import { type Doc, type Project } from '@/lib/types'
 import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
 import AccountButton, { type Account } from './account'
+import DocList from './doc-list'
 import DocMenu from './doc-menu'
+import ProjectBar from './project-bar'
 import Editor from './editor'
 
 /** How long after the last keystroke a document is written to disk. */
@@ -37,6 +38,7 @@ function emptyDoc(): Doc {
 
 export default function Workspace() {
   const [docs, setDocs] = useState<Doc[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [doc, setDoc] = useState<Doc | null>(null)
   const [ready, setReady] = useState(false)
   /** The sidebar as a drawer on a phone. Separate from the desktop pref:
@@ -62,18 +64,30 @@ export default function Workspace() {
   }
   const toggleSidebar = () => setSidebarPref(sidebarOpen ? 'closed' : 'open')
 
-  // Holds the newest document between renders so the debounced save always
-  // writes the latest text rather than whatever was current when it was armed.
+  /**
+   * The newest document, readable from a callback that was created earlier.
+   *
+   * The debounced save fires 400ms after a keystroke and must write what is
+   * current *then*, not what was current when the timer was armed. Mirrored
+   * from state in one effect rather than assigned from each action, because
+   * the React Compiler forbids mutating a ref inside a memoised callback —
+   * and because six assignment sites are six chances for one to be forgotten.
+   */
   const latest = useRef<Doc | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    latest.current = doc
+  }, [doc])
 
   /* ---------------------------------------------------------------- start up */
 
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const stored = await allDocs()
+      const [stored, storedProjects] = await Promise.all([allDocs(), allProjects()])
       if (cancelled) return
+      setProjects(storedProjects)
       if (stored.length) {
         setDocs(stored)
         setDoc(stored[0])
@@ -105,7 +119,6 @@ export default function Workspace() {
 
   const update = useCallback((next: Doc) => {
     setDoc(next)
-    latest.current = next
     setDocs((all) => {
       const without = all.filter((d) => d.id !== next.id)
       return [next, ...without].sort((a, b) => b.updatedAt - a.updatedAt)
@@ -142,17 +155,15 @@ export default function Workspace() {
   /* -------------------------------------------------------------------- sync */
 
   const refreshFromStore = useCallback(async () => {
-    const stored = await allDocs()
+    const [stored, storedProjects] = await Promise.all([allDocs(), allProjects()])
     setDocs(stored)
+    setProjects(storedProjects)
     // Re-read the open document in case the server had a newer copy, but
     // never yank it out from under the caret if it is gone.
     const current = latest.current
     if (current) {
       const fresher = stored.find((d) => d.id === current.id)
-      if (fresher && fresher.updatedAt > current.updatedAt) {
-        setDoc(fresher)
-        latest.current = fresher
-      }
+      if (fresher && fresher.updatedAt > current.updatedAt) setDoc(fresher)
     }
   }, [])
 
@@ -260,13 +271,94 @@ export default function Workspace() {
     [update],
   )
 
+  /* ---------------------------------------------------------------- projects */
+
+  /** Writes a project locally and queues it for the next sync. */
+  const putProject = useCallback((project: Project) => {
+    setProjects((all) => {
+      const without = all.filter((p) => p.id !== project.id)
+      return project.deletedAt ? without : [project, ...without]
+    })
+    void saveProject(project)
+  }, [])
+
+  /** Writes a document's project membership without touching its content. */
+  const setDocProject = useCallback(
+    async (docId: string, projectId: string | null) => {
+      const source = (await loadDoc(docId)) ?? docs.find((d) => d.id === docId)
+      if (!source) return
+      const next: Doc = { ...source, updatedAt: Date.now() }
+      if (projectId) next.projectId = projectId
+      else delete next.projectId
+      await saveDoc(next)
+      setDocs((all) => all.map((d) => (d.id === docId ? next : d)))
+      // The open document has to be replaced too, or the bar above it keeps
+      // showing the project it was just moved out of.
+      if (doc?.id === docId) setDoc(next)
+      return next
+    },
+    [docs, doc?.id],
+  )
+
+  /** Dropping one document onto another: a project holding both. */
+  const mergeDocs = useCallback(
+    async (draggedId: string, targetId: string) => {
+      const dragged = docs.find((d) => d.id === draggedId)
+      const target = docs.find((d) => d.id === targetId)
+      if (!dragged || !target) return
+      const project = makeProject(mergedProjectName(target, dragged))
+      putProject(project)
+      await setDocProject(targetId, project.id)
+      await setDocProject(draggedId, project.id)
+    },
+    [docs, putProject, setDocProject],
+  )
+
+  /**
+   * Moving a document in or out of a project.
+   *
+   * A project left with one document dissolves: a folder holding a single item
+   * is a document with an extra click in front of it, and dissolving means
+   * dragging the second one out simply undoes the merge.
+   */
+  const moveDoc = useCallback(
+    async (docId: string, projectId: string | null) => {
+      const before = docs.find((d) => d.id === docId)?.projectId ?? null
+      if (before === projectId) return
+      await setDocProject(docId, projectId)
+      if (!before) return
+      const left = docsInProject(docs, before).filter((d) => d.id !== docId)
+      if (shouldDissolve(left.length)) {
+        for (const orphan of left) await setDocProject(orphan.id, null)
+        const project = projects.find((p) => p.id === before)
+        if (project) putProject({ ...project, deletedAt: Date.now(), updatedAt: Date.now() })
+      }
+    },
+    [docs, projects, putProject, setDocProject],
+  )
+
+  /** Ungrouping keeps every document; only the grouping goes. */
+  const dissolveProject = useCallback(
+    async (projectId: string) => {
+      for (const member of docsInProject(docs, projectId)) {
+        await setDocProject(member.id, null)
+      }
+      const project = projects.find((p) => p.id === projectId)
+      if (project) putProject({ ...project, deletedAt: Date.now(), updatedAt: Date.now() })
+    },
+    [docs, projects, putProject, setDocProject],
+  )
+
   /* ------------------------------------------------------------------ actions */
 
-  const newDoc = () => {
+  const newDoc = (projectId?: string) => {
     const fresh = emptyDoc()
+    // A document created from inside a project belongs to it immediately;
+    // making it loose and asking the user to drag it in would undo the point
+    // of being in the project when they pressed the button.
+    if (projectId) fresh.projectId = projectId
     setDocs((all) => [fresh, ...all])
     setDoc(fresh)
-    latest.current = fresh
     void saveDoc(fresh)
     setDrawer(false)
   }
@@ -275,10 +367,7 @@ export default function Workspace() {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     if (latest.current) await saveDoc(latest.current)
     const found = (await loadDoc(id)) ?? docs.find((d) => d.id === id) ?? null
-    if (found) {
-      setDoc(found)
-      latest.current = found
-    }
+    if (found) setDoc(found)
     setDrawer(false)
   }
 
@@ -292,21 +381,30 @@ export default function Workspace() {
     if (doc?.id === id) {
       if (remaining.length) {
         setDoc(remaining[0])
-        latest.current = remaining[0]
       } else {
         newDoc()
       }
     }
   }
 
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return docs
-    return docs.filter((d) => {
-      if (d.title.toLowerCase().includes(q)) return true
-      return d.blocks.some((b) => blockText(b).toLowerCase().includes(q))
-    })
-  }, [docs, query])
+  // The same ranking the project bar uses, so a search means one thing in
+  // this app rather than two subtly different things.
+  const results = useMemo(() => searchDocs(docs, query), [docs, query])
+
+  /**
+   * The project the open document belongs to, and everything else in it.
+   *
+   * Both are null for an ungrouped document, which is what keeps the bar off
+   * the screen entirely rather than showing an empty one.
+   */
+  const openProject = useMemo(
+    () => (doc?.projectId ? (projects.find((p) => p.id === doc.projectId) ?? null) : null),
+    [doc, projects],
+  )
+  const projectDocs = useMemo(
+    () => (openProject ? docsInProject(docs, openProject.id) : []),
+    [docs, openProject],
+  )
 
   /* ------------------------------------------------------------------ render */
 
@@ -360,7 +458,7 @@ export default function Workspace() {
         <div className="px-2 pb-2">
           <button
             type="button"
-            onClick={newDoc}
+            onClick={() => newDoc()}
             className="flex w-full items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-2.5 py-1.5 text-xs font-medium text-white hover:opacity-90"
           >
             <Plus size={13} /> New
@@ -381,45 +479,27 @@ export default function Workspace() {
           />
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-          {results.length === 0 && (
-            <p className="px-2 py-3 text-[11px] text-[var(--color-faint)]">
-              {query ? 'Nothing found' : 'No documents yet'}
-            </p>
-          )}
-          {results.map((item) => (
-            <div
-              key={item.id}
-              className={`group/doc flex items-center gap-1 rounded-md ${
-                doc?.id === item.id ? 'bg-[var(--color-accent-soft)]' : 'hover:bg-[var(--color-hover)]'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => void openDoc(item.id)}
-                className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1.5 text-left"
-              >
-                <FileText size={13} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
-                <span className="min-w-0">
-                  <span className="block truncate text-xs font-medium">
-                    {item.title.trim() || 'Untitled'}
-                  </span>
-                  <span className="block truncate text-[11px] text-[var(--color-faint)]">
-                    {docPreview(item.blocks)}
-                  </span>
-                </span>
-              </button>
-              <button
-                type="button"
-                aria-label={`Delete ${item.title.trim() || 'Untitled'}`}
-                onClick={() => void deleteDoc(item.id)}
-                className="mr-1 p-1 text-[var(--color-faint)] opacity-0 transition-opacity group-hover/doc:opacity-100 focus:opacity-100 hover:text-[var(--color-danger)]"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ))}
-        </nav>
+        <DocList
+          docs={results}
+          projects={projects}
+          currentId={doc?.id ?? null}
+          query={query}
+          onOpen={(id) => void openDoc(id)}
+          onDelete={(id) => void deleteDoc(id)}
+          onMerge={(draggedId, targetId) => void mergeDocs(draggedId, targetId)}
+          onMove={(docId, projectId) => void moveDoc(docId, projectId)}
+          onRenameProject={(id, name) => {
+            const project = projects.find((p) => p.id === id)
+            if (project) putProject({ ...project, name, updatedAt: Date.now() })
+          }}
+          onToggleProject={(id) => {
+            const project = projects.find((p) => p.id === id)
+            if (project) {
+              putProject({ ...project, collapsed: !project.collapsed, updatedAt: Date.now() })
+            }
+          }}
+          onDeleteProject={(id) => void dissolveProject(id)}
+        />
 
         <div className="flex items-center gap-1 border-t border-[var(--color-line)] px-2 py-2">
           <button
@@ -521,6 +601,18 @@ export default function Workspace() {
               >
                 {importProblem}
               </p>
+            )}
+            {ready && doc && openProject && (
+              <ProjectBar
+                project={openProject}
+                docs={projectDocs}
+                currentId={doc.id}
+                onOpen={(id) => void openDoc(id)}
+                onNew={() => newDoc(openProject.id)}
+                onRename={(name) =>
+                  putProject({ ...openProject, name, updatedAt: Date.now() })
+                }
+              />
             )}
             {ready && doc && (
               <Editor
