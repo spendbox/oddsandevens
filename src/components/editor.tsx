@@ -3,10 +3,12 @@
 import { GripVertical, Plus } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { makeBlock, shortcutFor } from '@/lib/blocks'
+import { blockHtml, hasFormatting, sanitizeInline } from '@/lib/rich-text'
 import type { Block, Doc, TextishBlock } from '@/lib/types'
 import { isTextish } from '@/lib/types'
 import CodeBlock from './code-block'
 import Editable, { placeCaret } from './editable'
+import FormatToolbar from './format-toolbar'
 import FormBlock from './form-block'
 import SlashMenu, { type SlashChoice } from './slash-menu'
 import TableBlock from './table-block'
@@ -53,6 +55,14 @@ export default function Editor({
   const [drag, setDrag] = useState<{ id: string; overId: string | null; below: boolean } | null>(
     null,
   )
+  /**
+   * Incremented whenever the editor rewrites a block's content itself rather
+   * than the user typing it — a split, a merge, a conversion. Editable watches
+   * it to know when a repaint must override its "never repaint while focused"
+   * rule. See the note on Editable's `revision` prop.
+   */
+  const [revision, setRevision] = useState(0)
+  const bumpRevision = () => setRevision((r) => r + 1)
   const container = useRef<HTMLDivElement>(null)
 
   const setBlocks = useCallback(
@@ -136,11 +146,16 @@ export default function Editor({
   }
 
   /** Replaces a block with a new one of another type, carrying text across. */
-  const convert = (id: string, choice: SlashChoice, keepText: string) => {
+  const convert = (id: string, choice: SlashChoice, keepText: string, keepHtml?: string) => {
     const created = makeBlock(choice.type, choice.level)
-    if (isTextish(created) && keepText) created.text = keepText
-    if (created.type === 'todo' && keepText) created.text = keepText
+    if (isTextish(created) || created.type === 'todo') {
+      if (keepText) {
+        created.text = keepText
+        created.html = keepHtml
+      }
+    }
     setBlocks(doc.blocks.map((b) => (b.id === id ? created : b)))
+    bumpRevision()
     setFocus({ id: created.id, caret: 'end' })
   }
 
@@ -155,6 +170,7 @@ export default function Editor({
     if (isTextish(block) || block.type === 'todo') {
       const at = block.text.length
       updateBlock(id, { ...block, text: `${block.text}/` } as Block)
+      bumpRevision()
       setSlash({ id, at, query: '' })
       setFocus({ id, caret: 'end' })
       return
@@ -186,6 +202,7 @@ export default function Editor({
     } else {
       // There was real text here, so keep it and put the new block below.
       updateBlock(block.id, { ...block, text: cleaned } as Block)
+      bumpRevision()
       insertAfter(block.id, makeBlock(choice.type, choice.level))
     }
   }
@@ -208,7 +225,11 @@ export default function Editor({
   }
 
   /** Text typed into a text-ish or todo block. Handles markdown shortcuts. */
-  const onTextChange = (block: TextishBlock | Extract<Block, { type: 'todo' }>, value: string) => {
+  const onTextChange = (
+    block: TextishBlock | Extract<Block, { type: 'todo' }>,
+    value: string,
+    html?: string,
+  ) => {
     const shortcut = shortcutFor(value)
     if (shortcut) {
       if (shortcut.type === 'divider') {
@@ -225,7 +246,7 @@ export default function Editor({
       return
     }
 
-    updateBlock(block.id, { ...block, text: value } as Block)
+    updateBlock(block.id, { ...block, text: value, html } as Block)
 
     if (!slash) {
       const at = insertedSlashAt(block.text, value)
@@ -244,7 +265,16 @@ export default function Editor({
   const onTextKeyDown = (
     block: Block,
     event: React.KeyboardEvent,
-    api: { atStart: () => boolean; atEnd: () => boolean; offset: () => number; text: () => string },
+    api: {
+      atStart: () => boolean
+      atEnd: () => boolean
+      offset: () => number
+      text: () => string
+      split: () => {
+        before: { text: string; html?: string }
+        after: { text: string; html?: string }
+      }
+    },
   ) => {
     // While the menu is open it owns these keys; it listens at the document
     // level and will have called preventDefault already.
@@ -266,17 +296,26 @@ export default function Editor({
         return
       }
 
-      updateBlock(block.id, { ...block, text: before } as Block)
+      // Split through the DOM, not the plain string: pressing Enter inside a
+      // bold phrase has to leave both halves bold.
+      const parts = api.split()
+      const head = parts.before.text === before ? parts.before : { text: before, html: undefined }
+      const tail = parts.after.text === after ? parts.after : { text: after, html: undefined }
+
       // Enter continues a list; from anything else it starts a paragraph.
       const continues = block.type === 'bullet' || block.type === 'todo'
       const created = makeBlock(continues ? block.type : 'text')
-      if (isTextish(created) || created.type === 'todo') created.text = after
+      if (isTextish(created) || created.type === 'todo') {
+        created.text = tail.text
+        created.html = tail.html
+      }
 
       const index = indexOf(block.id)
       const next = [...doc.blocks]
-      next[index] = { ...block, text: before } as Block
+      next[index] = { ...block, text: head.text, html: head.html } as Block
       next.splice(index + 1, 0, created)
       setBlocks(next)
+      bumpRevision()
       setFocus({ id: created.id, caret: 'start' })
       return
     }
@@ -298,11 +337,24 @@ export default function Editor({
       event.preventDefault()
 
       if (isTextish(previous) || previous.type === 'todo') {
-        // Merge into the block above, caret at the join.
+        // Merge into the block above, caret at the join. If either side is
+        // formatted, both are painted as HTML so neither loses its marks.
         const joinAt = previous.text.length
-        const merged = { ...previous, text: previous.text + text } as Block
+        const mergedText = previous.text + text
+        const mergedHtml =
+          previous.html || (isTextish(block) || block.type === 'todo' ? block.html : undefined)
+            ? sanitizeInline(
+                blockHtml(previous) + blockHtml({ text, html: (block as TextishBlock).html }),
+              )
+            : undefined
+        const merged = {
+          ...previous,
+          text: mergedText,
+          html: mergedHtml && hasFormatting(mergedHtml, mergedText) ? mergedHtml : undefined,
+        } as Block
         const next = doc.blocks.filter((b) => b.id !== block.id)
         setBlocks(next.map((b) => (b.id === previous.id ? merged : b)))
+        bumpRevision()
         setFocus({ id: previous.id, caret: joinAt })
       } else if (!text) {
         removeBlock(block.id)
@@ -348,6 +400,7 @@ export default function Editor({
       than the handles, and the floating button below covers inserting.
     */
     <div ref={container} className="relative pb-40 sm:pl-11">
+      <FormatToolbar scope={container} />
       <input
         value={doc.title}
         onChange={(e) => onChange({ ...doc, title: e.target.value, updatedAt: Date.now() })}
@@ -440,6 +493,7 @@ export default function Editor({
               onTextChange={onTextChange}
               onTextKeyDown={onTextKeyDown}
               slashOpen={slash?.id === block.id}
+              revision={revision}
             />
             {slash?.id === block.id && (
               <SlashMenu
@@ -507,16 +561,27 @@ function BlockBody({
   onTextChange,
   onTextKeyDown,
   slashOpen,
+  revision,
 }: {
   block: Block
   onChange: (next: Block) => void
-  onTextChange: (block: never, value: string) => void
+  onTextChange: (block: never, value: string, html?: string) => void
   onTextKeyDown: (
     block: Block,
     event: React.KeyboardEvent,
-    api: { atStart: () => boolean; atEnd: () => boolean; offset: () => number; text: () => string },
+    api: {
+      atStart: () => boolean
+      atEnd: () => boolean
+      offset: () => number
+      text: () => string
+      split: () => {
+        before: { text: string; html?: string }
+        after: { text: string; html?: string }
+      }
+    },
   ) => void
   slashOpen: boolean
+  revision: number
 }) {
   if (block.type === 'divider') {
     return <hr className="my-4 border-0 border-t border-[var(--color-line)]" />
@@ -546,9 +611,11 @@ function BlockBody({
         />
         <Editable
           value={block.text}
+          html={block.html}
+          revision={revision}
           placeholder={slashOpen ? '' : 'To-do'}
           ariaLabel="Task"
-          onChange={(value) => onTextChange(block as never, value)}
+          onChange={(value, html) => onTextChange(block as never, value, html)}
           onKeyDown={(event, api) => onTextKeyDown(block, event, api)}
           className={`min-w-0 flex-1 py-0.5 leading-relaxed ${
             block.done ? 'text-[var(--color-faint)] line-through' : ''
@@ -587,9 +654,11 @@ function BlockBody({
   const editable = (
     <Editable
       value={block.text}
+      html={block.html}
+      revision={revision}
       placeholder={placeholder}
       ariaLabel={block.type === 'heading' ? 'Heading' : 'Text'}
-      onChange={(value) => onTextChange(block as never, value)}
+      onChange={(value, html) => onTextChange(block as never, value, html)}
       onKeyDown={(event, api) => onTextKeyDown(block, event, api)}
       className={className}
     />

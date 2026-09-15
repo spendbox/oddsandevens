@@ -312,6 +312,174 @@ await page.waitForTimeout(200)
   }
 }
 
+// --- Inline formatting ------------------------------------------------------
+{
+  // A document of its own, so these do not depend on what ran before.
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(400)
+  await page.keyboard.type('Formatting')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('The word bold should be bold here.')
+  await page.waitForTimeout(300)
+
+  // The block holding the sentence, which is not necessarily the first one.
+  const target = page.locator('[data-block-id] [contenteditable]', { hasText: 'should be bold' }).first()
+
+  /** Selects the first occurrence of a word, in whichever block holds it. */
+  const selectWord = (word) =>
+    page.evaluate((w) => {
+      const el = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find((b) =>
+        (b.textContent ?? '').includes(w),
+      )
+      if (!el) return false
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      let node
+      while ((node = walker.nextNode())) {
+        const i = node.data.indexOf(w)
+        if (i >= 0) {
+          const r = document.createRange()
+          r.setStart(node, i)
+          r.setEnd(node, i + w.length)
+          const s = window.getSelection()
+          s.removeAllRanges()
+          s.addRange(r)
+          return true
+        }
+      }
+      return false
+    }, word)
+
+  await selectWord('bold')
+  await page.waitForTimeout(350)
+  log(
+    'formatting toolbar appears on a selection',
+    await page.locator('[role="toolbar"]').isVisible().catch(() => false),
+  )
+
+  await page.keyboard.press('Control+b')
+  await page.waitForTimeout(400)
+  log('Ctrl+B applies bold', /<(b|strong)>bold<\/(b|strong)>/.test(await target.innerHTML()))
+
+  await selectWord('here')
+  await page.waitForTimeout(300)
+  await page.locator('[aria-label="Italic"]').click({ force: true })
+  await page.waitForTimeout(400)
+  log('the toolbar applies italic', /<(i|em)>here<\/(i|em)>/.test(await target.innerHTML()))
+
+  await selectWord('word')
+  await page.waitForTimeout(300)
+  await page.locator('[aria-label="Code"]').click({ force: true })
+  await page.waitForTimeout(400)
+  log('inline code can be applied', /<code>word<\/code>/.test(await target.innerHTML()))
+
+  await page.waitForTimeout(700)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+  const afterReload = await page
+    .locator('[data-block-id] [contenteditable]', { hasText: 'should be bold' })
+    .first()
+    .innerHTML()
+  log(
+    'formatting survives a reload',
+    /<(b|strong)>/.test(afterReload) && /<code>/.test(afterReload),
+  )
+
+  // Splitting inside a bold word must leave both halves bold, and must
+  // actually truncate the first block — the DOM used to keep the whole line.
+  const boldIndex = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+    const el = all.find((b) => b.querySelector('b, strong'))
+    if (!el) return -1
+    el.focus()
+    const b = el.querySelector('b, strong')
+    const r = document.createRange()
+    r.setStart(b.firstChild, 2)
+    r.collapse(true)
+    const s = window.getSelection()
+    s.removeAllRanges()
+    s.addRange(r)
+    return all.indexOf(el)
+  })
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(500)
+  const halves = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.innerHTML),
+  )
+  const head = halves[boldIndex] ?? ''
+  const tail = halves[boldIndex + 1] ?? ''
+  log(
+    'splitting inside bold keeps both halves bold',
+    /<(b|strong)>/.test(head) && /<(b|strong)>/.test(tail),
+    JSON.stringify([head, tail]).slice(0, 110),
+  )
+  log(
+    'the first half is actually truncated by the split',
+    /bo<\/(b|strong)>\s*$/.test(head),
+    JSON.stringify(head).slice(0, 80),
+  )
+
+  await page.keyboard.press('Backspace')
+  await page.waitForTimeout(500)
+  const remerged = await page.evaluate(
+    (i) =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')][i]?.innerHTML ?? '',
+    boldIndex,
+  )
+  log('merging the halves back keeps the formatting', /<(b|strong)>/.test(remerged))
+}
+
+// --- Whitespace is not silently eaten --------------------------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(400)
+  await page.keyboard.type('hello world')
+  await page.waitForTimeout(300)
+  await page.evaluate(() => {
+    const el = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find(
+      (b) => b.textContent === 'hello world',
+    )
+    el.focus()
+    const r = document.createRange()
+    r.setStart(el.firstChild, 5)
+    r.collapse(true)
+    const s = window.getSelection()
+    s.removeAllRanges()
+    s.addRange(r)
+  })
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(500)
+  await page.keyboard.type('X')
+  await page.waitForTimeout(400)
+  const parts = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+  )
+  // HTML collapses a leading space, which used to turn this into "Xworld".
+  log('a leading space survives a split', parts.includes('X world'), JSON.stringify(parts))
+}
+
+// --- Pasted markup cannot carry anything executable -------------------------
+{
+  await page.locator('[aria-label="Continue writing"]').click()
+  await page.waitForTimeout(250)
+  await page.evaluate(() => {
+    const el = document.activeElement
+    const dt = new DataTransfer()
+    dt.setData(
+      'text/html',
+      '<div onclick="steal()"><script>alert(1)<\/script><b>ok</b> <a href="javascript:x">link</a></div>',
+    )
+    dt.setData('text/plain', 'ok link')
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  })
+  await page.waitForTimeout(500)
+  const pasted = await page.evaluate(() => document.activeElement?.innerHTML ?? '')
+  log(
+    'pasted HTML is stripped of scripts, links and handlers',
+    !/script|onclick|href|<a/i.test(pasted),
+    JSON.stringify(pasted).slice(0, 90),
+  )
+}
+
 // Manifest + service worker, the installable part.
 const manifest = await page.evaluate(async () => {
   const r = await fetch('/manifest.webmanifest')

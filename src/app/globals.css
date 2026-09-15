@@ -77,6 +77,16 @@ body {
  */
 [contenteditable] {
   outline: none;
+  /*
+   * HTML collapses runs of whitespace and drops a leading space entirely.
+   * In an editor that is data loss: splitting "hello world" at the space
+   * leaves a block whose text begins with one, and painting it back lost it,
+   * so the next keystroke produced "Xworld". pre-wrap keeps every space the
+   * writer typed while still wrapping normally.
+   */
+  white-space: pre-wrap;
+  /* Long unbroken strings — a URL, a hash — must not widen the page. */
+  overflow-wrap: break-word;
 }
 
 /* The placeholder on an empty block. Only the focused one shows its hint. */
@@ -84,6 +94,20 @@ body {
   content: attr(data-placeholder);
   color: var(--color-faint);
   pointer-events: none;
+}
+
+/*
+ * Inline formatting inside a block. `code` needs real styling; bold and italic
+ * inherit the browser's defaults, which are correct.
+ */
+[contenteditable] code,
+.pad-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--color-hover);
+  border: 1px solid var(--color-line);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
 }
 
 ::selection {

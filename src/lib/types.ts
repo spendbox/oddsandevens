@@ -26,7 +26,17 @@ export type BlockType =
 export interface TextishBlock {
   id: string
   type: 'text' | 'heading' | 'bullet' | 'quote'
+  /**
+   * The plain text. Always present, and always the source of truth for search,
+   * the sidebar preview and export — none of which should have to parse markup.
+   */
   text: string
+  /**
+   * The same run with bold, italic and the rest, when it has any. Absent means
+   * unformatted, which is also what every block saved before formatting
+   * existed looks like: the fallback to escaped `text` is the whole migration.
+   */
+  html?: string
   /** Heading size. Only read when type is 'heading'. */
   level?: 1 | 2 | 3
 }
@@ -35,6 +45,8 @@ export interface TodoBlock {
   id: string
   type: 'todo'
   text: string
+  /** See TextishBlock.html. */
+  html?: string
   done: boolean
 }
 
