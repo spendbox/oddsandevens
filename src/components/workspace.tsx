@@ -19,7 +19,7 @@ import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
 import { docsInProject, makeProject, mergedProjectName, searchDocs, shouldDissolve } from '@/lib/projects'
 import { attachmentRefs, purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
-import { type Doc, type Project } from '@/lib/types'
+import { isTextish, type Doc, type Project } from '@/lib/types'
 import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
 import AccountButton, { type Account } from './account'
 import DocList from './doc-list'
@@ -305,6 +305,53 @@ export default function Workspace() {
       } catch {
         setImportProblem(
           `Could not read “${name}”. It may be password protected or damaged.`,
+        )
+      } finally {
+        setImporting(false)
+      }
+    },
+    [update],
+  )
+
+  /**
+   * Reads a Word document and appends it as editable blocks.
+   *
+   * Appends rather than replaces, for the same reason as the PDF import: one
+   * menu click should not be able to wipe the page.
+   */
+  const importWord = useCallback(
+    async (file: File) => {
+      setImporting(true)
+      setImportProblem(null)
+      try {
+        const { docxToBlocks } = await import('@/lib/docx')
+        const pasted = await docxToBlocks(file)
+        if (!pasted.length) {
+          setImportProblem(`There was no text to read in “${file.name}”.`)
+          return
+        }
+        const current = latest.current
+        if (!current) return
+        const existing = current.blocks.filter((b) => !(b.type === 'text' && !b.text.trim()))
+        const created = pasted.map((item) => {
+          const made = makeBlock(item.type, item.level)
+          // Checked by type, not with `in`: an optional property that has
+          // never been set is absent from the object, so `'html' in made` was
+          // false on every fresh block and all the formatting was dropped.
+          if (isTextish(made) || made.type === 'todo') {
+            made.text = item.text
+            made.html = item.html
+            made.indent = item.indent
+          }
+          if (made.type === 'code') made.code = item.text
+          return made
+        })
+        update({ ...current, blocks: [...existing, ...created], updatedAt: Date.now() })
+      } catch (error) {
+        setImportProblem(
+          error instanceof Error
+            ? `Could not open “${file.name}”. ${error.message}`
+            : `Could not open “${file.name}”.`,
         )
       } finally {
         setImporting(false)
@@ -659,6 +706,7 @@ export default function Workspace() {
                 importing={importing}
                 accountId={account?.id ?? null}
                 onImportPdf={(file) => void importPdf(file, file.name)}
+                onImportWord={(file) => void importWord(file)}
               />
             )}
             <AccountButton

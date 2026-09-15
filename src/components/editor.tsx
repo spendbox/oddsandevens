@@ -472,13 +472,16 @@ export default function Editor({
       const announcesList = !after && colonStartsList(before)
 
       // The opening line of a document, left unpunctuated, is its title.
-      // Applied once — only while the document has no heading yet — so it
-      // cannot keep surprising someone further down the page.
+      // Applied once — only while the document has neither a title nor a
+      // heading — so it cannot keep surprising someone further down the page,
+      // and never contradicts a title the writer has already given.
       const isFirst = indexOf(block.id) === 0
       const hasHeading = doc.blocks.some((b) => b.type === 'heading')
+      const titled = doc.title.trim() !== ''
       if (
         isFirst &&
         !hasHeading &&
+        !titled &&
         !after &&
         block.type === 'text' &&
         looksLikeTitle(before) &&
