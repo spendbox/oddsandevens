@@ -226,6 +226,92 @@ const noHorizontalScroll = await mobile.evaluate(
 )
 log('no horizontal scroll on a phone', noHorizontalScroll)
 
+// --- Layout: collapsing sidebar, alignment, reordering ----------------------
+await page.locator('[aria-label="Collapse sidebar"]').click()
+await page.waitForTimeout(400)
+log('sidebar collapses', !(await page.locator('aside').isVisible()))
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForTimeout(800)
+log('sidebar stays collapsed after a reload', !(await page.locator('aside').isVisible()))
+await page.locator('[aria-label="Show sidebar"]').click()
+await page.waitForTimeout(400)
+log('sidebar can be reopened', await page.locator('aside').isVisible())
+
+{
+  const titleX = await page
+    .locator('[aria-label="Document title"]')
+    .evaluate((el) => el.getBoundingClientRect().left)
+  const bodyX = await page
+    .locator('[data-block-id] [contenteditable]')
+    .first()
+    .evaluate((el) => el.getBoundingClientRect().left)
+  log('title and body text line up', Math.abs(titleX - bodyX) < 2, `title ${Math.round(titleX)}, body ${Math.round(bodyX)}`)
+
+  // Hovering reveals the gutter; if it were laid out inline it would shove
+  // every block sideways as the pointer moved down the page.
+  await page.locator('[data-block-id]').first().hover()
+  await page.waitForTimeout(250)
+  const hoverX = await page
+    .locator('[data-block-id] [contenteditable]')
+    .first()
+    .evaluate((el) => el.getBoundingClientRect().left)
+  log('text does not shift when the gutter appears', Math.abs(bodyX - hoverX) < 1)
+}
+
+// --- The virtual-keyboard regression ---------------------------------------
+// Phones deliver a typed character as an input event with keydown reporting
+// 'Unidentified'/229. This reproduces that exactly: no keydown at all, just
+// the text change a virtual keyboard produces. The old keydown-based slash
+// detection failed here, which is why "/" did nothing on mobile.
+await page.locator('[aria-label="Continue writing"]').click()
+await page.waitForTimeout(250)
+const opened = await page.evaluate(() => {
+  const el = document.activeElement
+  if (!el || !el.isContentEditable) return 'no focused block'
+  el.textContent = '/'
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, data: '/', inputType: 'insertText' }))
+  return 'dispatched'
+})
+await page.waitForTimeout(400)
+log(
+  'slash menu opens from an input event alone (virtual keyboard)',
+  await page.locator('[role="listbox"]').isVisible().catch(() => false),
+  opened,
+)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(200)
+
+// --- Drag to reorder --------------------------------------------------------
+{
+  const texts = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+    )
+  const before = await texts()
+  const rows = page.locator('[data-block-id]')
+  const count = await rows.count()
+  if (count >= 2 && before.length >= 2) {
+    const last = rows.nth(count - 1)
+    await last.hover()
+    await page.waitForTimeout(200)
+    const grip = last.locator('[aria-label^="Drag to reorder"]')
+    const gb = await grip.boundingBox()
+    const topBox = await rows.first().boundingBox()
+    if (gb && topBox) {
+      await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(topBox.x + 150, topBox.y + 2, { steps: 12 })
+      await page.waitForTimeout(200)
+      await page.mouse.up()
+      await page.waitForTimeout(400)
+    }
+    const after = await texts()
+    log('a block can be dragged to a new position', JSON.stringify(before) !== JSON.stringify(after))
+  } else {
+    log('a block can be dragged to a new position', false, 'not enough blocks to test')
+  }
+}
+
 // Manifest + service worker, the installable part.
 const manifest = await page.evaluate(async () => {
   const r = await fetch('/manifest.webmanifest')

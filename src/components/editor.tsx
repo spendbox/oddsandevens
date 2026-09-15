@@ -1,6 +1,6 @@
 'use client'
 
-import { GripVertical, Trash2 } from 'lucide-react'
+import { GripVertical, Plus } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { makeBlock, shortcutFor } from '@/lib/blocks'
 import type { Block, Doc, TextishBlock } from '@/lib/types'
@@ -45,6 +45,14 @@ export default function Editor({
   )
   /** Open slash menu: which block it belongs to and where the "/" sits. */
   const [slash, setSlash] = useState<{ id: string; at: number; query: string } | null>(null)
+  /**
+   * An in-flight block drag. Pointer events rather than HTML5 drag-and-drop,
+   * because dragstart never fires on a touch screen — one code path that works
+   * for a mouse, a trackpad and a thumb.
+   */
+  const [drag, setDrag] = useState<{ id: string; overId: string | null; below: boolean } | null>(
+    null,
+  )
   const container = useRef<HTMLDivElement>(null)
 
   const setBlocks = useCallback(
@@ -86,6 +94,32 @@ export default function Editor({
     setFocus({ id: block.id, caret: 'start' })
   }
 
+  /** Moves `id` to sit just before or after `targetId`. */
+  const moveBlock = (id: string, targetId: string, below: boolean) => {
+    if (id === targetId) return
+    const moving = doc.blocks.find((b) => b.id === id)
+    if (!moving) return
+    const without = doc.blocks.filter((b) => b.id !== id)
+    // The target index is read from the list with the dragged block already
+    // removed, or dropping downward lands one place short of where it looked.
+    const at = without.findIndex((b) => b.id === targetId)
+    if (at === -1) return
+    const next = [...without]
+    next.splice(below ? at + 1 : at, 0, moving)
+    setBlocks(next)
+  }
+
+  /** Moves a block one place up or down. The keyboard route to reordering. */
+  const nudgeBlock = (id: string, by: -1 | 1) => {
+    const index = indexOf(id)
+    const target = index + by
+    if (index === -1 || target < 0 || target >= doc.blocks.length) return
+    const next = [...doc.blocks]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setBlocks(next)
+    setFocus({ id, caret: 'end' })
+  }
+
   const removeBlock = (id: string) => {
     const index = indexOf(id)
     if (doc.blocks.length === 1) {
@@ -110,6 +144,33 @@ export default function Editor({
     setFocus({ id: created.id, caret: 'end' })
   }
 
+  /**
+   * Opens the insert menu for a block without a "/" having been typed — the
+   * "+" in the gutter. It appends the slash to the block's text so that both
+   * routes converge on exactly one code path for picking and cleaning up.
+   */
+  const openMenuFor = (id: string) => {
+    const block = doc.blocks.find((b) => b.id === id)
+    if (!block) return
+    if (isTextish(block) || block.type === 'todo') {
+      const at = block.text.length
+      updateBlock(id, { ...block, text: `${block.text}/` } as Block)
+      setSlash({ id, at, query: '' })
+      setFocus({ id, caret: 'end' })
+      return
+    }
+    // A table, form or code block has no text to hang the menu off, so the
+    // menu belongs to a fresh block underneath it.
+    const fresh = makeBlock('text')
+    if (isTextish(fresh)) fresh.text = '/'
+    const index = indexOf(id)
+    const next = [...doc.blocks]
+    next.splice(index + 1, 0, fresh)
+    setBlocks(next)
+    setSlash({ id: fresh.id, at: 0, query: '' })
+    setFocus({ id: fresh.id, caret: 'end' })
+  }
+
   const pickFromSlash = (choice: SlashChoice) => {
     if (!slash) return
     const block = doc.blocks.find((b) => b.id === slash.id)
@@ -127,6 +188,23 @@ export default function Editor({
       updateBlock(block.id, { ...block, text: cleaned } as Block)
       insertAfter(block.id, makeBlock(choice.type, choice.level))
     }
+  }
+
+  /**
+   * Where a "/" was just typed, or null if this change was anything else.
+   *
+   * The slash menu used to open from a keydown handler testing `event.key`.
+   * That works on a physical keyboard and fails on most phones: virtual
+   * keyboards and IMEs report keydown as `Unidentified` with keyCode 229 and
+   * only reveal the real character in the input event that follows. Detecting
+   * the inserted character instead works on every keyboard, including
+   * autocorrect, swipe typing, dictation and paste.
+   */
+  const insertedSlashAt = (before: string, after: string): number | null => {
+    if (after.length !== before.length + 1) return null
+    let i = 0
+    while (i < before.length && before[i] === after[i]) i++
+    return after[i] === '/' ? i : null
   }
 
   /** Text typed into a text-ish or todo block. Handles markdown shortcuts. */
@@ -149,8 +227,14 @@ export default function Editor({
 
     updateBlock(block.id, { ...block, text: value } as Block)
 
-    // Track the slash menu's query as the user keeps typing.
-    if (slash?.id === block.id) {
+    if (!slash) {
+      const at = insertedSlashAt(block.text, value)
+      if (at !== null) setSlash({ id: block.id, at, query: '' })
+      return
+    }
+
+    // Track the menu's query as the user keeps typing.
+    if (slash.id === block.id) {
       const after = value.slice(slash.at)
       if (!after.startsWith('/')) setSlash(null)
       else setSlash({ ...slash, query: after.slice(1) })
@@ -166,11 +250,6 @@ export default function Editor({
     // level and will have called preventDefault already.
     if (slash && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) {
       if (event.defaultPrevented) return
-    }
-
-    if (event.key === '/' && !slash) {
-      setSlash({ id: block.id, at: api.offset(), query: '' })
-      return
     }
 
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -235,6 +314,14 @@ export default function Editor({
       return
     }
 
+    // Alt+Arrow moves the block itself. Drag-and-drop is not reachable from a
+    // keyboard, and reordering should not require a pointing device.
+    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && event.altKey) {
+      event.preventDefault()
+      nudgeBlock(block.id, event.key === 'ArrowUp' ? -1 : 1)
+      return
+    }
+
     if (event.key === 'ArrowUp' && api.atStart()) {
       const index = indexOf(block.id)
       if (index > 0) {
@@ -253,7 +340,14 @@ export default function Editor({
   }
 
   return (
-    <div ref={container} className="pb-40">
+    /*
+      The left inset is where the gutter controls live. They are positioned
+      into it rather than laid out inline: inline, they pushed every block
+      right and left the title sitting on its own, out of line with the text
+      beneath it. On a phone there is no inset at all — the width matters more
+      than the handles, and the floating button below covers inserting.
+    */
+    <div ref={container} className="relative pb-40 sm:pl-11">
       <input
         value={doc.title}
         onChange={(e) => onChange({ ...doc, title: e.target.value, updatedAt: Date.now() })}
@@ -272,23 +366,74 @@ export default function Editor({
         <div
           key={block.id}
           data-block-id={block.id}
-          className="group/block relative -mx-2 flex items-start gap-1 rounded-md px-2"
+          className={`group/block relative rounded-md ${
+            drag?.id === block.id ? 'opacity-40' : ''
+          }`}
         >
-          <div className="sticky top-2 flex shrink-0 translate-y-0.5 items-center opacity-0 transition-opacity group-focus-within/block:opacity-60 group-hover/block:opacity-60">
+          {/* Where the block would land if you let go now. */}
+          {drag?.overId === block.id && (
+            <span
+              aria-hidden
+              className={`pointer-events-none absolute inset-x-0 h-0.5 rounded-full bg-[var(--color-accent)] ${
+                drag.below ? '-bottom-px' : '-top-px'
+              }`}
+            />
+          )}
+          {/*
+            The gutter stays visible on a touch screen. It used to be
+            `hidden sm:block`, which left a phone with no way to insert a block
+            except typing "/" — and that did not work there either. Hover only
+            fades it in on devices that have a pointer.
+          */}
+          <div className="absolute top-1 -left-11 hidden shrink-0 items-center opacity-0 transition-opacity group-focus-within/block:opacity-100 group-hover/block:opacity-100 sm:flex">
             <button
               type="button"
-              aria-label="Delete block"
-              onClick={() => removeBlock(block.id)}
-              className="hidden p-0.5 text-[var(--color-faint)] hover:text-[var(--color-danger)] sm:block"
+              aria-label="Insert block below"
+              onClick={() => openMenuFor(block.id)}
+              className="rounded p-1 text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
             >
-              <Trash2 size={13} />
+              <Plus size={14} />
             </button>
-            <span className="hidden p-0.5 text-[var(--color-faint)] sm:block">
-              <GripVertical size={13} />
-            </span>
+            <button
+              type="button"
+              aria-label={`Drag to reorder, or press Alt with the arrow keys`}
+              // touch-none stops the browser scrolling the page instead of
+              // giving us the pointermove events a drag is made of.
+              className="touch-none rounded p-1 text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+              onPointerDown={(e) => {
+                e.preventDefault()
+                e.currentTarget.setPointerCapture(e.pointerId)
+                setDrag({ id: block.id, overId: null, below: false })
+              }}
+              onPointerMove={(e) => {
+                if (!drag) return
+                const under = document
+                  .elementFromPoint(e.clientX, e.clientY)
+                  ?.closest('[data-block-id]')
+                const overId = under?.getAttribute('data-block-id') ?? null
+                if (!overId || overId === drag.id) {
+                  if (drag.overId !== null) setDrag({ ...drag, overId: null })
+                  return
+                }
+                // Past the midpoint means below, which is what makes dropping
+                // onto the lower half of a block land after it.
+                const box = under!.getBoundingClientRect()
+                const below = e.clientY > box.top + box.height / 2
+                if (drag.overId !== overId || drag.below !== below) {
+                  setDrag({ ...drag, overId, below })
+                }
+              }}
+              onPointerUp={() => {
+                if (drag?.overId) moveBlock(drag.id, drag.overId, drag.below)
+                setDrag(null)
+              }}
+              onPointerCancel={() => setDrag(null)}
+            >
+              <GripVertical size={14} />
+            </button>
           </div>
 
-          <div className="min-w-0 flex-1">
+          <div className="relative min-w-0">
             <BlockBody
               block={block}
               onChange={(next) => updateBlock(block.id, next)}
@@ -312,6 +457,31 @@ export default function Editor({
         empty space under a document does nothing, which reads as the page
         being finished rather than continuing.
       */}
+      {/*
+        The phone's way in. Typing "/" works again now, but a visible button is
+        discoverable in a way an invisible keystroke is not, and on a touch
+        screen there is no gutter to hover.
+      */}
+      <button
+        type="button"
+        aria-label="Insert block"
+        onClick={() => {
+          const last = doc.blocks[doc.blocks.length - 1]
+          if (last && (isTextish(last) || last.type === 'todo') && !last.text) {
+            openMenuFor(last.id)
+            return
+          }
+          const fresh = makeBlock('text')
+          if (isTextish(fresh)) fresh.text = '/'
+          setBlocks([...doc.blocks, fresh])
+          setSlash({ id: fresh.id, at: 0, query: '' })
+          setFocus({ id: fresh.id, caret: 'end' })
+        }}
+        className="fixed right-4 bottom-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-accent)] text-white shadow-lg active:scale-95 sm:hidden"
+      >
+        <Plus size={22} />
+      </button>
+
       <button
         type="button"
         aria-label="Continue writing"

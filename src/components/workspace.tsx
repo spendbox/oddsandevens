@@ -1,6 +1,18 @@
 'use client'
 
-import { FileText, Menu, Moon, Plus, Search, Sun, Trash2, X } from 'lucide-react'
+import {
+  FileText,
+  Maximize2,
+  Menu,
+  Minimize2,
+  Moon,
+  PanelLeft,
+  Plus,
+  Search,
+  Sun,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { docPreview, makeBlock } from '@/lib/blocks'
 import { newId } from '@/lib/id'
@@ -8,7 +20,7 @@ import { allDocs, loadDoc, saveDoc } from '@/lib/store'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
 import { blockText, type Doc } from '@/lib/types'
-import { useTheme } from '@/lib/use-theme'
+import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
 import AccountButton, { type Account } from './account'
 import Editor from './editor'
 
@@ -26,11 +38,26 @@ export default function Workspace() {
   const [docs, setDocs] = useState<Doc[]>([])
   const [doc, setDoc] = useState<Doc | null>(null)
   const [ready, setReady] = useState(false)
-  const [sidebar, setSidebar] = useState(false)
+  /** The sidebar as a drawer on a phone. Separate from the desktop pref:
+   *  a narrow screen has no room to keep it open alongside the document. */
+  const [drawer, setDrawer] = useState(false)
   const [query, setQuery] = useState('')
   const [account, setAccount] = useState<Account | null>(null)
   const [syncState, setSyncState] = useState<SyncState>(isSyncConfigured() ? 'idle' : 'off')
-  const { theme, toggle: toggleTheme } = useTheme()
+  const { value: theme, set: setTheme } = usePref(THEME)
+  const { value: sidebarPref, set: setSidebarPref } = usePref(SIDEBAR)
+  const { value: widthPref, set: setWidthPref } = usePref(WIDTH)
+
+  // Open and wide unless the reader has said otherwise.
+  const sidebarOpen = sidebarPref !== 'closed'
+  const wide = widthPref !== 'narrow'
+
+  const toggleTheme = () => {
+    const current =
+      theme ?? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    setTheme(current === 'dark' ? 'light' : 'dark')
+  }
+  const toggleSidebar = () => setSidebarPref(sidebarOpen ? 'closed' : 'open')
 
   // Holds the newest document between renders so the debounced save always
   // writes the latest text rather than whatever was current when it was armed.
@@ -167,6 +194,20 @@ export default function Workspace() {
     }
   }, [account, sync])
 
+  // Cmd/Ctrl+\ collapses the sidebar, the shortcut every editor uses for it.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === '\\') {
+        event.preventDefault()
+        setSidebarPref(
+          document.documentElement.getAttribute('data-sidebar') === 'closed' ? 'open' : 'closed',
+        )
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [setSidebarPref])
+
   /* ------------------------------------------------------------------ actions */
 
   const newDoc = () => {
@@ -175,7 +216,7 @@ export default function Workspace() {
     setDoc(fresh)
     latest.current = fresh
     void saveDoc(fresh)
-    setSidebar(false)
+    setDrawer(false)
   }
 
   const openDoc = async (id: string) => {
@@ -186,7 +227,7 @@ export default function Workspace() {
       setDoc(found)
       latest.current = found
     }
-    setSidebar(false)
+    setDrawer(false)
   }
 
   const deleteDoc = async (id: string) => {
@@ -220,19 +261,25 @@ export default function Workspace() {
   return (
     <div className="flex h-dvh overflow-hidden">
       {/* Backdrop for the sidebar on small screens. */}
-      {sidebar && (
+      {drawer && (
         <button
           type="button"
           aria-label="Close menu"
-          onClick={() => setSidebar(false)}
+          onClick={() => setDrawer(false)}
           className="fixed inset-0 z-30 bg-black/20 md:hidden"
         />
       )}
 
+      {/*
+        One element serves as a drawer on a phone and a collapsible column on a
+        desktop. Collapsed, it is removed from the layout entirely rather than
+        merely hidden, so the document gets the full width of the window back —
+        which is the point of collapsing it.
+      */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-paper)] transition-transform md:static md:translate-x-0 ${
-          sidebar ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-paper)] transition-transform md:static ${
+          drawer ? 'translate-x-0' : '-translate-x-full'
+        } ${sidebarOpen ? 'md:translate-x-0' : 'md:hidden'}`}
       >
         <div className="flex items-center gap-1.5 px-3 pt-3 pb-2">
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--color-accent)] text-[11px] font-bold text-white">
@@ -241,11 +288,20 @@ export default function Workspace() {
           <span className="text-sm font-semibold">Pad</span>
           <button
             type="button"
-            onClick={() => setSidebar(false)}
+            onClick={() => setDrawer(false)}
             aria-label="Close menu"
             className="ml-auto p-1 text-[var(--color-muted)] md:hidden"
           >
             <X size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar (Ctrl+\)"
+            className="ml-auto hidden rounded p-1 text-[var(--color-muted)] hover:bg-[var(--color-hover)] md:block"
+          >
+            <PanelLeft size={15} />
           </button>
         </div>
 
@@ -313,14 +369,28 @@ export default function Workspace() {
           ))}
         </nav>
 
-        <div className="border-t border-[var(--color-line)] px-2 py-2">
+        <div className="flex items-center gap-1 border-t border-[var(--color-line)] px-2 py-2">
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+            className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
           >
             {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
             {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+          {/*
+            Full width is the default because it is what was asked for, but
+            long lines are genuinely harder to read, so the narrow column stays
+            one click away rather than being taken off the table.
+          */}
+          <button
+            type="button"
+            onClick={() => setWidthPref(wide ? 'narrow' : 'wide')}
+            title={wide ? 'Narrow the page for easier reading' : 'Use the full width'}
+            className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+          >
+            {wide ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            {wide ? 'Narrow' : 'Wide'}
           </button>
         </div>
       </aside>
@@ -329,12 +399,25 @@ export default function Workspace() {
         <header className="flex shrink-0 items-center gap-2 px-3 py-2">
           <button
             type="button"
-            onClick={() => setSidebar(true)}
+            onClick={() => setDrawer(true)}
             aria-label="Open menu"
             className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)] md:hidden"
           >
             <Menu size={17} />
           </button>
+          {/* The way back once the sidebar is collapsed. Without it, collapsing
+              is a one-way door for anyone who does not know the shortcut. */}
+          {!sidebarOpen && (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label="Show sidebar"
+              title="Show sidebar (Ctrl+\)"
+              className="hidden rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)] md:block"
+            >
+              <PanelLeft size={17} />
+            </button>
+          )}
           <div className="ml-auto">
             <AccountButton
               account={account}
@@ -355,7 +438,17 @@ export default function Workspace() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-8">
+          {/*
+            Wide is left-aligned with a small gutter rather than centred: a
+            centred column on a large screen puts most of the width into empty
+            margins, which is the opposite of filling the screen. Narrow keeps
+            a centred reading measure for people who prefer it.
+          */}
+          <div
+            className={`w-full px-4 pt-3 pb-4 sm:px-6 ${
+              wide ? 'max-w-[110rem]' : 'mx-auto max-w-3xl sm:px-8'
+            }`}
+          >
             {/*
               Nothing is rendered until the store has answered. A placeholder
               document painted first would be replaced a frame later, and the

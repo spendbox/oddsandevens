@@ -103,6 +103,19 @@ export default function SlashMenu({
       ?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
+  // On a phone the virtual keyboard covers the bottom half of the screen, and
+  // the menu opens directly under the caret — which is often behind it. Ask
+  // the browser to bring the whole menu into the visible area once, on open.
+  useEffect(() => {
+    const timer = setTimeout(
+      () => listRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
+      // After the keyboard has had a moment to resize the viewport; doing it
+      // immediately measures against a screen that is about to shrink.
+      150,
+    )
+    return () => clearTimeout(timer)
+  }, [])
+
   if (!matches.length) {
     return (
       <div className="absolute z-40 mt-1 w-64 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-3 text-xs text-[var(--color-faint)] shadow-lg">
@@ -116,7 +129,7 @@ export default function SlashMenu({
       ref={listRef}
       role="listbox"
       aria-label="Insert block"
-      className="absolute z-40 mt-1 max-h-72 w-64 overflow-y-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg"
+      className="absolute z-40 mt-1 max-h-[min(18rem,45vh)] w-[min(16rem,calc(100vw-3rem))] overflow-y-auto overscroll-contain rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg"
     >
       {matches.map((item, index) => (
         <button
@@ -125,14 +138,18 @@ export default function SlashMenu({
           data-index={index}
           role="option"
           aria-selected={index === active}
-          // Mouse down, not click: a click fires after blur, by which point
-          // the block that opened the menu has lost the caret.
-          onMouseDown={(e) => {
+          // Pointer down, not click: a click fires after blur, by which point
+          // the block that opened the menu has lost the caret. On a touch
+          // screen the synthesised mouse events can arrive later still, or not
+          // at all, so this listens to the pointer directly.
+          onPointerDown={(e) => {
             e.preventDefault()
             onPick({ type: item.type, level: item.level })
           }}
           onMouseEnter={() => setActive(index)}
-          className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors ${
+          // Taller rows on touch: 44px is the smallest target a thumb hits
+          // reliably, and the desktop density is a third of that.
+          className={`flex w-full items-center gap-2.5 rounded-md px-2 py-2.5 text-left transition-colors sm:py-1.5 ${
             index === active ? 'bg-[var(--color-accent-soft)]' : ''
           }`}
         >
