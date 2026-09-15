@@ -19,6 +19,10 @@
  *   PAD_E2E_SHOTS   where to write screenshots (default ./e2e-shots)
  */
 import { chromium } from 'playwright'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { makeTestPdf } from './make-test-pdf.mjs'
 
 const SHOTS = process.env.PAD_E2E_SHOTS ?? 'e2e-shots'
 const URL = process.env.PAD_E2E_URL ?? 'http://localhost:3000'
@@ -34,7 +38,9 @@ mkdirSync(SHOTS, { recursive: true })
 const browser = await chromium.launch(
   process.env.PAD_E2E_CHROME ? { executablePath: process.env.PAD_E2E_CHROME } : {},
 )
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } })
+const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, acceptDownloads: true })
+// Fixtures are generated into a temp directory, never committed as binaries.
+const FIXTURES = mkdtempSync(join(tmpdir(), 'pad-e2e-'))
 const page = await ctx.newPage()
 const errors = []
 page.on('pageerror', (e) => errors.push(String(e)))
@@ -478,6 +484,155 @@ await page.waitForTimeout(200)
     !/script|onclick|href|<a/i.test(pasted),
     JSON.stringify(pasted).slice(0, 90),
   )
+}
+
+// --- Files in and out -------------------------------------------------------
+{
+  const notes = join(FIXTURES, 'notes.txt')
+  const contents = 'the quick brown fox\njumped over the lazy dog\n'
+  writeFileSync(notes, contents)
+
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(400)
+  await page.keyboard.type('Attachments')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('/file')
+  await page.waitForTimeout(400)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(500)
+  log('file block inserted', (await page.locator('input[aria-label="Choose a file"]').count()) > 0)
+
+  await page.locator('input[aria-label="Choose a file"]').setInputFiles(notes)
+  await page.waitForTimeout(900)
+  const shown = await page.evaluate(() => document.body.innerText)
+  log('attached file shows its name and size', shown.includes('notes.txt') && /\d+\s*(B|KB)/.test(shown))
+
+  await page.waitForTimeout(700)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1000)
+  log(
+    'the attachment survives a reload',
+    (await page.evaluate(() => document.body.innerText)).includes('notes.txt'),
+  )
+
+  const pending = page.waitForEvent('download', { timeout: 15000 })
+  await page.locator('[aria-label="Save"]').first().click()
+  const file = await pending
+  const saved = join(FIXTURES, 'roundtrip.txt')
+  await file.saveAs(saved)
+  log('the file downloads with its own name', file.suggestedFilename() === 'notes.txt')
+  log('the bytes round-trip unchanged', readFileSync(saved, 'utf8') === contents)
+}
+
+// --- Exporting the document -------------------------------------------------
+{
+  const pending = page.waitForEvent('download', { timeout: 15000 })
+  await page.locator('[aria-label="Document actions"]').click()
+  await page.waitForTimeout(300)
+  await page.locator('button:has-text("Download Markdown")').click()
+  const file = await pending
+  const saved = join(FIXTURES, 'export.md')
+  await file.saveAs(saved)
+  const markdown = readFileSync(saved, 'utf8')
+  log('markdown export downloads', file.suggestedFilename().endsWith('.md'))
+  log('markdown export carries the content', markdown.includes('Attachments'), markdown.split('\n')[0])
+}
+
+// --- Importing a PDF --------------------------------------------------------
+{
+  const pdf = join(FIXTURES, 'fixture.pdf')
+  writeFileSync(pdf, makeTestPdf())
+
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(400)
+
+  // pdf.js is ~500KB. It must not be in the first load — only fetched here.
+  const beforeImport = await page.evaluate(
+    () => performance.getEntriesByType('resource').filter((r) => /pdf/i.test(r.name)).length,
+  )
+
+  await page.locator('[aria-label="Document actions"]').click()
+  await page.waitForTimeout(300)
+  await page.locator('input[aria-label="Choose a PDF"]').setInputFiles(pdf)
+  await page.waitForTimeout(5000)
+
+  const text = await page.evaluate(() => document.body.innerText)
+  log(
+    'a PDF is imported as editable text',
+    text.includes('Hello from a PDF') && text.includes('body text that should become editable'),
+  )
+  log(
+    'the imported text is in real editable blocks',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+        (e.textContent ?? '').includes('Hello from a PDF'),
+      ),
+    ),
+  )
+  const afterImport = await page.evaluate(
+    () => performance.getEntriesByType('resource').filter((r) => /pdf/i.test(r.name)).length,
+  )
+  log('the PDF reader is only downloaded when it is used', beforeImport === 0 && afterImport > 0)
+}
+
+// --- Printing, which is how a document becomes a PDF ------------------------
+{
+  await page.emulateMedia({ media: 'print' })
+  await page.waitForTimeout(400)
+  const shownInPrint = await page.evaluate(() => {
+    const hidden = (sel) => {
+      const el = document.querySelector(sel)
+      return !el || getComputedStyle(el).display === 'none'
+    }
+    return {
+      sidebar: hidden('aside'),
+      header: hidden('header'),
+      fab: hidden('[aria-label="Insert block"]'),
+      background: getComputedStyle(document.body).backgroundColor,
+    }
+  })
+  log('printing hides the app and leaves the document', shownInPrint.sidebar && shownInPrint.header && shownInPrint.fab)
+  log('printing is black on white whatever the theme', shownInPrint.background === 'rgb(255, 255, 255)', shownInPrint.background)
+  log(
+    'the document itself still prints',
+    (await page.evaluate(() => document.body.innerText)).includes('Hello from a PDF'),
+  )
+  await page.emulateMedia({ media: 'screen' })
+  await page.waitForTimeout(200)
+}
+
+// --- Sharing ----------------------------------------------------------------
+{
+  // Sharing needs a configured backend. With none, every path must explain
+  // itself rather than break — including the public page for a link that
+  // cannot resolve.
+  const missing = await page.goto(`${URL}/s/8f14e45f-ceea-467a-9a3f-1b4e0a2c9d77`, {
+    waitUntil: 'networkidle',
+  })
+  const missingBody = await page.evaluate(() => document.body.innerText)
+  log('a share link that leads nowhere renders a real page', missing.status() === 200)
+  log('and says so, with a way out', missingBody.includes('does not lead anywhere') && missingBody.includes('Open Pad'))
+
+  const malformed = await page.goto(`${URL}/s/not-a-uuid`, { waitUntil: 'networkidle' })
+  log('a malformed share link does not error', malformed.status() === 200)
+
+  await page.goto(URL, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(800)
+  await page.locator('[aria-label="Document actions"]').click()
+  await page.waitForTimeout(400)
+  const menuText = await page.evaluate(() => document.body.innerText)
+  log(
+    'the document menu offers every action',
+    ['Save as PDF', 'Download Markdown', 'Download plain text', 'Share a link', 'Import a PDF'].every(
+      (item) => menuText.includes(item),
+    ),
+  )
+  await page.locator('button:has-text("Share a link")').click()
+  await page.waitForTimeout(600)
+  const explained = await page.evaluate(() => document.body.innerText)
+  log('sharing explains why it is unavailable instead of failing', explained.includes('needs an account'))
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
 }
 
 // Manifest + service worker, the installable part.

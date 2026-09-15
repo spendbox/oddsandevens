@@ -9,6 +9,7 @@ import { isTextish } from '@/lib/types'
 import CodeBlock from './code-block'
 import Editable, { placeCaret } from './editable'
 import FormatToolbar from './format-toolbar'
+import FileBlock from './file-block'
 import FormBlock from './form-block'
 import SlashMenu, { type SlashChoice } from './slash-menu'
 import TableBlock from './table-block'
@@ -25,9 +26,12 @@ import TableBlock from './table-block'
 export default function Editor({
   doc,
   onChange,
+  onExtractPdf,
 }: {
   doc: Doc
   onChange: (next: Doc) => void
+  /** Offered on an attached PDF: pull its text into editable blocks. */
+  onExtractPdf?: (file: Blob, name: string) => void
 }) {
   /**
    * Which block to put the caret in after the next render, and where.
@@ -494,6 +498,7 @@ export default function Editor({
               onTextKeyDown={onTextKeyDown}
               slashOpen={slash?.id === block.id}
               revision={revision}
+              onExtractPdf={onExtractPdf}
             />
             {slash?.id === block.id && (
               <SlashMenu
@@ -562,6 +567,7 @@ function BlockBody({
   onTextKeyDown,
   slashOpen,
   revision,
+  onExtractPdf,
 }: {
   block: Block
   onChange: (next: Block) => void
@@ -582,6 +588,7 @@ function BlockBody({
   ) => void
   slashOpen: boolean
   revision: number
+  onExtractPdf?: (file: Blob, name: string) => void
 }) {
   if (block.type === 'divider') {
     return <hr className="my-4 border-0 border-t border-[var(--color-line)]" />
@@ -597,6 +604,10 @@ function BlockBody({
 
   if (block.type === 'form') {
     return <FormBlock block={block} onChange={onChange} />
+  }
+
+  if (block.type === 'file') {
+    return <FileBlock block={block} onChange={onChange} onExtractPdf={onExtractPdf} />
   }
 
   if (block.type === 'todo') {

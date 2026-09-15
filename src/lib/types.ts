@@ -20,6 +20,7 @@ export type BlockType =
   | 'table'
   | 'code'
   | 'form'
+  | 'file'
   | 'divider'
 
 /** Blocks that are a single run of editable text. They share one component. */
@@ -95,6 +96,30 @@ export interface FormBlock {
   responses: Array<{ id: string; at: number; values: Record<string, string> }>
 }
 
+/**
+ * An attached file.
+ *
+ * The bytes are NOT stored on the block. They live in their own IndexedDB
+ * store under `ref`, and only the description travels in the document. A
+ * document is sent to the server as JSON on every sync; a 10MB attachment
+ * base64'd into that JSON would be a 13MB row rewritten on every keystroke of
+ * every other block in the page.
+ *
+ * The honest consequence, which is stated on screen: attachments stay on the
+ * device that added them. Syncing them needs file storage on the server, which
+ * is a separate piece of work.
+ */
+export interface FileBlock {
+  id: string
+  type: 'file'
+  /** The name it was uploaded with, and the name it downloads as. */
+  name: string
+  mime: string
+  size: number
+  /** Key into the attachments store. */
+  ref: string
+}
+
 export interface DividerBlock {
   id: string
   type: 'divider'
@@ -106,6 +131,7 @@ export type Block =
   | TableBlock
   | CodeBlock
   | FormBlock
+  | FileBlock
   | DividerBlock
 
 export interface Doc {
@@ -134,5 +160,6 @@ export function blockText(block: Block): string {
   if (block.type === 'code') return block.code
   if (block.type === 'form') return [block.title, ...block.fields.map((f) => f.label)].join(' ')
   if (block.type === 'table') return Object.values(block.cells).join(' ')
+  if (block.type === 'file') return block.name
   return ''
 }

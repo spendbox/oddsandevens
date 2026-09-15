@@ -73,6 +73,40 @@ to work, it is the wrong shape for this app.
 - **`scripts/make-icons.py` regenerates the PNG app icons** from the same
   numbers as `src/app/icon.svg`. Run it if the logo changes, so the two do not
   drift.
+- **Detect typed characters from the input event, never from keydown.** Virtual
+  keyboards report keydown as `Unidentified` with keyCode 229 and only reveal
+  the character afterwards. A keydown-based "/" check is why the slash menu did
+  nothing on a phone. The same applies to any future shortcut that watches for
+  a character rather than a modifier.
+- **Formatted text is two fields.** `text` is plain and stays the source of
+  truth for search, preview and export; `html` is only how it is painted, and
+  is absent when there is no formatting. Everything painted goes through
+  `sanitizeInline` — including stored HTML, because a value that has been to a
+  server and back is not ours. The sanitiser allows a few inert tags and **no
+  attributes at all**; do not add an attribute allowlist.
+- **Structural rewrites bump `revision`.** Editable never repaints a focused
+  element, which is what stops the caret jumping while typing — and which also
+  blocks the repaint a split needs. Splitting, merging and converting bump the
+  revision to override it; typing must never bump it.
+- **The editable surface is `white-space: pre-wrap`.** HTML collapses a leading
+  space, and splitting a line at one produced blocks that silently lost it.
+- **Gutter controls live in the left margin, not inline.** Laid out inline they
+  push every block right, leave the title out of line with its own text, and
+  shift the text sideways as the pointer moves down the page.
+- **Weigh every dependency against the first load, and load the big ones
+  lazily.** The sign-in client (~100KB) and the PDF reader (~500KB) are both
+  dynamic imports, fetched the first time they are actually needed. `npm run
+  e2e` asserts that pdf.js is absent from the first load; keep it that way.
+- **PDF export is the browser's print pipeline plus a print stylesheet**, not a
+  PDF writer. Anything that is a control rather than content gets
+  `print:hidden`.
+- **Attachment bytes never go on the block.** They live in the `files` store in
+  IndexedDB under a `ref`; only the description travels in the document, which
+  is what keeps a document small enough to sync on every change.
+- **Sharing publishes a snapshot into its own table.** Never widen the `docs`
+  policy to make a document public — one mistake there exposes every private
+  document. `shared_docs` has its own public-read policy and only holds what
+  was deliberately published.
 
 ## Checking work
 

@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Code2,
   FileText,
+  Paperclip,
   Heading1,
   Heading2,
   Heading3,
@@ -45,6 +46,7 @@ const ICONS: Record<IconName, React.ReactNode> = {
   table: <Table2 size={SIZE} />,
   code: <Code2 size={SIZE} />,
   form: <ClipboardList size={SIZE} />,
+  file: <Paperclip size={SIZE} />,
   quote: <Quote size={SIZE} />,
   divider: <Minus size={SIZE} />,
 }

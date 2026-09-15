@@ -80,7 +80,7 @@ export default function CodeBlock({
               },
             )
           }}
-          className="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-[var(--color-muted)] opacity-0 transition-opacity group-hover/code:opacity-100 focus:opacity-100 hover:bg-[var(--color-paper)]"
+          className="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-[var(--color-muted)] opacity-0 transition-opacity group-hover/code:opacity-100 focus:opacity-100 hover:bg-[var(--color-paper)] print:hidden"
         >
           {copied ? <Check size={11} /> : <Copy size={11} />}
           {copied ? 'Copied' : 'Copy'}

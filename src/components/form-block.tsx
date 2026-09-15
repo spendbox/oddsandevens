@@ -100,7 +100,7 @@ export default function FormBlock({
           className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-[var(--color-faint)]"
         />
         {!readOnly && (
-          <div className="flex shrink-0 rounded-md bg-[var(--color-hover)] p-0.5 text-[11px]">
+          <div className="flex shrink-0 rounded-md bg-[var(--color-hover)] p-0.5 text-[11px] print:hidden">
             {(['build', 'fill'] as const).map((m) => (
               <button
                 key={m}

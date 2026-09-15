@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { docPreview, makeBlock } from '@/lib/blocks'
+import { blocksFromLines, docPreview, makeBlock } from '@/lib/blocks'
 import { newId } from '@/lib/id'
 import { allDocs, loadDoc, saveDoc } from '@/lib/store'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
@@ -22,6 +22,7 @@ import { pushAll, runSync, type SyncState } from '@/lib/sync'
 import { blockText, type Doc } from '@/lib/types'
 import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
 import AccountButton, { type Account } from './account'
+import DocMenu from './doc-menu'
 import Editor from './editor'
 
 /** How long after the last keystroke a document is written to disk. */
@@ -44,6 +45,8 @@ export default function Workspace() {
   const [query, setQuery] = useState('')
   const [account, setAccount] = useState<Account | null>(null)
   const [syncState, setSyncState] = useState<SyncState>(isSyncConfigured() ? 'idle' : 'off')
+  const [importing, setImporting] = useState(false)
+  const [importProblem, setImportProblem] = useState<string | null>(null)
   const { value: theme, set: setTheme } = usePref(THEME)
   const { value: sidebarPref, set: setSidebarPref } = usePref(SIDEBAR)
   const { value: widthPref, set: setWidthPref } = usePref(WIDTH)
@@ -207,6 +210,55 @@ export default function Workspace() {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [setSidebarPref])
+
+  /**
+   * Reads a PDF's text and appends it as editable blocks.
+   *
+   * It appends rather than replaces: an import that wiped what was already on
+   * the page would be a destructive act triggered by one menu click.
+   */
+  const importPdf = useCallback(
+    async (file: Blob, name: string) => {
+      setImporting(true)
+      setImportProblem(null)
+      try {
+        const { extractPdfText } = await import('@/lib/pdf')
+        const { pages, pageCount } = await extractPdfText(file)
+        const lines = pages.flatMap((page, i) => (i === 0 ? page : ['', ...page]))
+        const words = lines.join(' ').trim()
+
+        if (!words) {
+          setImportProblem(
+            `“${name}” has no text to pull out. It is probably a scan or a photograph of a page, which would need character recognition.`,
+          )
+          return
+        }
+
+        const current = latest.current
+        if (!current) return
+        const heading = makeBlock('heading', 2)
+        if (heading.type === 'heading') heading.text = name.replace(/\.pdf$/i, '')
+        const existing = current.blocks.filter(
+          (b) => !(b.type === 'text' && !b.text.trim()),
+        )
+        update({
+          ...current,
+          blocks: [...existing, heading, ...blocksFromLines(lines)],
+          updatedAt: Date.now(),
+        })
+        setImportProblem(
+          pageCount > 0 ? null : 'That PDF appears to be empty.',
+        )
+      } catch {
+        setImportProblem(
+          `Could not read “${name}”. It may be password protected or damaged.`,
+        )
+      } finally {
+        setImporting(false)
+      }
+    },
+    [update],
+  )
 
   /* ------------------------------------------------------------------ actions */
 
@@ -418,7 +470,15 @@ export default function Workspace() {
               <PanelLeft size={17} />
             </button>
           )}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            {doc && (
+              <DocMenu
+                doc={doc}
+                importing={importing}
+                accountId={account?.id ?? null}
+                onImportPdf={(file) => void importPdf(file, file.name)}
+              />
+            )}
             <AccountButton
               account={account}
               syncState={syncState}
@@ -454,7 +514,22 @@ export default function Workspace() {
               document painted first would be replaced a frame later, and the
               flicker reads as the app losing the user's work.
             */}
-            {ready && doc && <Editor key={doc.id} doc={doc} onChange={update} />}
+            {importProblem && (
+              <p
+                role="status"
+                className="mb-3 rounded-md border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-2 text-xs text-[var(--color-muted)]"
+              >
+                {importProblem}
+              </p>
+            )}
+            {ready && doc && (
+              <Editor
+                key={doc.id}
+                doc={doc}
+                onChange={update}
+                onExtractPdf={(file, name) => void importPdf(file, name)}
+              />
+            )}
           </div>
         </div>
       </main>
