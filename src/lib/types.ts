@@ -40,6 +40,11 @@ export interface TextishBlock {
   html?: string
   /** Heading size. Only read when type is 'heading'. */
   level?: 1 | 2 | 3
+  /**
+   * Nesting depth, set by Tab. Absent means zero — the common case, so it is
+   * not written into every block in storage.
+   */
+  indent?: number
 }
 
 export interface TodoBlock {
@@ -48,6 +53,8 @@ export interface TodoBlock {
   text: string
   /** See TextishBlock.html. */
   html?: string
+  /** See TextishBlock.indent. */
+  indent?: number
   done: boolean
 }
 
@@ -150,8 +157,20 @@ export interface Doc {
    * two devices show different contents for the same project.
    */
   projectId?: string
-  /** Set when the user deletes it; the row stays so sync can carry the delete. */
+  /**
+   * When it was moved to the trash. The row stays so sync carries the delete
+   * to other devices, and so it can be restored.
+   */
   deletedAt?: number
+  /**
+   * When it was destroyed for good — by the seven-day sweep or by hand.
+   *
+   * The row is kept even then, emptied of its title and blocks. A tombstone
+   * costs a few dozen bytes; removing the row entirely would let another
+   * device that still has its copy push it straight back on the next sync,
+   * and the document would rise from the dead.
+   */
+  purgedAt?: number
 }
 
 /**

@@ -61,7 +61,13 @@ export default function DocList({
   onDeleteProject,
 }: DocListProps) {
   const [drag, setDrag] = useState<DragState | null>(null)
-  const start = useRef<{ id: string; x: number; y: number; moved: boolean } | null>(null)
+  const start = useRef<{
+    id: string
+    x: number
+    y: number
+    moved: boolean
+    pointerId: number
+  } | null>(null)
 
   const grouped = groupDocs(docs, projects)
 
@@ -81,9 +87,18 @@ export default function DocList({
     }
   }
 
+  /**
+   * Note what was pressed, but do NOT capture the pointer yet.
+   *
+   * Capturing on pointerdown retargets the whole gesture — including the
+   * `click` that follows — to the capturing element. That is what stopped
+   * every button inside a row from working: the click was delivered to the
+   * row, so neither "open this document" nor the delete button ever fired.
+   * Capture is therefore deferred until the pointer has actually travelled
+   * far enough to be a drag, by which point there will be no click to lose.
+   */
   const beginDrag = (event: React.PointerEvent, id: string) => {
-    start.current = { id, x: event.clientX, y: event.clientY, moved: false }
-    ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+    start.current = { id, x: event.clientX, y: event.clientY, moved: false, pointerId: event.pointerId }
   }
 
   const moveDrag = (event: React.PointerEvent) => {
@@ -95,17 +110,38 @@ export default function DocList({
         Math.abs(event.clientY - from.y) > DRAG_THRESHOLD
       if (!far) return
       from.moved = true
+      // Now it is a drag, so take the pointer: the row must keep receiving
+      // moves even when the cursor leaves it.
+      try {
+        ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+      } catch {
+        // A pointer that has already been released cannot be captured. The
+        // drag simply ends up driven by bubbling events instead.
+      }
       setDrag({ id: from.id, overDoc: null, overProject: null, overLoose: false })
     }
     const next = resolveTarget(event.clientX, event.clientY, from.id)
     setDrag((d) => (d ? { ...d, ...next } : d))
   }
 
+  /**
+   * Set for one tick after a real drag, so the click that follows is ignored.
+   * Without it, dragging a document would also open it on release.
+   */
+  const justDragged = useRef(false)
+
   const endDrag = () => {
     const from = start.current
     const state = drag
     start.current = null
     setDrag(null)
+    if (from?.moved) {
+      justDragged.current = true
+      // Cleared after the click event that follows this pointerup.
+      setTimeout(() => {
+        justDragged.current = false
+      }, 0)
+    }
     if (!from?.moved || !state) return
 
     const dragged = docs.find((d) => d.id === state.id)
@@ -127,13 +163,8 @@ export default function DocList({
     if (state.overLoose && dragged.projectId) onMove(state.id, null)
   }
 
-  /** A drag ends with a click event the row would otherwise act on. */
-  const swallowClick = (event: React.MouseEvent) => {
-    if (start.current?.moved) {
-      event.preventDefault()
-      event.stopPropagation()
-    }
-  }
+  /** True when this click is the tail of a drag and should be ignored. */
+  const fromDrag = () => justDragged.current || !!start.current?.moved
 
   const row = (item: Doc, inProject: boolean) => {
     const dragging = drag?.id === item.id
@@ -179,9 +210,8 @@ export default function DocList({
         </span>
         <button
           type="button"
-          onClick={(e) => {
-            swallowClick(e)
-            if (!start.current?.moved) onOpen(item.id)
+          onClick={() => {
+            if (!fromDrag()) onOpen(item.id)
           }}
           className="flex min-w-0 flex-1 items-start gap-2 py-1.5 pr-2 pl-1 text-left"
         >
@@ -198,7 +228,9 @@ export default function DocList({
         <button
           type="button"
           aria-label={`Delete ${item.title.trim() || 'Untitled'}`}
-          onClick={() => onDelete(item.id)}
+          onClick={() => {
+            if (!fromDrag()) onDelete(item.id)
+          }}
           className="mr-1 p-1 text-[var(--color-faint)] opacity-0 transition-opacity group-focus-within/doc:opacity-100 group-hover/doc:opacity-100 hover:text-[var(--color-danger)]"
         >
           <Trash2 size={12} />

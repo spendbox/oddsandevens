@@ -128,6 +128,39 @@ to work, it is the wrong shape for this app.
   forget instead of six. Declare hooks before the callbacks that read them;
   a callback defined above a `useRef` compiles but the compiler cannot follow it.
 
+- **Smart typing is bound as a native `beforeinput` listener**, never through
+  React's `onBeforeInput`. React's synthetic version is a polyfill over older
+  events and does not reliably carry `inputType` or `data`, which are the two
+  fields every rule needs to tell a keystroke from a paste or a composition.
+- **Correct by replacing the keystroke, not by rewriting the text after it.**
+  `preventDefault` then `execCommand('insertText')` keeps the browser's own
+  undo stack intact; rewriting afterwards destroys it. Every automatic change
+  must also be reversible with one Backspace — see `autocorrected` in
+  `editable.tsx`. An editor that cannot be told "no" is one people switch off.
+- **After `insertHTML`, step out of what was inserted twice over.** The caret
+  is left inside the new element *and* the browser's typing style is set to
+  it, so the next word joins the span. Collapse to the parent after the
+  element, then clear the style: `queryCommandState` + a toggle for bold and
+  italic, and for `code` — which has no command — a zero-width perch, stripped
+  by `stripInvisible` from everything that is stored, searched or exported.
+- **The debounced save captures the document it was scheduled for.** Reading
+  "whichever document is current" when the timer fires loses every keystroke
+  made in the 400ms before switching documents, because by then that is a
+  different document. Anything that reads the store back calls `flushSave()`
+  first.
+- **Never `setPointerCapture` on pointerdown.** It retargets the whole gesture,
+  including the following `click`, to the capturing element — which silently
+  kills every button inside it. Capture only once a drag threshold has been
+  crossed, and suppress the click that follows a real drag.
+- **Paste is parsed into blocks, never flattened.** `parseClipboard` is a
+  string scanner with no DOM so the awkward cases (Word's nested divs, a list
+  inside a list, a hard-wrapped email) are unit tested. Collapsing a paste to
+  one line is the most destructive thing this editor can do to content nobody
+  here wrote.
+- **A purge empties a document but keeps its row.** Removing the row lets
+  another device push its copy back on the next sync. Free the attachment
+  bytes at the same time — they are the part that occupies space.
+
 ## Checking work
 
 `npm test` covers the formula engine, the highlighter and the slash ranking.

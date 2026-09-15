@@ -40,6 +40,7 @@ const DROP_CONTENT = new Set(['script', 'style', 'iframe', 'object', 'embed', 't
  */
 export function sanitizeInline(input: string): string {
   if (!input) return ''
+  input = stripInvisible(input)
 
   let out = ''
   /** Allowed tags we have opened and must close, innermost last. */
@@ -114,6 +115,18 @@ export function sanitizeInline(input: string): string {
   return out
 }
 
+/**
+ * Removes the zero-width space the editor uses as a temporary caret perch.
+ *
+ * Some inline elements — `code` among them — have no execCommand toggle, so
+ * the only way to end the span is to give the caret a real character to sit
+ * after. It lives in the DOM for as long as the block has focus and is
+ * stripped from everything that leaves: storage, search, export and sync.
+ */
+export function stripInvisible(text: string): string {
+  return text.replace(/\u200B/g, '')
+}
+
 /** Escapes plain text so it can be placed into HTML unchanged. */
 export function escapeHtml(text: string): string {
   return text
@@ -124,7 +137,7 @@ export function escapeHtml(text: string): string {
 
 /** The visible characters of a fragment of inline HTML. */
 export function htmlToPlain(html: string): string {
-  return html
+  return stripInvisible(html)
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&lt;/g, '<')

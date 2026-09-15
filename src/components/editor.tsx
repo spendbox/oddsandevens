@@ -3,7 +3,9 @@
 import { GripVertical, Plus } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { makeBlock, shortcutFor } from '@/lib/blocks'
+import type { PastedBlock } from '@/lib/paste'
 import { blockHtml, hasFormatting, sanitizeInline } from '@/lib/rich-text'
+import { bulletFor, colonStartsList, looksLikeTitle, nextIndent } from '@/lib/smart-typing'
 import type { Block, Doc, TextishBlock } from '@/lib/types'
 import { isTextish } from '@/lib/types'
 import CodeBlock from './code-block'
@@ -228,6 +230,41 @@ export default function Editor({
     return after[i] === '/' ? i : null
   }
 
+  /**
+   * Turns a multi-block paste into blocks after the current one.
+   *
+   * The first pasted paragraph is merged into the block the caret is in when
+   * that block is empty, so pasting into a fresh line does not leave a blank
+   * one above the content.
+   */
+  const insertPasted = (id: string, pasted: PastedBlock[]): boolean => {
+    const at = indexOf(id)
+    if (at === -1) return false
+    const host = doc.blocks[at]
+    const hostEmpty =
+      (isTextish(host) || host.type === 'todo') && !host.text.trim()
+
+    const created = pasted.map((item) => {
+      const made = makeBlock(item.type, item.level)
+      if (isTextish(made) || made.type === 'todo') {
+        made.text = item.text
+        made.html = item.html
+        made.indent = item.indent
+      }
+      if (made.type === 'todo' && item.done) made.done = true
+      if (made.type === 'code') made.code = item.text
+      return made
+    })
+
+    const next = [...doc.blocks]
+    next.splice(hostEmpty ? at : at + 1, hostEmpty ? 1 : 0, ...created)
+    setBlocks(next)
+    bumpRevision()
+    const last = created[created.length - 1]
+    if (last) setFocus({ id: last.id, caret: 'end' })
+    return true
+  }
+
   /** Text typed into a text-ish or todo block. Handles markdown shortcuts. */
   const onTextChange = (
     block: TextishBlock | Extract<Block, { type: 'todo' }>,
@@ -306,12 +343,46 @@ export default function Editor({
       const head = parts.before.text === before ? parts.before : { text: before, html: undefined }
       const tail = parts.after.text === after ? parts.after : { text: after, html: undefined }
 
+      // A line that ends in a colon is announcing a list almost every time
+      // it is written, so Enter starts one.
+      const announcesList = !after && colonStartsList(before)
+
+      // The opening line of a document, left unpunctuated, is its title.
+      // Applied once — only while the document has no heading yet — so it
+      // cannot keep surprising someone further down the page.
+      const isFirst = indexOf(block.id) === 0
+      const hasHeading = doc.blocks.some((b) => b.type === 'heading')
+      if (
+        isFirst &&
+        !hasHeading &&
+        !after &&
+        block.type === 'text' &&
+        looksLikeTitle(before) &&
+        !announcesList
+      ) {
+        const heading = makeBlock('heading', 1)
+        if (heading.type === 'heading') {
+          heading.text = head.text
+          heading.html = head.html
+        }
+        const fresh = makeBlock('text')
+        const index = indexOf(block.id)
+        const next = [...doc.blocks]
+        next.splice(index, 1, heading, fresh)
+        setBlocks(next)
+        bumpRevision()
+        setFocus({ id: fresh.id, caret: 'start' })
+        return
+      }
+
       // Enter continues a list; from anything else it starts a paragraph.
       const continues = block.type === 'bullet' || block.type === 'todo'
-      const created = makeBlock(continues ? block.type : 'text')
+      const created = makeBlock(announcesList ? 'bullet' : continues ? block.type : 'text')
       if (isTextish(created) || created.type === 'todo') {
         created.text = tail.text
         created.html = tail.html
+        // A new line in a list stays at the depth of the one above it.
+        if (continues || announcesList) created.indent = (block as TextishBlock).indent
       }
 
       const index = indexOf(block.id)
@@ -327,6 +398,16 @@ export default function Editor({
     if (event.key === 'Backspace' && api.atStart()) {
       const index = indexOf(block.id)
       const text = api.text()
+
+      // Backspace unwinds the indentation before it touches the block, so
+      // getting out of a sub-list never costs you the line you are on.
+      const indented = (block as TextishBlock).indent ?? 0
+      if (indented > 0) {
+        event.preventDefault()
+        updateBlock(block.id, { ...block, indent: indented - 1 || undefined } as Block)
+        setFocus({ id: block.id, caret: 'start' })
+        return
+      }
 
       // A styled empty block becomes a plain one before it disappears, so
       // Backspace undoes "make this a heading" rather than deleting a line.
@@ -367,6 +448,26 @@ export default function Editor({
         // deleting it silently would be a nasty surprise.
         setFocus({ id: previous.id, caret: 'end' })
       }
+      return
+    }
+
+    // Tab indents rather than moving focus, which is what makes sub-lists
+    // possible and what every word processor does inside a list. Escape blurs
+    // the block first, so Tab can still leave the editor — without that this
+    // would be a keyboard trap.
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      const current = (block as TextishBlock).indent
+      const to = nextIndent(current, event.shiftKey ? -1 : 1)
+      if (to !== (current ?? 0)) {
+        updateBlock(block.id, { ...block, indent: to || undefined } as Block)
+        setFocus({ id: block.id, caret: api.offset() })
+      }
+      return
+    }
+
+    if (event.key === 'Escape') {
+      ;(event.target as HTMLElement).blur()
       return
     }
 
@@ -426,6 +527,10 @@ export default function Editor({
           className={`group/block relative rounded-md ${
             drag?.id === block.id ? 'opacity-40' : ''
           }`}
+          // Indentation as padding rather than nested markup: a list is still
+          // a flat run of blocks, so dragging one out of a sub-list is the
+          // same operation as any other move.
+          style={{ paddingLeft: ((block as TextishBlock).indent ?? 0) * 1.6 + 'rem' }}
         >
           {/* Where the block would land if you let go now. */}
           {drag?.overId === block.id && (
@@ -498,6 +603,7 @@ export default function Editor({
               onTextKeyDown={onTextKeyDown}
               slashOpen={slash?.id === block.id}
               revision={revision}
+              onPasteBlocks={insertPasted}
               onExtractPdf={onExtractPdf}
             />
             {slash?.id === block.id && (
@@ -567,6 +673,7 @@ function BlockBody({
   onTextKeyDown,
   slashOpen,
   revision,
+  onPasteBlocks,
   onExtractPdf,
 }: {
   block: Block
@@ -588,6 +695,7 @@ function BlockBody({
   ) => void
   slashOpen: boolean
   revision: number
+  onPasteBlocks: (id: string, blocks: PastedBlock[]) => boolean
   onExtractPdf?: (file: Blob, name: string) => void
 }) {
   if (block.type === 'divider') {
@@ -624,6 +732,7 @@ function BlockBody({
           value={block.text}
           html={block.html}
           revision={revision}
+          onPasteBlocks={(blocks) => onPasteBlocks(block.id, blocks)}
           placeholder={slashOpen ? '' : 'To-do'}
           ariaLabel="Task"
           onChange={(value, html) => onTextChange(block as never, value, html)}
@@ -667,6 +776,7 @@ function BlockBody({
       value={block.text}
       html={block.html}
       revision={revision}
+      onPasteBlocks={(blocks) => onPasteBlocks(block.id, blocks)}
       placeholder={placeholder}
       ariaLabel={block.type === 'heading' ? 'Heading' : 'Text'}
       onChange={(value, html) => onTextChange(block as never, value, html)}
@@ -676,11 +786,20 @@ function BlockBody({
   )
 
   if (block.type === 'bullet') {
+    // Solid, hollow, square — the cycle every word processor uses, so depth is
+    // readable without counting the indentation.
+    const glyph = bulletFor(block.indent)
     return (
       <div className="flex items-start gap-2">
         <span
           aria-hidden
-          className="mt-[0.72rem] h-[5px] w-[5px] shrink-0 rounded-full bg-[var(--color-muted)]"
+          className={`mt-[0.72rem] h-[5px] w-[5px] shrink-0 ${
+            glyph === 'square' ? '' : 'rounded-full'
+          } ${
+            glyph === 'circle'
+              ? 'border border-[var(--color-muted)]'
+              : 'bg-[var(--color-muted)]'
+          }`}
         />
         <div className="min-w-0 flex-1">{editable}</div>
       </div>

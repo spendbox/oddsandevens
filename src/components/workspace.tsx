@@ -14,16 +14,18 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { blocksFromLines, makeBlock } from '@/lib/blocks'
 import { newId } from '@/lib/id'
-import { allDocs, allProjects, loadDoc, saveDoc, saveProject } from '@/lib/store'
+import { allDocs, allDocsRaw, allProjects, deleteFile, loadDoc, saveDoc, saveProject } from '@/lib/store'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
 import { docsInProject, makeProject, mergedProjectName, searchDocs, shouldDissolve } from '@/lib/projects'
+import { attachmentRefs, purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
 import { type Doc, type Project } from '@/lib/types'
 import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
 import AccountButton, { type Account } from './account'
 import DocList from './doc-list'
 import DocMenu from './doc-menu'
 import ProjectBar from './project-bar'
+import TrashSection from './trash-section'
 import Editor from './editor'
 
 /** How long after the last keystroke a document is written to disk. */
@@ -39,6 +41,7 @@ function emptyDoc(): Doc {
 export default function Workspace() {
   const [docs, setDocs] = useState<Doc[]>([])
   const [projects, setProjects] = useState<Project[]>([])
+  const [trashed, setTrashed] = useState<Doc[]>([])
   const [doc, setDoc] = useState<Doc | null>(null)
   const [ready, setReady] = useState(false)
   /** The sidebar as a drawer on a phone. Separate from the desktop pref:
@@ -85,9 +88,25 @@ export default function Workspace() {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const [stored, storedProjects] = await Promise.all([allDocs(), allProjects()])
+      const [stored, storedProjects, raw] = await Promise.all([
+        allDocs(),
+        allProjects(),
+        allDocsRaw(),
+      ])
       if (cancelled) return
       setProjects(storedProjects)
+
+      // The seven-day sweep runs on open rather than on a timer: there is no
+      // server here to run a nightly job, and a document that expired while
+      // the app was closed should be gone by the time anyone looks.
+      const expired = raw.filter((d) => shouldPurge(d))
+      if (expired.length) {
+        for (const doomed of expired) {
+          for (const ref of attachmentRefs(doomed)) await deleteFile(ref)
+          await saveDoc(purge(doomed))
+        }
+      }
+      setTrashed(trashedDocs(expired.length ? await allDocsRaw() : raw))
       if (stored.length) {
         setDocs(stored)
         setDoc(stored[0])
@@ -124,15 +143,33 @@ export default function Workspace() {
       return [next, ...without].sort((a, b) => b.updatedAt - a.updatedAt)
     })
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      if (latest.current) void saveDoc(latest.current)
-    }, SAVE_DEBOUNCE_MS)
+    // The timer saves the document it was scheduled for, captured here.
+    //
+    // It used to read "whichever document is current" when it fired, which
+    // silently lost work: type a title, switch documents inside the debounce
+    // window, and 400ms later the timer wrote the document you had switched
+    // *to*, leaving the edit unsaved. Anything typed in the last 400ms before
+    // changing documents simply disappeared.
+    saveTimer.current = setTimeout(() => void saveDoc(next), SAVE_DEBOUNCE_MS)
   }, [])
 
   // A debounce means up to SAVE_DEBOUNCE_MS of typing is only in memory. If
   // the tab is closed or hidden in that window it would be lost, so both
   // events flush immediately. pagehide covers mobile Safari, where
   // beforeunload is not reliably delivered.
+  /**
+   * Writes the open document now and cancels any pending debounce.
+   *
+   * Used before anything that reads the store back — switching documents,
+   * deleting one — because a pending timer plus a fresh read is a race that
+   * hands back the version from before the last keystroke.
+   */
+  const flushSave = useCallback(async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = null
+    if (latest.current) await saveDoc(latest.current)
+  }, [])
+
   useEffect(() => {
     const flush = () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -155,9 +192,14 @@ export default function Workspace() {
   /* -------------------------------------------------------------------- sync */
 
   const refreshFromStore = useCallback(async () => {
-    const [stored, storedProjects] = await Promise.all([allDocs(), allProjects()])
+    const [stored, storedProjects, raw] = await Promise.all([
+      allDocs(),
+      allProjects(),
+      allDocsRaw(),
+    ])
     setDocs(stored)
     setProjects(storedProjects)
+    setTrashed(trashedDocs(raw))
     // Re-read the open document in case the server had a newer copy, but
     // never yank it out from under the caret if it is gone.
     const current = latest.current
@@ -271,6 +313,35 @@ export default function Workspace() {
     [update],
   )
 
+  /* ------------------------------------------------------------------- trash */
+
+  const restoreDoc = useCallback(async (id: string) => {
+    const target = (await loadDoc(id)) ?? null
+    if (!target) return
+    const back = restore(target)
+    await saveDoc(back)
+    setTrashed((all) => all.filter((d) => d.id !== id))
+    setDocs((all) => [back, ...all.filter((d) => d.id !== id)].sort((a, b) => b.updatedAt - a.updatedAt))
+  }, [])
+
+  /** Destroys one document for good, and the attachments only it was holding. */
+  const purgeDoc = useCallback(async (id: string) => {
+    const target = (await loadDoc(id)) ?? null
+    if (!target) return
+    for (const ref of attachmentRefs(target)) await deleteFile(ref)
+    await saveDoc(purge(target))
+    setTrashed((all) => all.filter((d) => d.id !== id))
+  }, [])
+
+  const emptyTrash = useCallback(async () => {
+    for (const item of await allDocsRaw()) {
+      if (!item.deletedAt || item.purgedAt) continue
+      for (const ref of attachmentRefs(item)) await deleteFile(ref)
+      await saveDoc(purge(item))
+    }
+    setTrashed([])
+  }, [])
+
   /* ---------------------------------------------------------------- projects */
 
   /** Writes a project locally and queues it for the next sync. */
@@ -352,6 +423,9 @@ export default function Workspace() {
   /* ------------------------------------------------------------------ actions */
 
   const newDoc = (projectId?: string) => {
+    // Whatever is open keeps its last keystrokes rather than losing them to
+    // the debounce window.
+    void flushSave()
     const fresh = emptyDoc()
     // A document created from inside a project belongs to it immediately;
     // making it loose and asking the user to drag it in would undo the point
@@ -364,18 +438,21 @@ export default function Workspace() {
   }
 
   const openDoc = async (id: string) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    if (latest.current) await saveDoc(latest.current)
+    await flushSave()
     const found = (await loadDoc(id)) ?? docs.find((d) => d.id === id) ?? null
     if (found) setDoc(found)
     setDrawer(false)
   }
 
   const deleteDoc = async (id: string) => {
-    // A tombstone rather than a removal, so a second device learns about the
-    // delete instead of uploading its copy back.
+    // To the trash, not gone: a tombstone, which also tells a second device
+    // about the delete instead of letting it upload its copy back.
     const target = docs.find((d) => d.id === id)
-    if (target) await saveDoc({ ...target, deletedAt: Date.now(), updatedAt: Date.now() })
+    if (target) {
+      const binned = { ...target, deletedAt: Date.now(), updatedAt: Date.now() }
+      await saveDoc(binned)
+      setTrashed((all) => [binned, ...all.filter((d) => d.id !== id)])
+    }
     const remaining = docs.filter((d) => d.id !== id)
     setDocs(remaining)
     if (doc?.id === id) {
@@ -499,6 +576,13 @@ export default function Workspace() {
             }
           }}
           onDeleteProject={(id) => void dissolveProject(id)}
+        />
+
+        <TrashSection
+          docs={trashed}
+          onRestore={(id) => void restoreDoc(id)}
+          onPurge={(id) => void purgeDoc(id)}
+          onEmpty={() => void emptyTrash()}
         />
 
         <div className="flex items-center gap-1 border-t border-[var(--color-line)] px-2 py-2">

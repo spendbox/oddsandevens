@@ -27,7 +27,26 @@ Type `/` anywhere to see all of them, or press the **+** in the margin — on a
 phone, the round button in the corner.
 
 **Formatting.** Select any text and a small bar appears: bold, italic,
-strikethrough, inline code. Or use `Ctrl+B`, `Ctrl+I`, `Ctrl+E`.
+strikethrough, inline code. Or use `Ctrl+B`, `Ctrl+I`, `Ctrl+E`. Typing
+`**bold**`, `*italic*` or `` `code` `` formats it the moment you close the
+span, and the markers disappear.
+
+**Typing does the obvious things for you.** The first letter of a line, and
+the first after a full stop, are capitalised — but not after "e.g.", "Dr." or
+a decimal point. A line ending in a colon starts a bullet list when you press
+Enter. The opening line of a new document becomes its heading. Every one of
+these is undone by a single Backspace, and none of them happens twice.
+
+**Tab makes sub-lists.** Tab indents the line you are on instead of jumping
+away; Shift+Tab brings it back out, and so does Backspace at the start of an
+indented line. Bullets change shape as they nest, the way a word processor
+does. Press Escape first if you actually want Tab to move focus onward.
+
+**Pasting keeps its shape.** Paragraphs stay separate paragraphs, headings
+stay headings, lists stay lists, and nesting survives — from a web page, a
+document, or plain text with `-` bullets in it. Inline bold and italic come
+through; scripts, links and styling do not. `Ctrl+Shift+V` pastes as plain
+text instead.
 
 **Moving things.** Drag the grip handle in the left margin, or hold `Alt` and
 press the up and down arrows.
@@ -44,6 +63,11 @@ contents. Drag a document onto a project's name to add it, or out to the
 Documents area below to remove it. A project left with one document dissolves
 by itself, so dragging the second one out simply undoes the merge. Ungrouping a
 project never deletes anything; the documents go back to the main list.
+
+**Deleting is undoable.** A deleted document goes to the trash at the foot of
+the sidebar and stays there for 7 days, with each row saying how long it has
+left. You can put it back, or delete it for good straight away — that one asks
+first, because it means it.
 
 **Getting out of the way.** `Ctrl+\` collapses the sidebar. The page runs the
 full width of the window; if you prefer a narrower column for reading, there
@@ -152,6 +176,9 @@ src/lib/slash-items.ts  what "/" offers, and how a query is ranked
 src/lib/store.ts        saving to the device (IndexedDB), documents and files
 src/lib/sync.ts         optional sync to Supabase
 src/lib/projects.ts     grouping documents, and searching within a group
+src/lib/smart-typing.ts capitalisation, list and formatting rules
+src/lib/paste.ts        turning pasted content into blocks
+src/lib/trash.ts        the seven-day retention rules
 src/lib/share.ts        publishing a read-only copy to a link
 src/lib/export.ts       turning a document into markdown or plain text
 src/lib/pdf.ts          reading text out of a PDF (loaded on demand)
@@ -195,6 +222,13 @@ These are real and worth knowing before you rely on them:
 - **A shared link is read-only, and a shared form cannot be answered.**
   Collecting responses from other people needs the answers to go to the server
   rather than into the document, which is the next step for forms.
+- **Sub-lists are an indent, not a nested list.** A block records how deep it
+  is; the document stays a flat run of blocks. That keeps dragging a line out
+  of a sub-list the same operation as any other move, but it means numbered
+  lists do not renumber themselves per level yet.
+- **The trash sweep runs when the app opens**, not on a schedule, because
+  there is no server here to run a nightly job. A document that expired while
+  the app was closed is removed the next time you open it.
 - **A project is a flat group, not a folder tree.** There are no projects
   inside projects, and a document belongs to one project or none. Nesting is a
   much larger change and, so far, not one anything has asked for.

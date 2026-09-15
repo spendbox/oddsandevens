@@ -441,9 +441,11 @@ await page.waitForTimeout(200)
   await page.keyboard.type('hello world')
   await page.waitForTimeout(300)
   await page.evaluate(() => {
+    // Typing capitalises the first letter now, so this matches loosely.
     const el = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find(
-      (b) => b.textContent === 'hello world',
+      (b) => (b.textContent ?? '').toLowerCase() === 'hello world',
     )
+    if (!el) throw new Error('could not find the "hello world" block')
     el.focus()
     const r = document.createRange()
     r.setStart(el.firstChild, 5)
@@ -460,7 +462,7 @@ await page.waitForTimeout(200)
     [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
   )
   // HTML collapses a leading space, which used to turn this into "Xworld".
-  log('a leading space survives a split', parts.includes('X world'), JSON.stringify(parts))
+  log('a leading space survives a split', parts.some((p) => p === 'X world'), JSON.stringify(parts))
 }
 
 // --- Pasted markup cannot carry anything executable -------------------------
@@ -749,6 +751,237 @@ await page.waitForTimeout(200)
   log(
     'an ungrouped document shows no project bar',
     (await page.locator('main input[aria-label="Project name"]').count()) === 0,
+  )
+}
+
+// --- Word-style typing ------------------------------------------------------
+{
+  const blockTexts = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+    )
+  const blockHtmls = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.innerHTML),
+    )
+  const freshDoc = async () => {
+    await page.locator('button:has-text("New")').first().click()
+    await page.waitForTimeout(500)
+  }
+
+  await freshDoc()
+  await page.keyboard.type('hello there. this is next. e.g. not this. 3.5 no')
+  await page.waitForTimeout(500)
+  const sentence = (await blockTexts())[0] ?? ''
+  log('the first letter of a line is capitalised', sentence.startsWith('Hello'), sentence)
+  log('the first letter after a full stop is capitalised', sentence.includes('. This is next'))
+  log('an abbreviation does not start a new sentence', sentence.includes('. not this'), sentence)
+  log('a decimal point is not a sentence end', /3\.5 no$/.test(sentence), sentence)
+
+  await freshDoc()
+  await page.keyboard.type('h')
+  await page.waitForTimeout(300)
+  await page.keyboard.press('Backspace')
+  await page.waitForTimeout(300)
+  log('Backspace undoes an unwanted capital', (await blockTexts())[0] === 'h')
+
+  // A line ending in a colon starts a list.
+  await freshDoc()
+  await page.keyboard.type('Bring the following:')
+  await page.waitForTimeout(300)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(400)
+  await page.keyboard.type('passport')
+  await page.waitForTimeout(400)
+  const rows = () =>
+    page.locator('[data-block-id]').evaluateAll((els) =>
+      els.map((e) => ({
+        text: e.innerText.trim().toLowerCase(),
+        pad: e.style.paddingLeft || '0rem',
+        bullet: !!e.querySelector('span[aria-hidden]'),
+      })),
+    )
+  log(
+    'a colon then Enter starts a bullet list',
+    (await rows()).some((r) => r.bullet && r.text.includes('passport')),
+  )
+
+  // Tab indents rather than moving focus.
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(300)
+  await page.keyboard.press('Tab')
+  await page.waitForTimeout(300)
+  await page.keyboard.type('sub item')
+  await page.waitForTimeout(400)
+  const indented = (await rows()).find((r) => r.text.includes('sub item'))
+  log('Tab indents into a sub-list', !!indented && indented.pad !== '0rem', JSON.stringify(indented))
+  log('Tab did not move focus out of the editor', (await blockTexts()).some((t) => /sub item/i.test(t ?? '')))
+  await page.keyboard.press('Shift+Tab')
+  await page.waitForTimeout(400)
+  const outdented = (await rows()).find((r) => r.text.includes('sub item'))
+  log('Shift+Tab outdents again', !!outdented && outdented.pad === '0rem')
+
+  // Inline autoformat.
+  await freshDoc()
+  await page.keyboard.type('make this **important** now')
+  await page.waitForTimeout(500)
+  const bolded = (await blockHtmls())[0] ?? ''
+  log('**bold** formats as you type', /<b>important<\/b>/.test(bolded), bolded)
+  log('typing continues outside the bold', /<\/b>\s*now/.test(bolded), bolded)
+  log('the markers are consumed', !bolded.includes('**'))
+
+  await freshDoc()
+  await page.keyboard.type('a *slanted* word and `code` too')
+  await page.waitForTimeout(500)
+  const mixed = (await blockHtmls())[0] ?? ''
+  log('*italic* and `code` format as you type', /<i>slanted<\/i>/.test(mixed) && /<code>code<\/code>/.test(mixed), mixed)
+  log('typing continues outside the code span', /<\/code>[^<]*too/.test(mixed), mixed)
+
+  // The caret perch used by `code` must never reach storage.
+  await page.waitForTimeout(700)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+  const stored = (await blockTexts()).join('')
+  log('the invisible caret marker is never stored', !stored.includes('​'), JSON.stringify(stored).slice(0, 80))
+
+  // The opening line of a document becomes its heading, once.
+  await freshDoc()
+  await page.keyboard.type('Quarterly Review')
+  await page.waitForTimeout(300)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(500)
+  log(
+    'the opening line becomes the heading',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some(
+        (e) => e.textContent === 'Quarterly Review' && /text-2xl/.test(e.className),
+      ),
+    ),
+  )
+  await page.keyboard.type('And this sentence should stay a paragraph.')
+  await page.waitForTimeout(300)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(400)
+  log(
+    'it happens only once per document',
+    (await page.evaluate(
+      () =>
+        [...document.querySelectorAll('[data-block-id] [contenteditable]')].filter((e) =>
+          /text-2xl/.test(e.className),
+        ).length,
+    )) === 1,
+  )
+}
+
+// --- Paste keeps its structure ----------------------------------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(500)
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-block-id] [contenteditable]')
+    el.focus()
+    const dt = new DataTransfer()
+    dt.setData(
+      'text/html',
+      '<h1>Pasted Title</h1><p>First para with <b>bold</b>.</p><ul><li>one</li><li>two</li></ul><p>Last line.</p>',
+    )
+    dt.setData('text/plain', 'Pasted Title\nFirst para with bold.\none\ntwo\nLast line.')
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  })
+  await page.waitForTimeout(900)
+
+  const pasted = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+  )
+  // This used to arrive as one enormous line with the newlines turned to spaces.
+  log('a multi-paragraph paste becomes one block per paragraph', pasted.length >= 5, `${pasted.length} blocks`)
+  log('nothing is lost in the paste', pasted.join(' ').includes('Pasted Title') && pasted.join(' ').includes('Last line.'))
+  log(
+    'a pasted heading is still a heading',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+        /text-2xl|text-xl/.test(e.className),
+      ),
+    ),
+  )
+  log(
+    'pasted inline formatting survives',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+        /<b>bold<\/b>/.test(e.innerHTML),
+      ),
+    ),
+  )
+
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(500)
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-block-id] [contenteditable]')
+    el.focus()
+    const dt = new DataTransfer()
+    dt.setData('text/plain', '- alpha\n- beta\n  - gamma')
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  })
+  await page.waitForTimeout(800)
+  const bullets = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+  )
+  log(
+    'a plain-text list pastes as bullets',
+    bullets.filter((t) => /alpha|beta|gamma/.test(t ?? '')).length === 3,
+    JSON.stringify(bullets),
+  )
+}
+
+// --- Trash ------------------------------------------------------------------
+{
+  const openTrash = async () => {
+    const toggle = page.locator('aside button[aria-expanded]').filter({ hasText: 'Trash' }).first()
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
+    await page.waitForTimeout(500)
+  }
+
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(400)
+  await page.locator('[aria-label="Document title"]').click()
+  await page.keyboard.type('Disposable')
+  await page.waitForTimeout(600)
+
+  await page.locator('nav [data-doc-id]:has-text("Disposable")').first().hover()
+  await page.waitForTimeout(250)
+  await page.locator('nav [data-doc-id]:has-text("Disposable") [aria-label^="Delete"]').first().click()
+  await page.waitForTimeout(800)
+  log('deleting removes it from the list', (await page.locator('nav [data-doc-id]:has-text("Disposable")').count()) === 0)
+  log('and the trash appears', (await page.locator('button:has-text("Trash")').count()) > 0)
+
+  await openTrash()
+  log(
+    'the trash says when it will go',
+    /Deletes in 7 days/.test(await page.evaluate(() => document.body.innerText)),
+  )
+
+  await page.locator('[aria-label^="Restore Disposable"]').first().click()
+  await page.waitForTimeout(800)
+  log('restoring puts it back', (await page.locator('nav [data-doc-id]:has-text("Disposable")').count()) > 0)
+
+  await page.locator('nav [data-doc-id]:has-text("Disposable")').first().hover()
+  await page.waitForTimeout(250)
+  await page.locator('nav [data-doc-id]:has-text("Disposable") [aria-label^="Delete"]').first().click()
+  await page.waitForTimeout(700)
+  await openTrash()
+  await page.locator('[aria-label*="permanently"]').first().click()
+  await page.waitForTimeout(400)
+  log(
+    'permanent deletion asks first',
+    (await page.evaluate(() => document.body.innerText)).includes('Delete for good?'),
+  )
+  await page.locator('button:has-text("Delete")').last().click()
+  await page.waitForTimeout(900)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1000)
+  log(
+    'a permanently deleted document does not come back',
+    !(await page.evaluate(() => document.body.innerText)).includes('Disposable'),
   )
 }
 
