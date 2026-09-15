@@ -19,6 +19,10 @@
  *   PAD_E2E_SHOTS   where to write screenshots (default ./e2e-shots)
  */
 import { chromium } from 'playwright'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { makeTestPdf } from './make-test-pdf.mjs'
 
 const SHOTS = process.env.PAD_E2E_SHOTS ?? 'e2e-shots'
 const URL = process.env.PAD_E2E_URL ?? 'http://localhost:3000'
@@ -34,7 +38,9 @@ mkdirSync(SHOTS, { recursive: true })
 const browser = await chromium.launch(
   process.env.PAD_E2E_CHROME ? { executablePath: process.env.PAD_E2E_CHROME } : {},
 )
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } })
+const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, acceptDownloads: true })
+// Fixtures are generated into a temp directory, never committed as binaries.
+const FIXTURES = mkdtempSync(join(tmpdir(), 'pad-e2e-'))
 const page = await ctx.newPage()
 const errors = []
 page.on('pageerror', (e) => errors.push(String(e)))
@@ -225,6 +231,409 @@ const noHorizontalScroll = await mobile.evaluate(
   () => document.documentElement.scrollWidth <= window.innerWidth + 1,
 )
 log('no horizontal scroll on a phone', noHorizontalScroll)
+
+// --- Layout: collapsing sidebar, alignment, reordering ----------------------
+await page.locator('[aria-label="Collapse sidebar"]').click()
+await page.waitForTimeout(400)
+log('sidebar collapses', !(await page.locator('aside').isVisible()))
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForTimeout(800)
+log('sidebar stays collapsed after a reload', !(await page.locator('aside').isVisible()))
+await page.locator('[aria-label="Show sidebar"]').click()
+await page.waitForTimeout(400)
+log('sidebar can be reopened', await page.locator('aside').isVisible())
+
+{
+  const titleX = await page
+    .locator('[aria-label="Document title"]')
+    .evaluate((el) => el.getBoundingClientRect().left)
+  const bodyX = await page
+    .locator('[data-block-id] [contenteditable]')
+    .first()
+    .evaluate((el) => el.getBoundingClientRect().left)
+  log('title and body text line up', Math.abs(titleX - bodyX) < 2, `title ${Math.round(titleX)}, body ${Math.round(bodyX)}`)
+
+  // Hovering reveals the gutter; if it were laid out inline it would shove
+  // every block sideways as the pointer moved down the page.
+  await page.locator('[data-block-id]').first().hover()
+  await page.waitForTimeout(250)
+  const hoverX = await page
+    .locator('[data-block-id] [contenteditable]')
+    .first()
+    .evaluate((el) => el.getBoundingClientRect().left)
+  log('text does not shift when the gutter appears', Math.abs(bodyX - hoverX) < 1)
+}
+
+// --- The virtual-keyboard regression ---------------------------------------
+// Phones deliver a typed character as an input event with keydown reporting
+// 'Unidentified'/229. This reproduces that exactly: no keydown at all, just
+// the text change a virtual keyboard produces. The old keydown-based slash
+// detection failed here, which is why "/" did nothing on mobile.
+await page.locator('[aria-label="Continue writing"]').click()
+await page.waitForTimeout(250)
+const opened = await page.evaluate(() => {
+  const el = document.activeElement
+  if (!el || !el.isContentEditable) return 'no focused block'
+  el.textContent = '/'
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, data: '/', inputType: 'insertText' }))
+  return 'dispatched'
+})
+await page.waitForTimeout(400)
+log(
+  'slash menu opens from an input event alone (virtual keyboard)',
+  await page.locator('[role="listbox"]').isVisible().catch(() => false),
+  opened,
+)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(200)
+
+// --- Drag to reorder --------------------------------------------------------
+{
+  const texts = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+    )
+  const before = await texts()
+  const rows = page.locator('[data-block-id]')
+  const count = await rows.count()
+  if (count >= 2 && before.length >= 2) {
+    const last = rows.nth(count - 1)
+    await last.hover()
+    await page.waitForTimeout(200)
+    const grip = last.locator('[aria-label^="Drag to reorder"]')
+    const gb = await grip.boundingBox()
+    const topBox = await rows.first().boundingBox()
+    if (gb && topBox) {
+      await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(topBox.x + 150, topBox.y + 2, { steps: 12 })
+      await page.waitForTimeout(200)
+      await page.mouse.up()
+      await page.waitForTimeout(400)
+    }
+    const after = await texts()
+    log('a block can be dragged to a new position', JSON.stringify(before) !== JSON.stringify(after))
+  } else {
+    log('a block can be dragged to a new position', false, 'not enough blocks to test')
+  }
+}
+
+// --- Inline formatting ------------------------------------------------------
+{
+  // A document of its own, so these do not depend on what ran before.
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(400)
+  await page.keyboard.type('Formatting')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('The word bold should be bold here.')
+  await page.waitForTimeout(300)
+
+  // The block holding the sentence, which is not necessarily the first one.
+  const target = page.locator('[data-block-id] [contenteditable]', { hasText: 'should be bold' }).first()
+
+  /** Selects the first occurrence of a word, in whichever block holds it. */
+  const selectWord = (word) =>
+    page.evaluate((w) => {
+      const el = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find((b) =>
+        (b.textContent ?? '').includes(w),
+      )
+      if (!el) return false
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+      let node
+      while ((node = walker.nextNode())) {
+        const i = node.data.indexOf(w)
+        if (i >= 0) {
+          const r = document.createRange()
+          r.setStart(node, i)
+          r.setEnd(node, i + w.length)
+          const s = window.getSelection()
+          s.removeAllRanges()
+          s.addRange(r)
+          return true
+        }
+      }
+      return false
+    }, word)
+
+  await selectWord('bold')
+  await page.waitForTimeout(350)
+  log(
+    'formatting toolbar appears on a selection',
+    await page.locator('[role="toolbar"]').isVisible().catch(() => false),
+  )
+
+  await page.keyboard.press('Control+b')
+  await page.waitForTimeout(400)
+  log('Ctrl+B applies bold', /<(b|strong)>bold<\/(b|strong)>/.test(await target.innerHTML()))
+
+  await selectWord('here')
+  await page.waitForTimeout(300)
+  await page.locator('[aria-label="Italic"]').click({ force: true })
+  await page.waitForTimeout(400)
+  log('the toolbar applies italic', /<(i|em)>here<\/(i|em)>/.test(await target.innerHTML()))
+
+  await selectWord('word')
+  await page.waitForTimeout(300)
+  await page.locator('[aria-label="Code"]').click({ force: true })
+  await page.waitForTimeout(400)
+  log('inline code can be applied', /<code>word<\/code>/.test(await target.innerHTML()))
+
+  await page.waitForTimeout(700)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+  const afterReload = await page
+    .locator('[data-block-id] [contenteditable]', { hasText: 'should be bold' })
+    .first()
+    .innerHTML()
+  log(
+    'formatting survives a reload',
+    /<(b|strong)>/.test(afterReload) && /<code>/.test(afterReload),
+  )
+
+  // Splitting inside a bold word must leave both halves bold, and must
+  // actually truncate the first block — the DOM used to keep the whole line.
+  const boldIndex = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+    const el = all.find((b) => b.querySelector('b, strong'))
+    if (!el) return -1
+    el.focus()
+    const b = el.querySelector('b, strong')
+    const r = document.createRange()
+    r.setStart(b.firstChild, 2)
+    r.collapse(true)
+    const s = window.getSelection()
+    s.removeAllRanges()
+    s.addRange(r)
+    return all.indexOf(el)
+  })
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(500)
+  const halves = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.innerHTML),
+  )
+  const head = halves[boldIndex] ?? ''
+  const tail = halves[boldIndex + 1] ?? ''
+  log(
+    'splitting inside bold keeps both halves bold',
+    /<(b|strong)>/.test(head) && /<(b|strong)>/.test(tail),
+    JSON.stringify([head, tail]).slice(0, 110),
+  )
+  log(
+    'the first half is actually truncated by the split',
+    /bo<\/(b|strong)>\s*$/.test(head),
+    JSON.stringify(head).slice(0, 80),
+  )
+
+  await page.keyboard.press('Backspace')
+  await page.waitForTimeout(500)
+  const remerged = await page.evaluate(
+    (i) =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')][i]?.innerHTML ?? '',
+    boldIndex,
+  )
+  log('merging the halves back keeps the formatting', /<(b|strong)>/.test(remerged))
+}
+
+// --- Whitespace is not silently eaten --------------------------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(400)
+  await page.keyboard.type('hello world')
+  await page.waitForTimeout(300)
+  await page.evaluate(() => {
+    const el = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find(
+      (b) => b.textContent === 'hello world',
+    )
+    el.focus()
+    const r = document.createRange()
+    r.setStart(el.firstChild, 5)
+    r.collapse(true)
+    const s = window.getSelection()
+    s.removeAllRanges()
+    s.addRange(r)
+  })
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(500)
+  await page.keyboard.type('X')
+  await page.waitForTimeout(400)
+  const parts = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+  )
+  // HTML collapses a leading space, which used to turn this into "Xworld".
+  log('a leading space survives a split', parts.includes('X world'), JSON.stringify(parts))
+}
+
+// --- Pasted markup cannot carry anything executable -------------------------
+{
+  await page.locator('[aria-label="Continue writing"]').click()
+  await page.waitForTimeout(250)
+  await page.evaluate(() => {
+    const el = document.activeElement
+    const dt = new DataTransfer()
+    dt.setData(
+      'text/html',
+      '<div onclick="steal()"><script>alert(1)<\/script><b>ok</b> <a href="javascript:x">link</a></div>',
+    )
+    dt.setData('text/plain', 'ok link')
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  })
+  await page.waitForTimeout(500)
+  const pasted = await page.evaluate(() => document.activeElement?.innerHTML ?? '')
+  log(
+    'pasted HTML is stripped of scripts, links and handlers',
+    !/script|onclick|href|<a/i.test(pasted),
+    JSON.stringify(pasted).slice(0, 90),
+  )
+}
+
+// --- Files in and out -------------------------------------------------------
+{
+  const notes = join(FIXTURES, 'notes.txt')
+  const contents = 'the quick brown fox\njumped over the lazy dog\n'
+  writeFileSync(notes, contents)
+
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(400)
+  await page.keyboard.type('Attachments')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('/file')
+  await page.waitForTimeout(400)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(500)
+  log('file block inserted', (await page.locator('input[aria-label="Choose a file"]').count()) > 0)
+
+  await page.locator('input[aria-label="Choose a file"]').setInputFiles(notes)
+  await page.waitForTimeout(900)
+  const shown = await page.evaluate(() => document.body.innerText)
+  log('attached file shows its name and size', shown.includes('notes.txt') && /\d+\s*(B|KB)/.test(shown))
+
+  await page.waitForTimeout(700)
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1000)
+  log(
+    'the attachment survives a reload',
+    (await page.evaluate(() => document.body.innerText)).includes('notes.txt'),
+  )
+
+  const pending = page.waitForEvent('download', { timeout: 15000 })
+  await page.locator('[aria-label="Save"]').first().click()
+  const file = await pending
+  const saved = join(FIXTURES, 'roundtrip.txt')
+  await file.saveAs(saved)
+  log('the file downloads with its own name', file.suggestedFilename() === 'notes.txt')
+  log('the bytes round-trip unchanged', readFileSync(saved, 'utf8') === contents)
+}
+
+// --- Exporting the document -------------------------------------------------
+{
+  const pending = page.waitForEvent('download', { timeout: 15000 })
+  await page.locator('[aria-label="Document actions"]').click()
+  await page.waitForTimeout(300)
+  await page.locator('button:has-text("Download Markdown")').click()
+  const file = await pending
+  const saved = join(FIXTURES, 'export.md')
+  await file.saveAs(saved)
+  const markdown = readFileSync(saved, 'utf8')
+  log('markdown export downloads', file.suggestedFilename().endsWith('.md'))
+  log('markdown export carries the content', markdown.includes('Attachments'), markdown.split('\n')[0])
+}
+
+// --- Importing a PDF --------------------------------------------------------
+{
+  const pdf = join(FIXTURES, 'fixture.pdf')
+  writeFileSync(pdf, makeTestPdf())
+
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(400)
+
+  // pdf.js is ~500KB. It must not be in the first load — only fetched here.
+  const beforeImport = await page.evaluate(
+    () => performance.getEntriesByType('resource').filter((r) => /pdf/i.test(r.name)).length,
+  )
+
+  await page.locator('[aria-label="Document actions"]').click()
+  await page.waitForTimeout(300)
+  await page.locator('input[aria-label="Choose a PDF"]').setInputFiles(pdf)
+  await page.waitForTimeout(5000)
+
+  const text = await page.evaluate(() => document.body.innerText)
+  log(
+    'a PDF is imported as editable text',
+    text.includes('Hello from a PDF') && text.includes('body text that should become editable'),
+  )
+  log(
+    'the imported text is in real editable blocks',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+        (e.textContent ?? '').includes('Hello from a PDF'),
+      ),
+    ),
+  )
+  const afterImport = await page.evaluate(
+    () => performance.getEntriesByType('resource').filter((r) => /pdf/i.test(r.name)).length,
+  )
+  log('the PDF reader is only downloaded when it is used', beforeImport === 0 && afterImport > 0)
+}
+
+// --- Printing, which is how a document becomes a PDF ------------------------
+{
+  await page.emulateMedia({ media: 'print' })
+  await page.waitForTimeout(400)
+  const shownInPrint = await page.evaluate(() => {
+    const hidden = (sel) => {
+      const el = document.querySelector(sel)
+      return !el || getComputedStyle(el).display === 'none'
+    }
+    return {
+      sidebar: hidden('aside'),
+      header: hidden('header'),
+      fab: hidden('[aria-label="Insert block"]'),
+      background: getComputedStyle(document.body).backgroundColor,
+    }
+  })
+  log('printing hides the app and leaves the document', shownInPrint.sidebar && shownInPrint.header && shownInPrint.fab)
+  log('printing is black on white whatever the theme', shownInPrint.background === 'rgb(255, 255, 255)', shownInPrint.background)
+  log(
+    'the document itself still prints',
+    (await page.evaluate(() => document.body.innerText)).includes('Hello from a PDF'),
+  )
+  await page.emulateMedia({ media: 'screen' })
+  await page.waitForTimeout(200)
+}
+
+// --- Sharing ----------------------------------------------------------------
+{
+  // Sharing needs a configured backend. With none, every path must explain
+  // itself rather than break — including the public page for a link that
+  // cannot resolve.
+  const missing = await page.goto(`${URL}/s/8f14e45f-ceea-467a-9a3f-1b4e0a2c9d77`, {
+    waitUntil: 'networkidle',
+  })
+  const missingBody = await page.evaluate(() => document.body.innerText)
+  log('a share link that leads nowhere renders a real page', missing.status() === 200)
+  log('and says so, with a way out', missingBody.includes('does not lead anywhere') && missingBody.includes('Open Pad'))
+
+  const malformed = await page.goto(`${URL}/s/not-a-uuid`, { waitUntil: 'networkidle' })
+  log('a malformed share link does not error', malformed.status() === 200)
+
+  await page.goto(URL, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(800)
+  await page.locator('[aria-label="Document actions"]').click()
+  await page.waitForTimeout(400)
+  const menuText = await page.evaluate(() => document.body.innerText)
+  log(
+    'the document menu offers every action',
+    ['Save as PDF', 'Download Markdown', 'Download plain text', 'Share a link', 'Import a PDF'].every(
+      (item) => menuText.includes(item),
+    ),
+  )
+  await page.locator('button:has-text("Share a link")').click()
+  await page.waitForTimeout(600)
+  const explained = await page.evaluate(() => document.body.innerText)
+  log('sharing explains why it is unavailable instead of failing', explained.includes('needs an account'))
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+}
 
 // Manifest + service worker, the installable part.
 const manifest = await page.evaluate(async () => {

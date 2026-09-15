@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { PREFS_SCRIPT } from '@/lib/ui-prefs'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -29,15 +30,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <head>
         {/*
-          Runs before first paint so a dark-mode user never sees a white flash.
-          It has to be inline and synchronous to beat the paint, which is the
-          one thing that justifies a raw script tag in this app.
+          Runs before first paint, so a dark-mode user never sees a white flash
+          and a collapsed sidebar is never seen swinging shut. It has to be
+          inline and synchronous to beat the paint, which is the one thing that
+          justifies a raw script tag in this app.
         */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('pad-theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}})()`,
-          }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: PREFS_SCRIPT }} />
       </head>
       <body className="antialiased">{children}</body>
     </html>

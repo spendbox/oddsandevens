@@ -174,7 +174,7 @@ export default function TableBlock({
       </div>
 
       {!readOnly && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1 opacity-0 transition-opacity group-focus-within/table:opacity-100 group-hover/table:opacity-100">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1 opacity-0 transition-opacity group-focus-within/table:opacity-100 group-hover/table:opacity-100 print:hidden">
           <GridButton onClick={addRow} icon={<Plus size={12} />} label="Row" />
           <GridButton onClick={addCol} icon={<Plus size={12} />} label="Column" />
           <span className="mx-1 h-3 w-px bg-[var(--color-line)]" />

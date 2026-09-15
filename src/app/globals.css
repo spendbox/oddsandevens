@@ -77,6 +77,16 @@ body {
  */
 [contenteditable] {
   outline: none;
+  /*
+   * HTML collapses runs of whitespace and drops a leading space entirely.
+   * In an editor that is data loss: splitting "hello world" at the space
+   * leaves a block whose text begins with one, and painting it back lost it,
+   * so the next keystroke produced "Xworld". pre-wrap keeps every space the
+   * writer typed while still wrapping normally.
+   */
+  white-space: pre-wrap;
+  /* Long unbroken strings — a URL, a hash — must not widen the page. */
+  overflow-wrap: break-word;
 }
 
 /* The placeholder on an empty block. Only the focused one shows its hint. */
@@ -84,6 +94,20 @@ body {
   content: attr(data-placeholder);
   color: var(--color-faint);
   pointer-events: none;
+}
+
+/*
+ * Inline formatting inside a block. `code` needs real styling; bold and italic
+ * inherit the browser's defaults, which are correct.
+ */
+[contenteditable] code,
+.pad-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--color-hover);
+  border: 1px solid var(--color-line);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
 }
 
 ::selection {
@@ -119,5 +143,90 @@ body {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * Printing, which is also how a document is saved as a PDF.
+ *
+ * Every platform's print dialog offers "Save as PDF" as a destination, so the
+ * browser's own typesetter does the work — page breaks, fonts, ligatures,
+ * right-to-left text, all of it already correct. A JavaScript PDF writer would
+ * be 200-400KB to do a worse job.
+ *
+ * The rules below are about removing the app and leaving the document.
+ */
+@media print {
+  /* Interface, not content: none of it belongs on paper. */
+  aside,
+  header,
+  [role='toolbar'],
+  [aria-label='Insert block'],
+  [aria-label='Continue writing'],
+  [aria-label='Insert block below'],
+  [aria-label^='Drag to reorder'],
+  [role='listbox'] {
+    display: none !important;
+  }
+
+  /* Print in black on white whatever the screen theme is. Dark mode sent to a
+     printer is an unreadable page and a great deal of ink. */
+  :root,
+  :root[data-theme='dark'] {
+    --color-paper: #ffffff;
+    --color-ink: #000000;
+    --color-muted: #333333;
+    --color-faint: #666666;
+    --color-line: #cccccc;
+    --color-hover: #f4f4f4;
+    --color-accent: #000000;
+    --color-accent-soft: #f0f0f0;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* The app is a fixed-height flex layout with its own scroller; on paper it
+     has to become one continuous column or only the first screen prints. */
+  body *,
+  main,
+  main > div {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  main {
+    display: block !important;
+  }
+
+  /* The left inset exists to hold controls that are now hidden. */
+  [data-block-id] {
+    padding-left: 0 !important;
+  }
+
+  /* Never break a table, a code block or an image across two pages. */
+  table,
+  pre,
+  img,
+  [data-block-id] {
+    break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  a[href]::after {
+    content: '';
+  }
+
+  @page {
+    margin: 18mm 16mm;
   }
 }

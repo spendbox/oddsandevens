@@ -20,15 +20,46 @@ server so your other devices catch up. Nothing waits for it.
 | Spreadsheet | A grid with real formulas | `/sheet` |
 | Code | Syntax highlighted, in 12 languages | `/code` |
 | Form | Questions, answers and responses | `/form` |
+| File | Attach anything, download it back | `/file`, or drop a file in |
 | Bullet, divider | List item, horizontal line | `-` + space, or `---` |
 
-Type `/` anywhere to see all of them.
+Type `/` anywhere to see all of them, or press the **+** in the margin — on a
+phone, the round button in the corner.
+
+**Formatting.** Select any text and a small bar appears: bold, italic,
+strikethrough, inline code. Or use `Ctrl+B`, `Ctrl+I`, `Ctrl+E`.
+
+**Moving things.** Drag the grip handle in the left margin, or hold `Alt` and
+press the up and down arrows.
+
+**Getting out of the way.** `Ctrl+\` collapses the sidebar. The page runs the
+full width of the window; if you prefer a narrower column for reading, there
+is a toggle at the bottom of the sidebar.
 
 The spreadsheet understands `=SUM(A1:A5)`, `=AVERAGE(...)`, `=IF(A1>50,
 "big", "small")`, `=ROUND(x, 2)`, cell references, ranges, `&` to join text,
 and comparisons. A cell shows its result when you are not in it and its
 formula when you are. A formula that refers to itself says `#CYCLE` instead
 of freezing the page.
+
+## Getting things in and out
+
+The **⋯** button, top right:
+
+- **Save as PDF** — opens your browser's print window; choose *Save as PDF* as
+  the destination. This costs no download at all, because your browser already
+  has a typesetter that handles page breaks and fonts properly.
+- **Download Markdown** — opens in any editor, and keeps the structure. This is
+  the one to use if you ever want to leave; a document you can only read inside
+  one app is not really yours.
+- **Download plain text** — for when markdown would just be noise.
+- **Import a PDF as text** — pulls the words out of a PDF so you can edit them.
+  A scanned PDF (a photograph of a page) has no text to pull out; that would
+  need character recognition, which is a much larger thing again.
+- **Share a link** — publishes a read-only copy at a public address. Needs an
+  account (see below). The link shows a snapshot, so editing the document does
+  not silently change what someone you shared it with is looking at; there is
+  an **Update the shared copy** button for when you want it to.
 
 ## Installing it as an app
 
@@ -58,7 +89,9 @@ Without this, Pad still works completely — it just keeps everything on the one
 device, and the corner shows "On this device" instead of a sign-in button.
 
 1. Make a free project at [supabase.com](https://supabase.com).
-2. In its SQL editor, paste and run `supabase/migrations/0001_docs.sql`.
+2. In its SQL editor, paste and run `supabase/migrations/0001_docs.sql`, then
+   `supabase/migrations/0002_shared_docs.sql` (that second one is what makes
+   **Share a link** work).
 3. Copy `.env.example` to `.env.local` and fill in the two values from
    Supabase's Settings → API page:
 
@@ -78,9 +111,13 @@ write their own documents. That is enforced by the database, not by the app.
 - **Tailwind CSS v4**, configured in `src/app/globals.css` — there is no
   `tailwind.config` file in v4
 - **IndexedDB** for local storage, **Supabase** for optional accounts and sync
-- No web fonts, no editor library, no syntax-highlighting library. Those are
-  the three things that usually make an app like this heavy, and all three are
-  replaceable with a few hundred lines that do only what is needed here.
+- No web fonts, no editor library, no syntax-highlighting library, no PDF
+  writer. Those are the things that usually make an app like this heavy, and
+  each is replaceable with a few hundred lines — or, for PDF export, with the
+  browser's own print pipeline and no JavaScript at all.
+- The two genuinely large dependencies are loaded only when they are used:
+  the sign-in client the first time somebody signs in, and the PDF reader the
+  first time somebody imports a PDF. Neither is in the first download.
 
 ### The one rule
 
@@ -96,12 +133,19 @@ src/lib/types.ts        what a document and a block are
 src/lib/blocks.ts       making blocks, and the markdown shortcuts
 src/lib/formula.ts      the spreadsheet engine
 src/lib/highlight.ts    the syntax highlighter
+src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
 src/lib/slash-items.ts  what "/" offers, and how a query is ranked
-src/lib/store.ts        saving to the device (IndexedDB)
+src/lib/store.ts        saving to the device (IndexedDB), documents and files
 src/lib/sync.ts         optional sync to Supabase
+src/lib/share.ts        publishing a read-only copy to a link
+src/lib/export.ts       turning a document into markdown or plain text
+src/lib/pdf.ts          reading text out of a PDF (loaded on demand)
+src/lib/ui-prefs.ts     theme, sidebar and width, applied before first paint
 src/components/         the editor and one file per block type
-supabase/migrations/    the database table and its security policies
+src/app/s/[id]/         the public page a shared link opens
+supabase/migrations/    the database tables and their security policies
 scripts/make-icons.py   regenerates the app icons from src/app/icon.svg
+scripts/e2e.mjs         drives a real browser through every feature
 ```
 
 ## Checking it works
@@ -124,15 +168,20 @@ can see what it saw.
 
 These are real and worth knowing before you rely on them:
 
-- **No bold or italic inside a paragraph yet.** Text blocks store plain text.
-  This keeps the caret behaviour correct and the app small, but it is the most
-  obvious missing thing and the first thing to add.
+- **Attachments stay on the device that added them.** The file's bytes live in
+  that browser, not in the document, which is what keeps documents small enough
+  to sync on every keystroke. Syncing attachments needs file storage on the
+  server — a separate piece of work. The screen says "on this device" so this
+  is never a surprise.
 - **Sync resolves conflicts per document, last edit wins.** Two devices editing
   the *same* document while both offline will keep the later one. Different
   documents on different devices merge fine. Doing better needs real
   collaborative-editing machinery, which is a large piece of work.
-- **Blocks cannot be dragged to reorder** yet. The handle is drawn but not
-  wired up.
-- **A form's responses live in the document**, so sharing a form to collect
-  answers from other people is not possible yet — that needs a public link and
-  a server-side table.
+- **A shared link is read-only, and a shared form cannot be answered.**
+  Collecting responses from other people needs the answers to go to the server
+  rather than into the document, which is the next step for forms.
+- **A scanned PDF imports nothing.** If the PDF is a photograph of a page there
+  is no text layer to read, and getting one needs OCR.
+- **Sharing has not been tested against a live database** in this repository,
+  because there is no Supabase project wired up here. The code, the policies
+  and every failure path are tested; the successful publish is not.

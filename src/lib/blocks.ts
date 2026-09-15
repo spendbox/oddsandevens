@@ -27,6 +27,10 @@ export function makeBlock(type: BlockType, level?: 1 | 2 | 3): Block {
       }
     case 'todo':
       return { id, type: 'todo', text: '', done: false }
+    case 'file':
+      // An empty ref means "nothing attached yet", which is what makes the
+      // block render as a drop zone rather than as a broken download.
+      return { id, type: 'file', name: '', mime: '', size: 0, ref: '' }
     case 'divider':
       return { id, type: 'divider' }
     case 'heading':
@@ -66,6 +70,40 @@ export function shortcutFor(text: string): { type: BlockType; level?: 1 | 2 | 3 
   return null
 }
 
+/**
+ * Turns extracted lines — from a PDF, or any pasted wall of text — into blocks.
+ *
+ * A short line with no closing punctuation, followed by a blank, is almost
+ * always a heading. Guessing that is worth it: the alternative is a hundred
+ * identical paragraphs that someone has to re-mark by hand, which is most of
+ * the work the import was supposed to save.
+ */
+export function blocksFromLines(lines: string[]): Block[] {
+  const blocks: Block[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line) continue
+
+    const next = (lines[i + 1] ?? '').trim()
+    const looksLikeHeading =
+      line.length <= 60 && !/[.,;:]$/.test(line) && next === '' && line.split(' ').length <= 10
+
+    // A bullet that survived the PDF's own glyphs.
+    const bullet = /^[•·▪–-]\s+(.*)$/.exec(line)
+    if (bullet) {
+      const block = makeBlock('bullet')
+      if (block.type === 'bullet') block.text = bullet[1]
+      blocks.push(block)
+      continue
+    }
+
+    const block = makeBlock(looksLikeHeading ? 'heading' : 'text', 2)
+    if (block.type === 'heading' || block.type === 'text') block.text = line
+    blocks.push(block)
+  }
+  return blocks.length ? blocks : [makeBlock('text')]
+}
+
 /** A one-line summary of a document, for the sidebar. */
 export function docPreview(blocks: Block[]): string {
   for (const block of blocks) {
@@ -76,6 +114,7 @@ export function docPreview(blocks: Block[]): string {
     if (block.type === 'table') return 'Spreadsheet'
     if (block.type === 'code') return 'Code'
     if (block.type === 'form') return block.title.trim() || 'Form'
+    if (block.type === 'file') return block.name || 'File'
   }
   return 'Empty'
 }

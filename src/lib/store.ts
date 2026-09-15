@@ -14,10 +14,12 @@
 import type { Doc } from './types'
 
 const DB_NAME = 'pad'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const DOCS = 'docs'
 /** Ids of documents changed since the last successful push to the server. */
 const OUTBOX = 'outbox'
+/** Attached file bytes, keyed by the `ref` on a file block. */
+const FILES = 'files'
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
@@ -41,6 +43,7 @@ function openDb(): Promise<IDBDatabase | null> {
         const db = request.result
         if (!db.objectStoreNames.contains(DOCS)) db.createObjectStore(DOCS, { keyPath: 'id' })
         if (!db.objectStoreNames.contains(OUTBOX)) db.createObjectStore(OUTBOX)
+        if (!db.objectStoreNames.contains(FILES)) db.createObjectStore(FILES)
       }
       request.onsuccess = () => done(request.result)
       request.onerror = () => done(null)
@@ -110,6 +113,28 @@ export async function pendingIds(): Promise<string[]> {
 
 export async function clearPending(id: string): Promise<void> {
   await run(OUTBOX, 'readwrite', (s) => s.delete(id))
+}
+
+/**
+ * Attachments. Blobs go in their own store rather than onto the document,
+ * which is what keeps a document's JSON small enough to sync on every change.
+ * IndexedDB stores a Blob directly — no base64, so no 33% size penalty and no
+ * megabyte-long string to serialise.
+ */
+export async function saveFile(ref: string, blob: Blob): Promise<boolean> {
+  const result = await run(FILES, 'readwrite', (s) => s.put(blob, ref))
+  // A null result means the transaction failed, most often because the
+  // browser's storage quota is full. The caller needs to know, or the block
+  // would be added pointing at bytes that were never written.
+  return result !== null
+}
+
+export async function loadFile(ref: string): Promise<Blob | null> {
+  return (await run<Blob>(FILES, 'readonly', (s) => s.get(ref))) ?? null
+}
+
+export async function deleteFile(ref: string): Promise<void> {
+  await run(FILES, 'readwrite', (s) => s.delete(ref))
 }
 
 /**

@@ -20,13 +20,24 @@ export type BlockType =
   | 'table'
   | 'code'
   | 'form'
+  | 'file'
   | 'divider'
 
 /** Blocks that are a single run of editable text. They share one component. */
 export interface TextishBlock {
   id: string
   type: 'text' | 'heading' | 'bullet' | 'quote'
+  /**
+   * The plain text. Always present, and always the source of truth for search,
+   * the sidebar preview and export — none of which should have to parse markup.
+   */
   text: string
+  /**
+   * The same run with bold, italic and the rest, when it has any. Absent means
+   * unformatted, which is also what every block saved before formatting
+   * existed looks like: the fallback to escaped `text` is the whole migration.
+   */
+  html?: string
   /** Heading size. Only read when type is 'heading'. */
   level?: 1 | 2 | 3
 }
@@ -35,6 +46,8 @@ export interface TodoBlock {
   id: string
   type: 'todo'
   text: string
+  /** See TextishBlock.html. */
+  html?: string
   done: boolean
 }
 
@@ -83,6 +96,30 @@ export interface FormBlock {
   responses: Array<{ id: string; at: number; values: Record<string, string> }>
 }
 
+/**
+ * An attached file.
+ *
+ * The bytes are NOT stored on the block. They live in their own IndexedDB
+ * store under `ref`, and only the description travels in the document. A
+ * document is sent to the server as JSON on every sync; a 10MB attachment
+ * base64'd into that JSON would be a 13MB row rewritten on every keystroke of
+ * every other block in the page.
+ *
+ * The honest consequence, which is stated on screen: attachments stay on the
+ * device that added them. Syncing them needs file storage on the server, which
+ * is a separate piece of work.
+ */
+export interface FileBlock {
+  id: string
+  type: 'file'
+  /** The name it was uploaded with, and the name it downloads as. */
+  name: string
+  mime: string
+  size: number
+  /** Key into the attachments store. */
+  ref: string
+}
+
 export interface DividerBlock {
   id: string
   type: 'divider'
@@ -94,6 +131,7 @@ export type Block =
   | TableBlock
   | CodeBlock
   | FormBlock
+  | FileBlock
   | DividerBlock
 
 export interface Doc {
@@ -122,5 +160,6 @@ export function blockText(block: Block): string {
   if (block.type === 'code') return block.code
   if (block.type === 'form') return [block.title, ...block.fields.map((f) => f.label)].join(' ')
   if (block.type === 'table') return Object.values(block.cells).join(' ')
+  if (block.type === 'file') return block.name
   return ''
 }

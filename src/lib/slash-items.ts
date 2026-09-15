@@ -18,6 +18,7 @@ export type IconName =
   | 'table'
   | 'code'
   | 'form'
+  | 'file'
   | 'quote'
   | 'divider'
 
@@ -41,6 +42,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { type: 'table', label: 'Spreadsheet', hint: 'Grid with formulas', icon: 'table', keywords: 'table sheet grid excel sum calculate budget numbers formula' },
   { type: 'code', label: 'Code', hint: 'Syntax highlighted', icon: 'code', keywords: 'snippet program script syntax' },
   { type: 'form', label: 'Form', hint: 'Questions and answers', icon: 'form', keywords: 'survey questions input collect responses' },
+  { type: 'file', label: 'File', hint: 'Attach or drop a file', icon: 'file', keywords: 'attach attachment upload document image pdf' },
   { type: 'quote', label: 'Quote', hint: 'Indented quotation', icon: 'quote', keywords: 'blockquote cite' },
   { type: 'divider', label: 'Divider', hint: 'Horizontal line', icon: 'divider', keywords: 'line rule separator break' },
 ]
