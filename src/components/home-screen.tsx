@@ -3,6 +3,7 @@
 import { ArrowRight, Clock, FolderOpen, Library, Plus, Search, Star, X } from 'lucide-react'
 import { docLabel, docPreview } from '@/lib/blocks'
 import { blockText, type Doc, type Project } from '@/lib/types'
+import DocIcon from './doc-icon'
 import TrashSection from './trash-section'
 
 /**
@@ -174,6 +175,11 @@ export default function HomeScreen({
               className="pad-page group block w-full p-4 text-left transition-shadow hover:shadow-lg sm:p-7"
             >
               <span className="flex items-start gap-3">
+                <DocIcon
+                  doc={current}
+                  size={22}
+                  className="mt-0.5 shrink-0 text-[var(--color-faint)] sm:mt-1"
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[19px] font-semibold tracking-tight sm:text-[26px]">
                     {docLabel(current)}
@@ -331,8 +337,11 @@ function Shelf({
                   onClick={() => onOpen(doc.id)}
                   className="pad-page block h-full w-full p-3.5 text-left transition-shadow hover:shadow-md"
                 >
-                  <span className="block truncate pr-6 text-[15px] font-medium">
-                    {docLabel(doc)}
+                  <span className="flex items-center gap-2 pr-6">
+                    <DocIcon doc={doc} size={16} className="shrink-0 text-[var(--color-faint)]" />
+                    <span className="min-w-0 truncate text-[15px] font-medium">
+                      {docLabel(doc)}
+                    </span>
                   </span>
                   <span className="mt-0.5 block truncate text-[13px] text-[var(--color-muted)]">
                     {docPreview(doc.blocks)}

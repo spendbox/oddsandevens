@@ -19,11 +19,13 @@ import {
   Minus,
   Paperclip,
   Plus,
+  Redo2,
   Sparkles,
   Strikethrough,
   Table,
   TextQuote,
   Underline,
+  Undo2,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Align, BlockType } from '@/lib/types'
@@ -92,6 +94,10 @@ export interface RibbonProps {
   onAssist?: () => void
   textSize: 'medium' | 'large' | 'huge'
   onTextSize: (next: 'medium' | 'large' | 'huge') => void
+  onUndo: () => void
+  onRedo: () => void
+  canUndo: boolean
+  canRedo: boolean
 }
 
 /**
@@ -110,7 +116,7 @@ const STYLES: Array<{
   level?: 1 | 2 | 3
   ordered?: boolean
 }> = [
-  { value: 'text', label: 'Normal text', short: 'Normal', preview: 'text-[15px]', type: 'text' },
+  { value: 'text', label: 'Normal text', short: 'Text', preview: 'text-[15px]', type: 'text' },
   { value: 'h1', label: 'Heading 1', short: 'H1', preview: 'text-[22px] font-semibold', type: 'heading', level: 1 },
   { value: 'h2', label: 'Heading 2', short: 'H2', preview: 'text-[18px] font-semibold', type: 'heading', level: 2 },
   { value: 'h3', label: 'Heading 3', short: 'H3', preview: 'text-[15px] font-semibold', type: 'heading', level: 3 },
@@ -152,6 +158,10 @@ export default function Ribbon({
   onAssist,
   textSize,
   onTextSize,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: RibbonProps) {
   const [marks, setMarks] = useState({
     bold: false,
@@ -224,16 +234,29 @@ export default function Ribbon({
       data-print="hide"
       className="sticky top-0 z-20 flex items-center gap-0.5 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 px-1.5 py-1.5 backdrop-blur sm:px-2"
     >
+      {/*
+        Undo and redo, first, which is where they have been in every editor
+        since they existed. See lib/history.ts for why the browser's own undo
+        could not do this: it keeps a stack per paragraph, and knows nothing
+        about a split, a delete or a rewrite applied to the whole page.
+      */}
+      <span className="flex shrink-0 items-center gap-0.5">
+        <Tool label="Undo" shortcut="Ctrl+Z" disabled={!canUndo} onRun={onUndo}>
+          <Undo2 size={15} />
+        </Tool>
+        <Tool label="Redo" shortcut="Ctrl+Shift+Z" disabled={!canRedo} onRun={onRedo}>
+          <Redo2 size={15} />
+        </Tool>
+      </span>
+
       {/* ------------------------------------------------------------ style */}
-      <div className="relative shrink-0">
+      <div className="relative ml-1 shrink-0">
         <button
           type="button"
           aria-label="Paragraph style"
           aria-expanded={menu === 'style'}
-          onPointerDown={(e) => {
-            e.preventDefault()
-            setMenu(menu === 'style' ? null : 'style')
-          }}
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={() => setMenu(menu === 'style' ? null : 'style')}
           className="flex h-8 items-center gap-1 rounded-lg px-2 text-[14px] text-[var(--color-ink)] hover:bg-[var(--color-hover)]"
         >
           <span className="hidden sm:inline">{current.label}</span>
@@ -247,10 +270,8 @@ export default function Ribbon({
                 key={style.value}
                 type="button"
                 role="menuitem"
-                onPointerDown={(e) => {
-                  e.preventDefault()
-                  pickStyle(style)
-                }}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => pickStyle(style)}
                 className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left hover:bg-[var(--color-hover)]"
               >
                 <span className={`min-w-0 flex-1 truncate ${style.preview}`}>{style.label}</span>
@@ -314,14 +335,19 @@ export default function Ribbon({
         >
           <List size={15} />
         </Tool>
-        <Tool
-          label="Numbered list"
-          active={target?.type === 'bullet' && !!target.ordered}
-          onRun={() => onStyle({ type: 'bullet', ordered: true })}
-        >
-          <ListOrdered size={15} />
-        </Tool>
+        {/*
+          Numbered lists, tasks and quotes are desktop-width only: undo and
+          redo earned their place on the row ahead of them, and all three are
+          in the style menu two presses away. The row has to stay one line.
+        */}
         <span className="hidden items-center gap-0.5 sm:flex">
+          <Tool
+            label="Numbered list"
+            active={target?.type === 'bullet' && !!target.ordered}
+            onRun={() => onStyle({ type: 'bullet', ordered: true })}
+          >
+            <ListOrdered size={15} />
+          </Tool>
           <Tool label="Task" active={target?.type === 'todo'} onRun={() => onStyle({ type: 'todo' })}>
             <ListTodo size={15} />
           </Tool>
@@ -341,10 +367,8 @@ export default function Ribbon({
           type="button"
           aria-label="Insert"
           aria-expanded={menu === 'insert'}
-          onPointerDown={(e) => {
-            e.preventDefault()
-            setMenu(menu === 'insert' ? null : 'insert')
-          }}
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={() => setMenu(menu === 'insert' ? null : 'insert')}
           className="flex h-8 items-center gap-1 rounded-lg px-2 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
         >
           <Plus size={15} />
@@ -358,8 +382,8 @@ export default function Ribbon({
                 key={item.type}
                 type="button"
                 role="menuitem"
-                onPointerDown={(e) => {
-                  e.preventDefault()
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => {
                   setMenu(null)
                   onInsert(item.type)
                 }}
@@ -382,10 +406,8 @@ export default function Ribbon({
           type="button"
           aria-label="More formatting"
           aria-expanded={menu === 'more'}
-          onPointerDown={(e) => {
-            e.preventDefault()
-            setMenu(menu === 'more' ? null : 'more')
-          }}
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={() => setMenu(menu === 'more' ? null : 'more')}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
         >
           <Ellipsis size={16} />
@@ -459,10 +481,18 @@ export default function Ribbon({
           type="button"
           aria-label="Writing help"
           title="Writing help (Ctrl+J)"
-          onPointerDown={(e) => {
-            e.preventDefault()
-            onAssist()
-          }}
+          /*
+            Prevent the default on pointerdown so the block keeps its
+            selection, but act on click.
+
+            Acting on pointerdown is what made this need a long press on a
+            phone: the popup rendered its backdrop under the finger that was
+            still down, and the click that completed the tap landed on the
+            backdrop and closed it again. A press only looked like it worked if
+            it was held long enough for the browser to drop the click.
+          */
+          onPointerDown={(e) => e.preventDefault()}
+          onClick={onAssist}
           className="ml-auto flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-accent-soft)] px-2.5 text-[14px] font-medium text-[var(--color-accent)] hover:opacity-85"
         >
           <Sparkles size={15} />
@@ -536,12 +566,14 @@ function Tool({
   label,
   shortcut,
   active,
+  disabled,
   onRun,
   children,
 }: {
   label: string
   shortcut?: string
   active?: boolean
+  disabled?: boolean
   onRun: () => void
   children: React.ReactNode
 }) {
@@ -550,14 +582,17 @@ function Tool({
       type="button"
       aria-label={label}
       aria-pressed={active}
+      disabled={disabled}
       title={shortcut ? `${label} (${shortcut})` : label}
       // Pointer down with preventDefault, never click: a click blurs the
-      // block first and the command has nothing left to act on.
+      // block first and the command has nothing left to act on. These act
+      // immediately and open nothing, so acting here is safe — see the note on
+      // the Ask button for the case where it is not.
       onPointerDown={(e) => {
         e.preventDefault()
-        onRun()
+        if (!disabled) onRun()
       }}
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-30 ${
         active
           ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
           : 'text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]'

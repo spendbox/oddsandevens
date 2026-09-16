@@ -1,9 +1,10 @@
 'use client'
 
-import { ChevronDown, FileText, MoreHorizontal, Star, Trash2 } from 'lucide-react'
+import { ChevronDown, MoreHorizontal, Star, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { docLabel, docPreview } from '@/lib/blocks'
 import type { Doc, Project } from '@/lib/types'
+import DocIcon from './doc-icon'
 import FolderChoices from './folder-choices'
 
 /**
@@ -128,7 +129,7 @@ export default function DocList({
           onClick={() => onOpen(item.id)}
           className="flex min-w-0 flex-1 items-start gap-2 py-1.5 pr-1 pl-2 text-left"
         >
-          <FileText size={14} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
+          <DocIcon doc={item} size={15} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
           <span className="min-w-0">
             <span className="block truncate text-[14px] font-medium">{docLabel(item)}</span>
             <span className="block truncate text-[13px] text-[var(--color-faint)]">

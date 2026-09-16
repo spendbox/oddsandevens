@@ -28,6 +28,7 @@ import { groupDocs } from '@/lib/projects'
 import { buildIndex, search } from '@/lib/search'
 import { saveFile } from '@/lib/store'
 import { blockText, type Block, type Doc, type Project } from '@/lib/types'
+import DocIcon from './doc-icon'
 import FolderChoices from './folder-choices'
 
 /**
@@ -320,7 +321,7 @@ export default function LibraryPanel({
         }}
         className="flex min-w-0 flex-1 items-start gap-2.5 rounded-md px-2 py-2 text-left hover:bg-[var(--color-hover)]"
       >
-        <FileText size={15} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
+        <DocIcon doc={item} size={16} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-medium">{docLabel(item)}</span>
           <span className="block truncate text-[13px] text-[var(--color-muted)]">

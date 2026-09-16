@@ -19,6 +19,15 @@ import { newId } from '@/lib/id'
 import { allDocs, allDocsRaw, allProjects, deleteFile, loadDoc, saveDoc, saveProject } from '@/lib/store'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
+import {
+  canRedo as hasRedo,
+  canUndo as hasUndo,
+  emptyHistory,
+  record,
+  redo,
+  undo,
+  type History,
+} from '@/lib/history'
 import { docsInProject, makeProject, shouldDissolve } from '@/lib/projects'
 import type { Grouping } from '@/lib/library'
 import { attachmentRefs, purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
@@ -35,6 +44,19 @@ import SearchPanel from './search-panel'
 
 /** How long after the last keystroke a document is written to disk. */
 const SAVE_DEBOUNCE_MS = 400
+/**
+ * Where the header folds away, and where it comes back.
+ *
+ * Two thresholds rather than one, and decided by *where* the page is rather
+ * than by which way it was last moving. Direction is the obvious way to write
+ * this and it oscillates: folding the header makes the scroller 52 pixels
+ * taller, that relayout fires another scroll event, and the handler reads the
+ * change it caused itself as a fresh scroll in the other direction. The gap
+ * between these two numbers is wider than the header is tall, so nothing the
+ * fold does to the layout can carry the page across both of them.
+ */
+const HEADER_FOLDS_BELOW = 140
+const HEADER_RETURNS_ABOVE = 60
 /** How often to reconcile with the server while signed in. */
 const SYNC_EVERY_MS = 20_000
 
@@ -65,6 +87,35 @@ export default function Workspace() {
    * front of that is one press between somebody and their first sentence.
    */
   const [home, setHome] = useState(false)
+  /**
+   * Whether the app header has folded away.
+   *
+   * Two bars stacked at the top of a phone — the application's, then the
+   * document's — is a third of the screen gone before a word of the document.
+   * Scrolling down folds the header away and leaves the toolbar, which is
+   * sticky inside the scroller and so lands at the very top; scrolling up
+   * brings it straight back, which is the behaviour every reading app on a
+   * phone already has.
+   */
+  const [condensed, setCondensed] = useState(false)
+  /**
+   * Undo and redo for the open document.
+   *
+   * Held here rather than in the editor because it has to survive everything
+   * that changes a document from outside the editing surface — an import, a
+   * batch from the Library, a rewrite from the assistant — and because it must
+   * be thrown away when a different document is opened. See lib/history.ts.
+   */
+  const [history, setHistory] = useState<History>(emptyHistory)
+  /**
+   * Bumped whenever an older document is put back.
+   *
+   * Editable refuses to repaint a focused element unless the revision says so,
+   * which is what stops the caret jumping while typing — and which would
+   * otherwise leave the undone text on screen when somebody undoes an edit in
+   * the paragraph they are still in.
+   */
+  const [undoRevision, setUndoRevision] = useState(0)
   const [account, setAccount] = useState<Account | null>(null)
   const [syncState, setSyncState] = useState<SyncState>(isSyncConfigured() ? 'idle' : 'off')
   const [importing, setImporting] = useState(false)
@@ -99,6 +150,20 @@ export default function Workspace() {
   useEffect(() => {
     latest.current = doc
   }, [doc])
+
+  /*
+    A different document starts at the top, so the header comes back with it.
+
+    Adjusted during render rather than in an effect — the pattern this codebase
+    uses for "a value changed, so this state is stale" — because in an effect
+    the new document paints once with the header still folded away, which looks
+    like the application has lost its chrome.
+  */
+  const [lastDocId, setLastDocId] = useState<string | null>(null)
+  if (doc && doc.id !== lastDocId) {
+    setLastDocId(doc.id)
+    if (condensed) setCondensed(false)
+  }
 
   /* ---------------------------------------------------------------- start up */
 
@@ -154,6 +219,13 @@ export default function Workspace() {
   /* ------------------------------------------------------------------ saving */
 
   const update = useCallback((next: Doc) => {
+    // The state being replaced is what undo comes back to. `latest` is kept in
+    // step with `doc` by the effect above, so it is the previous document by
+    // the time any user action gets here.
+    const before = latest.current
+    if (before && before.id === next.id) {
+      setHistory((current) => record(current, before, next))
+    }
     setDoc(next)
     setDocs((all) => {
       const without = all.filter((d) => d.id !== next.id)
@@ -205,6 +277,39 @@ export default function Workspace() {
       flush()
     }
   }, [])
+
+  /**
+   * Puts an older — or a newer — version of the open document back.
+   *
+   * Written through the same path as an ordinary edit so it is saved, listed
+   * and synced identically; the only difference is that the history is moved
+   * rather than added to, and the revision is bumped so a focused paragraph
+   * repaints.
+   */
+  const step = useCallback(
+    (direction: 'undo' | 'redo') => {
+      const current = latest.current
+      if (!current) return
+      const moved = direction === 'undo' ? undo(history, current) : redo(history, current)
+      if (!moved) return
+      setHistory(moved.history)
+      setUndoRevision((r) => r + 1)
+      const restored = { ...moved.doc, updatedAt: Date.now() }
+      setDoc(restored)
+      setDocs((all) =>
+        [restored, ...all.filter((d) => d.id !== restored.id)].sort(
+          (a, b) => b.updatedAt - a.updatedAt,
+        ),
+      )
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      saveTimer.current = null
+      void saveDoc(restored)
+    },
+    [history],
+  )
+
+  const undoEdit = useCallback(() => step('undo'), [step])
+  const redoEdit = useCallback(() => step('redo'), [step])
 
   /* -------------------------------------------------------------------- sync */
 
@@ -510,6 +615,7 @@ export default function Workspace() {
     // of being in the project when they pressed the button.
     if (projectId) fresh.projectId = projectId
     setDocs((all) => [fresh, ...all])
+    setHistory(emptyHistory())
     setDoc(fresh)
     void saveDoc(fresh)
     setDrawer(false)
@@ -565,6 +671,7 @@ export default function Workspace() {
 
     for (const doc of made) await saveDoc(doc)
     setDocs((all) => [...made].reverse().concat(all))
+    setHistory(emptyHistory())
     if (made.length) setDoc(made[0])
     setDrawer(false)
   }
@@ -573,6 +680,9 @@ export default function Workspace() {
     await flushSave()
     const found = (await loadDoc(id)) ?? docs.find((d) => d.id === id) ?? null
     if (found) setDoc(found)
+    // A different document is a different history. Carrying it across would
+    // mean Ctrl+Z in one document restoring a state of another one.
+    setHistory(emptyHistory())
     setDrawer(false)
   }
 
@@ -615,16 +725,6 @@ export default function Workspace() {
 
   return (
     <div className="pad-desk flex h-dvh overflow-hidden">
-      {/* Backdrop for the sidebar on small screens. */}
-      {drawer && (
-        <button
-          type="button"
-          aria-label="Close menu"
-          onClick={() => setDrawer(false)}
-          className="fixed inset-0 z-30 bg-black/20 md:hidden"
-        />
-      )}
-
       {/*
         One element serves as a drawer on a phone and a collapsible column on a
         desktop. Collapsed, it is removed from the layout entirely rather than
@@ -636,7 +736,11 @@ export default function Workspace() {
         here as well is still in the app, on the home screen or in the Library.
       */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-paper)] transition-transform md:static ${
+        // Full width on a phone. A 16rem drawer over a 390px screen left a
+        // strip of the document showing down one side, which reads as
+        // something half-open rather than as a place you have gone to; and it
+        // cost every row in it the width that made the names readable.
+        className={`fixed inset-y-0 left-0 z-40 flex w-full shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-paper)] transition-transform md:static md:w-64 ${
           drawer ? 'translate-x-0' : '-translate-x-full'
         } ${sidebarOpen ? 'md:translate-x-0' : 'md:hidden'}`}
       >
@@ -663,9 +767,9 @@ export default function Workspace() {
             type="button"
             onClick={() => setDrawer(false)}
             aria-label="Close menu"
-            className="ml-auto p-1 text-[var(--color-muted)] md:hidden"
+            className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-hover)] md:hidden"
           >
-            <X size={16} />
+            <X size={20} />
           </button>
           <button
             type="button"
@@ -769,7 +873,13 @@ export default function Workspace() {
           already holds it still, but a phone's address bar resizes the visual
           viewport and can scroll an ancestor, taking the header with it.
         */}
-        <header className="sticky top-0 z-30 flex shrink-0 items-center gap-1.5 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 px-3 py-2 backdrop-blur">
+        <header
+          className={`sticky top-0 z-30 flex shrink-0 items-center gap-1.5 overflow-hidden border-b bg-[var(--color-paper)]/95 px-3 backdrop-blur transition-all duration-200 ${
+            condensed
+              ? 'h-0 border-transparent py-0 opacity-0'
+              : 'h-[3.25rem] border-[var(--color-line)] py-2 opacity-100'
+          }`}
+        >
           <button
             type="button"
             onClick={() => setDrawer(true)}
@@ -836,6 +946,7 @@ export default function Workspace() {
                 onImportWord={(file) => void importWord(file)}
                 onMove={(projectId) => void moveDoc(doc.id, projectId)}
                 onNewFolder={() => void newProjectWith(doc.id)}
+                onDelete={() => void deleteDoc(doc.id)}
               />
             )}
             <AccountButton
@@ -856,7 +967,16 @@ export default function Workspace() {
           </div>
         </header>
 
-        <div className="pad-desk min-h-0 flex-1 overflow-y-auto">
+        <div
+          className="pad-desk min-h-0 flex-1 overflow-y-auto"
+          onScroll={(event) => {
+            // Between the two thresholds nothing changes, which is what makes
+            // the fold stable. See the note on the constants.
+            const top = event.currentTarget.scrollTop
+            if (top <= HEADER_RETURNS_ABOVE) setCondensed(false)
+            else if (top >= HEADER_FOLDS_BELOW) setCondensed(true)
+          }}
+        >
           {/*
             The document is a sheet of paper on a desk. Narrow is a reading
             measure and is the default, because a line of text that runs the
@@ -892,6 +1012,11 @@ export default function Workspace() {
                   doc={doc}
                   onChange={update}
                   onExtractPdf={(file, name) => void importPdf(file, name)}
+                  onUndo={undoEdit}
+                  onRedo={redoEdit}
+                  canUndo={hasUndo(history)}
+                  canRedo={hasRedo(history)}
+                  externalRevision={undoRevision}
                 />
               </div>
             )}
