@@ -12,13 +12,15 @@ import {
   nextIndent,
   orderedNumber,
 } from '@/lib/smart-typing'
+import { applyRules, type Rule } from '@/lib/rules'
 import { findTasks, type TaskSuggestion } from '@/lib/tasks'
 import type { Align, Block, Doc, TextishBlock } from '@/lib/types'
-import { isTextish } from '@/lib/types'
-import { TEXT, usePref } from '@/lib/ui-prefs'
+import { blockText, isTextish } from '@/lib/types'
+import { MODE, TEXT, usePref } from '@/lib/ui-prefs'
 import CodeBlock from './code-block'
 import Editable, { placeCaret } from './editable'
 import AssistPopup, { type AssistScope } from './assist-popup'
+import BrainPanel, { BrainOffer } from './brain-panel'
 import FormatToolbar from './format-toolbar'
 import FileBlock from './file-block'
 import FormBlock from './form-block'
@@ -61,6 +63,8 @@ export default function Editor({
   canUndo,
   canRedo,
   externalRevision = 0,
+  onRules,
+  onIgnoreRules,
 }: {
   doc: Doc
   onChange: (next: Doc) => void
@@ -80,6 +84,9 @@ export default function Editor({
    * caret is in the paragraph being undone leaves the old text on screen.
    */
   externalRevision?: number
+  /** Writes this document's rules. See lib/rules.ts. */
+  onRules: (rules: Rule[]) => void
+  onIgnoreRules: (ignored: boolean) => void
 }) {
   /**
    * Which block to put the caret in after the next render, and where.
@@ -133,6 +140,15 @@ export default function Editor({
   const [assist, setAssist] = useState<{
     anchor: { top: number; bottom: number; left: number } | null
   } | null>(null)
+  const [brain, setBrain] = useState(false)
+  /**
+   * Whether the offer of rules on a brand-new document has been turned down.
+   *
+   * Session state rather than a field on the document: a document somebody
+   * declined rules for should not carry a tombstone about it forever, and the
+   * offer is only ever shown while the document is still empty anyway.
+   */
+  const [offerDeclined, setOfferDeclined] = useState(false)
   /**
    * Whether writing help is available at all.
    *
@@ -651,9 +667,35 @@ export default function Editor({
 
   useEffect(() => {
     const blocks = doc.blocks
-    const timer = setTimeout(() => setScanned(blocks), TASK_SCAN_PAUSE_MS)
+    const rules = doc.rules
+    const ignored = doc.ignoreRules
+    /*
+      One timer for both things that read a settled document: the task scan,
+      and Brain.
+
+      Both belong after a pause rather than on every keystroke — a strip that
+      appears halfway through the word "need", or a line that converts itself
+      while it is still being typed, is the application arguing with the
+      writer. Setting the state from the timer's callback rather than from the
+      effect body is also what keeps this out of a cascading render.
+    */
+    const timer = setTimeout(() => {
+      setScanned(blocks)
+      if (ignored || !rules?.length) return
+      // `applyRules` returns the identical array when nothing matched, which
+      // is the common case by a very long way, so this usually does nothing at
+      // all — and running it on its own output is a no-op, so it cannot loop.
+      const ruled = applyRules(blocks, rules)
+      if (ruled !== blocks) {
+        setBlocks(ruled)
+        bumpRevision()
+      }
+    }, TASK_SCAN_PAUSE_MS)
     return () => clearTimeout(timer)
-  }, [doc.blocks])
+    // `setBlocks` is rebuilt whenever `doc` changes, and re-arming the timer
+    // for that would mean it never fired while somebody was typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.blocks, doc.rules, doc.ignoreRules])
 
   const suggestions: TaskSuggestion[] = useMemo(
     () => (scanned === doc.blocks ? findTasks(doc.blocks) : []),
@@ -784,6 +826,16 @@ export default function Editor({
     }
 
     updateBlock(block.id, { ...block, text: value, html } as Block)
+
+    /*
+      The slash menu only exists in block mode.
+
+      In document mode "/" is a slash: somebody writing "and/or" or a date
+      should not have a menu open over the word they are typing. Everything the
+      menu offers is in the toolbar's ⋯ menu, so nothing is lost by it — the
+      two modes differ in what typing does, not in what the app can do.
+    */
+    if (mode !== 'blocks') return
 
     if (!slash) {
       const at = insertedSlashAt(block.text, value)
@@ -1057,6 +1109,13 @@ export default function Editor({
   */
   const { value: textPref, set: setTextPref } = usePref(TEXT)
   const textSize = textPref ?? 'medium'
+  /*
+    How typing behaves. Unset means `word`, which is what most people mean by
+    a document: Enter makes a paragraph and "/" types a slash. See MODE in
+    lib/ui-prefs.ts.
+  */
+  const { value: modePref, set: setModePref } = usePref(MODE)
+  const mode = modePref ?? 'word'
 
   return (
     <div ref={container} className="relative">
@@ -1073,6 +1132,10 @@ export default function Editor({
         onRedo={onRedo}
         canUndo={canUndo}
         canRedo={canRedo}
+        mode={mode}
+        onMode={setModePref}
+        onBrain={() => setBrain(true)}
+        ruleCount={doc.ignoreRules ? 0 : (doc.rules?.filter((rule) => !rule.off).length ?? 0)}
       />
 
       <div
@@ -1106,6 +1169,20 @@ export default function Editor({
       >
         <FormatToolbar scope={container} onAssist={aiReady ? openAssist : undefined} />
 
+        {/*
+          Rules are offered once, on a document that is still empty. The moment
+          somebody knows what shape a document will take is the moment before
+          they start it, and there is no second good moment to ask.
+        */}
+        {!offerDeclined &&
+          !brain &&
+          !doc.rules?.length &&
+          !doc.title.trim() &&
+          doc.blocks.length <= 1 &&
+          doc.blocks.every((block) => !blockText(block).trim()) && (
+            <BrainOffer onOpen={() => setBrain(true)} onDismiss={() => setOfferDeclined(true)} />
+          )}
+
         {(offered.length > 0 || made > 0) && (
           <TaskSuggestions
             suggestions={offered}
@@ -1134,7 +1211,18 @@ export default function Editor({
             <div
               key={block.id}
               data-block-id={block.id}
+              /*
+                A heading stays put while its section is on screen.
+
+                The sticky is on this wrapper rather than on the heading's own
+                text, because a sticky element sticks within its containing
+                block — and a heading's own box is exactly one heading tall, so
+                it stuck to nothing at all. The wrapper's containing block is
+                the whole run of blocks, which is the length of the document.
+              */
               className={`relative rounded-sm ${
+                block.type === 'heading' ? 'pad-sticky-heading' : ''
+              } ${
                 (() => {
                   const range = selectedRange()
                   return range && blockIndex >= range[0] && blockIndex <= range[1]
@@ -1194,6 +1282,15 @@ export default function Editor({
           className="mt-2 h-48 w-full cursor-text"
         />
       </div>
+
+      <BrainPanel
+        open={brain}
+        onClose={() => setBrain(false)}
+        rules={doc.rules ?? []}
+        ignored={!!doc.ignoreRules}
+        onChange={onRules}
+        onIgnoredChange={onIgnoreRules}
+      />
 
       <AssistPopup
         open={assist !== null}

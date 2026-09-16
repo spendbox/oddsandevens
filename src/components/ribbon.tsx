@@ -2,11 +2,11 @@
 
 import {
   AlignCenter,
+  Brain,
   AlignJustify,
   AlignLeft,
   AlignRight,
   Bold,
-  Check,
   ChevronDown,
   Code,
   Ellipsis,
@@ -18,7 +18,6 @@ import {
   ListTodo,
   Minus,
   Paperclip,
-  Plus,
   Redo2,
   Sparkles,
   Strikethrough,
@@ -43,20 +42,18 @@ import { applyFormat } from './format-toolbar'
  * place, always visible, always in the same order — so after a week your hand
  * goes to Bold without your eyes going anywhere at all.
  *
- * ## Why it does not look like Word
+ * ## Why there are four buttons on it
  *
- * The first version of this did, and looked thirty years old: a native
- * `<select>` with its operating-system chrome, twenty icons of equal weight,
- * and a vertical rule between every group. All three are the things that date
- * a toolbar. So: the style control is a plain button that opens a menu showing
- * each style set in its own type; groups are separated by space rather than by
- * lines; buttons have no borders until you are over them; and everything that
- * is not used in the first minute of writing — alignment, indent, the size of
- * the type — lives behind one "More" button instead of occupying the row.
+ * It had twenty. Undo, redo, a style menu, five marks, four lists, Insert,
+ * More and Ask — all correct, all reachable, and collectively a band of grey
+ * furniture across the top of every page somebody opened to write on. So it is
+ * down to what is worth permanent room: undo, redo, Brain and Ask. Everything
+ * else moved one press away into the ⋯ menu, and the formatting people reach
+ * for most is already on the bar that appears over a selection, which is where
+ * a word processor has put its mini toolbar for twenty years.
  *
- * Fewer things on the row is not only fashion. The row has to survive a phone,
- * and a toolbar that wraps onto a second line pushes the page down and moves
- * every control somebody had started to learn the position of.
+ * Nothing became unreachable. That is the line: a quieter toolbar is worth a
+ * press, and is not worth a feature.
  *
  * ## Why the marks are read from the selection rather than from the block
  *
@@ -98,32 +95,31 @@ export interface RibbonProps {
   onRedo: () => void
   canUndo: boolean
   canRedo: boolean
+  /** How typing behaves. See MODE in lib/ui-prefs.ts. */
+  mode: 'word' | 'blocks'
+  onMode: (next: 'word' | 'blocks') => void
+  /** Opens this document's rules. */
+  onBrain: () => void
+  /** How many live rules it has, so the button can say so. */
+  ruleCount: number
 }
 
-/**
- * The paragraph styles, in the order a style menu has listed them since 1990.
- *
- * `preview` is the class the menu row is set in, so choosing "Heading 1" means
- * pointing at something that looks like a heading rather than reading the
- * words "Heading 1" in the same type as everything else.
- */
+/** The paragraph styles, in the order a style menu has listed them since 1990. */
 const STYLES: Array<{
   value: string
   label: string
-  short: string
-  preview: string
   type: BlockType
   level?: 1 | 2 | 3
   ordered?: boolean
 }> = [
-  { value: 'text', label: 'Normal text', short: 'Text', preview: 'text-[15px]', type: 'text' },
-  { value: 'h1', label: 'Heading 1', short: 'H1', preview: 'text-[22px] font-semibold', type: 'heading', level: 1 },
-  { value: 'h2', label: 'Heading 2', short: 'H2', preview: 'text-[18px] font-semibold', type: 'heading', level: 2 },
-  { value: 'h3', label: 'Heading 3', short: 'H3', preview: 'text-[15px] font-semibold', type: 'heading', level: 3 },
-  { value: 'bullet', label: 'Bulleted list', short: 'List', preview: 'text-[15px]', type: 'bullet' },
-  { value: 'ordered', label: 'Numbered list', short: 'List', preview: 'text-[15px]', type: 'bullet', ordered: true },
-  { value: 'todo', label: 'Task', short: 'Task', preview: 'text-[15px]', type: 'todo' },
-  { value: 'quote', label: 'Quote', short: 'Quote', preview: 'text-[15px] italic', type: 'quote' },
+  { value: 'text', label: 'Normal text', type: 'text' },
+  { value: 'h1', label: 'Heading 1', type: 'heading', level: 1 },
+  { value: 'h2', label: 'Heading 2', type: 'heading', level: 2 },
+  { value: 'h3', label: 'Heading 3', type: 'heading', level: 3 },
+  { value: 'bullet', label: 'Bulleted list', type: 'bullet' },
+  { value: 'ordered', label: 'Numbered list', type: 'bullet', ordered: true },
+  { value: 'todo', label: 'Task', type: 'todo' },
+  { value: 'quote', label: 'Quote', type: 'quote' },
 ]
 
 function styleValue(target: RibbonTarget | null): string {
@@ -162,7 +158,12 @@ export default function Ribbon({
   onRedo,
   canUndo,
   canRedo,
+  mode,
+  onMode,
+  onBrain,
+  ruleCount,
 }: RibbonProps) {
+  const hasRules = ruleCount > 0
   const [marks, setMarks] = useState({
     bold: false,
     italic: false,
@@ -170,8 +171,8 @@ export default function Ribbon({
     strike: false,
     code: false,
   })
-  /** Which of the three menus is down. One at a time, like any menu bar. */
-  const [menu, setMenu] = useState<'style' | 'insert' | 'more' | null>(null)
+  /** Whether the one menu is down. */
+  const [menu, setMenu] = useState<'more' | null>(null)
   const root = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(() => {
@@ -219,20 +220,16 @@ export default function Ribbon({
   }, [menu])
 
   const align = target?.align ?? 'left'
-  const current = STYLES.find((s) => s.value === styleValue(target)) ?? STYLES[0]
-
-  const pickStyle = (style: (typeof STYLES)[number]) => {
-    setMenu(null)
-    onStyle({ type: style.type, level: style.level, ordered: style.ordered })
-  }
-
   return (
     <div
       ref={root}
       role="toolbar"
       aria-label="Formatting"
       data-print="hide"
-      className="sticky top-0 z-20 flex items-center gap-0.5 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 px-1.5 py-1.5 backdrop-blur sm:px-2"
+      // Opaque, not 95% with a blur behind it: the page scrolls underneath
+      // this and the words showed through, which on a bar that never moves
+      // reads as a rendering fault rather than as a material.
+      className="sticky top-0 z-20 flex items-center gap-0.5 rounded-t-lg border-b border-[var(--color-line)] bg-[var(--color-paper)] px-1.5 py-1.5 sm:px-2"
     >
       {/*
         Undo and redo, first, which is where they have been in every editor
@@ -240,180 +237,94 @@ export default function Ribbon({
         could not do this: it keeps a stack per paragraph, and knows nothing
         about a split, a delete or a rewrite applied to the whole page.
       */}
-      <span className="flex shrink-0 items-center gap-0.5">
-        <Tool label="Undo" shortcut="Ctrl+Z" disabled={!canUndo} onRun={onUndo}>
-          <Undo2 size={15} />
-        </Tool>
-        <Tool label="Redo" shortcut="Ctrl+Shift+Z" disabled={!canRedo} onRun={onRedo}>
-          <Redo2 size={15} />
-        </Tool>
-      </span>
+      <Tool label="Undo" shortcut="Ctrl+Z" disabled={!canUndo} onRun={onUndo}>
+        <Undo2 size={15} />
+      </Tool>
+      <Tool label="Redo" shortcut="Ctrl+Shift+Z" disabled={!canRedo} onRun={onRedo}>
+        <Redo2 size={15} />
+      </Tool>
 
-      {/* ------------------------------------------------------------ style */}
+      {/* --------------------------------------------------------- everything */}
       <div className="relative ml-1 shrink-0">
         <button
           type="button"
-          aria-label="Paragraph style"
-          aria-expanded={menu === 'style'}
-          onPointerDown={(e) => e.preventDefault()}
-          onClick={() => setMenu(menu === 'style' ? null : 'style')}
-          className="flex h-8 items-center gap-1 rounded-lg px-2 text-[14px] text-[var(--color-ink)] hover:bg-[var(--color-hover)]"
-        >
-          <span className="hidden sm:inline">{current.label}</span>
-          <span className="sm:hidden">{current.short}</span>
-          <ChevronDown size={14} className="opacity-50" />
-        </button>
-        {menu === 'style' && (
-          <Menu>
-            {STYLES.map((style) => (
-              <button
-                key={style.value}
-                type="button"
-                role="menuitem"
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => pickStyle(style)}
-                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left hover:bg-[var(--color-hover)]"
-              >
-                <span className={`min-w-0 flex-1 truncate ${style.preview}`}>{style.label}</span>
-                {style.value === current.value && (
-                  <Check size={14} className="shrink-0 text-[var(--color-accent)]" />
-                )}
-              </button>
-            ))}
-          </Menu>
-        )}
-      </div>
-
-      {/* ------------------------------------------------------------ marks */}
-      <span className="ml-1 flex shrink-0 items-center gap-0.5">
-        <Tool label="Bold" shortcut="Ctrl+B" active={marks.bold} onRun={() => applyFormat('bold')}>
-          <Bold size={15} />
-        </Tool>
-        <Tool
-          label="Italic"
-          shortcut="Ctrl+I"
-          active={marks.italic}
-          onRun={() => applyFormat('italic')}
-        >
-          <Italic size={15} />
-        </Tool>
-        {/*
-          Underline, strikethrough and code are desktop-width only. On a phone
-          they are one press away on the bar that appears over a selection,
-          which is where formatting is done with a thumb anyway — and a
-          toolbar that wraps to two rows is worse than either.
-        */}
-        <span className="hidden items-center gap-0.5 sm:flex">
-          <Tool
-            label="Underline"
-            shortcut="Ctrl+U"
-            active={marks.underline}
-            onRun={() => applyFormat('underline')}
-          >
-            <Underline size={15} />
-          </Tool>
-          <Tool label="Strikethrough" active={marks.strike} onRun={() => applyFormat('strike')}>
-            <Strikethrough size={15} />
-          </Tool>
-          <Tool
-            label="Inline code"
-            shortcut="Ctrl+E"
-            active={marks.code}
-            onRun={() => applyFormat('code')}
-          >
-            <Code size={15} />
-          </Tool>
-        </span>
-      </span>
-
-      {/* ------------------------------------------------------------ lists */}
-      <span className="ml-1 flex shrink-0 items-center gap-0.5">
-        <Tool
-          label="Bulleted list"
-          active={target?.type === 'bullet' && !target.ordered}
-          onRun={() => onStyle({ type: 'bullet' })}
-        >
-          <List size={15} />
-        </Tool>
-        {/*
-          Numbered lists, tasks and quotes are desktop-width only: undo and
-          redo earned their place on the row ahead of them, and all three are
-          in the style menu two presses away. The row has to stay one line.
-        */}
-        <span className="hidden items-center gap-0.5 sm:flex">
-          <Tool
-            label="Numbered list"
-            active={target?.type === 'bullet' && !!target.ordered}
-            onRun={() => onStyle({ type: 'bullet', ordered: true })}
-          >
-            <ListOrdered size={15} />
-          </Tool>
-          <Tool label="Task" active={target?.type === 'todo'} onRun={() => onStyle({ type: 'todo' })}>
-            <ListTodo size={15} />
-          </Tool>
-          <Tool
-            label="Quote"
-            active={target?.type === 'quote'}
-            onRun={() => onStyle({ type: 'quote' })}
-          >
-            <TextQuote size={15} />
-          </Tool>
-        </span>
-      </span>
-
-      {/* ----------------------------------------------------------- insert */}
-      <div className="relative ml-1 shrink-0">
-        <button
-          type="button"
-          aria-label="Insert"
-          aria-expanded={menu === 'insert'}
-          onPointerDown={(e) => e.preventDefault()}
-          onClick={() => setMenu(menu === 'insert' ? null : 'insert')}
-          className="flex h-8 items-center gap-1 rounded-lg px-2 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
-        >
-          <Plus size={15} />
-          <span className="hidden sm:inline">Insert</span>
-          <ChevronDown size={14} className="opacity-50" />
-        </button>
-        {menu === 'insert' && (
-          <Menu>
-            {INSERTS.map((item) => (
-              <button
-                key={item.type}
-                type="button"
-                role="menuitem"
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setMenu(null)
-                  onInsert(item.type)
-                }}
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[14px] hover:bg-[var(--color-hover)]"
-              >
-                <span className="shrink-0 text-[var(--color-muted)]">{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
-            <p className="mt-1 border-t border-[var(--color-line)] px-2.5 pt-2 pb-1 text-[13px] text-[var(--color-faint)]">
-              Typing <kbd className="font-mono">/</kbd> in the page does the same.
-            </p>
-          </Menu>
-        )}
-      </div>
-
-      {/* ------------------------------------------------------------- more */}
-      <div className="relative ml-1 shrink-0">
-        <button
-          type="button"
-          aria-label="More formatting"
+          aria-label="Formatting and insert"
           aria-expanded={menu === 'more'}
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => setMenu(menu === 'more' ? null : 'more')}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+          className="flex h-8 items-center gap-1 rounded-lg px-2 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
         >
           <Ellipsis size={16} />
+          <ChevronDown size={13} className="opacity-50" />
         </button>
         {menu === 'more' && (
           <Menu>
+            <Group label="Style">
+              <select
+                aria-label="Paragraph style"
+                value={styleValue(target)}
+                onChange={(e) => {
+                  const chosen = STYLES.find((style) => style.value === e.target.value)
+                  if (chosen) {
+                    setMenu(null)
+                    onStyle({ type: chosen.type, level: chosen.level, ordered: chosen.ordered })
+                  }
+                }}
+                className="h-8 w-full rounded-md border border-[var(--color-line)] bg-transparent px-1.5 text-[14px] outline-none"
+              >
+                {STYLES.map((style) => (
+                  <option key={style.value} value={style.value}>
+                    {style.label}
+                  </option>
+                ))}
+              </select>
+            </Group>
+
+            <Group label="Marks">
+              <Seg label="Bold" active={marks.bold} onRun={() => applyFormat('bold')}>
+                <Bold size={15} />
+              </Seg>
+              <Seg label="Italic" active={marks.italic} onRun={() => applyFormat('italic')}>
+                <Italic size={15} />
+              </Seg>
+              <Seg label="Underline" active={marks.underline} onRun={() => applyFormat('underline')}>
+                <Underline size={15} />
+              </Seg>
+              <Seg label="Strikethrough" active={marks.strike} onRun={() => applyFormat('strike')}>
+                <Strikethrough size={15} />
+              </Seg>
+              <Seg label="Inline code" active={marks.code} onRun={() => applyFormat('code')}>
+                <Code size={15} />
+              </Seg>
+            </Group>
+
+            <Group label="Lists">
+              <Seg
+                label="Bulleted list"
+                active={target?.type === 'bullet' && !target.ordered}
+                onRun={() => onStyle({ type: 'bullet' })}
+              >
+                <List size={15} />
+              </Seg>
+              <Seg
+                label="Numbered list"
+                active={target?.type === 'bullet' && !!target.ordered}
+                onRun={() => onStyle({ type: 'bullet', ordered: true })}
+              >
+                <ListOrdered size={15} />
+              </Seg>
+              <Seg label="Task" active={target?.type === 'todo'} onRun={() => onStyle({ type: 'todo' })}>
+                <ListTodo size={15} />
+              </Seg>
+              <Seg
+                label="Quote"
+                active={target?.type === 'quote'}
+                onRun={() => onStyle({ type: 'quote' })}
+              >
+                <TextQuote size={15} />
+              </Seg>
+            </Group>
+
             <Group label="Alignment">
               <Seg label="Align left" active={align === 'left'} onRun={() => onAlign('left')}>
                 <AlignLeft size={15} />
@@ -427,23 +338,14 @@ export default function Ribbon({
               <Seg label="Justify" active={align === 'justify'} onRun={() => onAlign('justify')}>
                 <AlignJustify size={15} />
               </Seg>
-            </Group>
-
-            <Group label="Indent">
               <Seg label="Decrease indent" onRun={() => onIndent(-1)}>
                 <IndentDecrease size={15} />
               </Seg>
               <Seg label="Increase indent" onRun={() => onIndent(1)}>
                 <IndentIncrease size={15} />
               </Seg>
-              <span className="flex-1 pl-2 text-[13px] text-[var(--color-faint)]">Tab, Shift+Tab</span>
             </Group>
 
-            {/*
-              The size of the type. Named rather than a pair of As: a control
-              you press twice to find out what it does is a control you press
-              twice every time.
-            */}
             <Group label="Size of the text">
               {SIZES.map((size) => (
                 <button
@@ -451,10 +353,8 @@ export default function Ribbon({
                   type="button"
                   aria-pressed={textSize === size.id}
                   aria-label={`${size.label} text`}
-                  onPointerDown={(e) => {
-                    e.preventDefault()
-                    onTextSize(size.id)
-                  }}
+                  onPointerDown={(e) => e.preventDefault()}
+                  onClick={() => onTextSize(size.id)}
                   className={`h-8 flex-1 rounded-md text-[14px] transition-colors ${
                     textSize === size.id
                       ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
@@ -465,9 +365,95 @@ export default function Ribbon({
                 </button>
               ))}
             </Group>
+
+            <div className="my-1 h-px bg-[var(--color-line)]" />
+
+            {INSERTS.map((item) => (
+              <button
+                key={item.type}
+                type="button"
+                role="menuitem"
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setMenu(null)
+                  onInsert(item.type)
+                }}
+                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[14px] hover:bg-[var(--color-hover)]"
+              >
+                <span className="shrink-0 text-[var(--color-muted)]">{item.icon}</span>
+                Insert {item.label.toLowerCase()}
+              </button>
+            ))}
+
+            <div className="my-1 h-px bg-[var(--color-line)]" />
+
+            {/*
+              How typing behaves. A preference rather than a document field: it
+              is about the hands doing the typing, not about the document.
+            */}
+            <Group label="Typing">
+              <button
+                type="button"
+                aria-pressed={mode === 'word'}
+                aria-label="Type like a word processor"
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => onMode('word')}
+                className={`h-8 flex-1 rounded-md text-[14px] transition-colors ${
+                  mode === 'word'
+                    ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
+                    : 'text-[var(--color-muted)] hover:bg-[var(--color-hover)]'
+                }`}
+              >
+                Document
+              </button>
+              <button
+                type="button"
+                aria-pressed={mode === 'blocks'}
+                aria-label="Type with blocks and the slash menu"
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => onMode('blocks')}
+                className={`h-8 flex-1 rounded-md text-[14px] transition-colors ${
+                  mode === 'blocks'
+                    ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
+                    : 'text-[var(--color-muted)] hover:bg-[var(--color-hover)]'
+                }`}
+              >
+                Blocks
+              </button>
+            </Group>
+            <p className="px-2.5 pb-1.5 text-[13px] leading-snug text-[var(--color-faint)]">
+              {mode === 'word'
+                ? 'Enter makes a paragraph and “/” types a slash.'
+                : 'Typing “/” opens the insert menu.'}
+            </p>
           </Menu>
         )}
       </div>
+
+      {/*
+        Brain: this document's own rules. Next to Ask because they are the two
+        things on this bar that think about the writing rather than format it.
+      */}
+      <button
+        type="button"
+        aria-label="Brain"
+        title="Rules for this document"
+        onPointerDown={(e) => e.preventDefault()}
+        onClick={onBrain}
+        className={`ml-auto flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[14px] transition-colors ${
+          hasRules
+            ? 'text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]'
+            : 'text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]'
+        }`}
+      >
+        <Brain size={16} />
+        <span className="hidden sm:inline">Brain</span>
+        {hasRules && (
+          <span className="rounded-full bg-[var(--color-accent)] px-1.5 text-[12px] font-medium text-white">
+            {ruleCount}
+          </span>
+        )}
+      </button>
 
       {/*
         Writing help, and the only way to it without a keyboard.
@@ -493,7 +479,7 @@ export default function Ribbon({
           */
           onPointerDown={(e) => e.preventDefault()}
           onClick={onAssist}
-          className="ml-auto flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-accent-soft)] px-2.5 text-[14px] font-medium text-[var(--color-accent)] hover:opacity-85"
+          className="ml-1 flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-accent-soft)] px-2.5 text-[14px] font-medium text-[var(--color-accent)] hover:opacity-85"
         >
           <Sparkles size={15} />
           Ask

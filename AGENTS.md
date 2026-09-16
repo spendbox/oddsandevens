@@ -103,11 +103,14 @@ to work, it is the wrong shape for this app.
   style control is therefore a plain button opening a menu that sets each
   option in its own type; groups are separated by space; buttons have no border
   until the pointer is over them.
-- **The toolbar is one row at every width.** Anything not used in the first
-  minute of writing — alignment, indent, the size of the type — lives behind
-  the "More" button rather than on the row. A toolbar that wraps to two lines
-  pushes the page down and moves every control somebody had started to learn
-  the position of.
+- **The toolbar is four controls: undo, redo, ⋯ and Ask.** It had twenty, all
+  correct and collectively a band of grey furniture across the top of every
+  page somebody opened to write on. Everything else is one press inside the ⋯,
+  and the marks are also on the bar that appears over a selection. The line to
+  hold: a quieter toolbar is worth a press and is not worth a feature, so
+  nothing may become unreachable when something leaves the row.
+- **A bar the page scrolls under is opaque, never 95% with a blur.** The words
+  showed through, which on a bar that never moves reads as a rendering fault.
 - **A toolbar button that applies a command acts on `pointerdown` with
   `preventDefault`; one that opens something acts on `click`.** The first half
   is because a click blurs the block, leaving the command no selection to act
@@ -132,6 +135,40 @@ to work, it is the wrong shape for this app.
   and a word earns its place only if it almost always means the same thing:
   "call", "numbers", "draft", "book" and "release" were all in there once and
   are all deliberately gone.
+- **The header folds by not being rendered, never by a height of zero with the
+  overflow hidden.** The clipping version animated nicely and cropped every
+  menu opened from inside the header — the document's own ⋯ menu came out cut
+  off at the height of the bar, which reads as the menu being behind the page.
+- **Nothing between a sticky element and the scroller may clip its overflow.**
+  `overflow-hidden` on an ancestor makes that ancestor the scrollport, and a
+  box that does not scroll cannot make anything stick. It was on the sheet, for
+  rounded corners, and it silently broke both the toolbar and the headings.
+- **A sticky heading sticks on the block's wrapper, not on the heading text.**
+  A sticky element sticks within its containing block, and a heading's own box
+  is exactly one heading tall — so it stuck to nothing at all. The wrapper's
+  containing block is the whole run of blocks.
+- **Never read localStorage in a lazy `useState` in a component that is
+  server-rendered.** The server has no localStorage, so the first client render
+  disagrees with the server's HTML and React throws a hydration error on every
+  load. `useSyncExternalStore` with a constant server snapshot is the tool, as
+  it is for the theme — and the snapshot must be the raw string, because a
+  freshly parsed Set is a new object every time and that is a render loop.
+- **Typing has two modes and `word` is the default.** In it the slash menu
+  never opens, because "/" in "and/or" is a slash. `blocks` turns it back on.
+  The modes differ in what typing does, never in what the app can do: anything
+  the slash menu offers is also in the toolbar's ⋯ menu.
+- **A Brain rule is offered on a document, applied on a settled document, and
+  reversible.** `lib/rules.ts` is a string comparison per line with no model
+  call — the same bargain as the icons and the task scan. `applyRules` returns
+  the identical array when nothing matched and is a no-op on its own output,
+  which is the whole reason it can run on every settled keystroke without
+  rewriting, saving and syncing the document, and the reason it cannot loop. A
+  rule that would turn a kind into the same kind never fires.
+- **Rules live on the document, never in a setting.** The shapes in a meeting
+  note are not the shapes in a recipe, and one list applied to everything would
+  be wrong somewhere inside a day. `ignoreRules` pauses them without losing
+  them, because "not while I am drafting this" is a different thought from "I
+  was wrong about that rule".
 - **The header folds from the scroll position, never from its direction.**
   Folding it makes the scroller taller, that relayout fires another scroll
   event, and a direction-based version reads the change it caused itself as a
@@ -251,6 +288,15 @@ to work, it is the wrong shape for this app.
 - **The API key lives only on the server.** `src/app/api/ai/route.ts` is the
   one server route in this app, and the only reason it exists. A key in client
   code is a key anyone can read out of the bundle and spend.
+- **GPT-4o is what this asks for, and every call goes through `complete`.**
+  One place knows which provider is configured, one place turns a refusal into
+  an exception, and one place changes when the answer to "which model" changes
+  again. The Anthropic path is kept as a fallback rather than deleted, because
+  anyone with `ANTHROPIC_API_KEY` already set would otherwise find their
+  writing help had silently disappeared; it is read only when
+  `OPENAI_API_KEY` is empty. `effort` is meaningful only to that fallback, and
+  the signature says so rather than pretending both providers have the same
+  controls.
 - **Search is one thing, not two.** A box that filters the list of file names
   and a box that searches inside documents behave differently and teach people
   to distrust both. `src/lib/search.ts` is a BM25 index over everything, built

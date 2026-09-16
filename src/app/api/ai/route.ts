@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
 
 /**
@@ -11,7 +12,21 @@ import { NextResponse } from 'next/server'
  * Like every other optional piece of this app, it degrades rather than breaks:
  * with no key configured the GET below reports `configured: false` and the
  * interface says so plainly instead of offering a button that fails.
+ *
+ * ## Which model
+ *
+ * GPT-4o, from `OPENAI_API_KEY`. Anthropic is kept as a fallback rather than
+ * deleted, because anyone who already had `ANTHROPIC_API_KEY` set would
+ * otherwise wake up to an app whose writing help had silently disappeared —
+ * and the cost of keeping it is one branch in `complete` below. Whichever
+ * answers, the rest of this file and every caller in the browser is unchanged:
+ * text goes in, replacement text comes out.
  */
+
+/** The model this app asks for by default. */
+const MODEL = 'gpt-4o'
+/** What the fallback asks for when only an Anthropic key is configured. */
+const FALLBACK_MODEL = 'claude-opus-5'
 
 export const runtime = 'nodejs'
 /** Never cached: every request is different and none should be stored. */
@@ -155,13 +170,83 @@ function clientKey(request: Request): string {
   return headers.get('x-vercel-forwarded-for') ?? last ?? 'unknown'
 }
 
-function apiKey(): string | null {
+function openAiKey(): string | null {
+  return process.env.OPENAI_API_KEY?.trim() || null
+}
+
+function anthropicKey(): string | null {
   return process.env.ANTHROPIC_API_KEY?.trim() || null
+}
+
+function configured(): boolean {
+  return openAiKey() !== null || anthropicKey() !== null
 }
 
 /** Lets the interface know whether to offer this at all. */
 export async function GET() {
-  return NextResponse.json({ configured: apiKey() !== null })
+  return NextResponse.json({ configured: configured() })
+}
+
+/** A model declined to answer. Reported as a refusal rather than a fault. */
+class Refused extends Error {}
+
+/**
+ * One request to whichever model is configured.
+ *
+ * Every caller in this file goes through here, so there is one place that
+ * knows which provider is in use, one place that turns a refusal into an
+ * exception, and one place to change when the answer to "which model" changes
+ * again. `effort` is only meaningful to the Anthropic fallback; GPT-4o has no
+ * such knob and ignores it, which is the honest thing for a shared signature
+ * to do rather than pretending both providers have the same controls.
+ */
+async function complete(options: {
+  system: string
+  user: string
+  maxTokens: number
+  effort?: 'low' | 'medium' | 'high'
+}): Promise<string> {
+  const openai = openAiKey()
+  if (openai) {
+    const client = new OpenAI({ apiKey: openai })
+    const answer = await client.chat.completions.create({
+      model: MODEL,
+      max_tokens: options.maxTokens,
+      messages: [
+        { role: 'system', content: options.system },
+        { role: 'user', content: options.user },
+      ],
+    })
+    const choice = answer.choices[0]
+    // A policy decline arrives as an ordinary 200 with the text in its own
+    // field, so it has to be checked before the content is read.
+    if (choice?.message?.refusal) throw new Refused(choice.message.refusal)
+    return (choice?.message?.content ?? '').trim()
+  }
+
+  const client = new Anthropic({ apiKey: anthropicKey() ?? '' })
+  /*
+    Streaming, then awaiting the final message.
+
+    Nothing is streamed to the browser — the editor replaces blocks in one
+    step, so a half-finished rewrite on screen would only flicker. Streaming
+    the request is still the right call: a long expansion can outlast the
+    SDK's HTTP timeout on a non-streaming call.
+  */
+  const stream = client.messages.stream({
+    model: FALLBACK_MODEL,
+    max_tokens: options.maxTokens,
+    output_config: { effort: options.effort ?? 'medium' },
+    system: options.system,
+    messages: [{ role: 'user', content: options.user }],
+  })
+  const message = await stream.finalMessage()
+  if (message.stop_reason === 'refusal') throw new Refused('declined')
+  return message.content
+    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+    .map((block) => block.text)
+    .join('')
+    .trim()
 }
 
 /** Long inputs are refused rather than silently truncated. */
@@ -236,33 +321,17 @@ const FILE_SYSTEM =
   '- Return one entry for every document, in the order given.'
 
 /** Titles and summarises a batch of freshly imported documents. */
-async function file(client: Anthropic, items: Intake[]) {
-  const stream = client.messages.stream({
-    model: 'claude-opus-5',
-    max_tokens: 4000,
+async function file(items: Intake[]) {
+  const text = await complete({
+    system: FILE_SYSTEM,
+    user: items
+      .map((item) => `[${item.n}] filename: ${item.name}\nopening:\n${item.excerpt}`)
+      .join('\n\n'),
+    maxTokens: 4000,
     // Naming a thing from its first page is a reading task, not a reasoning
     // one, and this runs over a whole batch at once.
-    output_config: { effort: 'low' },
-    system: FILE_SYSTEM,
-    messages: [
-      {
-        role: 'user',
-        content: items
-          .map((item) => `[${item.n}] filename: ${item.name}\nopening:\n${item.excerpt}`)
-          .join('\n\n'),
-      },
-    ],
+    effort: 'low',
   })
-
-  const message = await stream.finalMessage()
-  if (message.stop_reason === 'refusal') {
-    return NextResponse.json({ error: 'That request was declined.' }, { status: 422 })
-  }
-  const text = message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-    .map((block) => block.text)
-    .join('')
-    .trim()
   if (!text) {
     return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
   }
@@ -270,38 +339,19 @@ async function file(client: Anthropic, items: Intake[]) {
 }
 
 /** Answers a question from extracts of the reader's own notes. */
-async function ask(client: Anthropic, question: string, sources: Source[]) {
-  const stream = client.messages.stream({
-    model: 'claude-opus-5',
-    max_tokens: 2000,
+async function ask(question: string, sources: Source[]) {
+  const text = await complete({
+    system: ASK_SYSTEM,
+    user:
+      `Today is ${new Date().toISOString().slice(0, 10)}.\n\n` +
+      `Extracts from my notes:\n\n${sourceBlock(sources)}\n\n` +
+      `My question: ${question}`,
+    maxTokens: 2000,
     // Higher than the writing actions: pulling one answer out of eight notes
     // that half-agree is the part of this app that is actually a reasoning
     // problem, and a wrong answer with a citation on it is worse than none.
-    output_config: { effort: 'high' },
-    system: ASK_SYSTEM,
-    messages: [
-      {
-        role: 'user',
-        content:
-          `Today is ${new Date().toISOString().slice(0, 10)}.\n\n` +
-          `Extracts from my notes:\n\n${sourceBlock(sources)}\n\n` +
-          `My question: ${question}`,
-      },
-    ],
+    effort: 'high',
   })
-
-  const message = await stream.finalMessage()
-  if (message.stop_reason === 'refusal') {
-    return NextResponse.json(
-      { error: 'That request was declined. Try rephrasing what you are asking for.' },
-      { status: 422 },
-    )
-  }
-  const text = message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-    .map((block) => block.text)
-    .join('')
-    .trim()
   if (!text) {
     return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
   }
@@ -309,12 +359,11 @@ async function ask(client: Anthropic, question: string, sources: Source[]) {
 }
 
 export async function POST(request: Request) {
-  const key = apiKey()
-  if (!key) {
+  if (!configured()) {
     return NextResponse.json(
       {
         error:
-          'Writing help is not set up on this copy of Pad. Add an ANTHROPIC_API_KEY to turn it on.',
+          'Writing help is not set up on this copy of Pad. Add an OPENAI_API_KEY to turn it on.',
       },
       { status: 501 },
     )
@@ -351,8 +400,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Could not read the request.' }, { status: 400 })
   }
 
-  const client = new Anthropic({ apiKey: key })
-
   /*
     Asking a question of the notes, rather than rewriting a passage of them.
     It shares this route because it shares the thing worth protecting: the key.
@@ -374,7 +421,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Too much context at once.' }, { status: 413 })
     }
     try {
-      return await ask(client, question, sources)
+      return await ask(question, sources)
     } catch (error) {
       return failure(error)
     }
@@ -394,7 +441,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Too much at once. Add them in smaller batches.' }, { status: 413 })
     }
     try {
-      return await file(client, items)
+      return await file(items)
     } catch (error) {
       return failure(error)
     }
@@ -424,25 +471,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    /*
-      Streaming, then awaiting the final message.
-
-      Nothing is streamed to the browser — the editor replaces blocks in one
-      step, so a half-finished rewrite on screen would only flicker. Streaming
-      the request is still the right call: a long expansion can outlast the
-      SDK's HTTP timeout on a non-streaming call.
-    */
-    const stream = client.messages.stream({
-      model: 'claude-opus-5',
-      max_tokens: 8000,
-      /*
-        Tidying prose is a latency-sensitive edit, not a reasoning problem;
-        medium keeps it quick without making it careless. Expanding is the
-        exception: it is the one action where the work is deciding what the
-        author meant and what is worth adding, and a thin expansion is exactly
-        the failure that makes people stop pressing the button.
-      */
-      output_config: { effort: action === 'expand' ? 'high' : 'medium' },
+    const result = await complete({
       system:
         'You improve writing inside a document editor. Return ONLY the revised text, with no ' +
         'preamble, no explanation, no apology and no closing remark — whatever you return is ' +
@@ -453,37 +482,25 @@ export async function POST(request: Request) {
         'British English, stay in British English.\n\n' +
         'You may be shown the surrounding document for context. It is there so your answer ' +
         'fits what is already written; never rewrite it, repeat it or refer to it.',
-      messages: [
-        {
-          role: 'user',
-          content:
-            `${ACTIONS[action].instruction || asked}\n\n` +
-            (action !== 'custom' && asked ? `Also: ${asked}\n\n` : '') +
-            (body.title?.trim() ? `The document is titled "${body.title.trim()}".\n\n` : '') +
-            (body.context?.trim()
-              ? `For context, the document around it reads:\n\n${body.context.trim().slice(0, 6000)}\n\n`
-              : '') +
-            `Here is the text:\n\n${text}`,
-        },
-      ],
+      user:
+        `${ACTIONS[action].instruction || asked}\n\n` +
+        (action !== 'custom' && asked ? `Also: ${asked}\n\n` : '') +
+        (body.title?.trim() ? `The document is titled "${body.title.trim()}".\n\n` : '') +
+        (body.context?.trim()
+          ? `For context, the document around it reads:\n\n${body.context.trim().slice(0, 6000)}\n\n`
+          : '') +
+        `Here is the text:\n\n${text}`,
+      maxTokens: 8000,
+      /*
+        Tidying prose is a latency-sensitive edit, not a reasoning problem;
+        medium keeps it quick without making it careless. Expanding is the
+        exception: it is the one action where the work is deciding what the
+        author meant and what is worth adding, and a thin expansion is exactly
+        the failure that makes people stop pressing the button. Only the
+        Anthropic fallback has this knob; GPT-4o ignores it.
+      */
+      effort: action === 'expand' ? 'high' : 'medium',
     })
-
-    const message = await stream.finalMessage()
-
-    // A policy decline arrives as a normal 200 with this stop reason, so it
-    // has to be checked before the content is read.
-    if (message.stop_reason === 'refusal') {
-      return NextResponse.json(
-        { error: 'That request was declined. Try rephrasing what you are asking for.' },
-        { status: 422 },
-      )
-    }
-
-    const result = message.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map((block) => block.text)
-      .join('')
-      .trim()
 
     if (!result) {
       return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
@@ -497,17 +514,26 @@ export async function POST(request: Request) {
 
 /** Turns whatever went wrong into something a reader can act on. */
 function failure(error: unknown) {
+  // A decline is not a fault, and saying so is the difference between "try
+  // rephrasing" and "something is broken".
+  if (error instanceof Refused) {
+    return NextResponse.json(
+      { error: 'That request was declined. Try rephrasing what you are asking for.' },
+      { status: 422 },
+    )
+  }
   // Most specific first, so a rate limit is not reported as a generic fault.
-  if (error instanceof Anthropic.AuthenticationError) {
+  // Both providers are checked, because either may be the one configured.
+  if (error instanceof OpenAI.AuthenticationError || error instanceof Anthropic.AuthenticationError) {
     return NextResponse.json({ error: 'The configured API key was rejected.' }, { status: 502 })
   }
-  if (error instanceof Anthropic.RateLimitError) {
+  if (error instanceof OpenAI.RateLimitError || error instanceof Anthropic.RateLimitError) {
     return NextResponse.json(
       { error: 'The writing service is busy. Try again in a moment.' },
       { status: 429 },
     )
   }
-  if (error instanceof Anthropic.APIError) {
+  if (error instanceof OpenAI.APIError || error instanceof Anthropic.APIError) {
     return NextResponse.json(
       { error: `The writing service returned an error (${error.status}).` },
       { status: 502 },

@@ -25,11 +25,12 @@ import {
 import { newId } from '@/lib/id'
 import { readFileIntoBlocks } from '@/lib/read-file'
 import { groupDocs } from '@/lib/projects'
-import { buildIndex, search } from '@/lib/search'
+import { buildIndex, search, type SearchHit } from '@/lib/search'
 import { saveFile } from '@/lib/store'
 import { blockText, type Block, type Doc, type Project } from '@/lib/types'
 import DocIcon from './doc-icon'
 import FolderChoices from './folder-choices'
+import Snippet from './snippet'
 
 /**
  * The Library: drop a pile of documents in, get them back filed.
@@ -177,8 +178,8 @@ export default function LibraryPanel({
     edited. The same reasoning, and the same function, as the search panel.
   */
   const index = useMemo(() => buildIndex(docs), [docs])
-  const hits = useMemo(
-    () => (query.trim() ? search(index, query, 60).map((hit) => hit.doc) : []),
+  const hits: SearchHit[] = useMemo(
+    () => (query.trim() ? search(index, query, 60) : []),
     [index, query],
   )
   /** The shelf when nothing is being searched for: folders, then the loose. */
@@ -311,7 +312,7 @@ export default function LibraryPanel({
    * results — two copies is two places for the move menu to stop appearing in
    * one of them.
    */
-  const documentRow = (item: Doc) => (
+  const documentRow = (item: Doc, hit?: SearchHit) => (
     <li key={item.id} className="group/row relative flex items-center gap-1">
       <button
         type="button"
@@ -324,9 +325,22 @@ export default function LibraryPanel({
         <DocIcon doc={item} size={16} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-medium">{docLabel(item)}</span>
-          <span className="block truncate text-[13px] text-[var(--color-muted)]">
-            {docPreview(item.blocks)}
-          </span>
+          {/*
+            The passage that matched, with the word picked out — the same
+            component the search panel uses, because it is the same search.
+            Showing the sentence rather than the document's first line is what
+            makes it evident this reads inside documents rather than filtering
+            a list of names.
+          */}
+          {hit ? (
+            <span className="block text-[13px] leading-snug text-[var(--color-muted)]">
+              <Snippet text={hit.snippet} highlights={hit.highlights} />
+            </span>
+          ) : (
+            <span className="block truncate text-[13px] text-[var(--color-muted)]">
+              {docPreview(item.blocks)}
+            </span>
+          )}
         </span>
         <span className="shrink-0 pt-0.5 text-[12px] text-[var(--color-faint)]">
           {new Date(item.updatedAt).toLocaleDateString(undefined, {
@@ -577,7 +591,9 @@ export default function LibraryPanel({
                     Nothing here matches that.
                   </p>
                 ) : (
-                  <ul className="space-y-0.5">{hits.map(documentRow)}</ul>
+                  <ul className="space-y-0.5">
+                    {hits.map((hit) => documentRow(hit.doc, hit))}
+                  </ul>
                 )}
               </div>
             ) : shelves.length === 0 ? (
@@ -618,7 +634,11 @@ export default function LibraryPanel({
                           {group.docs.length}
                         </span>
                       </button>
-                      {!folded && <ul className="space-y-0.5 pl-3">{group.docs.map(documentRow)}</ul>}
+                      {!folded && (
+                        <ul className="space-y-0.5 pl-3">
+                          {group.docs.map((item) => documentRow(item))}
+                        </ul>
+                      )}
                     </div>
                   )
                 })}

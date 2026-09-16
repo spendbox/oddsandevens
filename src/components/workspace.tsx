@@ -28,7 +28,7 @@ import {
   undo,
   type History,
 } from '@/lib/history'
-import { docsInProject, makeProject, shouldDissolve } from '@/lib/projects'
+import { docsInProject, makeProject, mergedProjectName, shouldDissolve } from '@/lib/projects'
 import type { Grouping } from '@/lib/library'
 import { attachmentRefs, purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
 import { isTextish, type Doc, type Project } from '@/lib/types'
@@ -581,6 +581,27 @@ export default function Workspace() {
   )
 
   /**
+   * Dropping one document onto another: a folder holding both.
+   *
+   * Back after being taken out with the sidebar tree, because it is the
+   * gesture that matches what it does — putting two pieces of paper in one
+   * folder — and because the row menu, which replaced it, is three presses for
+   * something that was one movement.
+   */
+  const mergeDocs = useCallback(
+    async (draggedId: string, targetId: string) => {
+      const dragged = docs.find((d) => d.id === draggedId)
+      const target = docs.find((d) => d.id === targetId)
+      if (!dragged || !target) return
+      const project = makeProject(mergedProjectName(target, dragged))
+      putProject(project)
+      await setDocProject(targetId, project.id)
+      await setDocProject(draggedId, project.id)
+    },
+    [docs, putProject, setDocProject],
+  )
+
+  /**
    * Moving a document in or out of a project.
    *
    * A project left with one document dissolves: a folder holding a single item
@@ -839,6 +860,7 @@ export default function Workspace() {
           onFavorite={(id, favorite) => void setFavorite(id, favorite)}
           onMove={(docId, projectId) => void moveDoc(docId, projectId)}
           onNewProject={(id) => void newProjectWith(id)}
+          onMerge={(draggedId, targetId) => void mergeDocs(draggedId, targetId)}
         />
 
         <div className="flex items-center gap-1 border-t border-[var(--color-line)] px-2 py-2">
@@ -873,13 +895,18 @@ export default function Workspace() {
           already holds it still, but a phone's address bar resizes the visual
           viewport and can scroll an ancestor, taking the header with it.
         */}
-        <header
-          className={`sticky top-0 z-30 flex shrink-0 items-center gap-1.5 overflow-hidden border-b bg-[var(--color-paper)]/95 px-3 backdrop-blur transition-all duration-200 ${
-            condensed
-              ? 'h-0 border-transparent py-0 opacity-0'
-              : 'h-[3.25rem] border-[var(--color-line)] py-2 opacity-100'
-          }`}
-        >
+        {/*
+          Folded away by not being rendered, not by a height of zero with the
+          overflow hidden.
+
+          The height-and-clip version animated nicely and clipped every menu
+          opened from inside the header — the document's own ⋯ menu came out
+          cropped to the height of the header, which reads as the menu being
+          behind the page. A menu that cannot escape its bar is worse than a
+          fold that does not animate.
+        */}
+        {!condensed && (
+        <header className="sticky top-0 z-30 flex h-[3.25rem] shrink-0 items-center gap-1.5 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 px-3 py-2 backdrop-blur">
           <button
             type="button"
             onClick={() => setDrawer(true)}
@@ -966,6 +993,7 @@ export default function Workspace() {
             />
           </div>
         </header>
+        )}
 
         <div
           className="pad-desk min-h-0 flex-1 overflow-y-auto"
@@ -1005,8 +1033,18 @@ export default function Workspace() {
               document painted first would be replaced a frame later, and the
               flicker reads as the app losing the user's work.
             */}
+            {/*
+              No `overflow-hidden` on the sheet below.
+
+              It rounded the corners neatly and quietly broke `position:
+              sticky` for everything inside it — an ancestor that clips its
+              overflow becomes the scrollport a sticky element sticks within,
+              and a box that does not scroll cannot make anything stick. The
+              toolbar and the headings both need it, so the corners are
+              rounded on the children that touch them instead.
+            */}
             {ready && doc && (
-              <div className="pad-page flex-1 overflow-hidden sm:rounded-lg">
+              <div className="pad-page flex-1 sm:rounded-lg">
                 <Editor
                   key={doc.id}
                   doc={doc}
@@ -1017,6 +1055,21 @@ export default function Workspace() {
                   canUndo={hasUndo(history)}
                   canRedo={hasRedo(history)}
                   externalRevision={undoRevision}
+                  onRules={(rules) => {
+                    const next: Doc = { ...doc, updatedAt: Date.now() }
+                    // An absent field rather than an empty array, so a document
+                    // with no rules is stored exactly as one written before
+                    // Brain existed.
+                    if (rules.length) next.rules = rules
+                    else delete next.rules
+                    update(next)
+                  }}
+                  onIgnoreRules={(ignored) => {
+                    const next: Doc = { ...doc, updatedAt: Date.now() }
+                    if (ignored) next.ignoreRules = true
+                    else delete next.ignoreRules
+                    update(next)
+                  }}
                 />
               </div>
             )}

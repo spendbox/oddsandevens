@@ -52,6 +52,27 @@ one.
 toolbar. It moves the whole typographic scale — headings, lists, the title —
 not just the paragraphs, and it is remembered.
 
+**Document or blocks.** Under the **⋯**, *Typing*. **Document** is the default
+and is what most people mean by writing: Enter makes a paragraph, the markdown
+shortcuts still work, and typing `/` types a slash — so "and/or" and a date
+stay what you typed. **Blocks** turns the `/` menu back on for anyone who came
+here from an editor that has one.
+
+**Headings stay put.** Scroll into a section and its heading sticks under the
+toolbar until the next one takes its place, so you always know which part of a
+long document you are reading.
+
+**Brain: rules for one document.** The **Brain** button on the toolbar. A rule
+is a sentence — *every line starting with “AI:” becomes a task*, *every bullet
+becomes a task*, *every line ending with “?” becomes a quote* — and it applies
+as you type, in that document and nowhere else. Three are offered ready-made;
+the builder makes any other. They are entirely optional: a document with no
+rules behaves exactly as before and costs one small button. A new document is
+offered rules once and never asks again. Everything a rule does is undoable
+like any other edit, and the whole set can be paused with **Ignore these rules
+for now** without deleting any of them. It all runs on your device: no key, no
+network, nothing sent anywhere.
+
 **Typing does the obvious things for you.** The first letter of a line, and
 the first after a full stop, are capitalised — but not after "e.g.", "Dr." or
 a decimal point. A line ending in a colon starts a bullet list when you press
@@ -90,7 +111,8 @@ across paragraphs.
 **The sidebar** holds four things and nothing else: **New**, **Search**, the
 **Library**, and three short lists — what else is in this document's folder,
 what you have starred, and the five you had open most recently, with a **Show
-more** under them. Everything that used to be here as well is still in the app,
+more** under them. Every one of the three folds away with the chevron beside
+its name, and stays folded next time. Everything that used to be here as well is still in the app,
 one press away, on the home screen or in the Library.
 
 **The home screen** is the grid button in the header, or the Pad mark at the
@@ -110,6 +132,10 @@ searches within it, makes a new document in it, renames it, and moves this
 document somewhere else — all in the one menu, because "where am I" and "put me
 somewhere else" are the same thought half a second apart.
 
+**Making a folder** is a drag: pull one document in the sidebar onto another
+and they become a folder named after the one you dropped onto. Drop onto a
+folder's heading to add a document to it, or onto **Recent** to take it out.
+
 **Moving a document** to another folder is in four places, whichever you reach
 for first: that folder button, the document's own **⋯** menu in the header (the
 only route for a document that is in no folder yet), the **⋯** on any row in
@@ -121,9 +147,12 @@ are listed. Drop a pile of files in and each one is read, titled from its
 contents rather than its filename, and given a sentence saying what it covers;
 nothing is added until you have seen it. Underneath, every document you have is
 listed **under the folder it is in**, collapsible, with the loose ones last —
-and searchable with the app's own search, over contents as well as names. Search
-results are a flat ranked list rather than a grouped one, because when you are
-searching the best match should be at the top, not under a heading.
+and searchable with the app's own search, over contents as well as names. A
+result shows the sentence it matched with the word picked out, exactly as the
+main search does, so it is obvious the box is reading inside documents rather
+than filtering a list of names. Search results are a flat ranked list rather
+than a grouped one, because when you are searching the best match should be at
+the top, not under a heading.
 
 **Writing help.** Press **Ask** in the toolbar, or `Ctrl+J`, or type `++` — and
 if you have text selected, **Ask** is on the end of the little bar that appears
@@ -210,13 +239,17 @@ configuration beyond pointing it at this repository.
 
 ## Turning on writing help (optional)
 
-Writing help uses Claude. Get a key from
-[console.anthropic.com](https://console.anthropic.com), then put it in
+Writing help uses **GPT-4o**. Get a key from
+[platform.openai.com](https://platform.openai.com/api-keys), then put it in
 `.env.local`:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
 ```
+
+If you already had `ANTHROPIC_API_KEY` set from before, it still works — it is
+read only when `OPENAI_API_KEY` is empty, so nothing you had configured
+stops working.
 
 The key stays on the server and is never sent to the browser — that is why
 this is the one feature with a server route behind it. Requests are limited to
@@ -282,6 +315,7 @@ src/lib/projects.ts     grouping documents, and searching within a group
 src/lib/tasks.ts        finding the things somebody has agreed to do
 src/lib/history.ts      undo and redo, over whole documents
 src/lib/doc-icon.ts     which icon a document gets, and why
+src/lib/rules.ts        Brain: a document's own rules, and applying them
 src/lib/smart-typing.ts capitalisation, list and formatting rules
 src/lib/paste.ts        turning pasted content into blocks
 src/lib/trash.ts        the seven-day retention rules
@@ -335,6 +369,12 @@ These are real and worth knowing before you rely on them:
   key in this repository, so every failure path is tested, and the interface
   around it is tested against a stubbed route, but the real rewrite is not.
   Try it once before relying on it.
+- **A rule matches a line, not a meaning.** Brain compares strings: starts
+  with, ends with, contains a whole word, or is a kind of block. It will not
+  work out that "chase the invoice" and "follow up on the invoice" are the same
+  instruction. That is deliberate — it is what makes rules instant, free and
+  the same every time — but it means a rule is something you write for a shape
+  you already know you write.
 - **Tasks do not reach a calendar yet.** The detection is real and runs on
   your device; what it makes is a task block in the document it found. Google
   Calendar is the next step and is not connected, which the screen says

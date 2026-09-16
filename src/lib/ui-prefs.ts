@@ -44,12 +44,25 @@ export const TEXT = {
   attr: 'text',
   values: ['medium', 'large', 'huge'],
 } as const
+/**
+ * How typing behaves: like a word processor, or like a block editor.
+ *
+ * `word` is the default and is what most people mean by "a document": Enter
+ * makes a paragraph, the markdown shortcuts still work, and typing "/" types a
+ * slash. `blocks` turns the slash menu back on for people who came here from
+ * one of the editors that has it.
+ *
+ * A preference rather than a per-document field: it is about the hands doing
+ * the typing, not about the document being typed into, so it should not change
+ * when somebody opens a note a colleague wrote.
+ */
+export const MODE = { key: 'pad-mode', attr: 'mode', values: ['word', 'blocks'] } as const
 
 /**
  * The script that applies the saved preferences before anything is painted.
  * Kept here, next to the keys it reads, so the two cannot drift apart.
  */
-export const PREFS_SCRIPT = `(function(){try{var p=[['pad-theme','theme'],['pad-sidebar','sidebar'],['pad-width','width'],['pad-text','text']];for(var i=0;i<p.length;i++){var v=localStorage.getItem(p[i][0]);if(v){document.documentElement.setAttribute('data-'+p[i][1],v)}}}catch(e){}})()`
+export const PREFS_SCRIPT = `(function(){try{var p=[['pad-theme','theme'],['pad-sidebar','sidebar'],['pad-width','width'],['pad-text','text'],['pad-mode','mode']];for(var i=0;i<p.length;i++){var v=localStorage.getItem(p[i][0]);if(v){document.documentElement.setAttribute('data-'+p[i][1],v)}}}catch(e){}})()`
 
 const listeners = new Set<() => void>()
 
