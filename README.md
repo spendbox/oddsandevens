@@ -31,11 +31,13 @@ server so your other devices catch up. Nothing waits for it.
 Type `/` anywhere to see all of them, or use **Insert** in the toolbar.
 
 **The toolbar.** Along the top of the page, always visible, always in the same
-order: the paragraph style (Normal text, Heading 1–3, lists, task, quote), bold,
-italic, underline, strikethrough and inline code, lists, indent, alignment, the
-size of the type, and Insert. There are no handles in the margin that appear
-when you hover a paragraph — the controls are in one place you can learn, which
-is the point of a toolbar.
+order: the paragraph style, the marks, lists, **Insert**, a **⋯** for the rest,
+and **Ask**. The style button opens a menu where each style is set in its own
+type, so Heading 1 looks like a heading rather than reading as words. Alignment,
+indent and the size of the text live behind the **⋯**, which keeps the row to
+one line even on a phone. There are no handles in the margin that appear when
+you hover a paragraph — the controls are in one place you can learn, which is
+the point of a toolbar.
 
 **Formatting.** Select any text and a small bar appears over it as well: bold,
 italic, underline, strikethrough, inline code. Or use `Ctrl+B`, `Ctrl+I`,
@@ -46,9 +48,9 @@ the moment you close the span, and the markers disappear.
 toolbar. It belongs to the paragraph, so pressing Enter carries it to the next
 one.
 
-**The size of the type** is the two **A**s in the toolbar. It moves the whole
-typographic scale — headings, lists, the title — not just the paragraphs, and
-it is remembered.
+**The size of the type** is Medium, Large or Huge, under the **⋯** in the
+toolbar. It moves the whole typographic scale — headings, lists, the title —
+not just the paragraphs, and it is remembered.
 
 **Typing does the obvious things for you.** The first letter of a line, and
 the first after a full stop, are capitalised — but not after "e.g.", "Dr." or
@@ -74,34 +76,46 @@ across paragraphs.
 
 **The sidebar** holds four things and nothing else: **New**, **Search**, the
 **Library**, and three short lists — what else is in this document's folder,
-what you have starred, and what you had open recently. Everything that used to
-be here as well is still in the app, one press away, on the home screen or in
-the Library.
+what you have starred, and the five you had open most recently, with a **Show
+more** under them. Everything that used to be here as well is still in the app,
+one press away, on the home screen or in the Library.
 
 **The home screen** is the grid button in the header, or the Pad mark at the
 top of the sidebar. It fills the window and shows the document you are writing,
 large, with its opening lines; the others in its folder; your favourites; and
-what was open recently. It is not what the app opens into — opening straight
-into a document with the caret already in it matters more.
+what was open recently. On a phone it is one column with the labels dropped
+from the header buttons, so the row never wraps. It is not what the app opens
+into — opening straight into a document with the caret already in it matters
+more.
 
 **Favourites.** The star on a row in the sidebar, or on a card on the home
 screen. Starred documents get their own section in both.
 
-**Folders.** The **⋯** menu on any row in the sidebar: **New folder…** makes
-one named after that document, and the folders you already have are listed
-above it to move a document into. Once a document is in a folder, a bar appears
-above it listing the others, so you can move between them without opening the
-sidebar. The magnifying glass in that bar (or `Ctrl+P`) searches **within that
-folder only**. A folder left with one document dissolves by itself.
+**Folders.** A document in a folder gets a button in the header saying which
+one (`Ctrl+P` opens it). That button is the folder: it lists everything inside,
+searches within it, makes a new document in it, renames it, and moves this
+document somewhere else — all in the one menu, because "where am I" and "put me
+somewhere else" are the same thought half a second apart.
+
+**Moving a document** to another folder is in four places, whichever you reach
+for first: that folder button, the document's own **⋯** menu in the header (the
+only route for a document that is in no folder yet), the **⋯** on any row in
+the sidebar, and the **⋯** on any row in the Library. A folder left with one
+document dissolves by itself.
 
 **The Library** is both the way documents come in and the one place all of them
 are listed. Drop a pile of files in and each one is read, titled from its
 contents rather than its filename, and given a sentence saying what it covers;
 nothing is added until you have seen it. Underneath, every document you have is
-listed and searchable — the app's own search, over contents as well as names.
+listed **under the folder it is in**, collapsible, with the loose ones last —
+and searchable with the app's own search, over contents as well as names. Search
+results are a flat ranked list rather than a grouped one, because when you are
+searching the best match should be at the top, not under a heading.
 
-**Writing help.** Press `Ctrl+J`, or type `++`, or press **Ask** in the
-toolbar. A small box opens next to the line you are writing. Type what you want
+**Writing help.** Press **Ask** in the toolbar, or `Ctrl+J`, or type `++` — and
+if you have text selected, **Ask** is on the end of the little bar that appears
+over the selection. A small box opens next to the line you are writing; on a
+phone it is a sheet along the bottom, above the keyboard. Type what you want
 — "expand this", "make it less annoyed", "turn this into an email to the
 landlord" — or press one of Expand, Continue writing, Tidy up, Bullet points,
 Shorten, Summarise. It can work on what you have selected, on the paragraph you

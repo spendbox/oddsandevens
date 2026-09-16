@@ -27,8 +27,8 @@ import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
 import AccountButton, { type Account } from './account'
 import DocList from './doc-list'
 import DocMenu from './doc-menu'
+import FolderBar from './folder-bar'
 import HomeScreen from './home-screen'
-import ProjectBar from './project-bar'
 import Editor from './editor'
 import LibraryPanel, { type Incoming } from './library-panel'
 import SearchPanel from './search-panel'
@@ -799,11 +799,24 @@ export default function Workspace() {
             }}
             aria-label="Home"
             title="Home"
-            className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+            className="shrink-0 rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
           >
             <LayoutGrid size={18} />
           </button>
-          <div className="ml-auto flex items-center gap-1">
+          {ready && doc && openProject && (
+            <FolderBar
+              project={openProject}
+              docs={projectDocs}
+              currentId={doc.id}
+              projects={projects}
+              onOpen={(id) => void openDoc(id)}
+              onNew={() => newDoc(openProject.id)}
+              onRename={(name) => putProject({ ...openProject, name, updatedAt: Date.now() })}
+              onMove={(projectId) => void moveDoc(doc.id, projectId)}
+              onNewFolder={() => void newProjectWith(doc.id)}
+            />
+          )}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={() => setSearching(true)}
@@ -816,10 +829,13 @@ export default function Workspace() {
             {doc && (
               <DocMenu
                 doc={doc}
+                projects={projects}
                 importing={importing}
                 accountId={account?.id ?? null}
                 onImportPdf={(file) => void importPdf(file, file.name)}
                 onImportWord={(file) => void importWord(file)}
+                onMove={(projectId) => void moveDoc(doc.id, projectId)}
+                onNewFolder={() => void newProjectWith(doc.id)}
               />
             )}
             <AccountButton
@@ -863,18 +879,6 @@ export default function Workspace() {
               >
                 {importProblem}
               </p>
-            )}
-            {ready && doc && openProject && (
-              <ProjectBar
-                project={openProject}
-                docs={projectDocs}
-                currentId={doc.id}
-                onOpen={(id) => void openDoc(id)}
-                onNew={() => newDoc(openProject.id)}
-                onRename={(name) =>
-                  putProject({ ...openProject, name, updatedAt: Date.now() })
-                }
-              />
             )}
             {/*
               Nothing is rendered until the store has answered. A placeholder
@@ -923,10 +927,13 @@ export default function Workspace() {
         open={library}
         onClose={() => setLibrary(false)}
         docs={docs}
+        projects={projects}
         onOpen={(id) => {
           void openDoc(id)
           setHome(false)
         }}
+        onMove={(docId, projectId) => void moveDoc(docId, projectId)}
+        onNewFolder={(docId) => void newProjectWith(docId)}
         onAdd={(items, groups, withSummaries) => void addFromLibrary(items, groups, withSummaries)}
       />
 

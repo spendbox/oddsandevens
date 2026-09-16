@@ -1050,7 +1050,7 @@ export default function Editor({
           dragAnchor.current = null
         }}
       >
-        <FormatToolbar scope={container} />
+        <FormatToolbar scope={container} onAssist={aiReady ? openAssist : undefined} />
 
         {(offered.length > 0 || made > 0) && (
           <TaskSuggestions
@@ -1106,7 +1106,6 @@ export default function Editor({
                   number={orderedNumber(doc.blocks, blockIndex)}
                   onPasteBlocks={insertPasted}
                   onExtractPdf={onExtractPdf}
-                  assistReady={!!aiReady}
                 />
                 {slash?.id === block.id && (
                   <SlashMenu
@@ -1171,7 +1170,6 @@ function BlockBody({
   onPasteBlocks,
   onExtractPdf,
   number,
-  assistReady,
 }: {
   block: Block
   onChange: (next: Block) => void
@@ -1198,7 +1196,6 @@ function BlockBody({
   onExtractPdf?: (file: Blob, name: string) => void
   /** The printed position of an ordered list item. */
   number: number
-  assistReady: boolean
 }) {
   if (block.type === 'divider') {
     return <hr className="my-6 border-0 border-t border-[var(--color-line)]" />
@@ -1294,9 +1291,10 @@ function BlockBody({
         ? 'Quote'
         : block.type === 'bullet'
           ? 'List item'
-          : assistReady
-            ? 'Write, press / to insert, or Ctrl+J to ask'
-            : 'Write, or press / to insert'
+          : // No shortcut is promised here. Ctrl+J does not exist on a phone,
+            // and a hint that is wrong on half the devices is worse than none —
+            // Ask is on the toolbar at every width instead.
+            'Write, or press / to insert'
 
   const editable = (
     <Editable

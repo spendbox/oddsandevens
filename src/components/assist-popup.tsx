@@ -88,6 +88,8 @@ export interface AssistPopupProps {
 /** Width of the popup on a desktop, and the margin it keeps from the edges. */
 const WIDTH = 420
 const EDGE = 12
+/** Below this the popup is a bottom sheet, not something anchored at a caret. */
+const NARROW = 640
 
 export default function AssistPopup({
   open,
@@ -208,6 +210,15 @@ export default function AssistPopup({
     down a page.
   */
   const place = (): React.CSSProperties => {
+    /*
+      No inline placement on a phone.
+
+      At that width this is a sheet along the bottom, sized by the classes
+      below — and an inline `left` with no `right` shrinks it to the width of
+      its own text, which is what it did: a 187-pixel column halfway up the
+      screen. Inline styles beat classes, so the only fix is not to write them.
+    */
+    if (window.innerWidth < NARROW) return {}
     if (!anchor) return { left: '50%', top: '20%', transform: 'translateX(-50%)' }
     const room = window.innerHeight - anchor.bottom
     const above = room < 260 && anchor.top > 300

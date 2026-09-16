@@ -1,17 +1,10 @@
 'use client'
 
-import {
-  FileText,
-  FolderOpen,
-  FolderPlus,
-  LogOut,
-  MoreHorizontal,
-  Star,
-  Trash2,
-} from 'lucide-react'
+import { ChevronDown, FileText, MoreHorizontal, Star, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { docLabel, docPreview } from '@/lib/blocks'
 import type { Doc, Project } from '@/lib/types'
+import FolderChoices from './folder-choices'
 
 /**
  * The sidebar list.
@@ -47,8 +40,14 @@ export interface DocListProps {
   onNewProject: (docId: string) => void
 }
 
-/** How many recent documents are worth a sidebar. Beyond this, use search. */
-const RECENT = 12
+/**
+ * How many recent documents the sidebar shows before it has to be asked.
+ *
+ * Five is about what somebody is actually moving between in an afternoon. A
+ * dozen filled the column and turned a short list back into the long one this
+ * was cut down from — and the rest are one press, or one search, away.
+ */
+const RECENT = 5
 
 export default function DocList({
   docs,
@@ -63,6 +62,8 @@ export default function DocList({
 }: DocListProps) {
   /** Which row has its menu open. */
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  /** Whether Recent has been asked for the rest of itself. */
+  const [allRecent, setAllRecent] = useState(false)
 
   useEffect(() => {
     if (!menuFor) return
@@ -107,7 +108,8 @@ export default function DocList({
   */
   const above = new Set([...folder, ...favorites].map((doc) => doc.id))
   // Already sorted by recency upstream; only the length is decided here.
-  const recent = live.filter((doc) => !above.has(doc.id)).slice(0, RECENT)
+  const rest = live.filter((doc) => !above.has(doc.id))
+  const recent = allRecent ? rest : rest.slice(0, RECENT)
 
   const row = (item: Doc) => {
     const starred = !!item.favoritedAt
@@ -162,40 +164,20 @@ export default function DocList({
             role="menu"
             className="absolute right-2 z-50 mt-1 w-56 translate-y-8 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg"
           >
-            <p className="px-2.5 pt-1 pb-1 text-[12px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
-              Folder
-            </p>
-            {projects
-              .filter((p) => !p.deletedAt && p.id !== item.projectId)
-              .map((project) => (
-                <MenuRow
-                  key={project.id}
-                  icon={<FolderOpen size={14} />}
-                  label={project.name || 'Untitled folder'}
-                  onClick={() => {
-                    onMove(item.id, project.id)
-                    setMenuFor(null)
-                  }}
-                />
-              ))}
-            <MenuRow
-              icon={<FolderPlus size={14} />}
-              label="New folder…"
-              onClick={() => {
+            <FolderChoices
+              heading="Move to"
+              projects={projects}
+              currentId={item.projectId}
+              onMove={(projectId) => {
+                onMove(item.id, projectId)
+                setMenuFor(null)
+              }}
+              onNewFolder={() => {
                 onNewProject(item.id)
                 setMenuFor(null)
               }}
             />
-            {item.projectId && (
-              <MenuRow
-                icon={<LogOut size={14} />}
-                label="Take out of its folder"
-                onClick={() => {
-                  onMove(item.id, null)
-                  setMenuFor(null)
-                }}
-              />
-            )}
+            <div className="my-1 h-px bg-[var(--color-line)]" />
             <MenuRow
               icon={<Trash2 size={14} />}
               label="Delete"
@@ -228,6 +210,20 @@ export default function DocList({
           recent.map(row)
         ) : (
           <p className="px-2 py-2 text-[13px] text-[var(--color-faint)]">Nothing here yet</p>
+        )}
+        {rest.length > RECENT && (
+          <button
+            type="button"
+            onClick={() => setAllRecent((all) => !all)}
+            aria-expanded={allRecent}
+            className="mt-0.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+          >
+            <ChevronDown
+              size={13}
+              className={`shrink-0 transition-transform ${allRecent ? '' : '-rotate-90'}`}
+            />
+            {allRecent ? 'Show fewer' : `Show ${rest.length - RECENT} more`}
+          </button>
         )}
       </Section>
     </nav>

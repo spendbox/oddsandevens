@@ -57,6 +57,45 @@ const typedSomewhere = await page.evaluate(() => document.body.innerText.include
 log('typing works immediately on open, with no click', typedSomewhere)
 await page.screenshot({ path: `${SHOTS}/02-typed-immediately.png` })
 
+/**
+ * The folder control is a dropdown in the header now rather than a strip of
+ * the folder's other documents above the page, so everything about a folder
+ * goes through opening it first.
+ */
+const openFolderMenu = async () => {
+  const button = page.locator('header [aria-label^="Folder:"]').first()
+  if ((await button.count()) === 0) return false
+  if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click()
+  await page.waitForTimeout(350)
+  return true
+}
+const closeFolderMenu = async () => {
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(250)
+}
+/** The open document's folder name, or null when it is in no folder. */
+const folderName = async () => {
+  if (!(await openFolderMenu())) return null
+  const value = await page
+    .locator('[role="menu"][aria-label="Folder"] input[aria-label="Folder name"]')
+    .inputValue()
+    .catch(() => null)
+  await closeFolderMenu()
+  return value
+}
+/** Opens the toolbar's More menu, where alignment and text size now live. */
+const openMore = async () => {
+  await page.locator('[aria-label="More formatting"]').first().click()
+  await page.waitForTimeout(300)
+}
+/** Chooses a paragraph style from the toolbar's style menu. */
+const pickStyle = async (label) => {
+  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Paragraph style"]').click()
+  await page.waitForTimeout(300)
+  await page.locator(`[role="menu"] [role="menuitem"]:has-text("${label}")`).first().click()
+  await page.waitForTimeout(450)
+}
+
 // Find the first editable block and use it from here on.
 const firstBlock = page.locator('[data-block-id] [contenteditable]').first()
 await firstBlock.click()
@@ -386,7 +425,65 @@ log(
 )
 await mobile.screenshot({ path: `${SHOTS}/11c-mobile-library.png` })
 await mobile.keyboard.press('Escape')
-await mobile.waitForTimeout(300)
+await mobile.waitForTimeout(400)
+
+/*
+  The parts of the redesign that only a phone can fail.
+
+  A 390-pixel screen is where a toolbar wraps to a second row, where a header
+  with four labelled buttons becomes two lines, and where a keyboard shortcut
+  is not a way to reach anything at all.
+*/
+{
+  const bar = mobile.locator('[role="toolbar"][aria-label="Formatting"]')
+  const barBox = await bar.boundingBox()
+  log(
+    'the toolbar stays one row on a phone',
+    !!barBox && barBox.height < 56,
+    barBox ? `${Math.round(barBox.height)}px tall` : 'missing',
+  )
+  log(
+    'the toolbar does not run off the side',
+    await mobile.evaluate(() => {
+      const el = document.querySelector('[role="toolbar"][aria-label="Formatting"]')
+      return !el || el.scrollWidth <= el.clientWidth + 1
+    }),
+  )
+
+  // The home screen, which covers the document completely on a phone.
+  await mobile.locator('header [aria-label="Home"]').first().click()
+  await mobile.waitForTimeout(700)
+  const home = mobile.locator('[role="dialog"][aria-label="Home"]')
+  const homeBox = await home.boundingBox()
+  log(
+    'the home screen fits a phone',
+    !!homeBox && homeBox.width <= 391,
+    homeBox ? `${Math.round(homeBox.width)}px wide` : 'missing',
+  )
+  log(
+    'nothing on the home screen runs off the side',
+    await mobile.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  )
+  const headerRows = await mobile.evaluate(() => {
+    const head = document.querySelector('[role="dialog"][aria-label="Home"] header')
+    return head ? Math.round(head.getBoundingClientRect().height) : 0
+  })
+  log('its header is one row, not two', headerRows > 0 && headerRows < 64, `${headerRows}px tall`)
+  log(
+    'the way back out is a full-sized target',
+    await mobile.evaluate(() => {
+      const el = document.querySelector('[aria-label="Back to the document"]')
+      if (!el) return false
+      const box = el.getBoundingClientRect()
+      return box.width >= 32 && box.height >= 32
+    }),
+  )
+  await mobile.screenshot({ path: `${SHOTS}/11d-mobile-home.png` })
+  await mobile.locator('[aria-label="Back to the document"]').click()
+  await mobile.waitForTimeout(500)
+}
 
 // --- Layout: collapsing sidebar, alignment, reordering ----------------------
 await page.locator('[aria-label="Collapse sidebar"]').click()
@@ -826,85 +923,115 @@ await page.waitForTimeout(200)
    */
   const rowMenu = async (title) => {
     const row = page.locator(`nav [data-doc-id]:has-text("${title}")`).first()
+    await row.scrollIntoViewIfNeeded()
     await row.hover()
     await page.waitForTimeout(200)
     await row.locator('[aria-label^="Actions for"]').first().click()
     await page.waitForTimeout(350)
   }
+  /** Moves a document into a named folder from its sidebar row. */
+  const fileInto = async (title, folder) => {
+    await rowMenu(title)
+    await page.locator(`[role="menu"] [role="menuitem"]:has-text("${folder}")`).first().click()
+    await page.waitForTimeout(900)
+  }
 
   await rowMenu('Zeta timeline')
-  await page.locator('[role="menu"] button:has-text("New folder")').first().click()
-  await page.waitForTimeout(800)
-
-  const barName = await page
-    .locator('main input[aria-label="Project name"]')
-    .inputValue()
-    .catch(() => null)
-  log('a row menu makes a folder from a document', barName !== null, String(barName))
-  log('the folder is named after the document it was made from', barName === 'Zeta timeline', String(barName))
-
-  await rowMenu('Zeta budget')
-  await page.locator('[role="menu"] button:has-text("Zeta timeline")').first().click()
+  await page.locator('[role="menu"] [role="menuitem"]:has-text("New folder")').first().click()
   await page.waitForTimeout(900)
 
-  const chips = await page.locator('main [data-chip]').allInnerTexts().catch(() => [])
-  log('the bar lists the documents in the folder', chips.length === 2, JSON.stringify(chips))
+  log('a row menu makes a folder from a document', (await folderName()) === 'Zeta timeline', String(await folderName()))
   log(
-    'the sidebar heads a section with the folder name',
-    (await page.locator('nav').innerText()).toLowerCase().includes('zeta timeline'),
+    'the folder is a dropdown in the header, not a strip of files above the page',
+    (await page.locator('header [aria-label^="Folder:"]').count()) === 1 &&
+      (await page.locator('[data-chip]').count()) === 0,
   )
 
-  const sibling = chips.find((c) => c !== 'Zeta budget') ?? chips[0]
-  await page.locator(`main [data-chip]:has-text("${sibling}")`).first().click()
-  await page.waitForTimeout(700)
+  await fileInto('Zeta budget', 'Zeta timeline')
+
+  await openFolderMenu()
+  const chips = await page.locator('[data-chip]').allInnerTexts()
+  log('the dropdown lists the documents in the folder', chips.length === 2, JSON.stringify(chips))
   log(
-    'a chip opens that document',
-    (await page.locator('[aria-label="Document title"]').inputValue()) === sibling,
+    'and offers to move this document somewhere else',
+    /move this document/i.test(await page.locator('[role="menu"][aria-label="Folder"]').innerText()),
   )
 
-  // Search inside the folder.
-  await page.locator('[aria-label="Search within this project"]').first().click()
-  await page.waitForTimeout(400)
-  await page.keyboard.type('budget')
-  await page.waitForTimeout(500)
-  log('searching within a folder finds a sibling', (await page.locator('main button:has-text("Zeta budget")').count()) > 0)
-  await page.keyboard.press('Enter')
-  await page.waitForTimeout(700)
+  // Opening a sibling from the dropdown.
+  await page.locator('[data-chip]:has-text("Zeta budget")').first().click()
+  await page.waitForTimeout(800)
   log(
-    'Enter opens the top match',
+    'a row in the dropdown opens that document',
     (await page.locator('[aria-label="Document title"]').inputValue()) === 'Zeta budget',
   )
 
-  // The search must not reach documents outside the folder.
+  // Search inside the folder.
+  await openFolderMenu()
   await page.locator('[aria-label="Search within this project"]').first().click()
-  await page.waitForTimeout(350)
+  await page.waitForTimeout(300)
+  await page.keyboard.type('timeline')
+  await page.waitForTimeout(500)
+  log(
+    'searching within a folder narrows it to the match',
+    (await page.locator('[role="menu"][aria-label="Folder"] [data-chip]').count()) === 1,
+  )
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(800)
+  log(
+    'Enter opens the top match',
+    (await page.locator('[aria-label="Document title"]').inputValue()) === 'Zeta timeline',
+  )
+
+  // The search must not reach documents outside the folder.
+  await openFolderMenu()
+  await page.locator('[aria-label="Search within this project"]').first().click()
+  await page.waitForTimeout(300)
   await page.keyboard.type('Zeta overview')
   await page.waitForTimeout(500)
   log(
     'folder search is scoped to the folder',
     (await page.evaluate(() => document.body.innerText)).includes('Nothing in this project matches'),
   )
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(300)
+  await closeFolderMenu()
 
-  await page.waitForTimeout(600)
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(1200)
+  // A third document, so taking one out does not dissolve the folder.
+  await fileInto('Zeta overview', 'Zeta timeline')
+  await openFolderMenu()
+  log('a folder takes as many documents as you put in it', (await page.locator('[data-chip]').count()) === 3)
+
+  // Moving the open document out, from the same menu it navigates with.
+  await page
+    .locator('[role="menu"][aria-label="Folder"] [role="menuitem"]:has-text("Take out of this folder")')
+    .click()
+  await page.waitForTimeout(900)
+  log('a document leaves its folder from the same dropdown', (await folderName()) === null)
   log(
-    'folders survive a reload',
-    (await page
-      .locator('main input[aria-label="Project name"]')
-      .first()
-      .inputValue()
-      .catch(() => null)) === 'Zeta timeline',
+    'and the folder button goes with it',
+    (await page.locator('header [aria-label^="Folder:"]').count()) === 0,
   )
 
-  // An ungrouped document must not show the bar at all.
+  // Filing it again, this time from the document's own menu — which is the
+  // only route a document with no folder has.
+  await page.locator('[aria-label="Document actions"]').click()
+  await page.waitForTimeout(400)
+  log(
+    'a document with no folder can still be filed from its own menu',
+    /move to folder/i.test(await page.evaluate(() => document.body.innerText)),
+  )
+  await page.locator('[role="menuitem"]:has-text("Zeta timeline")').first().click()
+  await page.waitForTimeout(900)
+  log('moving from the document menu works', (await folderName()) === 'Zeta timeline')
+
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+  log('folders survive a reload', (await folderName()) === 'Zeta timeline')
+
+  // An ungrouped document must not show the folder button at all.
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(700)
   log(
-    'an ungrouped document shows no folder bar',
-    (await page.locator('main input[aria-label="Project name"]').count()) === 0,
+    'an ungrouped document shows no folder button',
+    (await page.locator('header [aria-label^="Folder:"]').count()) === 0,
   )
 }
 
@@ -1264,8 +1391,12 @@ await page.waitForTimeout(200)
   const shelf = page.locator('[role="dialog"][aria-label="Library"]')
   log(
     'the library lists every document, not just new ones',
-    /everything/i.test(await shelf.innerText()) &&
-      (await shelf.locator('button:has-text("Bourdillon")').count()) > 0,
+    (await shelf.locator('button:has-text("Bourdillon")').count()) > 0,
+  )
+  log(
+    'and lists them under the folder they are in',
+    /no folder/i.test(await shelf.innerText()),
+    (await shelf.innerText()).split('\n').slice(0, 6).join(' / '),
   )
   await shelf.locator('input[aria-label="Search the library"]').fill('Bourdillon')
   await page.waitForTimeout(700)
@@ -1355,17 +1486,11 @@ await page.waitForTimeout(200)
   // as a named section in the sidebar — the sidebar tree it used to be read
   // from has gone.
   await page.waitForTimeout(600)
-  const folderName = await page
-    .locator('main input[aria-label="Project name"]')
-    .first()
-    .inputValue()
-    .catch(() => null)
-  log(
-    'the folder is made',
-    (folderName ?? '').toLowerCase().includes('propert'),
-    String(folderName),
-  )
-  const inFolder = await page.locator('main [data-chip]').count()
+  const filedInto = await folderName()
+  log('the folder is made', (filedInto ?? '').toLowerCase().includes('propert'), String(filedInto))
+  await openFolderMenu()
+  const inFolder = await page.locator('[data-chip]').count()
+  await closeFolderMenu()
   log('and both documents are in it', inFolder === 2, `${inFolder} in the folder`)
   await page.screenshot({ path: `${SHOTS}/20-library-folder.png` })
 }
@@ -1381,6 +1506,17 @@ await page.waitForTimeout(200)
   const para = page.locator('[data-block-id] [contenteditable]', { hasText: 'belong to the' }).first()
 
   log('the toolbar is always on screen, not only on hover', await page.locator('[role="toolbar"][aria-label="Formatting"]').isVisible())
+  log(
+    'the style control is not an operating-system dropdown',
+    (await page.locator('[role="toolbar"][aria-label="Formatting"] select').count()) === 0,
+  )
+  log(
+    'the toolbar is one row, not two',
+    await page.evaluate(() => {
+      const bar = document.querySelector('[role="toolbar"][aria-label="Formatting"]')
+      return !!bar && bar.getBoundingClientRect().height < 56
+    }),
+  )
 
   // Bold from the toolbar, over a selected word.
   await para.evaluate((el) => {
@@ -1417,8 +1553,7 @@ await page.waitForTimeout(200)
   // The style menu, which is the word-processor way to make a heading.
   await para.click()
   await page.waitForTimeout(250)
-  await page.selectOption('select[aria-label="Paragraph style"]', 'h2')
-  await page.waitForTimeout(500)
+  await pickStyle('Heading 2')
   log(
     'the style menu turns a paragraph into a heading',
     await page.evaluate(() =>
@@ -1427,14 +1562,16 @@ await page.waitForTimeout(200)
       ),
     ),
   )
-  await page.selectOption('select[aria-label="Paragraph style"]', 'text')
-  await page.waitForTimeout(400)
+  await pickStyle('Normal text')
 
   // Alignment, which is a property of the paragraph and not of the text in it.
   await page.locator('[data-block-id] [contenteditable]').first().click()
   await page.waitForTimeout(200)
+  await openMore()
   await page.locator('[aria-label="Align centre"]').first().click()
   await page.waitForTimeout(500)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
   log(
     'the toolbar centres a paragraph',
     await page.evaluate(() =>
@@ -1466,8 +1603,11 @@ await page.waitForTimeout(200)
   const start = await size()
   log('body text is set large enough to read', start >= 17, `${start}px`)
 
-  await page.locator('[aria-label="Larger text"]').first().click()
+  await openMore()
+  await page.locator('[aria-label="Large text"]').first().click()
   await page.waitForTimeout(400)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
   const bigger = await size()
   log('the toolbar makes the type bigger', bigger > start, `${start}px → ${bigger}px`)
 
@@ -1480,8 +1620,11 @@ await page.waitForTimeout(200)
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1100)
   log('the chosen size survives a reload', (await size()) === bigger)
-  await page.locator('[aria-label="Smaller text"]').first().click()
+  await openMore()
+  await page.locator('[aria-label="Medium text"]').first().click()
   await page.waitForTimeout(400)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
 }
 
 // --- Tasks found in what somebody wrote -------------------------------------
@@ -1606,6 +1749,48 @@ await page.waitForTimeout(200)
         .join(' '),
     )).includes('Expanded:'),
   )
+
+  // On a phone there is no Ctrl+J, so it has to be a button — on the toolbar,
+  // and on the bar that appears over a selection.
+  {
+    const touch = await ctx.newPage()
+    // Routes are per page, so the stub has to be installed on this one too.
+    await touch.route('**/api/ai', async (route) => {
+      if (route.request().method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ configured: true }),
+        })
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: 'Expanded on a phone.' }),
+      })
+    })
+    await touch.setViewportSize({ width: 390, height: 844 })
+    await touch.goto(URL, { waitUntil: 'networkidle' })
+    await touch.waitForTimeout(1000)
+    log(
+      'Ask is on the toolbar at phone width',
+      await touch.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Writing help"]').isVisible(),
+    )
+    await touch.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Writing help"]').click()
+    await touch.waitForTimeout(700)
+    log(
+      'and opens writing help without a keyboard',
+      await touch.locator('[role="dialog"][aria-label="Writing help"]').isVisible(),
+    )
+    const sheet = await touch.locator('[role="dialog"][aria-label="Writing help"]').boundingBox()
+    log(
+      'which sits as a sheet along the bottom, above the keyboard',
+      !!sheet && sheet.width >= 370 && sheet.y > 100,
+      sheet ? `${Math.round(sheet.width)}x${Math.round(sheet.height)} at y=${Math.round(sheet.y)}` : 'missing',
+    )
+    await touch.screenshot({ path: `${SHOTS}/26-mobile-ask.png` })
+    await touch.close()
+  }
 
   // "++" is the same door, for people who never learn a shortcut.
   await page.locator('button:has-text("New")').first().click()
