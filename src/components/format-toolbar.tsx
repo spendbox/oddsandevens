@@ -1,6 +1,6 @@
 'use client'
 
-import { Bold, Code, Italic, Strikethrough } from 'lucide-react'
+import { Bold, Code, Italic, Strikethrough, Underline } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 /**
@@ -16,7 +16,13 @@ import { useCallback, useEffect, useState } from 'react'
  */
 export default function FormatToolbar({ scope }: { scope: React.RefObject<HTMLElement | null> }) {
   const [box, setBox] = useState<{ top: number; left: number } | null>(null)
-  const [marks, setMarks] = useState({ bold: false, italic: false, strike: false, code: false })
+  const [marks, setMarks] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+    strike: false,
+    code: false,
+  })
 
   const refresh = useCallback(() => {
     const selection = window.getSelection()
@@ -37,6 +43,7 @@ export default function FormatToolbar({ scope }: { scope: React.RefObject<HTMLEl
     setMarks({
       bold: document.queryCommandState('bold'),
       italic: document.queryCommandState('italic'),
+      underline: document.queryCommandState('underline'),
       strike: document.queryCommandState('strikeThrough'),
       code: !!el.closest('code'),
     })
@@ -61,7 +68,9 @@ export default function FormatToolbar({ scope }: { scope: React.RefObject<HTMLEl
   return (
     <div
       role="toolbar"
-      aria-label="Formatting"
+      // Named apart from the toolbar above the page: two controls called
+      // "Formatting" is ambiguous to a screen reader and to a test alike.
+      aria-label="Selection formatting"
       // Fixed, because the coordinates come from getBoundingClientRect, which
       // is already relative to the viewport.
       style={{ top: Math.max(8, box.top - 44), left: box.left }}
@@ -73,10 +82,13 @@ export default function FormatToolbar({ scope }: { scope: React.RefObject<HTMLEl
       <Mark label="Italic" active={marks.italic} onRun={() => applyFormat('italic')}>
         <Italic size={14} />
       </Mark>
+      <Mark label="Underline" active={marks.underline} onRun={() => applyFormat('underline')}>
+        <Underline size={14} />
+      </Mark>
       <Mark label="Strikethrough" active={marks.strike} onRun={() => applyFormat('strike')}>
         <Strikethrough size={14} />
       </Mark>
-      <Mark label="Code" active={marks.code} onRun={() => applyFormat('code')}>
+      <Mark label="Inline code" active={marks.code} onRun={() => applyFormat('code')}>
         <Code size={14} />
       </Mark>
     </div>

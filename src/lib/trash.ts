@@ -56,6 +56,7 @@ export function purge(doc: Doc, now = Date.now()): Doc {
     title: '',
     blocks: [],
     projectId: undefined,
+    favoritedAt: undefined,
     purgedAt: now,
     updatedAt: now,
   }

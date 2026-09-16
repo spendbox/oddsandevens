@@ -6,11 +6,12 @@ import { TRASH_DAYS, expiryLabel } from '@/lib/trash'
 import type { Doc } from '@/lib/types'
 
 /**
- * The trash, at the foot of the sidebar.
+ * The trash, at the foot of the home screen.
  *
- * Collapsed by default and absent entirely when empty: it is a safety net, not
- * a place anyone wants to look at. It only earns space on the screen once it
- * has something in it.
+ * It used to sit under the documents in the sidebar, which put "delete for
+ * good" one row below the file somebody was working in. It is a safety net,
+ * not a place anyone wants to look at, so it lives on the screen people reach
+ * deliberately — collapsed by default, and absent entirely when empty.
  *
  * Every row says when it will go. "Deletes in 4 days" is the fact someone
  * needs in order to decide whether to act now, and it is not something they
@@ -33,22 +34,22 @@ export default function TrashSection({
   if (docs.length === 0) return null
 
   return (
-    <div className="border-t border-[var(--color-line)] px-2 py-1.5">
+    <div className="px-1 py-1.5">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[11px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+        className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
       >
-        <ChevronDown size={12} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
-        <Trash2 size={12} />
+        <ChevronDown size={14} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
+        <Trash2 size={14} />
         <span className="font-medium">Trash</span>
         <span className="ml-auto text-[var(--color-faint)]">{docs.length}</span>
       </button>
 
       {open && (
-        <div className="mt-1 max-h-56 overflow-y-auto">
-          <p className="px-2 pb-1 text-[10px] leading-snug text-[var(--color-faint)]">
+        <div className="mt-1 max-h-72 overflow-y-auto">
+          <p className="px-2 pb-1 text-[13px] leading-snug text-[var(--color-faint)]">
             Kept for {TRASH_DAYS} days, then deleted for good.
           </p>
 
@@ -56,10 +57,10 @@ export default function TrashSection({
             <div key={item.id} className="group/trash rounded-md hover:bg-[var(--color-hover)]">
               <div className="flex items-center gap-1 px-2 py-1.5">
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs text-[var(--color-muted)]">
+                  <span className="block truncate text-[14px] text-[var(--color-muted)]">
                     {item.title.trim() || 'Untitled'}
                   </span>
-                  <span className="block truncate text-[10px] text-[var(--color-faint)]">
+                  <span className="block truncate text-[13px] text-[var(--color-faint)]">
                     {expiryLabel(item)}
                   </span>
                 </span>
@@ -70,7 +71,7 @@ export default function TrashSection({
                   onClick={() => onRestore(item.id)}
                   className="shrink-0 rounded p-1 text-[var(--color-faint)] opacity-0 transition-opacity group-focus-within/trash:opacity-100 group-hover/trash:opacity-100 hover:text-[var(--color-good)]"
                 >
-                  <RotateCcw size={12} />
+                  <RotateCcw size={13} />
                 </button>
                 <button
                   type="button"
@@ -90,7 +91,7 @@ export default function TrashSection({
               */}
               {confirming === item.id && (
                 <div className="flex items-center gap-1 px-2 pb-1.5">
-                  <span className="flex-1 text-[10px] text-[var(--color-danger)]">
+                  <span className="flex-1 text-[13px] text-[var(--color-danger)]">
                     Delete for good?
                   </span>
                   <button
@@ -99,14 +100,14 @@ export default function TrashSection({
                       onPurge(item.id)
                       setConfirming(null)
                     }}
-                    className="rounded bg-[var(--color-danger)] px-1.5 py-0.5 text-[10px] font-medium text-white"
+                    className="rounded bg-[var(--color-danger)] px-2 py-1 text-[13px] font-medium text-white"
                   >
                     Delete
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirming(null)}
-                    className="rounded px-1.5 py-0.5 text-[10px] text-[var(--color-muted)] hover:bg-[var(--color-paper)]"
+                    className="rounded px-2 py-1 text-[13px] text-[var(--color-muted)] hover:bg-[var(--color-paper)]"
                   >
                     Keep
                   </button>
@@ -126,7 +127,7 @@ export default function TrashSection({
                   setConfirming('all')
                 }
               }}
-              className={`mt-1 w-full rounded-md px-2 py-1 text-[10px] ${
+              className={`mt-1 w-full rounded-md px-2 py-1.5 text-[13px] ${
                 confirming === 'all'
                   ? 'bg-[var(--color-danger)] font-medium text-white'
                   : 'text-[var(--color-muted)] hover:bg-[var(--color-hover)]'

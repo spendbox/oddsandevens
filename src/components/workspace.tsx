@@ -1,7 +1,8 @@
 'use client'
 
 import {
-  FolderOpen,
+  LayoutGrid,
+  Library,
   Maximize2,
   Menu,
   Minimize2,
@@ -18,7 +19,7 @@ import { newId } from '@/lib/id'
 import { allDocs, allDocsRaw, allProjects, deleteFile, loadDoc, saveDoc, saveProject } from '@/lib/store'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
-import { docsInProject, makeProject, mergedProjectName, shouldDissolve } from '@/lib/projects'
+import { docsInProject, makeProject, shouldDissolve } from '@/lib/projects'
 import type { Grouping } from '@/lib/library'
 import { attachmentRefs, purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
 import { isTextish, type Doc, type Project } from '@/lib/types'
@@ -26,8 +27,8 @@ import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
 import AccountButton, { type Account } from './account'
 import DocList from './doc-list'
 import DocMenu from './doc-menu'
+import HomeScreen from './home-screen'
 import ProjectBar from './project-bar'
-import TrashSection from './trash-section'
 import Editor from './editor'
 import LibraryPanel, { type Incoming } from './library-panel'
 import SearchPanel from './search-panel'
@@ -54,8 +55,16 @@ export default function Workspace() {
   /** The search panel, which looks inside every document rather than
    *  filtering the list of their names. */
   const [searching, setSearching] = useState(false)
-  /** The Library, which is a way in for documents rather than a place for them. */
+  /** The Library: the way documents come in, and the one list of all of them. */
   const [library, setLibrary] = useState(false)
+  /**
+   * The home screen, filling the window.
+   *
+   * Closed on first load, deliberately. Opening straight into a document with
+   * the caret already in it is this app's oldest promise, and a home screen in
+   * front of that is one press between somebody and their first sentence.
+   */
+  const [home, setHome] = useState(false)
   const [account, setAccount] = useState<Account | null>(null)
   const [syncState, setSyncState] = useState<SyncState>(isSyncConfigured() ? 'idle' : 'off')
   const [importing, setImporting] = useState(false)
@@ -432,6 +441,28 @@ export default function Workspace() {
     [docs, doc?.id],
   )
 
+  /**
+   * Stars or unstars a document.
+   *
+   * One optional field on the document itself, exactly like its project, so it
+   * travels on the next sync with no new table, no second list to disagree
+   * with this one, and nothing to migrate for documents written before
+   * favourites existed.
+   */
+  const setFavorite = useCallback(
+    async (docId: string, favorite: boolean) => {
+      const source = (await loadDoc(docId)) ?? docs.find((d) => d.id === docId)
+      if (!source) return
+      const next: Doc = { ...source, updatedAt: Date.now() }
+      if (favorite) next.favoritedAt = Date.now()
+      else delete next.favoritedAt
+      await saveDoc(next)
+      setDocs((all) => all.map((d) => (d.id === docId ? next : d)))
+      if (latest.current?.id === docId) setDoc(next)
+    },
+    [docs],
+  )
+
   /** Puts one document into a new project of its own, from the row menu. */
   const newProjectWith = useCallback(
     async (docId: string) => {
@@ -440,20 +471,6 @@ export default function Workspace() {
       const project = makeProject(source.title.trim() || 'New project')
       putProject(project)
       await setDocProject(docId, project.id)
-    },
-    [docs, putProject, setDocProject],
-  )
-
-  /** Dropping one document onto another: a project holding both. */
-  const mergeDocs = useCallback(
-    async (draggedId: string, targetId: string) => {
-      const dragged = docs.find((d) => d.id === draggedId)
-      const target = docs.find((d) => d.id === targetId)
-      if (!dragged || !target) return
-      const project = makeProject(mergedProjectName(target, dragged))
-      putProject(project)
-      await setDocProject(targetId, project.id)
-      await setDocProject(draggedId, project.id)
     },
     [docs, putProject, setDocProject],
   )
@@ -477,18 +494,6 @@ export default function Workspace() {
         const project = projects.find((p) => p.id === before)
         if (project) putProject({ ...project, deletedAt: Date.now(), updatedAt: Date.now() })
       }
-    },
-    [docs, projects, putProject, setDocProject],
-  )
-
-  /** Ungrouping keeps every document; only the grouping goes. */
-  const dissolveProject = useCallback(
-    async (projectId: string) => {
-      for (const member of docsInProject(docs, projectId)) {
-        await setDocProject(member.id, null)
-      }
-      const project = projects.find((p) => p.id === projectId)
-      if (project) putProject({ ...project, deletedAt: Date.now(), updatedAt: Date.now() })
     },
     [docs, projects, putProject, setDocProject],
   )
@@ -609,7 +614,7 @@ export default function Workspace() {
   /* ------------------------------------------------------------------ render */
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div className="pad-desk flex h-dvh overflow-hidden">
       {/* Backdrop for the sidebar on small screens. */}
       {drawer && (
         <button
@@ -625,24 +630,42 @@ export default function Workspace() {
         desktop. Collapsed, it is removed from the layout entirely rather than
         merely hidden, so the document gets the full width of the window back —
         which is the point of collapsing it.
+
+        What is in it is deliberately short: New, Search, Library, and three
+        lists — this folder, favourites, recent. Everything that used to be
+        here as well is still in the app, on the home screen or in the Library.
       */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-[var(--color-line)] bg-[var(--color-paper)] transition-transform md:static ${
           drawer ? 'translate-x-0' : '-translate-x-full'
         } ${sidebarOpen ? 'md:translate-x-0' : 'md:hidden'}`}
       >
-        <div className="flex items-center gap-1.5 px-3 pt-3 pb-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--color-accent)] text-[11px] font-bold text-white">
-            I
-          </span>
-          <span className="text-sm font-semibold">Pad</span>
+        <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+          {/* The mark is the way to the home screen, as it is in most things
+              with a home screen. */}
+          <button
+            type="button"
+            onClick={() => {
+              void flushSave()
+              setHome(true)
+              setDrawer(false)
+            }}
+            aria-label="Home"
+            title="Home"
+            className="flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-[var(--color-hover)]"
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--color-accent)] text-[12px] font-bold text-white">
+              P
+            </span>
+            <span className="text-[15px] font-semibold">Pad</span>
+          </button>
           <button
             type="button"
             onClick={() => setDrawer(false)}
             aria-label="Close menu"
             className="ml-auto p-1 text-[var(--color-muted)] md:hidden"
           >
-            <X size={15} />
+            <X size={16} />
           </button>
           <button
             type="button"
@@ -651,7 +674,7 @@ export default function Workspace() {
             title="Collapse sidebar (Ctrl+\)"
             className="ml-auto hidden rounded p-1 text-[var(--color-muted)] hover:bg-[var(--color-hover)] md:block"
           >
-            <PanelLeft size={15} />
+            <PanelLeft size={16} />
           </button>
         </div>
 
@@ -659,9 +682,9 @@ export default function Workspace() {
           <button
             type="button"
             onClick={() => newDoc()}
-            className="flex w-full items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-2.5 py-1.5 text-xs font-medium text-white hover:opacity-90"
+            className="flex w-full items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-2.5 py-2 text-[14px] font-medium text-white hover:opacity-90"
           >
-            <Plus size={13} /> New
+            <Plus size={15} /> New
           </button>
         </div>
 
@@ -671,23 +694,23 @@ export default function Workspace() {
           what is inside the documents — and two searches that behave
           differently is worse than one that works.
         */}
-        <div className="px-2 pb-2">
+        <div className="px-2 pb-1">
           <button
             type="button"
             onClick={() => {
               setSearching(true)
               setDrawer(false)
             }}
-            className="flex w-full items-center gap-1.5 rounded-md bg-[var(--color-hover)] px-2 py-1.5 text-xs text-[var(--color-faint)] hover:text-[var(--color-muted)]"
+            className="flex w-full items-center gap-2 rounded-md bg-[var(--color-hover)] px-2.5 py-1.5 text-[14px] text-[var(--color-faint)] hover:text-[var(--color-muted)]"
           >
-            <Search size={13} />
+            <Search size={15} />
             Search
-            <kbd className="ml-auto hidden text-[10px] md:inline">Ctrl K</kbd>
+            <kbd className="ml-auto hidden text-[12px] md:inline">Ctrl K</kbd>
           </button>
           {/*
-            The Library is an intake, not a container: what comes out of it is
-            ordinary documents in this same list. Putting it beside search
-            rather than in a place of its own is the honest description.
+            The Library is both the way documents come in and the one place
+            every document is listed — which is why the sidebar can afford to
+            show only a handful.
           */}
           <button
             type="button"
@@ -695,9 +718,9 @@ export default function Workspace() {
               setLibrary(true)
               setDrawer(false)
             }}
-            className="mt-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+            className="mt-1 flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
           >
-            <FolderOpen size={13} />
+            <Library size={15} />
             Library
           </button>
         </div>
@@ -706,52 +729,35 @@ export default function Workspace() {
           docs={docs}
           projects={projects}
           currentId={doc?.id ?? null}
+          currentProject={openProject}
           onOpen={(id) => void openDoc(id)}
           onDelete={(id) => void deleteDoc(id)}
-          onMerge={(draggedId, targetId) => void mergeDocs(draggedId, targetId)}
+          onFavorite={(id, favorite) => void setFavorite(id, favorite)}
           onMove={(docId, projectId) => void moveDoc(docId, projectId)}
-          onRenameProject={(id, name) => {
-            const project = projects.find((p) => p.id === id)
-            if (project) putProject({ ...project, name, updatedAt: Date.now() })
-          }}
-          onToggleProject={(id) => {
-            const project = projects.find((p) => p.id === id)
-            if (project) {
-              putProject({ ...project, collapsed: !project.collapsed, updatedAt: Date.now() })
-            }
-          }}
-          onDeleteProject={(id) => void dissolveProject(id)}
           onNewProject={(id) => void newProjectWith(id)}
-        />
-
-        <TrashSection
-          docs={trashed}
-          onRestore={(id) => void restoreDoc(id)}
-          onPurge={(id) => void purgeDoc(id)}
-          onEmpty={() => void emptyTrash()}
         />
 
         <div className="flex items-center gap-1 border-t border-[var(--color-line)] px-2 py-2">
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+            className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
           >
-            {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
             {theme === 'dark' ? 'Light' : 'Dark'}
           </button>
           {/*
-            Full width is the default because it is what was asked for, but
-            long lines are genuinely harder to read, so the narrow column stays
-            one click away rather than being taken off the table.
+            The page is a fixed measure by default now, because a line that
+            runs the whole width of a large monitor is genuinely hard to read.
+            Wide is still one click away for anyone who wants it.
           */}
           <button
             type="button"
             onClick={() => setWidthPref(wide ? 'narrow' : 'wide')}
             title={wide ? 'Narrow the page for easier reading' : 'Use the full width'}
-            className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+            className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
           >
-            {wide ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            {wide ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             {wide ? 'Narrow' : 'Wide'}
           </button>
         </div>
@@ -763,14 +769,14 @@ export default function Workspace() {
           already holds it still, but a phone's address bar resizes the visual
           viewport and can scroll an ancestor, taking the header with it.
         */}
-        <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-transparent bg-[var(--color-paper)]/95 px-3 py-2 backdrop-blur">
+        <header className="sticky top-0 z-30 flex shrink-0 items-center gap-1.5 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 px-3 py-2 backdrop-blur">
           <button
             type="button"
             onClick={() => setDrawer(true)}
             aria-label="Open menu"
             className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)] md:hidden"
           >
-            <Menu size={17} />
+            <Menu size={18} />
           </button>
           {/* The way back once the sidebar is collapsed. Without it, collapsing
               is a one-way door for anyone who does not know the shortcut. */}
@@ -782,9 +788,21 @@ export default function Workspace() {
               title="Show sidebar (Ctrl+\)"
               className="hidden rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)] md:block"
             >
-              <PanelLeft size={17} />
+              <PanelLeft size={18} />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              void flushSave()
+              setHome(true)
+            }}
+            aria-label="Home"
+            title="Home"
+            className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+          >
+            <LayoutGrid size={18} />
+          </button>
           <div className="ml-auto flex items-center gap-1">
             <button
               type="button"
@@ -793,7 +811,7 @@ export default function Workspace() {
               title="Search (Ctrl+K)"
               className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
             >
-              <Search size={17} />
+              <Search size={18} />
             </button>
             {doc && (
               <DocMenu
@@ -822,27 +840,26 @@ export default function Workspace() {
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="pad-desk min-h-0 flex-1 overflow-y-auto">
           {/*
-            Wide is left-aligned with a small gutter rather than centred: a
-            centred column on a large screen puts most of the width into empty
-            margins, which is the opposite of filling the screen. Narrow keeps
-            a centred reading measure for people who prefer it.
+            The document is a sheet of paper on a desk. Narrow is a reading
+            measure and is the default, because a line of text that runs the
+            width of a large monitor is measurably harder to read; wide gives
+            the sheet the whole window for anyone who prefers it.
           */}
           <div
-            className={`w-full px-4 pt-3 pb-4 sm:px-6 ${
-              wide ? 'max-w-[110rem]' : 'mx-auto max-w-3xl sm:px-8'
+            // A flex column at least as tall as the window, so the sheet below
+            // reaches the bottom of the screen instead of stopping wherever
+            // the text happens to end and leaving the desk showing under a
+            // half-written page.
+            className={`flex min-h-full w-full flex-col px-0 pb-0 sm:px-6 sm:pt-6 sm:pb-8 ${
+              wide ? 'max-w-[110rem]' : 'mx-auto max-w-[56rem]'
             }`}
           >
-            {/*
-              Nothing is rendered until the store has answered. A placeholder
-              document painted first would be replaced a frame later, and the
-              flicker reads as the app losing the user's work.
-            */}
             {importProblem && (
               <p
                 role="status"
-                className="mb-3 rounded-md border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-2 text-xs text-[var(--color-muted)]"
+                className="mx-3 mb-3 rounded-md border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-2 text-[14px] text-[var(--color-muted)] sm:mx-0"
               >
                 {importProblem}
               </p>
@@ -859,21 +876,57 @@ export default function Workspace() {
                 }
               />
             )}
+            {/*
+              Nothing is rendered until the store has answered. A placeholder
+              document painted first would be replaced a frame later, and the
+              flicker reads as the app losing the user's work.
+            */}
             {ready && doc && (
-              <Editor
-                key={doc.id}
-                doc={doc}
-                onChange={update}
-                onExtractPdf={(file, name) => void importPdf(file, name)}
-              />
+              <div className="pad-page flex-1 overflow-hidden sm:rounded-lg">
+                <Editor
+                  key={doc.id}
+                  doc={doc}
+                  onChange={update}
+                  onExtractPdf={(file, name) => void importPdf(file, name)}
+                />
+              </div>
             )}
           </div>
         </div>
       </main>
 
+      <HomeScreen
+        open={home}
+        onClose={() => setHome(false)}
+        docs={docs}
+        projects={projects}
+        current={doc}
+        currentProject={openProject}
+        trashed={trashed}
+        onOpen={(id) => {
+          void openDoc(id)
+          setHome(false)
+        }}
+        onNew={() => {
+          newDoc()
+          setHome(false)
+        }}
+        onSearch={() => setSearching(true)}
+        onLibrary={() => setLibrary(true)}
+        onFavorite={(id, favorite) => void setFavorite(id, favorite)}
+        onRestore={(id) => void restoreDoc(id)}
+        onPurge={(id) => void purgeDoc(id)}
+        onEmptyTrash={() => void emptyTrash()}
+      />
+
       <LibraryPanel
         open={library}
         onClose={() => setLibrary(false)}
+        docs={docs}
+        onOpen={(id) => {
+          void openDoc(id)
+          setHome(false)
+        }}
         onAdd={(items, groups, withSummaries) => void addFromLibrary(items, groups, withSummaries)}
       />
 
@@ -882,7 +935,10 @@ export default function Workspace() {
         docs={docs}
         projects={projects}
         onClose={() => setSearching(false)}
-        onOpen={(id) => void openDoc(id)}
+        onOpen={(id) => {
+          void openDoc(id)
+          setHome(false)
+        }}
       />
     </div>
   )

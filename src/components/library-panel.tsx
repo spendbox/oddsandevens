@@ -1,8 +1,8 @@
 'use client'
 
-import { FileText, FolderOpen, LoaderCircle, Sparkles, Upload, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { makeBlock } from '@/lib/blocks'
+import { FileText, FolderOpen, Library, LoaderCircle, Search, Sparkles, Upload, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { docLabel, docPreview, makeBlock } from '@/lib/blocks'
 import {
   groupByTopic,
   localSummary,
@@ -13,8 +13,9 @@ import {
 } from '@/lib/library'
 import { newId } from '@/lib/id'
 import { readFileIntoBlocks } from '@/lib/read-file'
+import { buildIndex, search } from '@/lib/search'
 import { saveFile } from '@/lib/store'
-import { blockText, type Block } from '@/lib/types'
+import { blockText, type Block, type Doc } from '@/lib/types'
 
 /**
  * The Library: drop a pile of documents in, get them back filed.
@@ -33,6 +34,23 @@ import { blockText, type Block } from '@/lib/types'
  * It is not a separate place for documents to live. What comes out the other
  * side is ordinary documents in the ordinary sidebar, searchable and
  * answerable like everything else — the library is a way in, not a container.
+ *
+ * ## Why it also lists everything
+ *
+ * It used to be a drop zone and nothing else: you could put documents in and
+ * then never see them here again, which made "Library" a strange name for a
+ * one-way door. So the whole collection is listed underneath, searchable,
+ * newest first. That is not a second store — these are the same documents the
+ * sidebar shows, read from the same place — it is the one screen where all of
+ * them are visible at once, which is precisely what the sidebar stopped
+ * trying to be.
+ *
+ * ## Why the search is the app's search
+ *
+ * Because there is only one. A box that filters filenames and a box that
+ * searches inside documents behave differently and teach people to distrust
+ * both; this uses `lib/search.ts`, the same BM25 index as the search panel,
+ * so a word remembered from the middle of a page finds it here too.
  */
 
 export interface Incoming {
@@ -50,6 +68,10 @@ export interface Incoming {
 export interface LibraryPanelProps {
   open: boolean
   onClose: () => void
+  /** Everything already in the collection, newest first. */
+  docs: Doc[]
+  /** Opens one of them and closes the Library. */
+  onOpen: (id: string) => void
   /** Adds the finished documents, grouping them as the review showed. */
   onAdd: (items: Incoming[], groups: Grouping[], withSummaries: boolean) => void
 }
@@ -59,7 +81,14 @@ const EXCERPT_CHARS = 1_200
 /** Files per batch. A hundred at once is a timeout, not a feature. */
 const MAX_FILES = 25
 
-export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps) {
+export default function LibraryPanel({
+  open,
+  onClose,
+  docs,
+  onOpen,
+  onAdd,
+}: LibraryPanelProps) {
+  const [query, setQuery] = useState('')
   const [items, setItems] = useState<Incoming[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -76,6 +105,7 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
       setItems([])
       setProblem(null)
       setBusy(null)
+      setQuery('')
     }
   }
 
@@ -103,6 +133,18 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
+
+  /*
+    Built once per opening, not per keystroke: the index is linear in the size
+    of everything ever written, and while this panel is up nothing is being
+    edited. The same reasoning, and the same function, as the search panel.
+  */
+  const index = useMemo(() => buildIndex(docs), [docs])
+  const shelf = useMemo(() => {
+    const live = docs.filter((doc) => !doc.deletedAt)
+    if (!query.trim()) return live
+    return search(index, query, 60).map((hit) => hit.doc)
+  }, [docs, index, query])
 
   if (!open) return null
 
@@ -226,19 +268,50 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
       <div
         role="dialog"
         aria-label="Library"
-        className="fixed inset-0 z-50 flex flex-col bg-[var(--color-paper)] sm:inset-x-0 sm:top-[8vh] sm:bottom-auto sm:mx-auto sm:max-h-[80vh] sm:w-[40rem] sm:rounded-xl sm:border sm:border-[var(--color-line)] sm:shadow-2xl"
+        className="fixed inset-0 z-50 flex flex-col bg-[var(--color-paper)] sm:inset-x-0 sm:top-[6vh] sm:bottom-auto sm:mx-auto sm:max-h-[86vh] sm:w-[44rem] sm:rounded-xl sm:border sm:border-[var(--color-line)] sm:shadow-2xl"
       >
         <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-line)] px-3 py-2.5">
-          <FolderOpen size={15} className="shrink-0 text-[var(--color-accent)]" />
-          <span className="text-sm font-medium">Library</span>
+          <Library size={16} className="shrink-0 text-[var(--color-accent)]" />
+          <span className="text-[15px] font-medium">Library</span>
+          <span className="text-[13px] text-[var(--color-faint)]">
+            {docs.length === 1 ? '1 document' : `${docs.length} documents`}
+          </span>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
             className="ml-auto shrink-0 rounded-md p-1 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
           >
-            <X size={15} />
+            <X size={16} />
           </button>
+        </div>
+
+        {/*
+          Search above the shelf, because with four hundred documents in here
+          the list is not how anybody finds one. It is the app's search, over
+          contents as well as names — see the note at the top of this file.
+        */}
+        <div className="shrink-0 border-b border-[var(--color-line)] px-3 py-2">
+          <div className="flex items-center gap-2 rounded-md bg-[var(--color-hover)] px-2.5 py-1.5">
+            <Search size={15} className="shrink-0 text-[var(--color-faint)]" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search everything in here"
+              aria-label="Search the library"
+              className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-[var(--color-faint)]"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                className="shrink-0 rounded p-0.5 text-[var(--color-faint)] hover:text-[var(--color-ink)]"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -259,17 +332,21 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
               setOver(false)
               void take([...e.dataTransfer.files])
             }}
-            className={`flex w-full flex-col items-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-center ${
+            className={`flex w-full items-center gap-2.5 rounded-lg border border-dashed px-3 py-2.5 text-left ${
               over
                 ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/5'
                 : 'border-[var(--color-line)] hover:bg-[var(--color-hover)]'
             }`}
           >
-            <Upload size={18} className="text-[var(--color-faint)]" />
-            <span className="text-xs font-medium">Drop documents here, or choose files</span>
-            <span className="text-[11px] text-[var(--color-faint)]">
-              PDF, Word, text and markdown are read into editable text. Anything else is kept as a
-              file.
+            <Upload size={17} className="shrink-0 text-[var(--color-faint)]" />
+            <span className="min-w-0">
+              <span className="block text-[14px] font-medium">
+                Drop documents here, or choose files
+              </span>
+              <span className="block text-[13px] text-[var(--color-faint)]">
+                PDF, Word, text and markdown are read into editable text. Anything else is kept as
+                a file.
+              </span>
             </span>
           </button>
           <input
@@ -285,8 +362,8 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
           />
 
           {busy && (
-            <p className="mt-3 flex items-center justify-center gap-2 text-[11px] text-[var(--color-muted)]">
-              <LoaderCircle size={12} className="animate-spin" />
+            <p className="mt-3 flex items-center justify-center gap-2 text-[13px] text-[var(--color-muted)]">
+              <LoaderCircle size={13} className="animate-spin" />
               {busy === 'reading' ? 'Reading the documents…' : 'Working out what these are…'}
             </p>
           )}
@@ -294,7 +371,7 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
           {problem && (
             <p
               role="status"
-              className="mt-3 rounded-md border border-[var(--color-line)] bg-[var(--color-hover)] px-2.5 py-2 text-[11px] text-[var(--color-muted)]"
+              className="mt-3 rounded-md border border-[var(--color-line)] bg-[var(--color-hover)] px-2.5 py-2 text-[13px] text-[var(--color-muted)]"
             >
               {problem}
             </p>
@@ -302,8 +379,8 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
 
           {items.length > 0 && (
             <>
-              <p className="mt-4 mb-1.5 flex items-center gap-1.5 text-[11px] text-[var(--color-faint)]">
-                {aiOn ? <Sparkles size={11} className="text-[var(--color-accent)]" /> : null}
+              <p className="mt-4 mb-1.5 flex items-center gap-1.5 text-[13px] text-[var(--color-faint)]">
+                {aiOn ? <Sparkles size={12} className="text-[var(--color-accent)]" /> : null}
                 {items.length} ready. Every title can be changed before anything is added.
               </p>
 
@@ -327,7 +404,7 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
                               ),
                             )
                           }
-                          className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-xs font-medium outline-none focus:bg-[var(--color-hover)]"
+                          className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-[14px] font-medium outline-none focus:bg-[var(--color-hover)]"
                         />
                         <button
                           type="button"
@@ -341,11 +418,11 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
                         </button>
                       </div>
                       {item.summary && (
-                        <p className="mt-0.5 pl-5 text-[11px] leading-snug text-[var(--color-muted)]">
+                        <p className="mt-0.5 pl-5 text-[13px] leading-snug text-[var(--color-muted)]">
                           {item.summary}
                         </p>
                       )}
-                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5 pl-5 text-[10px] text-[var(--color-faint)]">
+                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5 pl-5 text-[12px] text-[var(--color-faint)]">
                         <span className="truncate">{item.name}</span>
                         {project && (
                           <span className="inline-flex items-center gap-0.5 text-[var(--color-accent)]">
@@ -362,11 +439,64 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
               </div>
             </>
           )}
+
+          {/*
+            Everything already in the collection.
+
+            Hidden while a batch is waiting to be reviewed: that review is a
+            decision somebody is in the middle of making, and a list of four
+            hundred other documents underneath it is not help.
+          */}
+          {items.length === 0 && (
+            <div className="mt-4">
+              <p className="mb-1.5 text-[13px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
+                {query.trim() ? `Found ${shelf.length}` : 'Everything'}
+              </p>
+              {shelf.length === 0 ? (
+                <p className="px-1 py-6 text-center text-[14px] text-[var(--color-faint)]">
+                  {query.trim()
+                    ? 'Nothing here matches that.'
+                    : 'Nothing in here yet. Drop some files in above.'}
+                </p>
+              ) : (
+                <ul className="space-y-0.5">
+                  {shelf.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpen(item.id)
+                          onClose()
+                        }}
+                        className="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left hover:bg-[var(--color-hover)]"
+                      >
+                        <FileText size={15} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] font-medium">
+                            {docLabel(item)}
+                          </span>
+                          <span className="block truncate text-[13px] text-[var(--color-muted)]">
+                            {docPreview(item.blocks)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 pt-0.5 text-[12px] text-[var(--color-faint)]">
+                          {new Date(item.updatedAt).toLocaleDateString(undefined, {
+                            day: 'numeric',
+                            month: 'short',
+                          })}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
 
         {items.length > 0 && (
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-[var(--color-line)] px-3 py-2.5">
-            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted)]">
+            <label className="flex items-center gap-1.5 text-[13px] text-[var(--color-muted)]">
               <input
                 type="checkbox"
                 checked={withSummaries}
@@ -378,7 +508,7 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md px-3 py-2 text-xs text-[var(--color-muted)] hover:bg-[var(--color-hover)] sm:py-1.5"
+                className="rounded-md px-3 py-2 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] sm:py-1.5"
               >
                 Cancel
               </button>
@@ -389,7 +519,7 @@ export default function LibraryPanel({ open, onClose, onAdd }: LibraryPanelProps
                   onAdd(usable, groupByTopic(usable.map((item) => item.topic)), withSummaries)
                   onClose()
                 }}
-                className="rounded-md bg-[var(--color-accent)] px-3 py-2 text-xs font-medium text-white disabled:opacity-50 sm:py-1.5"
+                className="rounded-md bg-[var(--color-accent)] px-3 py-2 text-[14px] font-medium text-white disabled:opacity-50 sm:py-1.5"
               >
                 Add {usable.length} {usable.length === 1 ? 'document' : 'documents'}
               </button>

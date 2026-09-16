@@ -14,14 +14,20 @@
 
   --color-paper: #ffffff;
   --color-ink: #17171a;
-  --color-muted: #6b6b76;
-  --color-faint: #9a9aa6;
-  --color-line: #e7e7ec;
-  --color-hover: #f5f5f7;
+  --color-muted: #5f5f6b;
+  --color-faint: #8b8b98;
+  --color-line: #e4e4ea;
+  --color-hover: #f3f3f6;
   --color-accent: #4f46e5;
   --color-accent-soft: #eef2ff;
   --color-danger: #dc2626;
   --color-good: #059669;
+  /*
+   * The surface *behind* the page. A word processor puts the sheet on a desk;
+   * without something behind it there is no page, only a window with words in
+   * it, and the edge of the writing measure has nothing to be an edge of.
+   */
+  --color-desk: #f4f4f6;
 }
 
 /*
@@ -31,30 +37,57 @@
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-paper: #191a1d;
-    --color-ink: #ecedf0;
-    --color-muted: #9b9ca6;
-    --color-faint: #6f707a;
-    --color-line: #2c2e33;
-    --color-hover: #232529;
+    --color-paper: #1c1d21;
+    --color-ink: #eeeff3;
+    --color-muted: #a3a4ae;
+    --color-faint: #76777f;
+    --color-line: #2f3138;
+    --color-hover: #26282d;
     --color-accent: #8b85f5;
-    --color-accent-soft: #24243a;
+    --color-accent-soft: #26263e;
     --color-danger: #f87171;
     --color-good: #34d399;
+    --color-desk: #131417;
   }
 }
 
 :root[data-theme='dark'] {
-  --color-paper: #191a1d;
-  --color-ink: #ecedf0;
-  --color-muted: #9b9ca6;
-  --color-faint: #6f707a;
-  --color-line: #2c2e33;
-  --color-hover: #232529;
+  --color-paper: #1c1d21;
+  --color-ink: #eeeff3;
+  --color-muted: #a3a4ae;
+  --color-faint: #76777f;
+  --color-line: #2f3138;
+  --color-hover: #26282d;
   --color-accent: #8b85f5;
-  --color-accent-soft: #24243a;
+  --color-accent-soft: #26263e;
   --color-danger: #f87171;
   --color-good: #34d399;
+  --color-desk: #131417;
+}
+
+/*
+ * How large the document is set.
+ *
+ * One number drives the whole page. Headings, lists, tables and the title are
+ * all expressed as multiples of it below, so changing the size changes the
+ * typography rather than just the paragraphs — which is what stops a large
+ * setting producing big body text under a heading that is now smaller than it.
+ *
+ * Medium is the default and is considerably larger than a browser's own 16px
+ * default for body copy, because this is a page someone writes on for an hour,
+ * not a paragraph they glance at.
+ */
+:root {
+  --doc-text: 1.125rem;
+  --doc-leading: 1.75;
+}
+
+:root[data-text='large'] {
+  --doc-text: 1.3125rem;
+}
+
+:root[data-text='huge'] {
+  --doc-text: 1.5rem;
 }
 
 html,
@@ -68,6 +101,86 @@ body {
 
 body {
   font-family: var(--font-sans);
+  /*
+   * The interface used to be set in 10 and 11 pixel type, which is small
+   * enough that people read the icons instead of the words. 14px is the
+   * smallest size this app now uses for anything anyone is meant to read.
+   */
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------ the page ---- */
+
+/*
+ * The writing surface is a sheet of paper on a desk, which is the oldest and
+ * most familiar way to say "this is a document and that is the application".
+ * It is not skeuomorphic decoration: the edge of the sheet is what tells you
+ * where the line will wrap, and that is information a plain scrolling column
+ * simply does not carry.
+ */
+.pad-desk {
+  background: var(--color-desk);
+}
+
+.pad-page {
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 8px 24px -12px rgb(0 0 0 / 0.12);
+}
+
+/*
+ * Everything inside the page is sized from --doc-text. Headings step up from
+ * it, the small print steps down from it, and nothing is a fixed pixel value —
+ * so the size control changes a typographic scale rather than one paragraph.
+ */
+.pad-doc {
+  font-size: var(--doc-text);
+  line-height: var(--doc-leading);
+}
+
+.pad-doc-title {
+  font-size: calc(var(--doc-text) * 1.9);
+  line-height: 1.2;
+}
+
+.pad-h1 {
+  font-size: calc(var(--doc-text) * 1.5);
+  line-height: 1.25;
+}
+
+.pad-h2 {
+  font-size: calc(var(--doc-text) * 1.25);
+  line-height: 1.3;
+}
+
+.pad-h3 {
+  font-size: calc(var(--doc-text) * 1.08);
+  line-height: 1.4;
+}
+
+.pad-small {
+  font-size: calc(var(--doc-text) * 0.82);
+}
+
+/*
+ * Alignment is a property of the paragraph, so it is a class on the block
+ * rather than markup inside the text. See `Align` in lib/types.ts.
+ */
+.pad-align-center {
+  text-align: center;
+}
+
+.pad-align-right {
+  text-align: right;
+}
+
+.pad-align-justify {
+  text-align: justify;
+  text-justify: inter-word;
 }
 
 /*
@@ -161,12 +274,23 @@ body {
   aside,
   header,
   [role='toolbar'],
-  [aria-label='Insert block'],
+  [data-print='hide'],
   [aria-label='Continue writing'],
-  [aria-label='Insert block below'],
-  [aria-label^='Drag to reorder'],
   [role='listbox'] {
     display: none !important;
+  }
+
+  /* The sheet is the paper now; a drawn page edge on a real page is a box
+     around the text, and the printer already has an edge of its own. */
+  .pad-page {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .pad-desk {
+    background: #fff !important;
   }
 
   /* Print in black on white whatever the screen theme is. Dark mode sent to a
