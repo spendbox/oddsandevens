@@ -173,6 +173,29 @@ to work, it is the wrong shape for this app.
 - **The API key lives only on the server.** `src/app/api/ai/route.ts` is the
   one server route in this app, and the only reason it exists. A key in client
   code is a key anyone can read out of the bundle and spend.
+- **Search is one thing, not two.** A box that filters the list of file names
+  and a box that searches inside documents behave differently and teach people
+  to distrust both. `src/lib/search.ts` is a BM25 index over everything, built
+  once per opening of the panel — never per keystroke, because it is linear in
+  the size of the whole collection.
+- **Every query word must appear — unless that finds nothing.** Requiring all
+  of them stops a two-word search returning everything containing either.
+  Requiring all of them also returns nothing for a whole sentence, so strict
+  runs first and the relaxed pass is the fallback.
+- **A question's asking words are not search terms.** "What did I *write
+  about* the Lagos meeting" is a question about Lagos; `write` and `about`
+  appear in no note, and requiring them found nothing at all. `queryTerms`
+  drops that vocabulary from questions only — a search for the word "said"
+  must still find it.
+- **Retrieval happens on the device, and only passages are sent.** The local
+  index picks the notes, `src/lib/ask.ts` cuts the matching passages out of
+  them, and those go to the model. The collection never leaves the machine,
+  the cost of a question does not grow with how much has been written, and
+  every claim comes back carrying the note it came from. An answer that cannot
+  show its source has to be either trusted completely or checked completely.
+- **A document with no title is called by its first line.** The caret starts in
+  the body, so plenty of notes never get a title; three rows reading "Untitled"
+  tell the reader nothing. `docLabel` is the one place that decides.
 - **Writing help never changes the document on its own.** Every result is
   shown and applied only on request. An assistant that silently rewrites what
   someone wrote is one they stop trusting the first time it makes a sentence

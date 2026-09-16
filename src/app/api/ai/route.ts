@@ -107,6 +107,87 @@ export async function GET() {
 /** Long inputs are refused rather than silently truncated. */
 const MAX_INPUT_CHARS = 24_000
 
+/**
+ * One numbered extract from the reader's own notes.
+ *
+ * Retrieval happens in the browser, against the local index, so the whole
+ * collection never comes near this route — only the handful of passages that
+ * bear on the question. That is what keeps a question about one meeting from
+ * sending ten years of notes, and what keeps the cost of asking flat however
+ * much somebody has written.
+ */
+interface Source {
+  n: number
+  title: string
+  text: string
+  updatedAt: number
+}
+
+const ASK_SYSTEM =
+  'You answer questions about a person’s own notes, using only the numbered extracts they ' +
+  'give you.\n\n' +
+  'Rules, in order of importance:\n' +
+  '1. Every factual claim must come from an extract, and must carry its number in square ' +
+  'brackets, like [2]. Cite the specific extract, not all of them.\n' +
+  '2. If the extracts do not answer the question, say so in one sentence and say what they do ' +
+  'cover. Never fill a gap with what is usually true — the whole value of this is that it ' +
+  'reports what THEY wrote, not what is generally the case.\n' +
+  '3. Where the notes disagree with each other, say so and cite both.\n' +
+  '4. Answer in a few sentences, or a short markdown list when the question asks for several ' +
+  'things. No preamble, no restating of the question, no closing offer of further help.\n' +
+  '5. Write as if to the person who wrote the notes: "you decided", not "the author decided".'
+
+/** Turns the extracts into the numbered block the model reads. */
+function sourceBlock(sources: Source[]): string {
+  return sources
+    .map((source) => {
+      const when = Number.isFinite(source.updatedAt)
+        ? new Date(source.updatedAt).toISOString().slice(0, 10)
+        : 'unknown date'
+      return `[${source.n}] "${source.title}" (last written ${when})\n${source.text}`
+    })
+    .join('\n\n')
+}
+
+/** Answers a question from extracts of the reader's own notes. */
+async function ask(client: Anthropic, question: string, sources: Source[]) {
+  const stream = client.messages.stream({
+    model: 'claude-opus-5',
+    max_tokens: 2000,
+    // Higher than the writing actions: pulling one answer out of eight notes
+    // that half-agree is the part of this app that is actually a reasoning
+    // problem, and a wrong answer with a citation on it is worse than none.
+    output_config: { effort: 'high' },
+    system: ASK_SYSTEM,
+    messages: [
+      {
+        role: 'user',
+        content:
+          `Today is ${new Date().toISOString().slice(0, 10)}.\n\n` +
+          `Extracts from my notes:\n\n${sourceBlock(sources)}\n\n` +
+          `My question: ${question}`,
+      },
+    ],
+  })
+
+  const message = await stream.finalMessage()
+  if (message.stop_reason === 'refusal') {
+    return NextResponse.json(
+      { error: 'That request was declined. Try rephrasing what you are asking for.' },
+      { status: 422 },
+    )
+  }
+  const text = message.content
+    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+    .map((block) => block.text)
+    .join('')
+    .trim()
+  if (!text) {
+    return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
+  }
+  return NextResponse.json({ text })
+}
+
 export async function POST(request: Request) {
   const key = apiKey()
   if (!key) {
@@ -126,11 +207,46 @@ export async function POST(request: Request) {
     )
   }
 
-  let body: { action?: string; text?: string; title?: string }
+  let body: {
+    action?: string
+    text?: string
+    title?: string
+    question?: string
+    sources?: Source[]
+  }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'Could not read the request.' }, { status: 400 })
+  }
+
+  const client = new Anthropic({ apiKey: key })
+
+  /*
+    Asking a question of the notes, rather than rewriting a passage of them.
+    It shares this route because it shares the thing worth protecting: the key.
+  */
+  if (body.action === 'ask') {
+    const question = (body.question ?? '').trim()
+    const sources = Array.isArray(body.sources) ? body.sources : []
+    if (!question) {
+      return NextResponse.json({ error: 'Ask a question first.' }, { status: 400 })
+    }
+    if (!sources.length) {
+      return NextResponse.json(
+        { error: 'There is nothing written yet to answer from.' },
+        { status: 400 },
+      )
+    }
+    const size = sources.reduce((total, source) => total + (source.text?.length ?? 0), 0)
+    if (size > MAX_INPUT_CHARS) {
+      return NextResponse.json({ error: 'Too much context at once.' }, { status: 413 })
+    }
+    try {
+      return await ask(client, question, sources)
+    } catch (error) {
+      return failure(error)
+    }
   }
 
   const action = body.action as AiAction
@@ -150,8 +266,6 @@ export async function POST(request: Request) {
       { status: 413 },
     )
   }
-
-  const client = new Anthropic({ apiKey: key })
 
   try {
     /*
@@ -210,28 +324,30 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ text: result })
   } catch (error) {
-    // Most specific first, so a rate limit is not reported as a generic fault.
-    if (error instanceof Anthropic.AuthenticationError) {
-      return NextResponse.json(
-        { error: 'The configured API key was rejected.' },
-        { status: 502 },
-      )
-    }
-    if (error instanceof Anthropic.RateLimitError) {
-      return NextResponse.json(
-        { error: 'The writing service is busy. Try again in a moment.' },
-        { status: 429 },
-      )
-    }
-    if (error instanceof Anthropic.APIError) {
-      return NextResponse.json(
-        { error: `The writing service returned an error (${error.status}).` },
-        { status: 502 },
-      )
-    }
+    return failure(error)
+  }
+}
+
+/** Turns whatever went wrong into something a reader can act on. */
+function failure(error: unknown) {
+  // Most specific first, so a rate limit is not reported as a generic fault.
+  if (error instanceof Anthropic.AuthenticationError) {
+    return NextResponse.json({ error: 'The configured API key was rejected.' }, { status: 502 })
+  }
+  if (error instanceof Anthropic.RateLimitError) {
     return NextResponse.json(
-      { error: 'Could not reach the writing service. Your work is untouched.' },
+      { error: 'The writing service is busy. Try again in a moment.' },
+      { status: 429 },
+    )
+  }
+  if (error instanceof Anthropic.APIError) {
+    return NextResponse.json(
+      { error: `The writing service returned an error (${error.status}).` },
       { status: 502 },
     )
   }
+  return NextResponse.json(
+    { error: 'Could not reach the writing service. Your work is untouched.' },
+    { status: 502 },
+  )
 }

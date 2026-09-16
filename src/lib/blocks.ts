@@ -1,5 +1,5 @@
 import { newId } from './id.ts'
-import type { Block, BlockType } from './types'
+import type { Block, BlockType, Doc } from './types'
 
 /**
  * Makes an empty block of a given type. One factory, so a block created by
@@ -123,4 +123,20 @@ export function docPreview(blocks: Block[]): string {
     if (block.type === 'file') return block.name || 'File'
   }
   return 'Empty'
+}
+
+/**
+ * What to call a document on screen.
+ *
+ * Titles are optional here — the app opens with the caret in the body, and
+ * plenty of notes never get one. "Untitled" three times in a list of search
+ * results tells the reader nothing, so a document without a title is called
+ * by its first line instead, which is what they would call it themselves.
+ */
+export function docLabel(doc: Doc): string {
+  const title = doc.title.trim()
+  if (title) return title
+  const preview = docPreview(doc.blocks)
+  if (preview === 'Empty') return 'Untitled'
+  return preview.length > 60 ? `${preview.slice(0, 60).trimEnd()}…` : preview
 }

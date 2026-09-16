@@ -27,6 +27,21 @@ const STOP_WORDS = new Set([
   'what', 'when', 'where', 'which', 'who', 'will', 'with', 'you', 'your',
 ])
 
+/**
+ * The words a question is *asked* with, as opposed to the words it is about.
+ *
+ * "What did I write about the Lagos meeting" is a question about Lagos. The
+ * writing and the aboutness are how the question was phrased; they appear in
+ * no note, and requiring them finds nothing. They are dropped from questions
+ * only — someone searching for the word "said" should still find it.
+ */
+const ASKING_WORDS = new Set([
+  'about', 'again', 'anything', 'discuss', 'discussed', 'everything', 'mention',
+  'mentioned', 'mentions', 'note', 'noted', 'notes', 'please', 'regarding', 'remind',
+  'said', 'say', 'saying', 'says', 'talk', 'talked', 'tell', 'told', 'wrote', 'write',
+  'written', 'writing',
+])
+
 /** Splits text into searchable terms. */
 export function tokenize(text: string): string[] {
   return (
@@ -36,6 +51,22 @@ export function tokenize(text: string): string[] {
       .split(/[^\p{L}\p{N}]+/u)
       .filter((word) => word.length > 1 && !STOP_WORDS.has(word))
   )
+}
+
+/**
+ * The words of a query that are worth looking for.
+ *
+ * Identical to tokenizing for an ordinary search. For a question it also drops
+ * the asking vocabulary, which is the difference between "what did I write
+ * about the Lagos meeting" finding the Lagos note and finding nothing at all.
+ */
+export function queryTerms(query: string): string[] {
+  const words = tokenize(query)
+  if (!looksLikeQuestion(query)) return words
+  const kept = words.filter((word) => !ASKING_WORDS.has(word))
+  // A question made entirely of asking words still has to search for
+  // something, so nothing is dropped if dropping would leave nothing.
+  return kept.length ? kept : words
 }
 
 /**
@@ -142,14 +173,15 @@ function expand(index: SearchIndex, word: string): Array<{ term: string; weight:
 }
 
 export function search(index: SearchIndex, query: string, limit = 20): SearchHit[] {
-  const words = tokenize(query)
+  const words = queryTerms(query)
   if (!words.length) return []
 
   const total = index.entries.length || 1
-  const hits: SearchHit[] = []
+  const scored: Array<{ hit: SearchHit; found: number }> = []
 
   for (const entry of index.entries) {
     let score = 0
+    let found = 0
     const matched: string[] = []
 
     for (const word of words) {
@@ -166,22 +198,31 @@ export function search(index: SearchIndex, query: string, limit = 20): SearchHit
         best = Math.max(best, idf * normalised * weight)
         if (!matched.includes(term)) matched.push(term)
       }
+      if (best > 0) found++
       score += best
     }
 
-    // Every word must appear somewhere, or searching two words returns
-    // everything containing either — which is how a search stops being useful
-    // the moment a collection gets big.
-    const everyWordFound = words.every((word) =>
-      expand(index, word).some(({ term }) => entry.counts.has(term)),
-    )
-    if (score > 0 && everyWordFound) {
+    if (score > 0) {
       const { snippet, highlights } = excerpt(entry.text, matched)
-      hits.push({ doc: entry.doc, score, snippet, highlights, matched })
+      scored.push({ hit: { doc: entry.doc, score, snippet, highlights, matched }, found })
     }
   }
 
-  return hits
+  /*
+    Every word must appear, unless that finds nothing.
+
+    Requiring all of them is what stops a two-word search returning everything
+    containing either, which is how search stops being useful the moment a
+    collection gets big. But a sentence — "what did I decide about the printing
+    quote" — will rarely have every word in one note, and returning nothing for
+    a question somebody can see the answer to is worse. So: strict first,
+    relaxed only when strict comes back empty.
+  */
+  const strict = scored.filter((entry) => entry.found === words.length)
+  const chosen = strict.length ? strict : scored
+
+  return chosen
+    .map((entry) => entry.hit)
     .sort((a, b) => b.score - a.score || b.doc.updatedAt - a.doc.updatedAt)
     .slice(0, limit)
 }

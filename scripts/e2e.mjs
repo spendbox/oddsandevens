@@ -248,6 +248,83 @@ await page.keyboard.press('Escape')
 await page.waitForTimeout(300)
 log('Escape closes search', !(await page.locator('input[aria-label="Search everything"]').isVisible().catch(() => false)))
 
+/*
+  Asking a question of every note.
+
+  The model itself is stubbed — this run has no API key, and a test that
+  depends on one is a test that does not run. What is checked here is
+  everything around it, which is where the bugs live: that retrieval happens
+  on the device and sends only passages, that the answer's citations resolve
+  to real documents, and that a note nobody asked about is not shipped off.
+*/
+let askPayload = null
+await page.route('**/api/ai', async (route) => {
+  const request = route.request()
+  if (request.method() === 'GET') {
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ configured: true }) })
+  }
+  askPayload = request.postDataJSON()
+  return route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ text: 'You said you would send the invoice on Friday [1].' }),
+  })
+})
+// A fresh load, because whether a key is configured is asked once per visit.
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForTimeout(900)
+
+await page.keyboard.press('Control+k')
+await page.waitForTimeout(400)
+await page.locator('input[aria-label="Search everything"]').fill('what did I say about the invoice')
+await page.waitForTimeout(500)
+log('a question offers to answer itself', await page.locator('[data-ask-row]').isVisible())
+await page.screenshot({ path: `${SHOTS}/09b-ask.png` })
+
+await page.keyboard.press('Enter')
+await page.waitForTimeout(900)
+log(
+  'the answer is shown',
+  (await page.locator('[role="region"][aria-label="Answer"]').innerText()).includes('send the invoice'),
+)
+log('retrieval happens on the device: passages are sent, not documents', !!askPayload?.sources?.length)
+log(
+  'each source is numbered and named',
+  askPayload?.sources?.every((s, i) => s.n === i + 1 && typeof s.title === 'string' && s.text.length > 0),
+)
+log(
+  'the question is sent as asked',
+  askPayload?.question === 'what did I say about the invoice',
+)
+log(
+  'the note the answer came from is listed under it',
+  (await page.locator('[role="region"][aria-label="Answer"] button').count()) >= 2,
+)
+await page.screenshot({ path: `${SHOTS}/09c-answer.png` })
+
+// The citation is a way back to the note, not decoration.
+await page.locator('[role="region"][aria-label="Answer"] button').last().click()
+await page.waitForTimeout(800)
+log(
+  'clicking a citation opens that note',
+  (await page.evaluate(() => document.body.innerText)).includes('Send the invoice'),
+)
+
+// Back to the real route for everything that follows.
+await page.unroute('**/api/ai')
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForTimeout(800)
+await page.keyboard.press('Control+k')
+await page.waitForTimeout(400)
+await page.locator('input[aria-label="Search everything"]').fill('what did I say about the invoice')
+await page.waitForTimeout(500)
+log(
+  'with no key configured, asking is not offered at all',
+  (await page.locator('[data-ask-row]').count()) === 0,
+)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+
 // Dark mode.
 await page.locator('button:has-text("Dark")').first().click()
 await page.waitForTimeout(400)

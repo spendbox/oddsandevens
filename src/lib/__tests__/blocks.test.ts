@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { docPreview, makeBlock, shortcutFor } from '../blocks.ts'
+import { docLabel, docPreview, makeBlock, shortcutFor } from '../blocks.ts'
 import { blockText, isTextish } from '../types.ts'
 
 test('every block type can be made and is well formed', () => {
@@ -76,4 +76,29 @@ test('the sidebar preview picks the first real text', () => {
   assert.equal(docPreview([heading, text]), 'the actual content')
   assert.equal(docPreview([]), 'Empty')
   assert.equal(docPreview([makeBlock('table')]), 'Spreadsheet')
+})
+
+test('a document with a title is called by it', () => {
+  const doc = { id: 'a', title: 'Lagos meeting', blocks: [], createdAt: 0, updatedAt: 0 }
+  assert.equal(docLabel(doc), 'Lagos meeting')
+})
+
+test('a document with no title is called by its first line', () => {
+  const block = makeBlock('text')
+  Object.assign(block, { text: 'Send the invoice to the printer' })
+  const doc = { id: 'a', title: '  ', blocks: [block], createdAt: 0, updatedAt: 0 }
+  assert.equal(docLabel(doc), 'Send the invoice to the printer')
+})
+
+test('a long first line is cut rather than filling the row', () => {
+  const block = makeBlock('text')
+  Object.assign(block, { text: 'x'.repeat(200) })
+  const doc = { id: 'a', title: '', blocks: [block], createdAt: 0, updatedAt: 0 }
+  assert.ok(docLabel(doc).length <= 61, String(docLabel(doc).length))
+  assert.ok(docLabel(doc).endsWith('…'))
+})
+
+test('an empty document is Untitled rather than blank', () => {
+  const doc = { id: 'a', title: '', blocks: [makeBlock('text')], createdAt: 0, updatedAt: 0 }
+  assert.equal(docLabel(doc), 'Untitled')
 })

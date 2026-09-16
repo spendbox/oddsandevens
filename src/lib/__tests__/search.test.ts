@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { makeBlock } from '../blocks.ts'
-import { buildIndex, excerpt, looksLikeQuestion, search, searchableText, tokenize } from '../search.ts'
+import {
+  buildIndex,
+  excerpt,
+  looksLikeQuestion,
+  queryTerms,
+  search,
+  searchableText,
+  tokenize,
+} from '../search.ts'
 import type { Block, Doc } from '../types.ts'
 
 let counter = 0
@@ -230,4 +238,43 @@ test('a lookup is not mistaken for a question', () => {
 
 test('anything ending in a question mark is a question', () => {
   assert.ok(looksLikeQuestion('the budget?'))
+})
+
+/* ------------------------------------------------- questions as searches */
+
+test('a question finds the note it is about', () => {
+  // The headline case. "write" and "about" appear in no note, and requiring
+  // them used to mean this question found nothing at all.
+  const docs = [
+    note('Shopping', 'Bread, milk, tomatoes.'),
+    note('Lagos meeting', 'We agreed to move the launch to March.'),
+  ]
+  assert.equal(ids(docs, 'What did I write about the Lagos meeting?')[0], 'Lagos meeting')
+})
+
+test('the asking words are dropped from a question', () => {
+  assert.deepEqual(queryTerms('what did I write about the Lagos meeting?'), ['lagos', 'meeting'])
+})
+
+test('the same words are kept in an ordinary search', () => {
+  assert.deepEqual(queryTerms('write about lagos'), ['write', 'about', 'lagos'])
+})
+
+test('a question made only of asking words still searches for something', () => {
+  assert.deepEqual(queryTerms('what did I say?'), ['say'])
+})
+
+test('when no note has every word, the ones with some come back', () => {
+  const docs = [
+    note('Budget', 'The printing budget is settled.'),
+    note('Unrelated', 'Nothing to do with anything.'),
+  ]
+  const found = ids(docs, 'what happened with the printing budget and the generator')
+  assert.deepEqual(found, ['Budget'])
+})
+
+test('a note with all the words still beats one with some', () => {
+  const some = note('Some', 'The budget is settled.')
+  const all = note('All', 'The printing budget is settled with the generator.')
+  assert.equal(ids([some, all], 'what about the printing budget generator')[0], 'All')
 })
