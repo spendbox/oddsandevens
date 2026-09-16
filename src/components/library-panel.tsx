@@ -1,6 +1,17 @@
 'use client'
 
-import { FileText, FolderOpen, Library, LoaderCircle, Search, Sparkles, Upload, X } from 'lucide-react'
+import {
+  ChevronDown,
+  FileText,
+  FolderOpen,
+  Library,
+  LoaderCircle,
+  MoreHorizontal,
+  Search,
+  Sparkles,
+  Upload,
+  X,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { docLabel, docPreview, makeBlock } from '@/lib/blocks'
 import {
@@ -13,9 +24,11 @@ import {
 } from '@/lib/library'
 import { newId } from '@/lib/id'
 import { readFileIntoBlocks } from '@/lib/read-file'
+import { groupDocs } from '@/lib/projects'
 import { buildIndex, search } from '@/lib/search'
 import { saveFile } from '@/lib/store'
-import { blockText, type Block, type Doc } from '@/lib/types'
+import { blockText, type Block, type Doc, type Project } from '@/lib/types'
+import FolderChoices from './folder-choices'
 
 /**
  * The Library: drop a pile of documents in, get them back filed.
@@ -51,6 +64,15 @@ import { blockText, type Block, type Doc } from '@/lib/types'
  * searches inside documents behave differently and teach people to distrust
  * both; this uses `lib/search.ts`, the same BM25 index as the search panel,
  * so a word remembered from the middle of a page finds it here too.
+ *
+ * ## Why the list is grouped by folder, and search is not
+ *
+ * Browsing and searching are different questions. Browsing is "where did I put
+ * the tenancy things", which is a question about folders, so the list is
+ * grouped under them with the loose documents last. Searching is "which
+ * document says Bourdillon", and the answer to that is an ordered list of
+ * matches — folder headings between them would only push the best match
+ * further down the page.
  */
 
 export interface Incoming {
@@ -70,8 +92,14 @@ export interface LibraryPanelProps {
   onClose: () => void
   /** Everything already in the collection, newest first. */
   docs: Doc[]
+  /** The folders those documents are grouped under. */
+  projects: Project[]
   /** Opens one of them and closes the Library. */
   onOpen: (id: string) => void
+  /** Moves a document to a folder, or out of every folder with null. */
+  onMove: (docId: string, projectId: string | null) => void
+  /** Makes a new folder named after that document and puts it inside. */
+  onNewFolder: (docId: string) => void
   /** Adds the finished documents, grouping them as the review showed. */
   onAdd: (items: Incoming[], groups: Grouping[], withSummaries: boolean) => void
 }
@@ -85,10 +113,17 @@ export default function LibraryPanel({
   open,
   onClose,
   docs,
+  projects,
   onOpen,
+  onMove,
+  onNewFolder,
   onAdd,
 }: LibraryPanelProps) {
   const [query, setQuery] = useState('')
+  /** Folders the reader has collapsed, so a long shelf can be folded away. */
+  const [shut, setShut] = useState<Set<string>>(() => new Set())
+  /** Which row has its move menu open. */
+  const [menuFor, setMenuFor] = useState<string | null>(null)
   const [items, setItems] = useState<Incoming[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -106,6 +141,7 @@ export default function LibraryPanel({
       setProblem(null)
       setBusy(null)
       setQuery('')
+      setMenuFor(null)
     }
   }
 
@@ -140,11 +176,26 @@ export default function LibraryPanel({
     edited. The same reasoning, and the same function, as the search panel.
   */
   const index = useMemo(() => buildIndex(docs), [docs])
-  const shelf = useMemo(() => {
-    const live = docs.filter((doc) => !doc.deletedAt)
-    if (!query.trim()) return live
-    return search(index, query, 60).map((hit) => hit.doc)
-  }, [docs, index, query])
+  const hits = useMemo(
+    () => (query.trim() ? search(index, query, 60).map((hit) => hit.doc) : []),
+    [index, query],
+  )
+  /** The shelf when nothing is being searched for: folders, then the loose. */
+  const shelves = useMemo(() => {
+    const grouped = groupDocs(
+      docs.filter((doc) => !doc.deletedAt),
+      projects,
+    )
+    const rows: Array<{ id: string | null; name: string; docs: Doc[] }> = grouped.projects
+      .filter((entry) => entry.docs.length > 0)
+      .map((entry) => ({
+        id: entry.project.id,
+        name: entry.project.name || 'Untitled folder',
+        docs: entry.docs,
+      }))
+    if (grouped.loose.length) rows.push({ id: null, name: 'No folder', docs: grouped.loose })
+    return rows
+  }, [docs, projects])
 
   if (!open) return null
 
@@ -251,6 +302,73 @@ export default function LibraryPanel({
       setBusy(null)
     }
   }
+
+  /**
+   * One document on the shelf.
+   *
+   * Written once and used by both the grouped browse and the flat search
+   * results — two copies is two places for the move menu to stop appearing in
+   * one of them.
+   */
+  const documentRow = (item: Doc) => (
+    <li key={item.id} className="group/row relative flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => {
+          onOpen(item.id)
+          onClose()
+        }}
+        className="flex min-w-0 flex-1 items-start gap-2.5 rounded-md px-2 py-2 text-left hover:bg-[var(--color-hover)]"
+      >
+        <FileText size={15} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] font-medium">{docLabel(item)}</span>
+          <span className="block truncate text-[13px] text-[var(--color-muted)]">
+            {docPreview(item.blocks)}
+          </span>
+        </span>
+        <span className="shrink-0 pt-0.5 text-[12px] text-[var(--color-faint)]">
+          {new Date(item.updatedAt).toLocaleDateString(undefined, {
+            day: 'numeric',
+            month: 'short',
+          })}
+        </span>
+      </button>
+      {/*
+        Filing is what somebody opens this panel to do, so moving a document
+        is on the row rather than three screens away in the sidebar.
+      */}
+      <button
+        type="button"
+        aria-label={`Move ${docLabel(item)}`}
+        aria-expanded={menuFor === item.id}
+        onClick={() => setMenuFor(menuFor === item.id ? null : item.id)}
+        className="shrink-0 rounded p-1.5 text-[var(--color-faint)] opacity-60 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 hover:text-[var(--color-ink)] sm:opacity-0"
+      >
+        <MoreHorizontal size={15} />
+      </button>
+      {menuFor === item.id && (
+        <div
+          role="menu"
+          className="absolute right-1 z-50 mt-1 w-56 translate-y-9 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg"
+        >
+          <FolderChoices
+            heading="Move to"
+            projects={projects}
+            currentId={item.projectId}
+            onMove={(projectId) => {
+              onMove(item.id, projectId)
+              setMenuFor(null)
+            }}
+            onNewFolder={() => {
+              onNewFolder(item.id)
+              setMenuFor(null)
+            }}
+          />
+        </div>
+      )}
+    </li>
+  )
 
   const groups = groupByTopic(items.map((item) => item.topic))
   const projectFor = (index: number) =>
@@ -447,51 +565,64 @@ export default function LibraryPanel({
             decision somebody is in the middle of making, and a list of four
             hundred other documents underneath it is not help.
           */}
-          {items.length === 0 && (
-            <div className="mt-4">
-              <p className="mb-1.5 text-[13px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
-                {query.trim() ? `Found ${shelf.length}` : 'Everything'}
-              </p>
-              {shelf.length === 0 ? (
-                <p className="px-1 py-6 text-center text-[14px] text-[var(--color-faint)]">
-                  {query.trim()
-                    ? 'Nothing here matches that.'
-                    : 'Nothing in here yet. Drop some files in above.'}
+          {items.length === 0 &&
+            (query.trim() ? (
+              <div className="mt-4">
+                <p className="mb-1.5 text-[13px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
+                  Found {hits.length}
                 </p>
-              ) : (
-                <ul className="space-y-0.5">
-                  {shelf.map((item) => (
-                    <li key={item.id}>
+                {hits.length === 0 ? (
+                  <p className="px-1 py-6 text-center text-[14px] text-[var(--color-faint)]">
+                    Nothing here matches that.
+                  </p>
+                ) : (
+                  <ul className="space-y-0.5">{hits.map(documentRow)}</ul>
+                )}
+              </div>
+            ) : shelves.length === 0 ? (
+              <p className="px-1 py-8 text-center text-[14px] text-[var(--color-faint)]">
+                Nothing in here yet. Drop some files in above.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {shelves.map((group) => {
+                  const folded = shut.has(group.id ?? 'loose')
+                  return (
+                    <div key={group.id ?? 'loose'}>
                       <button
                         type="button"
-                        onClick={() => {
-                          onOpen(item.id)
-                          onClose()
-                        }}
-                        className="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left hover:bg-[var(--color-hover)]"
+                        aria-expanded={!folded}
+                        onClick={() =>
+                          setShut((current) => {
+                            const next = new Set(current)
+                            const key = group.id ?? 'loose'
+                            if (folded) next.delete(key)
+                            else next.add(key)
+                            return next
+                          })
+                        }
+                        className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1.5 text-left hover:bg-[var(--color-hover)]"
                       >
-                        <FileText size={15} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[14px] font-medium">
-                            {docLabel(item)}
-                          </span>
-                          <span className="block truncate text-[13px] text-[var(--color-muted)]">
-                            {docPreview(item.blocks)}
-                          </span>
+                        <ChevronDown
+                          size={14}
+                          className={`shrink-0 text-[var(--color-faint)] transition-transform ${
+                            folded ? '-rotate-90' : ''
+                          }`}
+                        />
+                        <FolderOpen size={14} className="shrink-0 text-[var(--color-faint)]" />
+                        <span className="min-w-0 flex-1 truncate text-[14px] font-medium">
+                          {group.name}
                         </span>
-                        <span className="shrink-0 pt-0.5 text-[12px] text-[var(--color-faint)]">
-                          {new Date(item.updatedAt).toLocaleDateString(undefined, {
-                            day: 'numeric',
-                            month: 'short',
-                          })}
+                        <span className="shrink-0 text-[13px] text-[var(--color-faint)]">
+                          {group.docs.length}
                         </span>
                       </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+                      {!folded && <ul className="space-y-0.5 pl-3">{group.docs.map(documentRow)}</ul>}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
         </div>
 
         {items.length > 0 && (

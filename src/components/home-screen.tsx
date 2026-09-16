@@ -20,6 +20,16 @@ import TrashSection from './trash-section'
  * screen in front of that would be one press between somebody and their first
  * sentence. This is the way *back* — reached deliberately, filling the window
  * when it is, gone again the moment something is opened.
+ *
+ * ## On a phone
+ *
+ * This fills a 390-pixel screen as readily as a monitor, which took some
+ * doing: one column, labels dropped from the header buttons so the row cannot
+ * wrap, a smaller hero card showing three lines instead of six, and every
+ * target at least a thumb high. The cross that gets you back to writing is the
+ * largest control on the screen, because on a phone this covers the document
+ * completely and being unable to find the way out of a full-screen view is the
+ * worst thing a full-screen view can do.
  */
 export interface HomeScreenProps {
   open: boolean
@@ -42,6 +52,8 @@ export interface HomeScreenProps {
 
 /** Lines of the document shown on the large card. Enough to recognise it by. */
 const PREVIEW_LINES = 6
+/** How many of those a phone shows, where six would fill the screen. */
+const PREVIEW_LINES_SMALL = 3
 /** How many recent documents to show. Past this, the answer is search. */
 const RECENT = 12
 
@@ -107,32 +119,41 @@ export default function HomeScreen({
       role="dialog"
       aria-label="Home"
       aria-modal="true"
-      className="pad-desk fixed inset-0 z-50 overflow-y-auto"
+      className="pad-desk fixed inset-0 z-50 overflow-y-auto overscroll-contain"
     >
-      <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
-        <header className="mb-6 flex flex-wrap items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--color-accent)] text-[13px] font-bold text-white">
+      {/* The bottom padding clears a phone's home indicator and toolbar. */}
+      <div className="mx-auto w-full max-w-5xl px-3 pt-4 pb-20 sm:px-8 sm:py-8">
+        <header className="mb-5 flex items-center gap-2 sm:mb-6">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent)] text-[13px] font-bold text-white">
             P
           </span>
           <h1 className="text-[17px] font-semibold">Pad</h1>
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            <HeaderButton icon={<Search size={15} />} label="Search" onClick={onSearch} />
-            <HeaderButton icon={<Library size={15} />} label="Library" onClick={onLibrary} />
+          {/*
+            No wrapping. A header that becomes two rows on a narrow screen
+            pushes everything below it down and reads as a mistake, so the
+            labels go instead — the icons are the same three everywhere else
+            in the app.
+          */}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <HeaderButton icon={<Search size={17} />} label="Search" onClick={onSearch} />
+            <HeaderButton icon={<Library size={17} />} label="Library" onClick={onLibrary} />
             <button
               type="button"
               onClick={onNew}
-              className="flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[14px] font-medium text-white hover:opacity-90"
+              aria-label="New document"
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-2.5 text-[14px] font-medium text-white hover:opacity-90 sm:px-3"
             >
-              <Plus size={15} /> New
+              <Plus size={16} />
+              <span className="hidden sm:inline">New</span>
             </button>
             <button
               type="button"
               onClick={onClose}
               aria-label="Back to the document"
               title="Back to the document"
-              className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
           </div>
         </header>
@@ -143,26 +164,27 @@ export default function HomeScreen({
           came back for, so it gets to be a page rather than a row.
         */}
         {current && (
-          <section className="mb-8">
+          <section className="mb-7 sm:mb-8">
             <p className="mb-1.5 text-[13px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
               Carry on with
             </p>
             <button
               type="button"
               onClick={() => onOpen(current.id)}
-              className="pad-page group block w-full p-5 text-left transition-shadow hover:shadow-lg sm:p-7"
+              className="pad-page group block w-full p-4 text-left transition-shadow hover:shadow-lg sm:p-7"
             >
               <span className="flex items-start gap-3">
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[22px] font-semibold tracking-tight sm:text-[26px]">
+                  <span className="block truncate text-[19px] font-semibold tracking-tight sm:text-[26px]">
                     {docLabel(current)}
                   </span>
-                  <span className="mt-0.5 flex items-center gap-1.5 text-[13px] text-[var(--color-faint)]">
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[13px] text-[var(--color-faint)]">
                     <Clock size={12} /> Edited {when(current.updatedAt)}
                     {currentProject && (
                       <>
                         <span aria-hidden>·</span>
-                        <FolderOpen size={12} /> {currentProject.name}
+                        <FolderOpen size={12} />
+                        <span className="min-w-0 truncate">{currentProject.name}</span>
                       </>
                     )}
                   </span>
@@ -171,12 +193,16 @@ export default function HomeScreen({
                   <ArrowRight size={20} />
                 </span>
               </span>
-              <span className="mt-4 block space-y-1 border-t border-[var(--color-line)] pt-4">
+              <span className="mt-3 block space-y-1 border-t border-[var(--color-line)] pt-3 sm:mt-4 sm:pt-4">
                 {opening(current).length ? (
                   opening(current).map((line, i) => (
                     <span
                       key={i}
-                      className="block truncate text-[15px] leading-relaxed text-[var(--color-muted)]"
+                      // Three lines on a phone, six on a desktop. A card that
+                      // takes the whole screen is not a preview.
+                      className={`truncate text-[15px] leading-relaxed text-[var(--color-muted)] ${
+                        i < PREVIEW_LINES_SMALL ? 'block' : 'hidden sm:block'
+                      }`}
                     >
                       {line}
                     </span>
@@ -260,10 +286,12 @@ function HeaderButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 rounded-md border border-[var(--color-line)] px-2.5 py-1.5 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+      aria-label={label}
+      title={label}
+      className="flex h-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
     >
       {icon}
-      {label}
+      <span className="hidden sm:inline">{label}</span>
     </button>
   )
 }
@@ -285,7 +313,7 @@ function Shelf({
   empty?: string
 }) {
   return (
-    <section className="mb-7">
+    <section className="mb-6 sm:mb-7">
       <p className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
         {icon}
         {label}
@@ -301,7 +329,7 @@ function Shelf({
                 <button
                   type="button"
                   onClick={() => onOpen(doc.id)}
-                  className="pad-page block h-full w-full p-3 text-left transition-shadow hover:shadow-md"
+                  className="pad-page block h-full w-full p-3.5 text-left transition-shadow hover:shadow-md"
                 >
                   <span className="block truncate pr-6 text-[15px] font-medium">
                     {docLabel(doc)}
@@ -322,7 +350,7 @@ function Shelf({
                   }
                   aria-pressed={starred}
                   onClick={() => onFavorite(doc.id, !starred)}
-                  className={`absolute top-2.5 right-2.5 rounded p-1 transition-opacity ${
+                  className={`absolute top-2 right-2 rounded-md p-2 transition-opacity ${
                     starred
                       ? 'text-[var(--color-accent)]'
                       : 'text-[var(--color-faint)] opacity-0 group-hover/card:opacity-100 focus:opacity-100'

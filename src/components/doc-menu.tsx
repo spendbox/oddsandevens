@@ -18,7 +18,8 @@ import { useEffect, useRef, useState } from 'react'
 import { docToMarkdown, docToText, safeFilename } from '@/lib/export'
 import { existingShare, publishDoc, unpublishDoc } from '@/lib/share'
 import { isSyncConfigured } from '@/lib/supabase'
-import type { Doc } from '@/lib/types'
+import type { Doc, Project } from '@/lib/types'
+import FolderChoices from './folder-choices'
 
 /**
  * What you can do with the whole document: get it out, or bring something in.
@@ -32,14 +33,28 @@ import type { Doc } from '@/lib/types'
  */
 export default function DocMenu({
   doc,
+  projects,
   onImportPdf,
   onImportWord,
+  onMove,
+  onNewFolder,
   importing,
   accountId,
 }: {
   doc: Doc
+  /** Every folder, so this document can be moved into one of them. */
+  projects: Project[]
   onImportPdf: (file: File) => void
   onImportWord: (file: File) => void
+  /**
+   * Moves this document to a folder, or out of every folder with null.
+   *
+   * It is here as well as in the folder button because a document that is in
+   * no folder yet has no folder button — and "file this somewhere" is most
+   * often the thought somebody has about exactly that document.
+   */
+  onMove: (projectId: string | null) => void
+  onNewFolder: () => void
   importing: boolean
   /** Null when nobody is signed in, which is what sharing requires. */
   accountId: string | null
@@ -127,7 +142,23 @@ export default function DocMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-1.5 w-60 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg">
+        <div className="absolute right-0 z-50 mt-1.5 max-h-[75dvh] w-64 overflow-y-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg">
+          <FolderChoices
+            heading="Move to folder"
+            projects={projects}
+            currentId={doc.projectId}
+            onMove={(id) => {
+              setOpen(false)
+              onMove(id)
+            }}
+            onNewFolder={() => {
+              setOpen(false)
+              onNewFolder()
+            }}
+          />
+
+          <div className="my-1 h-px bg-[var(--color-line)]" />
+
           <Item
             icon={<Printer size={14} />}
             label="Save as PDF"
@@ -181,7 +212,7 @@ export default function DocMenu({
 
           {share.url ? (
             <div className="px-2.5 py-1.5">
-              <p className="mb-1 text-[10px] text-[var(--color-faint)]">
+              <p className="mb-1 text-[13px] text-[var(--color-faint)]">
                 Anyone with this link can read it
               </p>
               <div className="flex items-center gap-1">
@@ -190,7 +221,7 @@ export default function DocMenu({
                   value={share.url}
                   aria-label="Share link"
                   onFocus={(e) => e.currentTarget.select()}
-                  className="min-w-0 flex-1 rounded border border-[var(--color-line)] bg-[var(--color-hover)] px-1.5 py-1 text-[10px] outline-none"
+                  className="min-w-0 flex-1 rounded border border-[var(--color-line)] bg-[var(--color-hover)] px-1.5 py-1 text-[13px] outline-none"
                 />
                 <button
                   type="button"
@@ -268,7 +299,7 @@ export default function DocMenu({
           )}
 
           {share.problem && (
-            <p className="px-2.5 pb-1 text-[10px] leading-snug text-[var(--color-danger)]">
+            <p className="px-2.5 pb-1 text-[13px] leading-snug text-[var(--color-danger)]">
               {share.problem}
             </p>
           )}
@@ -287,7 +318,7 @@ export default function DocMenu({
             hint="Pulls the words out so you can edit them"
             onClick={() => picker.current?.click()}
           />
-          <p className="px-2.5 pt-1 pb-1 text-[10px] leading-snug text-[var(--color-faint)]">
+          <p className="px-2.5 pt-1 pb-1 text-[13px] leading-snug text-[var(--color-faint)]">
             A scanned PDF has no text to pull out — only one made from a
             document does.
           </p>
@@ -295,7 +326,7 @@ export default function DocMenu({
       )}
 
       {problem && (
-        <p className="absolute right-0 z-50 mt-1 w-60 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-2 text-[10px] leading-snug text-[var(--color-danger)] shadow-lg">
+        <p className="absolute right-0 z-50 mt-1 w-60 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-2 text-[13px] leading-snug text-[var(--color-danger)] shadow-lg">
           {problem}
         </p>
       )}
@@ -346,12 +377,12 @@ function Item({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-1.5 text-left hover:bg-[var(--color-hover)]"
+      className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-[var(--color-hover)]"
     >
       <span className="mt-0.5 text-[var(--color-muted)]">{icon}</span>
       <span className="min-w-0">
-        <span className="block text-xs">{label}</span>
-        {hint && <span className="block text-[10px] text-[var(--color-faint)]">{hint}</span>}
+        <span className="block text-[14px]">{label}</span>
+        {hint && <span className="block text-[13px] text-[var(--color-faint)]">{hint}</span>}
       </span>
     </button>
   )

@@ -97,6 +97,17 @@ to work, it is the wrong shape for this app.
   pointer moved. `ribbon.tsx` is fixed above the page and always in the same
   order. Reordering a paragraph is Alt+Up/Down, which is what a word processor
   has always used. Do not put per-block chrome back into the margin.
+- **Looking like a toolbar is not the same as looking like Word 2003.** Three
+  things date one: a native `<select>` wearing the operating system's chrome, a
+  vertical rule between every group, and twenty icons of equal weight. The
+  style control is therefore a plain button opening a menu that sets each
+  option in its own type; groups are separated by space; buttons have no border
+  until the pointer is over them.
+- **The toolbar is one row at every width.** Anything not used in the first
+  minute of writing — alignment, indent, the size of the type — lives behind
+  the "More" button rather than on the row. A toolbar that wraps to two lines
+  pushes the page down and moves every control somebody had started to learn
+  the position of.
 - **Every toolbar button is `onPointerDown` with `preventDefault`, never
   `onClick`.** A click blurs the block first, so the command has no selection
   left to act on. This is the most common way a toolbar over a contenteditable
@@ -248,6 +259,18 @@ to work, it is the wrong shape for this app.
 - **`++` is detected from the text the input event produced**, exactly as "/"
   is, and for the same reason: a phone keyboard reports keydown as
   `Unidentified` and only reveals the character afterwards.
+- **Nothing is reachable only by a keyboard shortcut.** Ctrl+J does not exist
+  on a phone, so Ask is on the toolbar at every width and on the end of the bar
+  that appears over a selection. The same test applies to anything added later:
+  if the only route to it is a chord, half the people using this will never
+  find it. For the same reason a placeholder never promises a shortcut — a hint
+  that is wrong on half the devices is worse than no hint.
+- **An inline style always beats a class, so never write one a narrow layout
+  needs to win.** The assistant popup is anchored at the caret on a desktop and
+  is a bottom sheet on a phone; writing the desktop `left` inline collapsed the
+  sheet to the width of its own text, because `inset-x-2` cannot override it.
+  `place()` returns `{}` below the breakpoint. Check any anchored popup for
+  this.
 - **Expanding is the action this exists for.** It gets the longest instruction,
   the most guardrails and `effort: 'high'` in `api/ai/route.ts`. The failure to
   write against is not too few words but a paragraph of filler in a voice the
@@ -263,9 +286,25 @@ to work, it is the wrong shape for this app.
   and a reminder on the wrong day is worse than a reminder with no day. The
   wording is what a calendar's own parser will want when one is connected.
 - **The sidebar shows three lists and nothing else**: this document's folder,
-  favourites, recent. Adding a fourth section is how it became a tree the first
-  time. Everything taken off it still exists — the whole collection is in the
+  favourites, and five recent with the rest behind "Show more". Adding a fourth
+  section, or raising that five, is how it became a tree the first time.
+  Everything taken off it still exists — the whole collection is in the
   Library, the trash is on the home screen.
+- **A folder is one button, not a strip of its contents.** The folder's other
+  documents used to sit above the open one as a scrolling row of chips: the
+  first thing on the page was a list of things that were not the page, and the
+  strip was a different width with every folder. `folder-bar.tsx` is a single
+  header button that opens to hold the whole folder, searchable, with no
+  reflow. Navigating a folder and moving the document out of it are in that one
+  menu, because they are the same thought half a second apart.
+- **"Put this document in…" is written once.** `folder-choices.tsx`, used by
+  the sidebar row menu, the folder button, the document's ⋯ menu and the
+  Library row. Four copies is four places for one of them to quietly stop
+  offering "Take it out".
+- **Browsing is grouped by folder; searching is not.** The Library lists
+  documents under their folders because browsing is a question about where
+  things are. Search results are a flat ranked list, because a folder heading
+  between the matches only pushes the best one further down.
 - **A document appears in exactly one section.** Not only tidiness: a row
   carries a menu, and the same document rendered twice opened two menus on top
   of each other, so nothing in either could be pressed.
