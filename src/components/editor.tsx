@@ -2,7 +2,7 @@
 
 import { GripVertical, Plus, Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { makeBlock, shortcutFor } from '@/lib/blocks'
+import { blocksFromPasted, makeBlock, shortcutFor } from '@/lib/blocks'
 import { blocksToText } from '@/lib/export'
 import type { PastedBlock } from '@/lib/paste'
 import { blockHtml, hasFormatting, sanitizeInline } from '@/lib/rich-text'
@@ -394,17 +394,7 @@ export default function Editor({
     const hostEmpty =
       (isTextish(host) || host.type === 'todo') && !host.text.trim()
 
-    const created = pasted.map((item) => {
-      const made = makeBlock(item.type, item.level)
-      if (isTextish(made) || made.type === 'todo') {
-        made.text = item.text
-        made.html = item.html
-        made.indent = item.indent
-      }
-      if (made.type === 'todo' && item.done) made.done = true
-      if (made.type === 'code') made.code = item.text
-      return made
-    })
+    const created = blocksFromPasted(pasted)
 
     const next = [...doc.blocks]
     next.splice(hostEmpty ? at : at + 1, hostEmpty ? 1 : 0, ...created)
@@ -433,16 +423,7 @@ export default function Editor({
   /** Turns the result into blocks, replacing the source or following it. */
   const applyAi = (pasted: PastedBlock[], mode: 'replace' | 'after') => {
     if (!pasted.length) return
-    const created = pasted.map((item) => {
-      const made = makeBlock(item.type, item.level)
-      if (isTextish(made) || made.type === 'todo') {
-        made.text = item.text
-        made.html = item.html
-        made.indent = item.indent
-      }
-      if (made.type === 'code') made.code = item.text
-      return made
-    })
+    const created = blocksFromPasted(pasted)
 
     const range = selectedRange()
     const next = range

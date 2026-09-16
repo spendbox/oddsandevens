@@ -24,8 +24,10 @@ import {
   clearPendingProject,
   loadDoc,
   loadProject,
+  loadMeta,
   pendingIds,
   pendingProjectIds,
+  saveMeta,
 } from './store.ts'
 import { getSupabase } from './supabase.ts'
 import type { Doc, Project } from './types'
@@ -100,6 +102,65 @@ function toRow(doc: Doc, userId: string): Row {
   }
 }
 
+/**
+ * Fetching only what changed.
+ *
+ * The pull used to ask for every row every twenty seconds. With a few
+ * documents that is invisible; with five hundred it is megabytes over a phone
+ * connection, three times a minute, to learn that nothing happened. So each
+ * table keeps a cursor — the newest `updatedAt` this device has accepted — and
+ * asks only for rows past it.
+ *
+ * Two things stop a cursor from silently losing a row. It reaches back a
+ * minute beyond itself, because `updatedAt` is written by whichever device
+ * made the edit and two devices' clocks disagree; and every so often it is
+ * ignored altogether for a full reconcile, which repairs anything the overlap
+ * was too narrow to catch. Both cost a little bandwidth to buy back
+ * correctness, which is the right way round for a copy of somebody's work.
+ */
+export interface Cursor {
+  /** The newest updatedAt accepted from the server. */
+  at: number
+  /** When everything was last fetched regardless of the cursor. */
+  fullAt: number
+}
+
+/** How far back a pull reaches beyond the newest thing it has seen. */
+export const OVERLAP_MS = 60_000
+/** How often a pull ignores the cursor and reconciles the whole table. */
+export const FULL_EVERY_MS = 30 * 60_000
+
+/** The timestamp to fetch past, or null for everything. */
+export function pullSince(cursor: Cursor | null, now: number): number | null {
+  if (!cursor || !cursor.at) return null
+  if (now - cursor.fullAt >= FULL_EVERY_MS) return null
+  return Math.max(0, cursor.at - OVERLAP_MS)
+}
+
+/**
+ * Where the cursor stands after a pull.
+ *
+ * It only ever moves forward, and only to something actually seen. Moving it
+ * to "now" would skip a row written a second ago by a device whose clock is
+ * behind — the row would be newer than the cursor by its own timestamp and
+ * never fetched again.
+ */
+export function advanceCursor(
+  cursor: Cursor | null,
+  seen: number[],
+  now: number,
+  wasFull: boolean,
+): Cursor {
+  let highest = cursor?.at ?? 0
+  for (const at of seen) if (at > highest) highest = at
+  return { at: highest, fullAt: wasFull ? now : (cursor?.fullAt ?? now) }
+}
+
+/** One cursor per table per account, so two accounts cannot share a position. */
+function cursorKey(table: 'docs' | 'projects', userId: string): string {
+  return `cursor:${table}:${userId}`
+}
+
 export type SyncState = 'off' | 'idle' | 'syncing' | 'error'
 
 /**
@@ -142,7 +203,13 @@ export async function runSync(userId: string): Promise<{ ok: boolean; changed: b
       }
     }
 
-    const { data, error } = await db.from('docs').select('*').eq('user_id', userId)
+    const now = Date.now()
+    const docCursor = await loadMeta<Cursor>(cursorKey('docs', userId))
+    const docsSince = pullSince(docCursor, now)
+
+    let docQuery = db.from('docs').select('*').eq('user_id', userId)
+    if (docsSince !== null) docQuery = docQuery.gt('updated_at', docsSince)
+    const { data, error } = await docQuery
     if (error || !data) return { ok: false, changed: false }
 
     const local = new Map((await allDocsRaw()).map((d) => [d.id, d]))
@@ -155,14 +222,21 @@ export async function runSync(userId: string): Promise<{ ok: boolean; changed: b
         changed = true
       }
     }
+    // Written only after every row has been stored: a cursor moved past a row
+    // that was never written is a row this device will never ask for again.
+    await saveMeta(
+      cursorKey('docs', userId),
+      advanceCursor(docCursor, (data as Row[]).map((row) => Number(row.updated_at) || 0), now, docsSince === null),
+    )
 
     // Projects are pulled after documents and never fail the sync: an
     // un-migrated database should cost the user their grouping, not their
     // documents.
-    const { data: projectData, error: projectError } = await db
-      .from('projects')
-      .select('*')
-      .eq('user_id', userId)
+    const projectCursor = await loadMeta<Cursor>(cursorKey('projects', userId))
+    const projectsSince = pullSince(projectCursor, now)
+    let projectQuery = db.from('projects').select('*').eq('user_id', userId)
+    if (projectsSince !== null) projectQuery = projectQuery.gt('updated_at', projectsSince)
+    const { data: projectData, error: projectError } = await projectQuery
     if (!projectError && projectData) {
       const mineById = new Map((await allProjectsRaw()).map((p) => [p.id, p]))
       for (const row of projectData as ProjectRow[]) {
@@ -173,6 +247,15 @@ export async function runSync(userId: string): Promise<{ ok: boolean; changed: b
           changed = true
         }
       }
+      await saveMeta(
+        cursorKey('projects', userId),
+        advanceCursor(
+          projectCursor,
+          (projectData as ProjectRow[]).map((row) => Number(row.updated_at) || 0),
+          now,
+          projectsSince === null,
+        ),
+      )
     }
 
     return { ok: true, changed }

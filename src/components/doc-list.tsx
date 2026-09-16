@@ -30,8 +30,6 @@ export interface DocListProps {
   docs: Doc[]
   projects: Project[]
   currentId: string | null
-  /** When set, the list is showing search results and grouping is suspended. */
-  query: string
   onOpen: (id: string) => void
   onDelete: (id: string) => void
   /** Drop one document onto another with no project: make one holding both. */
@@ -62,7 +60,6 @@ export default function DocList({
   docs,
   projects,
   currentId,
-  query,
   onOpen,
   onDelete,
   onMerge,
@@ -338,20 +335,6 @@ export default function DocList({
           </div>
         )}
       </div>
-    )
-  }
-
-  // While searching, projects are set aside and every match is shown flat.
-  // Someone searching is looking for a document, not for where it is filed.
-  if (query.trim()) {
-    return (
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-        {docs.length === 0 ? (
-          <p className="px-2 py-3 text-[11px] text-[var(--color-faint)]">Nothing found</p>
-        ) : (
-          docs.map((item) => row(item, false))
-        )}
-      </nav>
     )
   }
 

@@ -14,7 +14,7 @@
 import type { Doc, Project } from './types'
 
 const DB_NAME = 'pad'
-const DB_VERSION = 3
+const DB_VERSION = 4
 const DOCS = 'docs'
 /** Ids of documents changed since the last successful push to the server. */
 const OUTBOX = 'outbox'
@@ -24,6 +24,8 @@ const FILES = 'files'
 const PROJECTS = 'projects'
 /** Ids of projects changed since the last successful push. */
 const PROJECT_OUTBOX = 'projectOutbox'
+/** Small values that are neither documents nor projects — sync cursors. */
+const META = 'meta'
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
@@ -56,6 +58,7 @@ function openDb(): Promise<IDBDatabase | null> {
         if (!db.objectStoreNames.contains(PROJECT_OUTBOX)) {
           db.createObjectStore(PROJECT_OUTBOX)
         }
+        if (!db.objectStoreNames.contains(META)) db.createObjectStore(META)
       }
       request.onsuccess = () => done(request.result)
       request.onerror = () => done(null)
@@ -197,4 +200,24 @@ export async function deleteFile(ref: string): Promise<void> {
 export async function acceptFromServer(doc: Doc): Promise<void> {
   memory.set(doc.id, doc)
   await run(DOCS, 'readwrite', (s) => s.put(doc))
+}
+
+/**
+ * Small bookkeeping values, kept beside the data they describe.
+ *
+ * Sync cursors live here rather than in localStorage: they belong to the same
+ * database as the documents they are a position within, so clearing one and
+ * keeping the other cannot happen. A missing value is always safe — it means a
+ * full reconcile next time, which is slower and never wrong.
+ */
+const metaMemory = new Map<string, unknown>()
+
+export async function saveMeta(key: string, value: unknown): Promise<void> {
+  metaMemory.set(key, value)
+  await run(META, 'readwrite', (s) => s.put(value, key))
+}
+
+export async function loadMeta<T>(key: string): Promise<T | null> {
+  const stored = await run<T>(META, 'readonly', (s) => s.get(key) as IDBRequest<T>)
+  return stored ?? ((metaMemory.get(key) as T | undefined) ?? null)
 }

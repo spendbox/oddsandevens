@@ -108,6 +108,28 @@ to work, it is the wrong shape for this app.
   document. `shared_docs` has its own public-read policy and only holds what
   was deliberately published.
 
+- **The Library is a way in, not a place.** Dropped files become ordinary
+  documents in the ordinary sidebar — searchable, answerable, syncable like
+  everything else. It reuses the readers that already exist (`pdf.ts`,
+  `docx.ts`, the clipboard parser), which is why a library needs no editor, no
+  store and no document shape of its own. Give it one and it becomes a second
+  application inside the first.
+- **Titles come from the contents first, the filename second.** A heading at
+  the top wins, because a document that has one has already said what it is;
+  then the filename, but only when it says anything — `scan_0012`,
+  `IMG_20240211` and `Document (3)` are exactly the files that need a title,
+  and taking their names would title a tenancy agreement "Scan 0012".
+  `isUninformativeName` is the test, and it is the thing to fix when a title
+  comes out wrong.
+- **The model improves the filing; it is not what makes it exist.** Every title
+  and summary is produced locally first and shown either way, so no key, no
+  network and a refusal all cost quality rather than the import. The reply is
+  parsed forgivingly for the same reason: one malformed entry must not lose a
+  batch of forty documents.
+- **Nothing is filed until it has been seen.** Titles are editable in the
+  review list and the batch can be thrown away whole. A project is offered only
+  where at least two documents share a subject — a project of one is a folder
+  with a single file in it.
 - **A project is the axis above a document, not a block type.** The "one rule"
   covers the tools inside a document; grouping documents is a different thing
   and correctly lives outside it. Keep a project thin — the moment it carries
@@ -118,6 +140,15 @@ to work, it is the wrong shape for this app.
   devices end up showing different contents for the same project. A document
   naming a project that does not exist is shown as ungrouped, never hidden: a
   dangling id is recoverable, a vanished document looks like data loss.
+- **A pull fetches what changed, not everything.** Each table keeps a cursor —
+  the newest `updatedAt` this device has accepted — in the `meta` store beside
+  the documents, and asks only for rows past it. Asking for every row every
+  twenty seconds is invisible with five documents and megabytes over a phone
+  connection with five hundred. Two things stop the cursor losing a row: it
+  reaches back a minute beyond itself, because `updatedAt` comes from whichever
+  device made the edit and clocks disagree, and every half hour it is ignored
+  for a full reconcile. A cursor moves only to a timestamp actually seen, never
+  to "now", and is written only after every row it covers has been stored.
 - **Projects push before documents in sync**, so a document naming a new
   project never lands on a device that has not heard of it. Project sync never
   fails the run: an un-migrated database should cost the user their grouping,
@@ -173,6 +204,29 @@ to work, it is the wrong shape for this app.
 - **The API key lives only on the server.** `src/app/api/ai/route.ts` is the
   one server route in this app, and the only reason it exists. A key in client
   code is a key anyone can read out of the bundle and spend.
+- **Search is one thing, not two.** A box that filters the list of file names
+  and a box that searches inside documents behave differently and teach people
+  to distrust both. `src/lib/search.ts` is a BM25 index over everything, built
+  once per opening of the panel — never per keystroke, because it is linear in
+  the size of the whole collection.
+- **Every query word must appear — unless that finds nothing.** Requiring all
+  of them stops a two-word search returning everything containing either.
+  Requiring all of them also returns nothing for a whole sentence, so strict
+  runs first and the relaxed pass is the fallback.
+- **A question's asking words are not search terms.** "What did I *write
+  about* the Lagos meeting" is a question about Lagos; `write` and `about`
+  appear in no note, and requiring them found nothing at all. `queryTerms`
+  drops that vocabulary from questions only — a search for the word "said"
+  must still find it.
+- **Retrieval happens on the device, and only passages are sent.** The local
+  index picks the notes, `src/lib/ask.ts` cuts the matching passages out of
+  them, and those go to the model. The collection never leaves the machine,
+  the cost of a question does not grow with how much has been written, and
+  every claim comes back carrying the note it came from. An answer that cannot
+  show its source has to be either trusted completely or checked completely.
+- **A document with no title is called by its first line.** The caret starts in
+  the body, so plenty of notes never get a title; three rows reading "Untitled"
+  tell the reader nothing. `docLabel` is the one place that decides.
 - **Writing help never changes the document on its own.** Every result is
   shown and applied only on request. An assistant that silently rewrites what
   someone wrote is one they stop trusting the first time it makes a sentence

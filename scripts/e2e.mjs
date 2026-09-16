@@ -202,12 +202,127 @@ await page.keyboard.type('Shopping list')
 await page.waitForTimeout(300)
 const docCount = await page.locator('nav [class*="group/doc"]').count()
 log('a second document can be created', docCount >= 2, `${docCount} in sidebar`)
-await page.locator('[aria-label="Search documents"]').fill('invoice')
+
+// Search: the panel, not a filter on the list of names.
+await page.keyboard.press('Control+k')
 await page.waitForTimeout(400)
-const searchHits = await page.locator('nav [class*="group/doc"]').count()
+log('Ctrl+K opens search', await page.locator('input[aria-label="Search everything"]').isVisible())
+await page.locator('input[aria-label="Search everything"]').fill('invoice')
+await page.waitForTimeout(400)
+const searchHits = await page.locator('[role="dialog"][aria-label="Search"] button[data-active]').count()
 log('search finds text inside a document body', searchHits === 1, `${searchHits} result(s) for "invoice"`)
+const highlighted = await page.locator('[role="dialog"] mark').first().innerText().catch(() => '')
+log('a result shows the passage that matched, with the word picked out', /invoice/i.test(highlighted), highlighted)
 await page.screenshot({ path: `${SHOTS}/09-search.png` })
-await page.locator('[aria-label="Search documents"]').fill('')
+
+// Half a word is enough, which is what makes it usable while typing.
+await page.locator('input[aria-label="Search everything"]').fill('invo')
+await page.waitForTimeout(400)
+log(
+  'a half-typed word finds the whole one',
+  (await page.locator('[role="dialog"][aria-label="Search"] button[data-active]').count()) === 1,
+)
+
+// Enter opens the highlighted result.
+await page.keyboard.press('Enter')
+await page.waitForTimeout(700)
+log(
+  'pressing Enter opens the top result',
+  (await page.evaluate(() => document.body.innerText)).includes('Send the invoice'),
+)
+log(
+  'opening a result closes the panel',
+  !(await page.locator('input[aria-label="Search everything"]').isVisible().catch(() => false)),
+)
+
+// Nothing found says so rather than showing everything.
+await page.keyboard.press('Control+k')
+await page.waitForTimeout(300)
+await page.locator('input[aria-label="Search everything"]').fill('zzzznothinghere')
+await page.waitForTimeout(400)
+log(
+  'a search with no matches says so',
+  (await page.evaluate(() => document.body.innerText)).includes('Nothing matches'),
+)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+log('Escape closes search', !(await page.locator('input[aria-label="Search everything"]').isVisible().catch(() => false)))
+
+/*
+  Asking a question of every note.
+
+  The model itself is stubbed — this run has no API key, and a test that
+  depends on one is a test that does not run. What is checked here is
+  everything around it, which is where the bugs live: that retrieval happens
+  on the device and sends only passages, that the answer's citations resolve
+  to real documents, and that a note nobody asked about is not shipped off.
+*/
+let askPayload = null
+await page.route('**/api/ai', async (route) => {
+  const request = route.request()
+  if (request.method() === 'GET') {
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ configured: true }) })
+  }
+  askPayload = request.postDataJSON()
+  return route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ text: 'You said you would send the invoice on Friday [1].' }),
+  })
+})
+// A fresh load, because whether a key is configured is asked once per visit.
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForTimeout(900)
+
+await page.keyboard.press('Control+k')
+await page.waitForTimeout(400)
+await page.locator('input[aria-label="Search everything"]').fill('what did I say about the invoice')
+await page.waitForTimeout(500)
+log('a question offers to answer itself', await page.locator('[data-ask-row]').isVisible())
+await page.screenshot({ path: `${SHOTS}/09b-ask.png` })
+
+await page.keyboard.press('Enter')
+await page.waitForTimeout(900)
+log(
+  'the answer is shown',
+  (await page.locator('[role="region"][aria-label="Answer"]').innerText()).includes('send the invoice'),
+)
+log('retrieval happens on the device: passages are sent, not documents', !!askPayload?.sources?.length)
+log(
+  'each source is numbered and named',
+  askPayload?.sources?.every((s, i) => s.n === i + 1 && typeof s.title === 'string' && s.text.length > 0),
+)
+log(
+  'the question is sent as asked',
+  askPayload?.question === 'what did I say about the invoice',
+)
+log(
+  'the note the answer came from is listed under it',
+  (await page.locator('[role="region"][aria-label="Answer"] button').count()) >= 2,
+)
+await page.screenshot({ path: `${SHOTS}/09c-answer.png` })
+
+// The citation is a way back to the note, not decoration.
+await page.locator('[role="region"][aria-label="Answer"] button').last().click()
+await page.waitForTimeout(800)
+log(
+  'clicking a citation opens that note',
+  (await page.evaluate(() => document.body.innerText)).includes('Send the invoice'),
+)
+
+// Back to the real route for everything that follows.
+await page.unroute('**/api/ai')
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForTimeout(800)
+await page.keyboard.press('Control+k')
+await page.waitForTimeout(400)
+await page.locator('input[aria-label="Search everything"]').fill('what did I say about the invoice')
+await page.waitForTimeout(500)
+log(
+  'with no key configured, asking is not offered at all',
+  (await page.locator('[data-ask-row]').count()) === 0,
+)
+await page.keyboard.press('Escape')
 await page.waitForTimeout(300)
 
 // Dark mode.
@@ -231,6 +346,47 @@ const noHorizontalScroll = await mobile.evaluate(
   () => document.documentElement.scrollWidth <= window.innerWidth + 1,
 )
 log('no horizontal scroll on a phone', noHorizontalScroll)
+
+// Search on a phone. It reaches the header directly, because the sidebar is
+// a drawer there and a search that starts with "open the menu" is one people
+// stop using.
+await mobile.locator('[aria-label="Search"]').first().click()
+await mobile.waitForTimeout(500)
+const sheet = await mobile.locator('[role="dialog"][aria-label="Search"]').boundingBox()
+log(
+  'search fills the screen on a phone, above the keyboard',
+  !!sheet && sheet.width >= 380 && sheet.height >= 700,
+  sheet ? `${Math.round(sheet.width)}x${Math.round(sheet.height)}` : 'missing',
+)
+await mobile.locator('input[aria-label="Search everything"]').fill('invoice')
+await mobile.waitForTimeout(500)
+await mobile.screenshot({ path: `${SHOTS}/11b-mobile-search.png` })
+log(
+  'a phone search finds the same thing a desktop one does',
+  (await mobile.locator('[role="dialog"][aria-label="Search"] button[data-active]').count()) >= 1,
+)
+const insideViewport = await mobile.evaluate(() => {
+  const dialog = document.querySelector('[role="dialog"][aria-label="Search"]')
+  return !dialog || dialog.getBoundingClientRect().right <= window.innerWidth + 1
+})
+log('nothing in the search sheet runs off the side', insideViewport)
+await mobile.keyboard.press('Escape')
+await mobile.waitForTimeout(300)
+
+// The library, reached through the drawer.
+await mobile.locator('[aria-label="Open menu"]').first().click()
+await mobile.waitForTimeout(500)
+await mobile.locator('button:has-text("Library")').first().click()
+await mobile.waitForTimeout(500)
+const libraryBox = await mobile.locator('[role="dialog"][aria-label="Library"]').boundingBox()
+log(
+  'the library opens full screen on a phone',
+  !!libraryBox && libraryBox.width >= 380,
+  libraryBox ? `${Math.round(libraryBox.width)}x${Math.round(libraryBox.height)}` : 'missing',
+)
+await mobile.screenshot({ path: `${SHOTS}/11c-mobile-library.png` })
+await mobile.keyboard.press('Escape')
+await mobile.waitForTimeout(300)
 
 // --- Layout: collapsing sidebar, alignment, reordering ----------------------
 await page.locator('[aria-label="Collapse sidebar"]').click()
@@ -983,6 +1139,156 @@ await page.waitForTimeout(200)
     'a permanently deleted document does not come back',
     !(await page.evaluate(() => document.body.innerText)).includes('Disposable'),
   )
+}
+
+/*
+  The Library: a pile of badly named files in, titled documents out.
+
+  The first run has no key configured, which is the path most people are on
+  and the one that has to work on its own: titles come from the contents.
+*/
+{
+  const tenancy = join(FIXTURES, 'scan_0012.txt')
+  writeFileSync(
+    tenancy,
+    'TENANCY AGREEMENT\n\nThis agreement is made between the landlord and the tenant for the flat at 14 Bourdillon Road, and runs for twelve months from March.\n',
+  )
+  const receipt = join(FIXTURES, 'IMG_20240211.txt')
+  writeFileSync(
+    receipt,
+    'Receipt for printing\n\nPaid forty thousand naira to the printer for the March run of brochures.\n',
+  )
+  const named = join(FIXTURES, 'Lagos budget 2026.txt')
+  writeFileSync(named, 'Figures for the year, by quarter. Nothing is agreed yet.\n')
+
+  await page.locator('button:has-text("Library")').first().click()
+  await page.waitForTimeout(500)
+  log('the library opens from the sidebar', await page.locator('[role="dialog"][aria-label="Library"]').isVisible())
+
+  await page.locator('input[aria-label="Choose documents"]').setInputFiles([tenancy, receipt, named])
+  await page.waitForTimeout(2500)
+  await page.screenshot({ path: `${SHOTS}/17-library.png` })
+
+  const titles = await page
+    .locator('[role="dialog"][aria-label="Library"] input[aria-label^="Title"]')
+    .evaluateAll((els) => els.map((el) => el.value))
+  log('every dropped file is listed for review', titles.length === 3, JSON.stringify(titles))
+  log(
+    'a file called scan_0012 is titled from what is inside it',
+    /tenancy/i.test(titles[0] ?? ''),
+    titles[0],
+  )
+  log(
+    'a file somebody named keeps its name',
+    /lagos budget/i.test(titles[2] ?? ''),
+    titles[2],
+  )
+  log(
+    'each one says what it covers',
+    (await page.locator('[role="dialog"][aria-label="Library"]').innerText()).includes('Bourdillon'),
+  )
+
+  // Nothing is added until it is asked for.
+  const before = await page.locator('nav [data-doc-id]').count()
+  await page.locator('[role="dialog"][aria-label="Library"] button:has-text("Add 3")').click()
+  await page.waitForTimeout(1200)
+  const after = await page.locator('nav [data-doc-id]').count()
+  log('adding the batch puts them in the ordinary sidebar', after === before + 3, `${before} → ${after}`)
+  log(
+    'the contents came through, not just the title',
+    (await page.evaluate(() => document.body.innerText)).includes('Bourdillon Road'),
+  )
+  await page.screenshot({ path: `${SHOTS}/18-library-added.png` })
+
+  // And they are searchable like anything else, which is the whole point of
+  // not giving the library a store of its own.
+  await page.keyboard.press('Control+k')
+  await page.waitForTimeout(400)
+  await page.locator('input[aria-label="Search everything"]').fill('Bourdillon')
+  await page.waitForTimeout(500)
+  log(
+    'an imported document is searchable like the rest',
+    (await page.locator('[role="dialog"][aria-label="Search"] button[data-active]').count()) >= 1,
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+}
+
+/*
+  The second run stubs the filing model, to check the two things only it can
+  do: better titles than a first line, and putting documents that share a
+  subject into a project.
+*/
+{
+  await page.route('**/api/ai', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ configured: true }) })
+    }
+    const body = request.postDataJSON()
+    if (body.action !== 'file') return route.continue()
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        text: JSON.stringify([
+          { n: 1, title: 'Tenancy agreement, Bourdillon Road', summary: 'A twelve month lease.', topic: 'property' },
+          { n: 2, title: 'Deed of assignment', summary: 'Transfer of the same flat.', topic: 'property' },
+        ]),
+      }),
+    })
+  })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+
+  const one = join(FIXTURES, 'scan_0044.txt')
+  writeFileSync(one, 'Some agreement about a flat, poorly scanned.\n')
+  const two = join(FIXTURES, 'scan_0045.txt')
+  writeFileSync(two, 'Another document about the same flat.\n')
+
+  await page.locator('button:has-text("Library")').first().click()
+  await page.waitForTimeout(500)
+  await page.locator('input[aria-label="Choose documents"]').setInputFiles([one, two])
+  await page.waitForTimeout(2500)
+  const panel = page.locator('[role="dialog"][aria-label="Library"]')
+  // Titles are inputs, so they are read as values — innerText cannot see them.
+  const filedTitles = await panel
+    .locator('input[aria-label^="Title"]')
+    .evaluateAll((els) => els.map((el) => el.value))
+  log(
+    'a better title replaces the one worked out on the device',
+    filedTitles.includes('Deed of assignment'),
+    JSON.stringify(filedTitles),
+  )
+  log(
+    'documents about the same thing are offered as a project',
+    (await panel.innerText()).includes('Property'),
+  )
+  await page.screenshot({ path: `${SHOTS}/19-library-filed.png` })
+
+  await panel.locator('button:has-text("Add 2")').click()
+  await page.waitForTimeout(1400)
+  // The project name is an editable input in the sidebar, so it too is read
+  // as a value rather than as text.
+  const projectNames = await page
+    .locator('nav input[aria-label="Project name"]')
+    .evaluateAll((els) => els.map((el) => el.value))
+  log(
+    'the project is made',
+    projectNames.includes('Property'),
+    JSON.stringify(projectNames),
+  )
+  // The member rows are siblings of the project header, not children of it.
+  const inProject = await page.evaluate(() => {
+    const header = [...document.querySelectorAll('nav [data-project-id]')].find(
+      (el) => el.querySelector('input')?.value === 'Property',
+    )
+    return header?.parentElement?.querySelectorAll('[data-doc-id]').length ?? -1
+  })
+  log('and both documents are in it', inProject === 2, `${inProject} in the project`)
+  await page.screenshot({ path: `${SHOTS}/20-library-project.png` })
+
+  await page.unroute('**/api/ai')
 }
 
 // Manifest + service worker, the installable part.

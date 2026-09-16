@@ -1,5 +1,6 @@
 import { newId } from './id.ts'
-import type { Block, BlockType } from './types'
+import type { PastedBlock } from './paste.ts'
+import { isTextish, type Block, type BlockType, type Doc } from './types.ts'
 
 /**
  * Makes an empty block of a given type. One factory, so a block created by
@@ -123,4 +124,50 @@ export function docPreview(blocks: Block[]): string {
     if (block.type === 'file') return block.name || 'File'
   }
   return 'Empty'
+}
+
+/**
+ * What to call a document on screen.
+ *
+ * Titles are optional here — the app opens with the caret in the body, and
+ * plenty of notes never get one. "Untitled" three times in a list of search
+ * results tells the reader nothing, so a document without a title is called
+ * by its first line instead, which is what they would call it themselves.
+ */
+export function docLabel(doc: Doc): string {
+  const title = doc.title.trim()
+  if (title) return title
+  // A heading at the top is the document naming itself, and is a far better
+  // label than the paragraph under it. docPreview skips headings — it is the
+  // line shown *beneath* a name — so this has to look for one itself.
+  const heading = doc.blocks.find((block) => block.type === 'heading' && block.text.trim())
+  if (heading && heading.type === 'heading') {
+    const text = heading.text.trim()
+    return text.length > 60 ? `${text.slice(0, 60).trimEnd()}…` : text
+  }
+  const preview = docPreview(doc.blocks)
+  if (preview === 'Empty') return 'Untitled'
+  return preview.length > 60 ? `${preview.slice(0, 60).trimEnd()}…` : preview
+}
+
+/**
+ * Turns parsed content — a paste, an imported file, a result from the writing
+ * assistant — into real blocks.
+ *
+ * One conversion, used by all three. It lived twice inside the editor, and two
+ * copies of "which fields does a todo carry" is how one of them quietly stops
+ * carrying indentation.
+ */
+export function blocksFromPasted(pasted: PastedBlock[]): Block[] {
+  return pasted.map((item) => {
+    const made = makeBlock(item.type, item.level)
+    if (isTextish(made) || made.type === 'todo') {
+      made.text = item.text
+      made.html = item.html
+      made.indent = item.indent
+    }
+    if (made.type === 'todo' && item.done) made.done = true
+    if (made.type === 'code') made.code = item.text
+    return made
+  })
 }
