@@ -1,7 +1,7 @@
 'use client'
 
-import { ChevronDown, MoreHorizontal, Star, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronDown, GripVertical, MoreHorizontal, Star, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { docLabel, docPreview } from '@/lib/blocks'
 import type { Doc, Project } from '@/lib/types'
 import DocIcon from './doc-icon'
@@ -39,7 +39,67 @@ export interface DocListProps {
   onMove: (docId: string, projectId: string | null) => void
   /** Puts a document into a brand new project of its own. */
   onNewProject: (docId: string) => void
+  /** Drop one document onto another with no folder: make one holding both. */
+  onMerge: (draggedId: string, targetId: string) => void
 }
+
+/** How far a pointer must travel before this counts as a drag and not a tap. */
+const DRAG_THRESHOLD = 6
+
+interface DragState {
+  id: string
+  /** The document row being hovered, if any. */
+  overDoc: string | null
+  /** The folder heading being hovered, if any. */
+  overFolder: string | null
+}
+
+/** Where the folded sections are remembered. */
+const SHUT_KEY = 'pad-sidebar-sections'
+
+/**
+ * Which sections are folded, read from outside React.
+ *
+ * Through `useSyncExternalStore` rather than a lazy `useState` that reads
+ * localStorage, because this component is rendered on the server too: the
+ * server has no localStorage, so a lazy initial state disagreed with the first
+ * client render and React threw a hydration error on every load for anyone who
+ * had ever folded a section. The same tool, and the same reason, as the theme
+ * in lib/ui-prefs.ts.
+ *
+ * The snapshot is the raw string, because `useSyncExternalStore` compares
+ * snapshots by identity and a freshly parsed Set is a new object every time —
+ * which is an infinite render loop rather than a stale value.
+ */
+const shutListeners = new Set<() => void>()
+
+function subscribeShut(listener: () => void) {
+  shutListeners.add(listener)
+  return () => {
+    shutListeners.delete(listener)
+  }
+}
+
+function readShut(): string {
+  try {
+    return localStorage.getItem(SHUT_KEY) ?? ''
+  } catch {
+    // Blocked site data, a private window. A sidebar that always opens is a
+    // much smaller problem than one that throws on load.
+    return ''
+  }
+}
+
+function writeShut(value: string) {
+  try {
+    localStorage.setItem(SHUT_KEY, value)
+  } catch {
+    // It costs the memory of a fold, not the fold itself.
+  }
+  for (const listener of shutListeners) listener()
+}
+/** The drop target that means "out of every folder". */
+const LOOSE = '__loose__'
 
 /**
  * How many recent documents the sidebar shows before it has to be asked.
@@ -60,11 +120,115 @@ export default function DocList({
   onFavorite,
   onMove,
   onNewProject,
+  onMerge,
 }: DocListProps) {
   /** Which row has its menu open. */
   const [menuFor, setMenuFor] = useState<string | null>(null)
   /** Whether Recent has been asked for the rest of itself. */
   const [allRecent, setAllRecent] = useState(false)
+  /**
+   * Which sections are folded away.
+   *
+   * Remembered on this device rather than in a document, because it is about
+   * this screen — the same reason the theme and the width live there.
+   * Everything starts open: a sidebar that opens empty is a sidebar nobody can
+   * use without first working out that it folds.
+   */
+  const rawShut = useSyncExternalStore(subscribeShut, readShut, () => '')
+  const shut = useMemo<Set<string>>(() => {
+    if (!rawShut) return new Set()
+    try {
+      return new Set(JSON.parse(rawShut) as string[])
+    } catch {
+      return new Set()
+    }
+  }, [rawShut])
+
+  const toggleSection = (key: string) => {
+    const next = new Set(shut)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    writeShut(JSON.stringify([...next]))
+  }
+
+  /**
+   * Dragging one row onto another, which is how a folder gets made.
+   *
+   * Pointer events rather than HTML5 drag-and-drop, because `dragstart` never
+   * fires on a touch screen. The pointer is captured only once it has actually
+   * travelled far enough to be a drag — capturing on pointerdown retargets the
+   * `click` that follows to the capturing element, which silently kills every
+   * button inside the row.
+   */
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const start = useRef<{ id: string; x: number; y: number; moved: boolean } | null>(null)
+  /** Set for one tick after a real drag, so the click that follows is ignored. */
+  const justDragged = useRef(false)
+
+  const beginDrag = (event: React.PointerEvent, id: string) => {
+    start.current = { id, x: event.clientX, y: event.clientY, moved: false }
+  }
+
+  const moveDrag = (event: React.PointerEvent) => {
+    const from = start.current
+    if (!from) return
+    if (!from.moved) {
+      const far =
+        Math.abs(event.clientX - from.x) > DRAG_THRESHOLD ||
+        Math.abs(event.clientY - from.y) > DRAG_THRESHOLD
+      if (!far) return
+      from.moved = true
+      try {
+        ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+      } catch {
+        // A pointer already released cannot be captured; the drag then runs on
+        // bubbling events instead, which is no worse.
+      }
+      setDrag({ id: from.id, overDoc: null, overFolder: null })
+    }
+    const under = document.elementFromPoint(event.clientX, event.clientY)
+    const overDoc = under?.closest<HTMLElement>('[data-doc-id]')?.dataset.docId ?? null
+    const overFolder = under?.closest<HTMLElement>('[data-folder-id]')?.dataset.folderId ?? null
+    setDrag((current) =>
+      current
+        ? {
+            ...current,
+            overDoc: overDoc && overDoc !== from.id ? overDoc : null,
+            overFolder,
+          }
+        : current,
+    )
+  }
+
+  const endDrag = () => {
+    const from = start.current
+    const state = drag
+    start.current = null
+    setDrag(null)
+    if (from?.moved) {
+      justDragged.current = true
+      setTimeout(() => {
+        justDragged.current = false
+      }, 0)
+    }
+    if (!from?.moved || !state) return
+
+    if (state.overFolder) {
+      onMove(state.id, state.overFolder === LOOSE ? null : state.overFolder)
+      return
+    }
+    if (state.overDoc) {
+      const target = docs.find((d) => d.id === state.overDoc)
+      if (!target) return
+      // Dropping onto a document already in a folder joins that folder;
+      // dropping onto a loose one makes a folder holding both.
+      if (target.projectId) onMove(state.id, target.projectId)
+      else onMerge(state.id, target.id)
+    }
+  }
+
+  /** True when this click is the tail of a drag and should be ignored. */
+  const fromDrag = () => justDragged.current || !!start.current?.moved
 
   useEffect(() => {
     if (!menuFor) return
@@ -114,6 +278,8 @@ export default function DocList({
 
   const row = (item: Doc) => {
     const starred = !!item.favoritedAt
+    const dragging = drag?.id === item.id
+    const isTarget = drag?.overDoc === item.id
     return (
       <div
         key={item.id}
@@ -122,12 +288,43 @@ export default function DocList({
           currentId === item.id
             ? 'bg-[var(--color-accent-soft)]'
             : 'hover:bg-[var(--color-hover)]'
+        } ${dragging ? 'opacity-40' : ''} ${
+          // A ring rather than a line: the drop makes a container, and a ring
+          // is what "these two become one thing" looks like.
+          isTarget ? 'ring-2 ring-[var(--color-accent)] ring-inset' : ''
         }`}
+        onPointerDown={(e) => {
+          // Touch is left to scroll the list; on a touch screen the grip is
+          // the way to drag, and the row menu does everything a drag does.
+          if (e.pointerType === 'touch') return
+          beginDrag(e, item.id)
+        }}
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={() => {
+          start.current = null
+          setDrag(null)
+        }}
       >
+        <span
+          aria-hidden
+          title="Drag onto another document to put them in a folder"
+          className="ml-0.5 hidden shrink-0 cursor-grab touch-none text-[var(--color-faint)] opacity-0 group-hover/doc:opacity-100 sm:block"
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            beginDrag(e, item.id)
+          }}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+        >
+          <GripVertical size={12} />
+        </span>
         <button
           type="button"
-          onClick={() => onOpen(item.id)}
-          className="flex min-w-0 flex-1 items-start gap-2 py-1.5 pr-1 pl-2 text-left"
+          onClick={() => {
+            if (!fromDrag()) onOpen(item.id)
+          }}
+          className="flex min-w-0 flex-1 items-start gap-2 py-1.5 pr-1 pl-1 text-left"
         >
           <DocIcon doc={item} size={15} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
           <span className="min-w-0">
@@ -141,7 +338,10 @@ export default function DocList({
           type="button"
           aria-label={starred ? `Remove ${docLabel(item)} from favourites` : `Add ${docLabel(item)} to favourites`}
           aria-pressed={starred}
-          onClick={() => onFavorite(item.id, !starred)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => {
+            if (!fromDrag()) onFavorite(item.id, !starred)
+          }}
           className={`shrink-0 rounded p-1 transition-opacity hover:text-[var(--color-ink)] ${
             starred
               ? 'text-[var(--color-accent)]'
@@ -154,7 +354,10 @@ export default function DocList({
           type="button"
           aria-label={`Actions for ${docLabel(item)}`}
           aria-expanded={menuFor === item.id}
-          onClick={() => setMenuFor(menuFor === item.id ? null : item.id)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => {
+            if (!fromDrag()) setMenuFor(menuFor === item.id ? null : item.id)
+          }}
           className="mr-1 shrink-0 rounded p-1 text-[var(--color-faint)] opacity-60 transition-opacity group-focus-within/doc:opacity-100 group-hover/doc:opacity-100 hover:text-[var(--color-ink)] sm:opacity-0"
         >
           <MoreHorizontal size={14} />
@@ -200,13 +403,44 @@ export default function DocList({
         The folder first, because it is the only one of the three that is about
         the document currently open — the others are about the collection.
       */}
-      {folder.length > 1 && (
-        <Section label={currentProject?.name || 'This folder'}>{folder.map(row)}</Section>
+      {folder.length > 1 && currentProject && (
+        <Section
+          id="folder"
+          label={currentProject.name || 'This folder'}
+          count={folder.length}
+          dropId={currentProject.id}
+          drag={drag}
+          shut={shut.has('folder')}
+          onToggle={toggleSection}
+        >
+          {folder.map(row)}
+        </Section>
       )}
 
-      {favorites.length > 0 && <Section label="Favourites">{favorites.map(row)}</Section>}
+      {favorites.length > 0 && (
+        <Section
+          id="favourites"
+          label="Favourites"
+          count={favorites.length}
+          drag={drag}
+          shut={shut.has('favourites')}
+          onToggle={toggleSection}
+        >
+          {favorites.map(row)}
+        </Section>
+      )}
 
-      <Section label="Recent">
+      <Section
+        id="recent"
+        label="Recent"
+        count={rest.length}
+        // Dropping onto Recent takes a document out of its folder, which is
+        // the gesture that undoes a merge.
+        dropId={LOOSE}
+        drag={drag}
+        shut={shut.has('recent')}
+        onToggle={toggleSection}
+      >
         {recent.length ? (
           recent.map(row)
         ) : (
@@ -231,13 +465,58 @@ export default function DocList({
   )
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * One folding section of the sidebar.
+ *
+ * The heading is also a drop target, which is what lets a drag put a document
+ * into this document's folder, or — on Recent — take it out of the one it is
+ * in. A section that is folded away still accepts a drop: reaching a folder
+ * should not mean opening it first.
+ */
+function Section({
+  id,
+  label,
+  count,
+  dropId,
+  drag,
+  shut,
+  onToggle,
+  children,
+}: {
+  id: string
+  label: string
+  count: number
+  /** What a drop onto this heading means, or nothing when it means nothing. */
+  dropId?: string
+  drag: DragState | null
+  shut: boolean
+  onToggle: (id: string) => void
+  children: React.ReactNode
+}) {
+  const isTarget = !!dropId && drag?.overFolder === dropId
   return (
-    <div className="mb-3">
-      <p className="truncate px-2 pt-2 pb-1 text-[12px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
-        {label}
-      </p>
-      {children}
+    <div className="mb-2">
+      <button
+        type="button"
+        aria-expanded={!shut}
+        onClick={() => onToggle(id)}
+        {...(dropId ? { 'data-folder-id': dropId } : {})}
+        className={`flex w-full items-center gap-1 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-[var(--color-hover)] ${
+          isTarget ? 'ring-2 ring-[var(--color-accent)] ring-inset' : ''
+        }`}
+      >
+        <ChevronDown
+          size={13}
+          className={`shrink-0 text-[var(--color-faint)] transition-transform ${
+            shut ? '-rotate-90' : ''
+          }`}
+        />
+        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
+          {label}
+        </span>
+        <span className="shrink-0 text-[12px] text-[var(--color-faint)]">{count}</span>
+      </button>
+      {!shut && children}
     </div>
   )
 }

@@ -167,6 +167,34 @@ body {
 }
 
 /*
+ * A heading stays put while its section is on screen.
+ *
+ * It parks below the toolbar rather than at the top of the scroller, because
+ * the toolbar is sticky at zero and two things stuck to the same line sit on
+ * top of each other. The background is not decoration: without it the
+ * paragraphs scrolling underneath show through the heading's own line.
+ *
+ * This works only while nothing between here and the scroller clips its
+ * overflow — `overflow-hidden` on an ancestor makes that ancestor the
+ * scrollport, and a box that does not scroll cannot make anything stick.
+ */
+.pad-sticky-heading {
+  position: sticky;
+  top: 2.6rem;
+  z-index: 10;
+  background: var(--color-paper);
+  /* A hair of padding, so descenders are not clipped by the line above. */
+  padding-block: 0.15em;
+}
+
+@media print {
+  /* On paper nothing scrolls, and a sticky heading only risks overlapping. */
+  .pad-sticky-heading {
+    position: static;
+  }
+}
+
+/*
  * Alignment is a property of the paragraph, so it is a class on the block
  * rather than markup inside the text. See `Align` in lib/types.ts.
  */

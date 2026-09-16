@@ -14,6 +14,7 @@ import { citedSources, gatherSources, splitCitations, type Source } from '@/lib/
 import { docLabel } from '@/lib/blocks'
 import { buildIndex, looksLikeQuestion, search, type SearchHit } from '@/lib/search'
 import type { Doc, Project } from '@/lib/types'
+import Snippet from './snippet'
 
 /**
  * Search over everything, and questions about everything, as one panel.
@@ -413,25 +414,4 @@ function AnswerCard({
   )
 }
 
-/**
- * A passage with the matched words picked out.
- *
- * Built from offsets rather than by replacing text, because the snippet is
- * somebody's own writing: anything that goes near it with a regular expression
- * and string concatenation is one step away from putting markup into it.
- */
-function Snippet({ text, highlights }: { text: string; highlights: Array<[number, number]> }) {
-  const parts: React.ReactNode[] = []
-  let at = 0
-  for (const [start, end] of highlights) {
-    if (start > at) parts.push(text.slice(at, start))
-    parts.push(
-      <mark key={start} className="rounded-[3px] bg-[var(--color-accent)]/20 text-inherit">
-        {text.slice(start, end)}
-      </mark>,
-    )
-    at = end
-  }
-  if (at < text.length) parts.push(text.slice(at))
-  return <>{parts}</>
-}
+

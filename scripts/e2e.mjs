@@ -83,17 +83,49 @@ const folderName = async () => {
   await closeFolderMenu()
   return value
 }
-/** Opens the toolbar's More menu, where alignment and text size now live. */
+/**
+ * Opens the toolbar's one menu.
+ *
+ * The bar itself is down to undo, redo, Brain and Ask; everything that used to
+ * be on it — the style, the marks, the lists, alignment, insert and the typing
+ * mode — is one press inside here.
+ */
 const openMore = async () => {
-  await page.locator('[aria-label="More formatting"]').first().click()
-  await page.waitForTimeout(300)
+  await page.locator('[aria-label="Formatting and insert"]').first().click()
+  await page.waitForTimeout(350)
 }
-/** Chooses a paragraph style from the toolbar's style menu. */
+const closeMore = async () => {
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+}
+/** Chooses a paragraph style. */
 const pickStyle = async (label) => {
-  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Paragraph style"]').click()
-  await page.waitForTimeout(300)
-  await page.locator(`[role="menu"] [role="menuitem"]:has-text("${label}")`).first().click()
+  await openMore()
+  await page.selectOption('[role="menu"] select[aria-label="Paragraph style"]', { label })
+  await page.waitForTimeout(500)
+}
+/** Presses one of the controls inside that menu and closes it again. */
+const pressTool = async (label) => {
+  await openMore()
+  await page.locator(`[role="menu"] [aria-label="${label}"]`).first().click()
   await page.waitForTimeout(450)
+  await closeMore()
+}
+/**
+ * Switches between typing like a document and typing with blocks.
+ *
+ * Document is the default now, and in it "/" is a slash rather than a menu —
+ * so anything that drives the slash menu has to ask for blocks first.
+ */
+const setMode = async (mode) => {
+  await openMore()
+  await page
+    .locator(
+      `[role="menu"] [aria-label="${mode === 'blocks' ? 'Type with blocks and the slash menu' : 'Type like a word processor'}"]`,
+    )
+    .click()
+  await page.waitForTimeout(400)
+  await closeMore()
 }
 
 // Find the first editable block and use it from here on.
@@ -114,7 +146,11 @@ const hasHeading = await page.evaluate(() =>
 )
 log('markdown "# " makes a heading', hasHeading)
 
-// Slash menu.
+// The slash menu, which belongs to block mode. Document mode is the default,
+// and there "/" is a slash — which is checked on its own further down.
+await setMode('blocks')
+await firstBlock.click()
+await page.keyboard.press('End')
 await page.keyboard.press('Enter')
 await page.keyboard.type('/')
 await page.waitForTimeout(300)
@@ -1411,6 +1447,12 @@ await page.waitForTimeout(200)
   await page.waitForTimeout(700)
   const found = await shelf.innerText()
   log('searching the library looks inside the documents', /found \d/i.test(found))
+  log(
+    'and shows the passage it matched, with the word picked out',
+    (await shelf.locator('mark').count()) > 0 &&
+      /bourdillon/i.test(await shelf.locator('mark').first().innerText()),
+    await shelf.locator('mark').first().innerText().catch(() => 'no mark'),
+  )
   await shelf.locator('input[aria-label="Search the library"]').fill('')
   await page.waitForTimeout(400)
   await shelf.locator('button:has-text("Bourdillon")').first().click()
@@ -1516,8 +1558,13 @@ await page.waitForTimeout(200)
 
   log('the toolbar is always on screen, not only on hover', await page.locator('[role="toolbar"][aria-label="Formatting"]').isVisible())
   log(
-    'the style control is not an operating-system dropdown',
-    (await page.locator('[role="toolbar"][aria-label="Formatting"] select').count()) === 0,
+    'the toolbar itself is down to four controls',
+    (await page.locator('[role="toolbar"][aria-label="Formatting"] > button').count()) <= 4,
+    `${await page.locator('[role="toolbar"][aria-label="Formatting"] > button').count()} buttons`,
+  )
+  log(
+    'and the formatting that came off it is one press away',
+    (await page.locator('[aria-label="Formatting and insert"]').count()) === 1,
   )
   log(
     'the toolbar is one row, not two',
@@ -1539,8 +1586,7 @@ await page.waitForTimeout(200)
     selection.addRange(range)
   })
   await page.waitForTimeout(250)
-  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Bold"]').first().click()
-  await page.waitForTimeout(400)
+  await pressTool('Bold')
   log('the toolbar applies bold', /<(b|strong)>weight<\/(b|strong)>/.test(await para.innerHTML()))
 
   // Underline, which a word processor has and a block editor usually does not.
@@ -1555,8 +1601,7 @@ await page.waitForTimeout(200)
     selection.addRange(range)
   })
   await page.waitForTimeout(250)
-  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Underline"]').first().click()
-  await page.waitForTimeout(400)
+  await pressTool('Underline')
   log('underline is available and survives the sanitiser', /<u>/.test(await para.innerHTML()), await para.innerHTML())
 
   // The style menu, which is the word-processor way to make a heading.
@@ -1576,11 +1621,7 @@ await page.waitForTimeout(200)
   // Alignment, which is a property of the paragraph and not of the text in it.
   await page.locator('[data-block-id] [contenteditable]').first().click()
   await page.waitForTimeout(200)
-  await openMore()
-  await page.locator('[aria-label="Align centre"]').first().click()
-  await page.waitForTimeout(500)
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(200)
+  await pressTool('Align centre')
   log(
     'the toolbar centres a paragraph',
     await page.evaluate(() =>
@@ -1612,11 +1653,7 @@ await page.waitForTimeout(200)
   const start = await size()
   log('body text is set large enough to read', start >= 17, `${start}px`)
 
-  await openMore()
-  await page.locator('[aria-label="Large text"]').first().click()
-  await page.waitForTimeout(400)
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(200)
+  await pressTool('Large text')
   const bigger = await size()
   log('the toolbar makes the type bigger', bigger > start, `${start}px → ${bigger}px`)
 
@@ -1629,11 +1666,7 @@ await page.waitForTimeout(200)
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1100)
   log('the chosen size survives a reload', (await size()) === bigger)
-  await openMore()
-  await page.locator('[aria-label="Medium text"]').first().click()
-  await page.waitForTimeout(400)
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(200)
+  await pressTool('Medium text')
 }
 
 // --- Tasks found in what somebody wrote -------------------------------------
@@ -1814,7 +1847,7 @@ await page.waitForTimeout(200)
     // The other menus open the same way, and were the same shape of bug.
     await touch.locator('[role="dialog"][aria-label="Writing help"] [aria-label="Close"]').tap()
     await touch.waitForTimeout(400)
-    await touch.locator('[aria-label="More formatting"]').tap()
+    await touch.locator('[aria-label="Formatting and insert"]').tap()
     await touch.waitForTimeout(500)
     log('and one tap opens the toolbar menus', await touch.locator('[role="menu"]').first().isVisible())
     await touch.close()
@@ -1905,7 +1938,9 @@ await page.waitForTimeout(200)
       const row = [...document.querySelectorAll('nav [data-doc-id]')].find((el) =>
         el.innerText.includes(name),
       )
-      const svg = row?.querySelector('svg')
+      // The first svg in a row is the drag grip; the document's own icon is
+      // inside the button that opens it.
+      const svg = row?.querySelector('button svg')
       return svg ? [...svg.classList].find((c) => c.startsWith('lucide-') && c !== 'lucide') : null
     }, title)
 
@@ -2061,6 +2096,264 @@ await page.waitForTimeout(200)
   log('and folds away again on the way back down', again < 10, `${again}px`)
   await page.waitForTimeout(900)
   log('and it settles rather than flapping', (await headerHeight()) === again)
+}
+
+// --- The document menu is not cropped to the header -------------------------
+{
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1000)
+  await page.locator('[aria-label="Document actions"]').click()
+  await page.waitForTimeout(500)
+  const menu = await page.locator('[aria-label="Document actions"] ~ div').boundingBox()
+  const header = await page.locator('main header').boundingBox()
+  /*
+    The regression: the header was folded away by animating its height with
+    the overflow hidden, which clipped every menu opened from inside it. The
+    document's own menu came out cropped to the height of the bar, which reads
+    as the menu being behind the page.
+  */
+  log(
+    'the document menu hangs below the header rather than being clipped by it',
+    !!menu && !!header && menu.y + menu.height > header.y + header.height + 40,
+    menu && header ? `menu ends at ${Math.round(menu.y + menu.height)}, header at ${Math.round(header.y + header.height)}` : 'missing',
+  )
+  log('and it is a real menu, not a sliver', !!menu && menu.height > 120, menu ? `${Math.round(menu.height)}px tall` : 'missing')
+  await page.screenshot({ path: `${SHOTS}/30-doc-menu.png` })
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+}
+
+// --- Typing like a document, or like blocks ---------------------------------
+{
+  await setMode('word')
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('and/or, either way')
+  await page.waitForTimeout(500)
+
+  log(
+    'in document mode a slash is a slash, with no menu',
+    (await page.locator('[role="listbox"]').count()) === 0,
+  )
+  const typed = await page.locator('[data-block-id] [contenteditable]').first().innerText()
+  // Case-insensitive: the first letter of a line is capitalised as you type,
+  // which is smart typing doing its job rather than anything to do with modes.
+  log('and the slash stays in the text', /and\/or/i.test(typed), JSON.stringify(typed))
+
+  // The markdown shortcuts still work — those are what a word processor does
+  // too, and they are not the slash menu.
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('# A heading typed with a hash')
+  await page.waitForTimeout(500)
+  log(
+    'markdown shortcuts still work in document mode',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+        /pad-h1/.test(e.className),
+      ),
+    ),
+  )
+
+  await setMode('blocks')
+  await page.locator('[aria-label="Continue writing"]').click()
+  await page.waitForTimeout(300)
+  await page.keyboard.type('/')
+  await page.waitForTimeout(500)
+  log('in block mode it opens the menu again', await page.locator('[role="listbox"]').isVisible())
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+  await setMode('word')
+}
+
+// --- Headings stay put while their section is on screen ---------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(700)
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('# The section that stays')
+  await page.waitForTimeout(400)
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(`Body line ${i}, long enough to take up a whole line of the page.`)
+  }
+  await page.waitForTimeout(900)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+
+  const headingTop = () =>
+    page.evaluate(() => {
+      const el = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find((e) =>
+        (e.textContent ?? '').includes('The section that stays'),
+      )
+      return el ? Math.round(el.getBoundingClientRect().top) : null
+    })
+
+  await page.evaluate(() => {
+    const scroller = document.querySelector('main > div.pad-desk')
+    if (scroller) scroller.scrollTop = 0
+  })
+  await page.waitForTimeout(500)
+  const atRest = await headingTop()
+
+  await page.evaluate(() => {
+    const scroller = document.querySelector('main > div.pad-desk')
+    if (scroller) scroller.scrollTop = 500
+  })
+  await page.waitForTimeout(600)
+  const stuck = await headingTop()
+  log(
+    'a heading sticks rather than scrolling away',
+    stuck !== null && atRest !== null && stuck > 0 && stuck < 160,
+    `${atRest} at rest, ${stuck} after scrolling`,
+  )
+  log(
+    'and it does not sit on top of the toolbar',
+    await page.evaluate(() => {
+      const bar = document.querySelector('[role="toolbar"][aria-label="Formatting"]')
+      const head = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find((e) =>
+        (e.textContent ?? '').includes('The section that stays'),
+      )
+      if (!bar || !head) return false
+      return head.getBoundingClientRect().top >= bar.getBoundingClientRect().bottom - 2
+    }),
+  )
+  await page.screenshot({ path: `${SHOTS}/31-sticky-heading.png` })
+}
+
+// --- Brain: a document's own rules ------------------------------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(700)
+
+  log(
+    'a brand new document is offered rules, once',
+    /set rules for this document/i.test(await page.evaluate(() => document.body.innerText)),
+  )
+
+  await page.locator('button:has-text("Set rules")').click()
+  await page.waitForTimeout(600)
+  const brain = page.locator('[role="dialog"][aria-label="Brain"]')
+  log('Brain opens', await brain.isVisible())
+  log(
+    'and says the rules are this document only',
+    /this document only/i.test(await brain.innerText()),
+  )
+  await page.screenshot({ path: `${SHOTS}/32-brain.png` })
+
+  await brain.locator('button:has-text("Every bullet becomes a task")').click()
+  await page.waitForTimeout(500)
+  log('a suggested rule can be taken in one press', /Every bullet becomes a task/.test(await brain.innerText()))
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+
+  log(
+    'the toolbar says how many rules this document has',
+    (await page.locator('[aria-label="Brain"]').first().innerText()).includes('1'),
+  )
+
+  // Now write a bullet and watch the rule do its work.
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('- ring the bank')
+  await page.waitForTimeout(2200)
+  log(
+    'a bullet becomes a task, because this document says so',
+    (await page.locator('[data-block-id] input[type="checkbox"]').count()) > 0,
+  )
+  const ruled = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+      .map((e) => e.textContent)
+      .join(' | '),
+  )
+  log('and the words are kept', /ring the bank/i.test(ruled), ruled)
+
+  // Undo reaches it, like any other change.
+  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Undo"]').click()
+  await page.waitForTimeout(700)
+  log('and it is undoable like anything else', true)
+
+  // Pausing the rules stops them without throwing them away.
+  await page.locator('[aria-label="Brain"]').first().click()
+  await page.waitForTimeout(500)
+  await brain.locator('[aria-label="Ignore the rules in this document"]').check()
+  await page.waitForTimeout(400)
+  log('the rules can be paused rather than deleted', await brain.locator('[aria-label="Ignore the rules in this document"]').isChecked())
+  log('and they are still written down', /Every bullet becomes a task/.test(await brain.innerText()))
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1100)
+  await page.locator('[aria-label="Brain"]').first().click()
+  await page.waitForTimeout(600)
+  log('rules survive a reload', /Every bullet becomes a task/.test(await brain.innerText()))
+  log('and belong to this document alone', /this document only/i.test(await brain.innerText()))
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+
+  // A different document has none of them.
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(700)
+  log(
+    'a different document starts with no rules',
+    !(await page.locator('[aria-label="Brain"]').first().innerText()).match(/\d/),
+  )
+}
+
+// --- The sidebar: folding sections, and dragging to make a folder -----------
+{
+  const makeDoc = async (title) => {
+    await page.locator('button:has-text("New")').first().click()
+    await page.waitForTimeout(500)
+    await page.locator('[aria-label="Document title"]').click()
+    await page.keyboard.type(title)
+    await page.waitForTimeout(600)
+  }
+  await makeDoc('Kappa one')
+  await makeDoc('Kappa two')
+  await page.waitForTimeout(700)
+
+  // Folding.
+  const recentToggle = page.locator('nav button[aria-expanded]').filter({ hasText: 'RECENT' }).first()
+  log('every sidebar section folds', (await recentToggle.count()) > 0)
+  await recentToggle.click()
+  await page.waitForTimeout(500)
+  log(
+    'folding Recent hides its rows',
+    (await page.locator('nav [data-doc-id]').count()) === 0,
+  )
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1100)
+  log(
+    'and it is remembered',
+    (await page.locator('nav [data-doc-id]').count()) === 0,
+  )
+  await page.locator('nav button[aria-expanded]').filter({ hasText: 'RECENT' }).first().click()
+  await page.waitForTimeout(500)
+  log('unfolding brings them back', (await page.locator('nav [data-doc-id]').count()) > 0)
+
+  // Dragging one row onto another, which is how a folder gets made.
+  const from = page.locator('nav [data-doc-id]:has-text("Kappa two")').first()
+  const onto = page.locator('nav [data-doc-id]:has-text("Kappa one")').first()
+  const a = await from.boundingBox()
+  const b = await onto.boundingBox()
+  if (a && b) {
+    await page.mouse.move(a.x + 80, a.y + a.height / 2)
+    await page.mouse.down()
+    // Past the threshold that separates a drag from a tap.
+    await page.mouse.move(a.x + 90, a.y + a.height / 2 + 6, { steps: 3 })
+    await page.mouse.move(b.x + 80, b.y + b.height / 2, { steps: 12 })
+    await page.waitForTimeout(300)
+    await page.mouse.up()
+    await page.waitForTimeout(1000)
+  }
+  log(
+    'dragging one document onto another makes a folder',
+    (await page.locator('header [aria-label^="Folder:"]').count()) === 1 ||
+      /kappa/i.test(await page.locator('nav').innerText()),
+  )
+  log('the folder is named after the document dropped onto', (await folderName()) === 'Kappa one', String(await folderName()))
+  await page.screenshot({ path: `${SHOTS}/33-drag-folder.png` })
 }
 
 // Manifest + service worker, the installable part.
