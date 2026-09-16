@@ -137,6 +137,14 @@ export function docPreview(blocks: Block[]): string {
 export function docLabel(doc: Doc): string {
   const title = doc.title.trim()
   if (title) return title
+  // A heading at the top is the document naming itself, and is a far better
+  // label than the paragraph under it. docPreview skips headings — it is the
+  // line shown *beneath* a name — so this has to look for one itself.
+  const heading = doc.blocks.find((block) => block.type === 'heading' && block.text.trim())
+  if (heading && heading.type === 'heading') {
+    const text = heading.text.trim()
+    return text.length > 60 ? `${text.slice(0, 60).trimEnd()}…` : text
+  }
   const preview = docPreview(doc.blocks)
   if (preview === 'Empty') return 'Untitled'
   return preview.length > 60 ? `${preview.slice(0, 60).trimEnd()}…` : preview

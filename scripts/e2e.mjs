@@ -347,6 +347,47 @@ const noHorizontalScroll = await mobile.evaluate(
 )
 log('no horizontal scroll on a phone', noHorizontalScroll)
 
+// Search on a phone. It reaches the header directly, because the sidebar is
+// a drawer there and a search that starts with "open the menu" is one people
+// stop using.
+await mobile.locator('[aria-label="Search"]').first().click()
+await mobile.waitForTimeout(500)
+const sheet = await mobile.locator('[role="dialog"][aria-label="Search"]').boundingBox()
+log(
+  'search fills the screen on a phone, above the keyboard',
+  !!sheet && sheet.width >= 380 && sheet.height >= 700,
+  sheet ? `${Math.round(sheet.width)}x${Math.round(sheet.height)}` : 'missing',
+)
+await mobile.locator('input[aria-label="Search everything"]').fill('invoice')
+await mobile.waitForTimeout(500)
+await mobile.screenshot({ path: `${SHOTS}/11b-mobile-search.png` })
+log(
+  'a phone search finds the same thing a desktop one does',
+  (await mobile.locator('[role="dialog"][aria-label="Search"] button[data-active]').count()) >= 1,
+)
+const insideViewport = await mobile.evaluate(() => {
+  const dialog = document.querySelector('[role="dialog"][aria-label="Search"]')
+  return !dialog || dialog.getBoundingClientRect().right <= window.innerWidth + 1
+})
+log('nothing in the search sheet runs off the side', insideViewport)
+await mobile.keyboard.press('Escape')
+await mobile.waitForTimeout(300)
+
+// The library, reached through the drawer.
+await mobile.locator('[aria-label="Open menu"]').first().click()
+await mobile.waitForTimeout(500)
+await mobile.locator('button:has-text("Library")').first().click()
+await mobile.waitForTimeout(500)
+const libraryBox = await mobile.locator('[role="dialog"][aria-label="Library"]').boundingBox()
+log(
+  'the library opens full screen on a phone',
+  !!libraryBox && libraryBox.width >= 380,
+  libraryBox ? `${Math.round(libraryBox.width)}x${Math.round(libraryBox.height)}` : 'missing',
+)
+await mobile.screenshot({ path: `${SHOTS}/11c-mobile-library.png` })
+await mobile.keyboard.press('Escape')
+await mobile.waitForTimeout(300)
+
 // --- Layout: collapsing sidebar, alignment, reordering ----------------------
 await page.locator('[aria-label="Collapse sidebar"]').click()
 await page.waitForTimeout(400)

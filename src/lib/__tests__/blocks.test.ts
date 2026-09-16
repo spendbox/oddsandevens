@@ -102,3 +102,11 @@ test('an empty document is Untitled rather than blank', () => {
   const doc = { id: 'a', title: '', blocks: [makeBlock('text')], createdAt: 0, updatedAt: 0 }
   assert.equal(docLabel(doc), 'Untitled')
 })
+
+test('a document that begins with a heading is called by it', () => {
+  const heading = makeBlock('heading', 1)
+  Object.assign(heading, { text: 'Budget' })
+  const table = makeBlock('table')
+  const doc = { id: 'a', title: '', blocks: [heading, table], createdAt: 0, updatedAt: 0 }
+  assert.equal(docLabel(doc), 'Budget')
+})
