@@ -1100,6 +1100,156 @@ await page.waitForTimeout(200)
   )
 }
 
+/*
+  The Library: a pile of badly named files in, titled documents out.
+
+  The first run has no key configured, which is the path most people are on
+  and the one that has to work on its own: titles come from the contents.
+*/
+{
+  const tenancy = join(FIXTURES, 'scan_0012.txt')
+  writeFileSync(
+    tenancy,
+    'TENANCY AGREEMENT\n\nThis agreement is made between the landlord and the tenant for the flat at 14 Bourdillon Road, and runs for twelve months from March.\n',
+  )
+  const receipt = join(FIXTURES, 'IMG_20240211.txt')
+  writeFileSync(
+    receipt,
+    'Receipt for printing\n\nPaid forty thousand naira to the printer for the March run of brochures.\n',
+  )
+  const named = join(FIXTURES, 'Lagos budget 2026.txt')
+  writeFileSync(named, 'Figures for the year, by quarter. Nothing is agreed yet.\n')
+
+  await page.locator('button:has-text("Library")').first().click()
+  await page.waitForTimeout(500)
+  log('the library opens from the sidebar', await page.locator('[role="dialog"][aria-label="Library"]').isVisible())
+
+  await page.locator('input[aria-label="Choose documents"]').setInputFiles([tenancy, receipt, named])
+  await page.waitForTimeout(2500)
+  await page.screenshot({ path: `${SHOTS}/17-library.png` })
+
+  const titles = await page
+    .locator('[role="dialog"][aria-label="Library"] input[aria-label^="Title"]')
+    .evaluateAll((els) => els.map((el) => el.value))
+  log('every dropped file is listed for review', titles.length === 3, JSON.stringify(titles))
+  log(
+    'a file called scan_0012 is titled from what is inside it',
+    /tenancy/i.test(titles[0] ?? ''),
+    titles[0],
+  )
+  log(
+    'a file somebody named keeps its name',
+    /lagos budget/i.test(titles[2] ?? ''),
+    titles[2],
+  )
+  log(
+    'each one says what it covers',
+    (await page.locator('[role="dialog"][aria-label="Library"]').innerText()).includes('Bourdillon'),
+  )
+
+  // Nothing is added until it is asked for.
+  const before = await page.locator('nav [data-doc-id]').count()
+  await page.locator('[role="dialog"][aria-label="Library"] button:has-text("Add 3")').click()
+  await page.waitForTimeout(1200)
+  const after = await page.locator('nav [data-doc-id]').count()
+  log('adding the batch puts them in the ordinary sidebar', after === before + 3, `${before} → ${after}`)
+  log(
+    'the contents came through, not just the title',
+    (await page.evaluate(() => document.body.innerText)).includes('Bourdillon Road'),
+  )
+  await page.screenshot({ path: `${SHOTS}/18-library-added.png` })
+
+  // And they are searchable like anything else, which is the whole point of
+  // not giving the library a store of its own.
+  await page.keyboard.press('Control+k')
+  await page.waitForTimeout(400)
+  await page.locator('input[aria-label="Search everything"]').fill('Bourdillon')
+  await page.waitForTimeout(500)
+  log(
+    'an imported document is searchable like the rest',
+    (await page.locator('[role="dialog"][aria-label="Search"] button[data-active]').count()) >= 1,
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
+}
+
+/*
+  The second run stubs the filing model, to check the two things only it can
+  do: better titles than a first line, and putting documents that share a
+  subject into a project.
+*/
+{
+  await page.route('**/api/ai', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ configured: true }) })
+    }
+    const body = request.postDataJSON()
+    if (body.action !== 'file') return route.continue()
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        text: JSON.stringify([
+          { n: 1, title: 'Tenancy agreement, Bourdillon Road', summary: 'A twelve month lease.', topic: 'property' },
+          { n: 2, title: 'Deed of assignment', summary: 'Transfer of the same flat.', topic: 'property' },
+        ]),
+      }),
+    })
+  })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+
+  const one = join(FIXTURES, 'scan_0044.txt')
+  writeFileSync(one, 'Some agreement about a flat, poorly scanned.\n')
+  const two = join(FIXTURES, 'scan_0045.txt')
+  writeFileSync(two, 'Another document about the same flat.\n')
+
+  await page.locator('button:has-text("Library")').first().click()
+  await page.waitForTimeout(500)
+  await page.locator('input[aria-label="Choose documents"]').setInputFiles([one, two])
+  await page.waitForTimeout(2500)
+  const panel = page.locator('[role="dialog"][aria-label="Library"]')
+  // Titles are inputs, so they are read as values — innerText cannot see them.
+  const filedTitles = await panel
+    .locator('input[aria-label^="Title"]')
+    .evaluateAll((els) => els.map((el) => el.value))
+  log(
+    'a better title replaces the one worked out on the device',
+    filedTitles.includes('Deed of assignment'),
+    JSON.stringify(filedTitles),
+  )
+  log(
+    'documents about the same thing are offered as a project',
+    (await panel.innerText()).includes('Property'),
+  )
+  await page.screenshot({ path: `${SHOTS}/19-library-filed.png` })
+
+  await panel.locator('button:has-text("Add 2")').click()
+  await page.waitForTimeout(1400)
+  // The project name is an editable input in the sidebar, so it too is read
+  // as a value rather than as text.
+  const projectNames = await page
+    .locator('nav input[aria-label="Project name"]')
+    .evaluateAll((els) => els.map((el) => el.value))
+  log(
+    'the project is made',
+    projectNames.includes('Property'),
+    JSON.stringify(projectNames),
+  )
+  // The member rows are siblings of the project header, not children of it.
+  const inProject = await page.evaluate(() => {
+    const header = [...document.querySelectorAll('nav [data-project-id]')].find(
+      (el) => el.querySelector('input')?.value === 'Property',
+    )
+    return header?.parentElement?.querySelectorAll('[data-doc-id]').length ?? -1
+  })
+  log('and both documents are in it', inProject === 2, `${inProject} in the project`)
+  await page.screenshot({ path: `${SHOTS}/20-library-project.png` })
+
+  await page.unroute('**/api/ai')
+}
+
 // Manifest + service worker, the installable part.
 const manifest = await page.evaluate(async () => {
   const r = await fetch('/manifest.webmanifest')

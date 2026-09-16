@@ -108,6 +108,28 @@ to work, it is the wrong shape for this app.
   document. `shared_docs` has its own public-read policy and only holds what
   was deliberately published.
 
+- **The Library is a way in, not a place.** Dropped files become ordinary
+  documents in the ordinary sidebar — searchable, answerable, syncable like
+  everything else. It reuses the readers that already exist (`pdf.ts`,
+  `docx.ts`, the clipboard parser), which is why a library needs no editor, no
+  store and no document shape of its own. Give it one and it becomes a second
+  application inside the first.
+- **Titles come from the contents first, the filename second.** A heading at
+  the top wins, because a document that has one has already said what it is;
+  then the filename, but only when it says anything — `scan_0012`,
+  `IMG_20240211` and `Document (3)` are exactly the files that need a title,
+  and taking their names would title a tenancy agreement "Scan 0012".
+  `isUninformativeName` is the test, and it is the thing to fix when a title
+  comes out wrong.
+- **The model improves the filing; it is not what makes it exist.** Every title
+  and summary is produced locally first and shown either way, so no key, no
+  network and a refusal all cost quality rather than the import. The reply is
+  parsed forgivingly for the same reason: one malformed entry must not lose a
+  batch of forty documents.
+- **Nothing is filed until it has been seen.** Titles are editable in the
+  review list and the batch can be thrown away whole. A project is offered only
+  where at least two documents share a subject — a project of one is a folder
+  with a single file in it.
 - **A project is the axis above a document, not a block type.** The "one rule"
   covers the tools inside a document; grouping documents is a different thing
   and correctly lives outside it. Keep a project thin — the moment it carries

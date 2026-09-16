@@ -1,5 +1,6 @@
 import { newId } from './id.ts'
-import type { Block, BlockType, Doc } from './types'
+import type { PastedBlock } from './paste.ts'
+import { isTextish, type Block, type BlockType, type Doc } from './types.ts'
 
 /**
  * Makes an empty block of a given type. One factory, so a block created by
@@ -139,4 +140,26 @@ export function docLabel(doc: Doc): string {
   const preview = docPreview(doc.blocks)
   if (preview === 'Empty') return 'Untitled'
   return preview.length > 60 ? `${preview.slice(0, 60).trimEnd()}…` : preview
+}
+
+/**
+ * Turns parsed content — a paste, an imported file, a result from the writing
+ * assistant — into real blocks.
+ *
+ * One conversion, used by all three. It lived twice inside the editor, and two
+ * copies of "which fields does a todo carry" is how one of them quietly stops
+ * carrying indentation.
+ */
+export function blocksFromPasted(pasted: PastedBlock[]): Block[] {
+  return pasted.map((item) => {
+    const made = makeBlock(item.type, item.level)
+    if (isTextish(made) || made.type === 'todo') {
+      made.text = item.text
+      made.html = item.html
+      made.indent = item.indent
+    }
+    if (made.type === 'todo' && item.done) made.done = true
+    if (made.type === 'code') made.code = item.text
+    return made
+  })
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  FolderOpen,
   Maximize2,
   Menu,
   Minimize2,
@@ -18,6 +19,7 @@ import { allDocs, allDocsRaw, allProjects, deleteFile, loadDoc, saveDoc, savePro
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
 import { docsInProject, makeProject, mergedProjectName, shouldDissolve } from '@/lib/projects'
+import type { Grouping } from '@/lib/library'
 import { attachmentRefs, purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
 import { isTextish, type Doc, type Project } from '@/lib/types'
 import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
@@ -27,6 +29,7 @@ import DocMenu from './doc-menu'
 import ProjectBar from './project-bar'
 import TrashSection from './trash-section'
 import Editor from './editor'
+import LibraryPanel, { type Incoming } from './library-panel'
 import SearchPanel from './search-panel'
 
 /** How long after the last keystroke a document is written to disk. */
@@ -51,6 +54,8 @@ export default function Workspace() {
   /** The search panel, which looks inside every document rather than
    *  filtering the list of their names. */
   const [searching, setSearching] = useState(false)
+  /** The Library, which is a way in for documents rather than a place for them. */
+  const [library, setLibrary] = useState(false)
   const [account, setAccount] = useState<Account | null>(null)
   const [syncState, setSyncState] = useState<SyncState>(isSyncConfigured() ? 'idle' : 'off')
   const [importing, setImporting] = useState(false)
@@ -505,6 +510,60 @@ export default function Workspace() {
     setDrawer(false)
   }
 
+  /**
+   * Takes a reviewed batch from the Library.
+   *
+   * Everything it makes is an ordinary document in the ordinary list: there is
+   * no library store, no second shape and no separate place to look. The
+   * grouping is applied as projects, which is the axis that already exists for
+   * this, and only where the review offered one.
+   */
+  const addFromLibrary = async (items: Incoming[], groups: Grouping[], withSummaries: boolean) => {
+    await flushSave()
+    const now = Date.now()
+
+    // Projects first, so no document is saved naming one that does not exist
+    // yet — the same order sync uses, and for the same reason.
+    const projectFor = new Map<string, string>()
+    for (const group of groups) {
+      if (!group.name || group.members.length < 2) continue
+      const project = makeProject(group.name)
+      putProject(project)
+      for (const member of group.members) {
+        const item = items[member]
+        if (item) projectFor.set(item.id, project.id)
+      }
+    }
+
+    const made: Doc[] = items.map((item, i) => {
+      const blocks = [...item.blocks]
+      // The summary goes in as a quote at the top: something to read before
+      // deciding to open it, and one more thing for search to find.
+      if (withSummaries && item.summary) {
+        const note = makeBlock('quote')
+        if (note.type === 'quote') note.text = item.summary
+        blocks.unshift(note)
+      }
+      const doc: Doc = {
+        id: newId(),
+        title: item.title.trim(),
+        blocks: blocks.length ? blocks : [makeBlock('text')],
+        // Spaced by a millisecond so the list keeps the order they were
+        // reviewed in rather than an arbitrary one.
+        createdAt: now + i,
+        updatedAt: now + i,
+      }
+      const projectId = projectFor.get(item.id)
+      if (projectId) doc.projectId = projectId
+      return doc
+    })
+
+    for (const doc of made) await saveDoc(doc)
+    setDocs((all) => [...made].reverse().concat(all))
+    if (made.length) setDoc(made[0])
+    setDrawer(false)
+  }
+
   const openDoc = async (id: string) => {
     await flushSave()
     const found = (await loadDoc(id)) ?? docs.find((d) => d.id === id) ?? null
@@ -624,6 +683,22 @@ export default function Workspace() {
             <Search size={13} />
             Search
             <kbd className="ml-auto hidden text-[10px] md:inline">Ctrl K</kbd>
+          </button>
+          {/*
+            The Library is an intake, not a container: what comes out of it is
+            ordinary documents in this same list. Putting it beside search
+            rather than in a place of its own is the honest description.
+          */}
+          <button
+            type="button"
+            onClick={() => {
+              setLibrary(true)
+              setDrawer(false)
+            }}
+            className="mt-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+          >
+            <FolderOpen size={13} />
+            Library
           </button>
         </div>
 
@@ -795,6 +870,12 @@ export default function Workspace() {
           </div>
         </div>
       </main>
+
+      <LibraryPanel
+        open={library}
+        onClose={() => setLibrary(false)}
+        onAdd={(items, groups, withSummaries) => void addFromLibrary(items, groups, withSummaries)}
+      />
 
       <SearchPanel
         open={searching}
