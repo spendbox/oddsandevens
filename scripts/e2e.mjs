@@ -202,13 +202,51 @@ await page.keyboard.type('Shopping list')
 await page.waitForTimeout(300)
 const docCount = await page.locator('nav [class*="group/doc"]').count()
 log('a second document can be created', docCount >= 2, `${docCount} in sidebar`)
-await page.locator('[aria-label="Search documents"]').fill('invoice')
+
+// Search: the panel, not a filter on the list of names.
+await page.keyboard.press('Control+k')
 await page.waitForTimeout(400)
-const searchHits = await page.locator('nav [class*="group/doc"]').count()
+log('Ctrl+K opens search', await page.locator('input[aria-label="Search everything"]').isVisible())
+await page.locator('input[aria-label="Search everything"]').fill('invoice')
+await page.waitForTimeout(400)
+const searchHits = await page.locator('[role="dialog"][aria-label="Search"] button[data-active]').count()
 log('search finds text inside a document body', searchHits === 1, `${searchHits} result(s) for "invoice"`)
+const highlighted = await page.locator('[role="dialog"] mark').first().innerText().catch(() => '')
+log('a result shows the passage that matched, with the word picked out', /invoice/i.test(highlighted), highlighted)
 await page.screenshot({ path: `${SHOTS}/09-search.png` })
-await page.locator('[aria-label="Search documents"]').fill('')
+
+// Half a word is enough, which is what makes it usable while typing.
+await page.locator('input[aria-label="Search everything"]').fill('invo')
+await page.waitForTimeout(400)
+log(
+  'a half-typed word finds the whole one',
+  (await page.locator('[role="dialog"][aria-label="Search"] button[data-active]').count()) === 1,
+)
+
+// Enter opens the highlighted result.
+await page.keyboard.press('Enter')
+await page.waitForTimeout(700)
+log(
+  'pressing Enter opens the top result',
+  (await page.evaluate(() => document.body.innerText)).includes('Send the invoice'),
+)
+log(
+  'opening a result closes the panel',
+  !(await page.locator('input[aria-label="Search everything"]').isVisible().catch(() => false)),
+)
+
+// Nothing found says so rather than showing everything.
+await page.keyboard.press('Control+k')
 await page.waitForTimeout(300)
+await page.locator('input[aria-label="Search everything"]').fill('zzzznothinghere')
+await page.waitForTimeout(400)
+log(
+  'a search with no matches says so',
+  (await page.evaluate(() => document.body.innerText)).includes('Nothing matches'),
+)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+log('Escape closes search', !(await page.locator('input[aria-label="Search everything"]').isVisible().catch(() => false)))
 
 // Dark mode.
 await page.locator('button:has-text("Dark")').first().click()

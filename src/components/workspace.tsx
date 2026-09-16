@@ -17,7 +17,7 @@ import { newId } from '@/lib/id'
 import { allDocs, allDocsRaw, allProjects, deleteFile, loadDoc, saveDoc, saveProject } from '@/lib/store'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
-import { docsInProject, makeProject, mergedProjectName, searchDocs, shouldDissolve } from '@/lib/projects'
+import { docsInProject, makeProject, mergedProjectName, shouldDissolve } from '@/lib/projects'
 import { attachmentRefs, purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
 import { isTextish, type Doc, type Project } from '@/lib/types'
 import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
@@ -27,6 +27,7 @@ import DocMenu from './doc-menu'
 import ProjectBar from './project-bar'
 import TrashSection from './trash-section'
 import Editor from './editor'
+import SearchPanel from './search-panel'
 
 /** How long after the last keystroke a document is written to disk. */
 const SAVE_DEBOUNCE_MS = 400
@@ -47,7 +48,9 @@ export default function Workspace() {
   /** The sidebar as a drawer on a phone. Separate from the desktop pref:
    *  a narrow screen has no room to keep it open alongside the document. */
   const [drawer, setDrawer] = useState(false)
-  const [query, setQuery] = useState('')
+  /** The search panel, which looks inside every document rather than
+   *  filtering the list of their names. */
+  const [searching, setSearching] = useState(false)
   const [account, setAccount] = useState<Account | null>(null)
   const [syncState, setSyncState] = useState<SyncState>(isSyncConfigured() ? 'idle' : 'off')
   const [importing, setImporting] = useState(false)
@@ -251,8 +254,14 @@ export default function Workspace() {
   }, [account, sync])
 
   // Cmd/Ctrl+\ collapses the sidebar, the shortcut every editor uses for it.
+  // Cmd/Ctrl+K opens search, likewise.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setSearching(true)
+        return
+      }
       if ((event.metaKey || event.ctrlKey) && event.key === '\\') {
         event.preventDefault()
         setSidebarPref(
@@ -523,10 +532,6 @@ export default function Workspace() {
     }
   }
 
-  // The same ranking the project bar uses, so a search means one thing in
-  // this app rather than two subtly different things.
-  const results = useMemo(() => searchDocs(docs, query), [docs, query])
-
   /**
    * The project the open document belongs to, and everything else in it.
    *
@@ -601,25 +606,31 @@ export default function Workspace() {
           </button>
         </div>
 
-        <div className="relative px-2 pb-2">
-          <Search
-            size={13}
-            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[var(--color-faint)]"
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search"
-            aria-label="Search documents"
-            className="w-full rounded-md bg-[var(--color-hover)] py-1.5 pr-2 pl-7 text-xs outline-none placeholder:text-[var(--color-faint)]"
-          />
+        {/*
+          A button rather than a text box. Typing here used to filter the list
+          of names, which is a different and much weaker thing than searching
+          what is inside the documents — and two searches that behave
+          differently is worse than one that works.
+        */}
+        <div className="px-2 pb-2">
+          <button
+            type="button"
+            onClick={() => {
+              setSearching(true)
+              setDrawer(false)
+            }}
+            className="flex w-full items-center gap-1.5 rounded-md bg-[var(--color-hover)] px-2 py-1.5 text-xs text-[var(--color-faint)] hover:text-[var(--color-muted)]"
+          >
+            <Search size={13} />
+            Search
+            <kbd className="ml-auto hidden text-[10px] md:inline">Ctrl K</kbd>
+          </button>
         </div>
 
         <DocList
-          docs={results}
+          docs={docs}
           projects={projects}
           currentId={doc?.id ?? null}
-          query={query}
           onOpen={(id) => void openDoc(id)}
           onDelete={(id) => void deleteDoc(id)}
           onMerge={(draggedId, targetId) => void mergeDocs(draggedId, targetId)}
@@ -700,6 +711,15 @@ export default function Workspace() {
             </button>
           )}
           <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setSearching(true)}
+              aria-label="Search"
+              title="Search (Ctrl+K)"
+              className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+            >
+              <Search size={17} />
+            </button>
             {doc && (
               <DocMenu
                 doc={doc}
@@ -775,6 +795,14 @@ export default function Workspace() {
           </div>
         </div>
       </main>
+
+      <SearchPanel
+        open={searching}
+        docs={docs}
+        projects={projects}
+        onClose={() => setSearching(false)}
+        onOpen={(id) => void openDoc(id)}
+      />
     </div>
   )
 }
