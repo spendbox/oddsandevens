@@ -140,6 +140,15 @@ to work, it is the wrong shape for this app.
   devices end up showing different contents for the same project. A document
   naming a project that does not exist is shown as ungrouped, never hidden: a
   dangling id is recoverable, a vanished document looks like data loss.
+- **A pull fetches what changed, not everything.** Each table keeps a cursor —
+  the newest `updatedAt` this device has accepted — in the `meta` store beside
+  the documents, and asks only for rows past it. Asking for every row every
+  twenty seconds is invisible with five documents and megabytes over a phone
+  connection with five hundred. Two things stop the cursor losing a row: it
+  reaches back a minute beyond itself, because `updatedAt` comes from whichever
+  device made the edit and clocks disagree, and every half hour it is ignored
+  for a full reconcile. A cursor moves only to a timestamp actually seen, never
+  to "now", and is written only after every row it covers has been stored.
 - **Projects push before documents in sync**, so a document naming a new
   project never lands on a device that has not heard of it. Project sync never
   fails the run: an un-migrated database should cost the user their grouping,
