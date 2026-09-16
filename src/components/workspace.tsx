@@ -19,7 +19,7 @@ import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
 import { docsInProject, makeProject, mergedProjectName, searchDocs, shouldDissolve } from '@/lib/projects'
 import { attachmentRefs, purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
-import { type Doc, type Project } from '@/lib/types'
+import { isTextish, type Doc, type Project } from '@/lib/types'
 import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
 import AccountButton, { type Account } from './account'
 import DocList from './doc-list'
@@ -313,6 +313,53 @@ export default function Workspace() {
     [update],
   )
 
+  /**
+   * Reads a Word document and appends it as editable blocks.
+   *
+   * Appends rather than replaces, for the same reason as the PDF import: one
+   * menu click should not be able to wipe the page.
+   */
+  const importWord = useCallback(
+    async (file: File) => {
+      setImporting(true)
+      setImportProblem(null)
+      try {
+        const { docxToBlocks } = await import('@/lib/docx')
+        const pasted = await docxToBlocks(file)
+        if (!pasted.length) {
+          setImportProblem(`There was no text to read in “${file.name}”.`)
+          return
+        }
+        const current = latest.current
+        if (!current) return
+        const existing = current.blocks.filter((b) => !(b.type === 'text' && !b.text.trim()))
+        const created = pasted.map((item) => {
+          const made = makeBlock(item.type, item.level)
+          // Checked by type, not with `in`: an optional property that has
+          // never been set is absent from the object, so `'html' in made` was
+          // false on every fresh block and all the formatting was dropped.
+          if (isTextish(made) || made.type === 'todo') {
+            made.text = item.text
+            made.html = item.html
+            made.indent = item.indent
+          }
+          if (made.type === 'code') made.code = item.text
+          return made
+        })
+        update({ ...current, blocks: [...existing, ...created], updatedAt: Date.now() })
+      } catch (error) {
+        setImportProblem(
+          error instanceof Error
+            ? `Could not open “${file.name}”. ${error.message}`
+            : `Could not open “${file.name}”.`,
+        )
+      } finally {
+        setImporting(false)
+      }
+    },
+    [update],
+  )
+
   /* ------------------------------------------------------------------- trash */
 
   const restoreDoc = useCallback(async (id: string) => {
@@ -369,6 +416,18 @@ export default function Workspace() {
       return next
     },
     [docs, doc?.id],
+  )
+
+  /** Puts one document into a new project of its own, from the row menu. */
+  const newProjectWith = useCallback(
+    async (docId: string) => {
+      const source = docs.find((d) => d.id === docId)
+      if (!source) return
+      const project = makeProject(source.title.trim() || 'New project')
+      putProject(project)
+      await setDocProject(docId, project.id)
+    },
+    [docs, putProject, setDocProject],
   )
 
   /** Dropping one document onto another: a project holding both. */
@@ -576,6 +635,7 @@ export default function Workspace() {
             }
           }}
           onDeleteProject={(id) => void dissolveProject(id)}
+          onNewProject={(id) => void newProjectWith(id)}
         />
 
         <TrashSection
@@ -612,7 +672,12 @@ export default function Workspace() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center gap-2 px-3 py-2">
+        {/*
+          Sticky as well as outside the scroller. On a desktop the layout
+          already holds it still, but a phone's address bar resizes the visual
+          viewport and can scroll an ancestor, taking the header with it.
+        */}
+        <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-transparent bg-[var(--color-paper)]/95 px-3 py-2 backdrop-blur">
           <button
             type="button"
             onClick={() => setDrawer(true)}
@@ -641,6 +706,7 @@ export default function Workspace() {
                 importing={importing}
                 accountId={account?.id ?? null}
                 onImportPdf={(file) => void importPdf(file, file.name)}
+                onImportWord={(file) => void importWord(file)}
               />
             )}
             <AccountButton

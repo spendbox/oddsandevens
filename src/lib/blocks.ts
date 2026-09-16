@@ -50,7 +50,9 @@ export function makeBlock(type: BlockType, level?: 1 | 2 | 3): Block {
  * and supporting them means the slash menu is a discovery aid rather than the
  * only way through.
  */
-const SHORTCUTS: Array<{ match: RegExp; type: BlockType; level?: 1 | 2 | 3 }> = [
+const SHORTCUTS: Array<{ match: RegExp; type: BlockType; level?: 1 | 2 | 3; ordered?: boolean }> = [
+  // "1. ", "1) " and any other starting number: a numbered list.
+  { match: /^\d+[.)]\s$/, type: 'bullet', ordered: true },
   { match: /^#\s$/, type: 'heading', level: 1 },
   { match: /^##\s$/, type: 'heading', level: 2 },
   { match: /^###\s$/, type: 'heading', level: 3 },
@@ -63,9 +65,13 @@ const SHORTCUTS: Array<{ match: RegExp; type: BlockType; level?: 1 | 2 | 3 }> = 
 ]
 
 /** Returns the block type a prefix should become, or null for ordinary text. */
-export function shortcutFor(text: string): { type: BlockType; level?: 1 | 2 | 3 } | null {
+export function shortcutFor(
+  text: string,
+): { type: BlockType; level?: 1 | 2 | 3; ordered?: boolean } | null {
   for (const rule of SHORTCUTS) {
-    if (rule.match.test(text)) return { type: rule.type, level: rule.level }
+    if (rule.match.test(text)) {
+      return { type: rule.type, level: rule.level, ...(rule.ordered ? { ordered: true } : {}) }
+    }
   }
   return null
 }

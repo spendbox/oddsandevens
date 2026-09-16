@@ -64,6 +64,13 @@ Documents area below to remove it. A project left with one document dissolves
 by itself, so dragging the second one out simply undoes the merge. Ungrouping a
 project never deletes anything; the documents go back to the main list.
 
+**Writing help.** The sparkle button (bottom right on a phone) offers to tidy
+up punctuation and grammar, shorten, expand, add headings and lists, or draft
+from a topic. It works on whatever you have selected, or the whole document if
+nothing is. **It never changes anything on its own** — you read the result and
+choose Replace, Add below, or Discard. Needs an API key (see below); without
+one the button is simply absent.
+
 **Deleting is undoable.** A deleted document goes to the trash at the foot of
 the sidebar and stays there for 7 days, with each row saying how long it has
 left. You can put it back, or delete it for good straight away — that one asks
@@ -90,6 +97,8 @@ The **⋯** button, top right:
   the one to use if you ever want to leave; a document you can only read inside
   one app is not really yours.
 - **Download plain text** — for when markdown would just be noise.
+- **Download as Word** — a real .docx that opens in Word, Pages or Google Docs.
+- **Import a Word document** — opens a .docx so you can edit it.
 - **Import a PDF as text** — pulls the words out of a PDF so you can edit them.
   A scanned PDF (a photograph of a page) has no text to pull out; that would
   need character recognition, which is a much larger thing again.
@@ -119,6 +128,21 @@ accounts, no keys. Everything works.
 
 To put it online, deploy to [Vercel](https://vercel.com); it needs no
 configuration beyond pointing it at this repository.
+
+## Turning on writing help (optional)
+
+Writing help uses Claude. Get a key from
+[console.anthropic.com](https://console.anthropic.com), then put it in
+`.env.local`:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The key stays on the server and is never sent to the browser — that is why
+this is the one feature with a server route behind it. Requests are limited to
+20 a minute per address, which is enough to stop a stuck loop but is not a
+substitute for a proper limiter if you put this somewhere public.
 
 ## Turning on sign-in and sync (optional)
 
@@ -182,6 +206,9 @@ src/lib/trash.ts        the seven-day retention rules
 src/lib/share.ts        publishing a read-only copy to a link
 src/lib/export.ts       turning a document into markdown or plain text
 src/lib/pdf.ts          reading text out of a PDF (loaded on demand)
+src/lib/zip.ts          reading and writing ZIP archives, with no dependency
+src/lib/docx.ts         Word documents in and out, built on zip.ts
+src/app/api/ai/         the one server route: writing help
 src/lib/ui-prefs.ts     theme, sidebar and width, applied before first paint
 src/components/         the editor and one file per block type
 src/app/s/[id]/         the public page a shared link opens
@@ -222,6 +249,12 @@ These are real and worth knowing before you rely on them:
 - **A shared link is read-only, and a shared form cannot be answered.**
   Collecting responses from other people needs the answers to go to the server
   rather than into the document, which is the next step for forms.
+- **Writing help was not tested against the real service.** There is no API
+  key in this repository, so every failure path is tested but the successful
+  rewrite is not. Try it once before relying on it.
+- **A Word table becomes a list, not a spreadsheet, on import.** Merged cells
+  and nested tables have nowhere to go in a grid. Going the other way, a
+  spreadsheet becomes a real Word table.
 - **Sub-lists are an indent, not a nested list.** A block records how deep it
   is; the document stays a flat run of blocks. That keeps dragging a line out
   of a sub-list the same operation as any other move, but it means numbered

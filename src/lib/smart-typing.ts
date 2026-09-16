@@ -122,6 +122,38 @@ export function looksLikeTitle(text: string): boolean {
   return true
 }
 
+/**
+ * The number to print beside an ordered list item.
+ *
+ * Counted from the run of items above it rather than stored, so Enter
+ * continues the sequence and removing an item renumbers what follows without
+ * anything having to be rewritten.
+ *
+ * Deeper items do not break the run: a sub-list between "2." and "3." is part
+ * of item 2, not the end of the numbering.
+ */
+export function orderedNumber(
+  blocks: Array<{ type: string; ordered?: boolean; indent?: number }>,
+  index: number,
+): number {
+  const self = blocks[index]
+  if (!self || self.type !== 'bullet' || !self.ordered) return 1
+  const depth = self.indent ?? 0
+
+  let count = 1
+  for (let i = index - 1; i >= 0; i--) {
+    const above = blocks[i]
+    const aboveDepth = above.indent ?? 0
+    if (aboveDepth > depth) continue // a nested sub-list, still inside this run
+    if (above.type === 'bullet' && above.ordered && aboveDepth === depth) {
+      count++
+      continue
+    }
+    break
+  }
+  return count
+}
+
 /** Indent levels a block can reach. Deeper than this is unreadable. */
 export const MAX_INDENT = 5
 

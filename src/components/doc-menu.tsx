@@ -6,6 +6,7 @@ import {
   Download,
   FileDown,
   FileText,
+  FileType,
   FileUp,
   Link2,
   Link2Off,
@@ -32,11 +33,13 @@ import type { Doc } from '@/lib/types'
 export default function DocMenu({
   doc,
   onImportPdf,
+  onImportWord,
   importing,
   accountId,
 }: {
   doc: Doc
   onImportPdf: (file: File) => void
+  onImportWord: (file: File) => void
   importing: boolean
   /** Null when nobody is signed in, which is what sharing requires. */
   accountId: string | null
@@ -50,6 +53,8 @@ export default function DocMenu({
   const [copied, setCopied] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const picker = useRef<HTMLInputElement>(null)
+  const wordPicker = useRef<HTMLInputElement>(null)
+  const [problem, setProblem] = useState<string | null>(null)
 
   // Look up an existing link when the menu is opened, not on every render, so
   // a document that was shared once still shows its link after a reload.
@@ -143,6 +148,33 @@ export default function DocMenu({
             icon={<FileText size={14} />}
             label="Download plain text"
             onClick={() => download(docToText(doc), 'txt', 'text/plain')}
+          />
+          <Item
+            icon={<FileType size={14} />}
+            label="Download as Word"
+            hint="Opens in Word, Pages or Google Docs"
+            onClick={async () => {
+              setOpen(false)
+              setProblem(null)
+              try {
+                // Loaded here rather than with the page: nobody downloads a
+                // Word writer to jot down a shopping list.
+                const { docToDocx } = await import('@/lib/docx')
+                const blob = await docToDocx(doc)
+                const url = URL.createObjectURL(blob)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = safeFilename(doc.title, 'docx')
+                link.click()
+                setTimeout(() => URL.revokeObjectURL(url), 1000)
+                setSaved('docx')
+                setTimeout(() => setSaved(null), 1600)
+              } catch (error) {
+                setProblem(
+                  error instanceof Error ? error.message : 'Could not build the Word document.',
+                )
+              }
+            }}
           />
 
           <div className="my-1 h-px bg-[var(--color-line)]" />
@@ -245,6 +277,12 @@ export default function DocMenu({
 
           <Item
             icon={<FileUp size={14} />}
+            label="Import a Word document"
+            hint="Opens a .docx so you can edit it"
+            onClick={() => wordPicker.current?.click()}
+          />
+          <Item
+            icon={<FileUp size={14} />}
             label="Import a PDF as text"
             hint="Pulls the words out so you can edit them"
             onClick={() => picker.current?.click()}
@@ -255,6 +293,26 @@ export default function DocMenu({
           </p>
         </div>
       )}
+
+      {problem && (
+        <p className="absolute right-0 z-50 mt-1 w-60 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-2 text-[10px] leading-snug text-[var(--color-danger)] shadow-lg">
+          {problem}
+        </p>
+      )}
+
+      <input
+        ref={wordPicker}
+        type="file"
+        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="sr-only"
+        aria-label="Choose a Word document"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) onImportWord(file)
+          e.target.value = ''
+          setOpen(false)
+        }}
+      />
 
       <input
         ref={picker}

@@ -62,6 +62,8 @@ export default function SlashMenu({
 }) {
   const [active, setActive] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
+  /** Where a finger landed, so a scroll is not mistaken for a choice. */
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
 
   const matches = useMemo(() => rankItems(query), [query])
 
@@ -131,7 +133,7 @@ export default function SlashMenu({
       ref={listRef}
       role="listbox"
       aria-label="Insert block"
-      className="absolute z-40 mt-1 max-h-[min(18rem,45vh)] w-[min(16rem,calc(100vw-3rem))] overflow-y-auto overscroll-contain rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg"
+      className="absolute z-40 mt-1 max-h-[min(18rem,45vh)] w-[min(16rem,calc(100vw-3rem))] touch-pan-y overflow-y-auto overscroll-contain rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg"
     >
       {matches.map((item, index) => (
         <button
@@ -140,11 +142,29 @@ export default function SlashMenu({
           data-index={index}
           role="option"
           aria-selected={index === active}
-          // Pointer down, not click: a click fires after blur, by which point
-          // the block that opened the menu has lost the caret. On a touch
-          // screen the synthesised mouse events can arrive later still, or not
-          // at all, so this listens to the pointer directly.
+          // A mouse picks on pointerdown: a click fires after blur, by which
+          // point the block that opened the menu has lost the caret.
+          //
+          // A finger must not. preventDefault on a touch pointerdown cancels
+          // the scroll gesture, so the list could not be scrolled at all —
+          // every touch landed on whatever row it started on. Touch therefore
+          // picks on release, and only if the finger did not travel.
           onPointerDown={(e) => {
+            if (e.pointerType === 'touch') {
+              touchStart.current = { x: e.clientX, y: e.clientY }
+              return
+            }
+            e.preventDefault()
+            onPick({ type: item.type, level: item.level })
+          }}
+          onPointerUp={(e) => {
+            if (e.pointerType !== 'touch') return
+            const from = touchStart.current
+            touchStart.current = null
+            if (!from) return
+            const travelled =
+              Math.abs(e.clientX - from.x) > 8 || Math.abs(e.clientY - from.y) > 8
+            if (travelled) return
             e.preventDefault()
             onPick({ type: item.type, level: item.level })
           }}

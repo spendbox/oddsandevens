@@ -49,6 +49,12 @@ test('markdown shortcuts map to the right block', () => {
   assert.equal(shortcutFor('---')?.type, 'divider')
 })
 
+test('a leading number starts a numbered list', () => {
+  assert.deepEqual(shortcutFor('1. '), { type: 'bullet', level: undefined, ordered: true })
+  assert.equal(shortcutFor('2) ')?.ordered, true)
+  assert.equal(shortcutFor('10. ')?.ordered, true)
+})
+
 test('ordinary text is never mistaken for a shortcut', () => {
   for (const text of ['hello', '#hashtag', 'a - b', '', '#', '--', '-> arrow', '># ']) {
     assert.equal(shortcutFor(text), null, `"${text}" was treated as a shortcut`)

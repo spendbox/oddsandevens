@@ -7,6 +7,7 @@ import {
   inlineFormatAt,
   looksLikeTitle,
   nextIndent,
+  orderedNumber,
   shouldCapitalise,
 } from '../smart-typing.ts'
 
@@ -114,4 +115,39 @@ test('bullet glyphs cycle with depth, the way a word processor does', () => {
   assert.equal(bulletFor(2), 'square')
   assert.equal(bulletFor(3), 'disc')
   assert.equal(bulletFor(undefined), 'disc')
+})
+
+test('ordered list numbers are counted from the run above', () => {
+  const list = [
+    { type: 'bullet', ordered: true },
+    { type: 'bullet', ordered: true },
+    { type: 'bullet', ordered: true },
+  ]
+  assert.deepEqual(list.map((_, i) => orderedNumber(list, i)), [1, 2, 3])
+})
+
+test('a paragraph between lists restarts the numbering', () => {
+  const list = [
+    { type: 'bullet', ordered: true },
+    { type: 'text' },
+    { type: 'bullet', ordered: true },
+  ]
+  assert.deepEqual(list.map((_, i) => orderedNumber(list, i)), [1, 1, 1])
+})
+
+test('a nested sub-list does not break the run', () => {
+  // 1. first / (a nested item) / 2. second — the sub-list belongs to item 1.
+  const list = [
+    { type: 'bullet', ordered: true, indent: 0 },
+    { type: 'bullet', ordered: true, indent: 1 },
+    { type: 'bullet', ordered: true, indent: 0 },
+  ]
+  assert.equal(orderedNumber(list, 2), 2)
+  assert.equal(orderedNumber(list, 1), 1, 'the nested item starts its own sequence')
+})
+
+test('unordered bullets are not numbered', () => {
+  const list = [{ type: 'bullet' }, { type: 'bullet', ordered: true }]
+  assert.equal(orderedNumber(list, 0), 1)
+  assert.equal(orderedNumber(list, 1), 1, 'a plain bullet above does not contribute')
 })
