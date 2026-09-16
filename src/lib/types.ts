@@ -54,7 +54,22 @@ export interface TextishBlock {
    * to get out of step with the document.
    */
   ordered?: boolean
+  /**
+   * How the line sits in its measure. Absent means left, which is almost
+   * every line ever written, so it is not stored on every block.
+   */
+  align?: Align
 }
+
+/**
+ * Paragraph alignment, as a word processor has always had it.
+ *
+ * Stored on the block rather than applied as inline HTML: alignment is a
+ * property of the paragraph, not a run of characters inside it, and keeping
+ * it out of `html` means the sanitiser can go on allowing no attributes at
+ * all — which is the rule that makes formatting safe to sync.
+ */
+export type Align = 'left' | 'center' | 'right' | 'justify'
 
 export interface TodoBlock {
   id: string
@@ -64,6 +79,8 @@ export interface TodoBlock {
   html?: string
   /** See TextishBlock.indent. */
   indent?: number
+  /** See TextishBlock.align. */
+  align?: Align
   done: boolean
 }
 
@@ -166,6 +183,15 @@ export interface Doc {
    * two devices show different contents for the same project.
    */
   projectId?: string
+  /**
+   * When it was starred, or absent when it never was.
+   *
+   * A timestamp rather than a boolean, so favourites can be listed in the
+   * order they were chosen, and so an unstar is an absent field rather than
+   * `false` — which is the same shape every other optional field here uses,
+   * and what lets a document saved before favourites existed load unchanged.
+   */
+  favoritedAt?: number
   /**
    * When it was moved to the trash. The row stays so sync carries the delete
    * to other devices, and so it can be restored.

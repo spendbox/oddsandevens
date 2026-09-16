@@ -17,8 +17,48 @@ export const runtime = 'nodejs'
 /** Never cached: every request is different and none should be stored. */
 export const dynamic = 'force-dynamic'
 
-/** What the writer asked for. Each maps to one instruction below. */
+/**
+ * What the writer asked for. Each maps to one instruction below.
+ *
+ * Expanding is the one this exists for, so it gets the longest instruction and
+ * the most guardrails. "Expand" is where an assistant most easily goes wrong:
+ * the failure is not too few words, it is a paragraph of filler that says
+ * nothing the note did not already say, in a voice the author would not use.
+ * The instruction below is written against that failure specifically.
+ */
 const ACTIONS = {
+  expand: {
+    label: 'Expand',
+    instruction:
+      'Expand this into fuller prose. This is the most important thing you do, so do it ' +
+      'properly:\n' +
+      '- Develop the author’s own point. Draw out the reasoning that is already implied, ' +
+      'name the consequence they are gesturing at, give the concrete case behind the ' +
+      'abstraction. Every sentence you add must carry information the original did not.\n' +
+      '- Write in their voice. Match their vocabulary, sentence length, contractions, ' +
+      'spelling convention and level of formality. If they write in short blunt sentences, ' +
+      'do not hand back long balanced ones.\n' +
+      '- Do not pad. No "it is important to note", no "in today\u2019s fast-paced world", no ' +
+      'restating the input as an opening sentence, no summarising it as a closing one.\n' +
+      '- Do not invent facts, figures, dates, names, quotations or citations. Where a ' +
+      'specific is needed and you do not have it, write the sentence so the gap is obvious ' +
+      'and fillable rather than filling it with something plausible.\n' +
+      '- Keep roughly to two or three times the length of what you were given, unless the ' +
+      'input is a single fragment, in which case a solid paragraph is right.',
+  },
+  continue: {
+    label: 'Continue writing',
+    instruction:
+      'Carry on from where this stops, as the same person, mid-thought. Return ONLY the ' +
+      'continuation — do not repeat, restate or summarise any part of what you were given, ' +
+      'because it is already on the page directly above what you write.\n' +
+      '- Pick up the sentence if it was left unfinished; otherwise start the next one.\n' +
+      '- Match the voice exactly, and keep going in the same direction rather than ' +
+      'introducing a new topic or winding the piece up.\n' +
+      '- Two or three sentences, or one short paragraph. Stop while it is still going ' +
+      'somewhere; the author is going to keep typing.\n' +
+      '- Invent no facts, figures, names or quotations.',
+  },
   tidy: {
     label: 'Tidy up',
     instruction:
@@ -33,12 +73,12 @@ const ACTIONS = {
       'Say the same thing in fewer words. Cut padding, repetition and throat-clearing. Keep ' +
       'every distinct point the author made — losing one is a failure, not a saving.',
   },
-  expand: {
-    label: 'Expand on this',
+  bullets: {
+    label: 'As bullet points',
     instruction:
-      'Develop what is there into fuller prose, keeping the author’s argument and adding ' +
-      'nothing they would disagree with. Where a point is asserted without support, draw out ' +
-      'the reasoning already implied rather than inventing new facts.',
+      'Turn this into a markdown bulleted list, one point per line, using "- ". Each bullet ' +
+      'is one idea in the author’s own words, shortened but not rewritten. Do not add points ' +
+      'that were not there and do not merge two distinct ones into a single bullet.',
   },
   structure: {
     label: 'Add structure',
@@ -47,12 +87,32 @@ const ACTIONS = {
       'into a bulleted or numbered list. Keep the wording as close to the original as the new ' +
       'structure allows.',
   },
+  summarise: {
+    label: 'Summarise',
+    instruction:
+      'Summarise this in a few sentences, or a short markdown list where it covers several ' +
+      'separate things. Report what it says; add no judgement, no recommendation and no ' +
+      'closing remark. Use the author’s own terms for things rather than translating them ' +
+      'into more general ones.',
+  },
   draft: {
     label: 'Write a draft',
     instruction:
       'Write a first draft on the topic given. Use markdown headings and lists where they help. ' +
       'Be concrete and specific; prefer plain words. Do not invent statistics, quotations, ' +
       'citations or names — if a figure is needed, describe what should go there instead.',
+  },
+  /*
+    Whatever the writer typed into the box.
+
+    It is an instruction from the person whose document this is, applied to
+    their own text, which is why it is carried through as an instruction. It
+    still lands inside the same system prompt as everything else, so it cannot
+    change what this route is: text goes in, replacement text comes out.
+  */
+  custom: {
+    label: 'Your instruction',
+    instruction: '',
   },
 } as const
 
@@ -271,6 +331,16 @@ export async function POST(request: Request) {
     action?: string
     text?: string
     title?: string
+    /** What the writer typed into the box, when the action is 'custom'. */
+    instruction?: string
+    /**
+     * The document around the passage being worked on.
+     *
+     * Sent separately from `text` and never rewritten: expanding one paragraph
+     * well means knowing what the paragraph before it already said, or the
+     * expansion opens by explaining something the reader read ten seconds ago.
+     */
+    context?: string
     question?: string
     sources?: Source[]
     items?: Intake[]
@@ -335,6 +405,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
   }
 
+  const asked = (body.instruction ?? '').trim().slice(0, 600)
+  if (action === 'custom' && !asked) {
+    return NextResponse.json({ error: 'Say what you would like done.' }, { status: 400 })
+  }
+
   const text = (body.text ?? '').trim()
   if (!text) {
     return NextResponse.json({ error: 'There is nothing to work on yet.' }, { status: 400 })
@@ -360,9 +435,14 @@ export async function POST(request: Request) {
     const stream = client.messages.stream({
       model: 'claude-opus-5',
       max_tokens: 8000,
-      // Tidying prose is a latency-sensitive edit, not a reasoning problem;
-      // medium keeps it quick without making it careless.
-      output_config: { effort: 'medium' },
+      /*
+        Tidying prose is a latency-sensitive edit, not a reasoning problem;
+        medium keeps it quick without making it careless. Expanding is the
+        exception: it is the one action where the work is deciding what the
+        author meant and what is worth adding, and a thin expansion is exactly
+        the failure that makes people stop pressing the button.
+      */
+      output_config: { effort: action === 'expand' ? 'high' : 'medium' },
       system:
         'You improve writing inside a document editor. Return ONLY the revised text, with no ' +
         'preamble, no explanation, no apology and no closing remark — whatever you return is ' +
@@ -370,13 +450,19 @@ export async function POST(request: Request) {
         'Use markdown for structure: # for headings, - for bullets, 1. for numbered lists, blank ' +
         'lines between paragraphs. Do not wrap the whole answer in a code fence.\n\n' +
         'Match the language, spelling convention and tone of the input. If the input is in ' +
-        'British English, stay in British English.',
+        'British English, stay in British English.\n\n' +
+        'You may be shown the surrounding document for context. It is there so your answer ' +
+        'fits what is already written; never rewrite it, repeat it or refer to it.',
       messages: [
         {
           role: 'user',
           content:
-            `${ACTIONS[action].instruction}\n\n` +
+            `${ACTIONS[action].instruction || asked}\n\n` +
+            (action !== 'custom' && asked ? `Also: ${asked}\n\n` : '') +
             (body.title?.trim() ? `The document is titled "${body.title.trim()}".\n\n` : '') +
+            (body.context?.trim()
+              ? `For context, the document around it reads:\n\n${body.context.trim().slice(0, 6000)}\n\n`
+              : '') +
             `Here is the text:\n\n${text}`,
         },
       ],

@@ -1,7 +1,6 @@
 'use client'
 
-import { GripVertical, Plus, Sparkles } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { blocksFromPasted, makeBlock, shortcutFor } from '@/lib/blocks'
 import { blocksToText } from '@/lib/export'
 import type { PastedBlock } from '@/lib/paste'
@@ -13,16 +12,20 @@ import {
   nextIndent,
   orderedNumber,
 } from '@/lib/smart-typing'
-import type { Block, Doc, TextishBlock } from '@/lib/types'
+import { findTasks, type TaskSuggestion } from '@/lib/tasks'
+import type { Align, Block, Doc, TextishBlock } from '@/lib/types'
 import { isTextish } from '@/lib/types'
+import { TEXT, usePref } from '@/lib/ui-prefs'
 import CodeBlock from './code-block'
 import Editable, { placeCaret } from './editable'
-import AiPanel from './ai-panel'
+import AssistPopup, { type AssistScope } from './assist-popup'
 import FormatToolbar from './format-toolbar'
 import FileBlock from './file-block'
 import FormBlock from './form-block'
+import Ribbon, { type RibbonTarget } from './ribbon'
 import SlashMenu, { type SlashChoice } from './slash-menu'
 import TableBlock from './table-block'
+import TaskSuggestions from './task-suggestions'
 
 /**
  * The document editor.
@@ -30,8 +33,24 @@ import TableBlock from './table-block'
  * It owns block structure — creating, splitting, merging, deleting and
  * focusing — and hands the inside of each block to a component that knows
  * that block type. Keeping structure in one place is what lets Enter,
- * Backspace and the slash menu behave identically no matter which kind of
- * block the caret happens to be in.
+ * Backspace and the toolbar behave identically no matter which kind of block
+ * the caret happens to be in.
+ *
+ * ## Why this looks like a word processor and not a block editor
+ *
+ * A document is still a list of blocks — that rule has not moved, and it is
+ * what lets a spreadsheet sit inside a meeting note. What has gone is the
+ * *chrome* that announced it: the grip and the plus sign that appeared in the
+ * margin of every paragraph as the pointer went past. Those tell you that you
+ * are assembling a page out of components. Nobody writing a letter wants to be
+ * told that, and the handles moved the controls to wherever the pointer
+ * happened to be, which is the opposite of somewhere you can learn.
+ *
+ * So the controls live in one fixed toolbar above the page (ribbon.tsx), the
+ * paragraphs sit on a sheet of paper, and the keyboard does what it does in
+ * Word: Enter makes a paragraph, Tab indents, Alt+Shift+Up moves a paragraph,
+ * Ctrl+A selects everything. The block model is underneath, where it belongs,
+ * rather than on the surface where it is somebody else's problem.
  */
 export default function Editor({
   doc,
@@ -62,14 +81,6 @@ export default function Editor({
   /** Open slash menu: which block it belongs to and where the "/" sits. */
   const [slash, setSlash] = useState<{ id: string; at: number; query: string } | null>(null)
   /**
-   * An in-flight block drag. Pointer events rather than HTML5 drag-and-drop,
-   * because dragstart never fires on a touch screen — one code path that works
-   * for a mouse, a trackpad and a thumb.
-   */
-  const [drag, setDrag] = useState<{ id: string; overId: string | null; below: boolean } | null>(
-    null,
-  )
-  /**
    * Incremented whenever the editor rewrites a block's content itself rather
    * than the user typing it — a split, a merge, a conversion. Editable watches
    * it to know when a repaint must override its "never repaint while focused"
@@ -88,7 +99,19 @@ export default function Editor({
    */
   const [blockSel, setBlockSel] = useState<{ anchor: string; focus: string } | null>(null)
   const dragAnchor = useRef<string | null>(null)
-  const [aiOpen, setAiOpen] = useState(false)
+  /**
+   * The block the caret is in.
+   *
+   * The toolbar needs it to show which style and alignment are in force, and
+   * every toolbar command needs it to know what to act on. It is not cleared
+   * on blur: pressing a button in the toolbar moves focus out of the block for
+   * an instant, and forgetting where the caret was at that exact moment would
+   * make every button a no-op.
+   */
+  const [currentId, setCurrentId] = useState<string | null>(null)
+  const [assist, setAssist] = useState<{
+    anchor: { top: number; bottom: number; left: number } | null
+  } | null>(null)
   /**
    * Whether writing help is available at all.
    *
@@ -254,22 +277,13 @@ export default function Editor({
     setFocus({ id: block.id, caret: 'start' })
   }
 
-  /** Moves `id` to sit just before or after `targetId`. */
-  const moveBlock = (id: string, targetId: string, below: boolean) => {
-    if (id === targetId) return
-    const moving = doc.blocks.find((b) => b.id === id)
-    if (!moving) return
-    const without = doc.blocks.filter((b) => b.id !== id)
-    // The target index is read from the list with the dragged block already
-    // removed, or dropping downward lands one place short of where it looked.
-    const at = without.findIndex((b) => b.id === targetId)
-    if (at === -1) return
-    const next = [...without]
-    next.splice(below ? at + 1 : at, 0, moving)
-    setBlocks(next)
-  }
-
-  /** Moves a block one place up or down. The keyboard route to reordering. */
+  /**
+   * Moves a block one place up or down.
+   *
+   * The only way to reorder a paragraph now that the drag handles have gone,
+   * and the same keystroke a word processor has used for it for thirty years —
+   * which is rather the point of removing the handles.
+   */
   const nudgeBlock = (id: string, by: -1 | 1) => {
     const index = indexOf(id)
     const target = index + by
@@ -302,6 +316,7 @@ export default function Editor({
     keepText: string,
     keepHtml?: string,
   ) => {
+    const source = doc.blocks.find((b) => b.id === id)
     const created = makeBlock(choice.type, choice.level)
     if (created.type === 'bullet' && choice.ordered) created.ordered = true
     if (isTextish(created) || created.type === 'todo') {
@@ -309,38 +324,16 @@ export default function Editor({
         created.text = keepText
         created.html = keepHtml
       }
+      // Indentation and alignment belong to the paragraph, not to the kind of
+      // paragraph it is, so turning a line into a list item must not silently
+      // pull it back to the left margin.
+      const before = source as TextishBlock | undefined
+      if (before?.indent) created.indent = before.indent
+      if (before?.align) created.align = before.align
     }
     setBlocks(doc.blocks.map((b) => (b.id === id ? created : b)))
     bumpRevision()
     setFocus({ id: created.id, caret: 'end' })
-  }
-
-  /**
-   * Opens the insert menu for a block without a "/" having been typed — the
-   * "+" in the gutter. It appends the slash to the block's text so that both
-   * routes converge on exactly one code path for picking and cleaning up.
-   */
-  const openMenuFor = (id: string) => {
-    const block = doc.blocks.find((b) => b.id === id)
-    if (!block) return
-    if (isTextish(block) || block.type === 'todo') {
-      const at = block.text.length
-      updateBlock(id, { ...block, text: `${block.text}/` } as Block)
-      bumpRevision()
-      setSlash({ id, at, query: '' })
-      setFocus({ id, caret: 'end' })
-      return
-    }
-    // A table, form or code block has no text to hang the menu off, so the
-    // menu belongs to a fresh block underneath it.
-    const fresh = makeBlock('text')
-    if (isTextish(fresh)) fresh.text = '/'
-    const index = indexOf(id)
-    const next = [...doc.blocks]
-    next.splice(index + 1, 0, fresh)
-    setBlocks(next)
-    setSlash({ id: fresh.id, at: 0, query: '' })
-    setFocus({ id: fresh.id, caret: 'end' })
   }
 
   const pickFromSlash = (choice: SlashChoice) => {
@@ -362,6 +355,302 @@ export default function Editor({
       insertAfter(block.id, makeBlock(choice.type, choice.level))
     }
   }
+
+  /* ------------------------------------------------------------- the toolbar */
+
+  /** The block the toolbar is describing, or the last one the caret was in. */
+  const currentBlock = currentId ? (doc.blocks.find((b) => b.id === currentId) ?? null) : null
+
+  const ribbonTarget: RibbonTarget | null = currentBlock
+    ? {
+        type: currentBlock.type,
+        level: (currentBlock as TextishBlock).level,
+        align: (currentBlock as TextishBlock).align,
+        ordered: (currentBlock as TextishBlock).ordered,
+        indent: (currentBlock as TextishBlock).indent,
+      }
+    : null
+
+  /** Which block a toolbar command acts on: the caret's, or failing that the last. */
+  const actOn = (): Block | null =>
+    currentBlock ?? doc.blocks[doc.blocks.length - 1] ?? null
+
+  const styleCurrent = (choice: { type: Block['type']; level?: 1 | 2 | 3; ordered?: boolean }) => {
+    const block = actOn()
+    if (!block) return
+    const text = isTextish(block) || block.type === 'todo' ? block.text : ''
+    const html = isTextish(block) || block.type === 'todo' ? block.html : undefined
+    // Pressing "bulleted list" while already in one turns it back into a
+    // paragraph, which is what the same button does in every word processor.
+    const already =
+      block.type === choice.type &&
+      (choice.type !== 'heading' || (block as TextishBlock).level === choice.level) &&
+      (choice.type !== 'bullet' || !!(block as TextishBlock).ordered === !!choice.ordered)
+    convert(block.id, already ? { type: 'text' } : choice, text, html)
+  }
+
+  const alignCurrent = (align: Align) => {
+    const block = actOn()
+    if (!block || !(isTextish(block) || block.type === 'todo')) return
+    // Left is the absence of alignment rather than a value, so a left-aligned
+    // paragraph is stored exactly as every paragraph written before alignment
+    // existed. See `align` in lib/types.ts.
+    const next = { ...block } as TextishBlock
+    if (align === 'left') delete next.align
+    else next.align = align
+    updateBlock(block.id, next as Block)
+    setFocus({ id: block.id, caret: 'end' })
+  }
+
+  const indentCurrent = (by: -1 | 1) => {
+    const block = actOn()
+    if (!block || !(isTextish(block) || block.type === 'todo')) return
+    const current = (block as TextishBlock).indent
+    const to = nextIndent(current, by)
+    if (to === (current ?? 0)) return
+    updateBlock(block.id, { ...block, indent: to || undefined } as Block)
+    setFocus({ id: block.id, caret: 'end' })
+  }
+
+  /** Insert from the toolbar: a table, some code, a form, a line. */
+  const insertFromToolbar = (type: Block['type']) => {
+    const block = actOn()
+    const created = makeBlock(type)
+    if (!block) {
+      setBlocks([...doc.blocks, created])
+      return
+    }
+    const host = isTextish(block) || block.type === 'todo' ? block : null
+    // An empty paragraph becomes the new block rather than sitting above it as
+    // a blank line, which is what somebody means by "insert here".
+    if (host && !host.text.trim()) {
+      setBlocks(doc.blocks.map((b) => (b.id === block.id ? created : b)))
+      bumpRevision()
+      if (type === 'divider') {
+        const after = makeBlock('text')
+        setBlocks([
+          ...doc.blocks.slice(0, indexOf(block.id)),
+          created,
+          after,
+          ...doc.blocks.slice(indexOf(block.id) + 1),
+        ])
+        setFocus({ id: after.id, caret: 'start' })
+      }
+      return
+    }
+    const index = indexOf(block.id)
+    const next = [...doc.blocks]
+    next.splice(index + 1, 0, created)
+    // A divider has nothing to type into, so it always leaves a line after it.
+    if (type === 'divider') {
+      const after = makeBlock('text')
+      next.splice(index + 2, 0, after)
+      setBlocks(next)
+      setFocus({ id: after.id, caret: 'start' })
+      return
+    }
+    setBlocks(next)
+    setFocus({ id: created.id, caret: 'start' })
+  }
+
+  /* ------------------------------------------------------------ writing help */
+
+  /**
+   * Where the caret is on screen, so the popup can open next to it.
+   *
+   * Read once, at the moment of opening. A collapsed caret's rectangle has no
+   * width but does have a position; when even that is missing — which happens
+   * in a freshly emptied block — the focused element's own box is close enough
+   * and is never wrong by more than a line.
+   */
+  const caretBox = (): { top: number; bottom: number; left: number } | null => {
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      const rect = selection.getRangeAt(0).getBoundingClientRect()
+      if (rect.top || rect.bottom) {
+        return { top: rect.top, bottom: rect.bottom, left: rect.left }
+      }
+    }
+    const el = container.current?.querySelector<HTMLElement>(
+      `[data-block-id="${currentId}"] [contenteditable]`,
+    )
+    if (!el) return null
+    const rect = el.getBoundingClientRect()
+    return { top: rect.top, bottom: rect.bottom, left: rect.left }
+  }
+
+  const openAssist = useCallback(() => {
+    setAssist({ anchor: caretBox() })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId])
+
+  // Ctrl+J, the shortcut, bound at the document so it works from anywhere on
+  // the page rather than only from inside a block.
+  useEffect(() => {
+    if (!aiReady) return
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j') {
+        event.preventDefault()
+        openAssist()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [aiReady, openAssist])
+
+  /**
+   * What the assistant can be pointed at, best guess first.
+   *
+   * A selection if there is one, because selecting text and asking for help is
+   * unambiguous; otherwise the paragraph the caret is in, because that is what
+   * somebody means by "expand this" while typing. The whole document is always
+   * offered as well — it is the only one of the three that can be wrong in a
+   * way you would not notice until after you pressed Replace.
+   */
+  const assistScopes = (): AssistScope[] => {
+    const scopes: AssistScope[] = []
+    const chosen = selectedBlocks()
+    if (chosen.length) {
+      scopes.push({
+        id: 'selection',
+        label: `${chosen.length} selected`,
+        text: blocksToText(chosen),
+      })
+    } else {
+      const inline = window.getSelection()?.toString().trim() ?? ''
+      if (inline.length > 1) scopes.push({ id: 'selection', label: 'Selection', text: inline })
+    }
+    if (currentBlock && (isTextish(currentBlock) || currentBlock.type === 'todo')) {
+      scopes.push({
+        id: 'line',
+        label: 'This paragraph',
+        text: currentBlock.text,
+      })
+    }
+    scopes.push({ id: 'doc', label: 'Whole document', text: blocksToText(doc.blocks) })
+    return scopes
+  }
+
+  /** The paragraphs on either side, so an expansion knows what has been said. */
+  const assistContext = (): string => {
+    const at = currentId ? indexOf(currentId) : doc.blocks.length - 1
+    if (at === -1) return ''
+    return blocksToText(doc.blocks.slice(Math.max(0, at - 4), at + 3))
+  }
+
+  /**
+   * Puts a result into the document.
+   *
+   * 'replace' swaps out whatever the action was pointed at; 'after' leaves it
+   * alone and follows it. Both act on the scope the popup was showing, which
+   * is why the scope travels back with the result rather than being guessed
+   * again here — by then the selection may well have gone.
+   */
+  const applyAssist = (pasted: PastedBlock[], scope: AssistScope, mode: 'replace' | 'after') => {
+    if (!pasted.length) return
+    const created = blocksFromPasted(pasted)
+
+    if (scope.id === 'doc') {
+      setBlocks(mode === 'replace' ? created : [...doc.blocks, ...created])
+    } else {
+      const range = selectedRange()
+      const at = currentId ? indexOf(currentId) : doc.blocks.length - 1
+      const [from, to] = range ?? [at, at]
+      if (from === -1) return
+      setBlocks(
+        mode === 'replace'
+          ? [...doc.blocks.slice(0, from), ...created, ...doc.blocks.slice(to + 1)]
+          : [...doc.blocks.slice(0, to + 1), ...created, ...doc.blocks.slice(to + 1)],
+      )
+    }
+    setBlockSel(null)
+    bumpRevision()
+    const last = created[created.length - 1]
+    if (last) setFocus({ id: last.id, caret: 'end' })
+  }
+
+  /* -------------------------------------------------------- tasks in the text */
+
+  /**
+   * Lines in this document that read like things to be done.
+   *
+   * A pure scan over the blocks (see lib/tasks.ts), memoised so it runs once
+   * per change rather than once per render, and settled behind a pause so the
+   * strip does not appear halfway through the word "need".
+   */
+  /**
+   * The blocks as they were when typing last stopped.
+   *
+   * Compared by identity against the live blocks, which is what makes the
+   * scan wait for a pause: the moment a keystroke replaces the array these
+   * two stop matching, and no suggestion is shown again until the timer
+   * below fires with the newer one. One piece of state, set from a timer
+   * rather than from the effect body, so nothing cascades.
+   */
+  const [scanned, setScanned] = useState<Block[] | null>(null)
+  /**
+   * Suggestions already turned down, by the block they came from.
+   *
+   * Not a single "dismissed" flag: turning down the four lines in today's
+   * meeting note should not mean the app stays quiet about the three you write
+   * tomorrow in the same document.
+   */
+  const [turnedDown, setTurnedDown] = useState<Set<string>>(() => new Set())
+  /** How many tasks the last confirmation made, so it can say so. */
+  const [made, setMade] = useState(0)
+
+  useEffect(() => {
+    const blocks = doc.blocks
+    const timer = setTimeout(() => setScanned(blocks), TASK_SCAN_PAUSE_MS)
+    return () => clearTimeout(timer)
+  }, [doc.blocks])
+
+  const suggestions: TaskSuggestion[] = useMemo(
+    () => (scanned === doc.blocks ? findTasks(doc.blocks) : []),
+    [scanned, doc.blocks],
+  )
+  const offered = suggestions.filter((task) => !turnedDown.has(task.blockId))
+
+  /** Turns the confirmed lines into task blocks, in place. */
+  const makeTasks = (chosen: TaskSuggestion[]) => {
+    const wording = new Map(chosen.map((task) => [task.blockId, task.text]))
+    setBlocks(
+      doc.blocks.map((block) => {
+        const text = wording.get(block.id)
+        if (text === undefined || !isTextish(block)) return block
+        const made = makeBlock('todo')
+        if (made.type === 'todo') {
+          made.text = text
+          // The wording was tidied — the lead-in removed, the glyph stripped —
+          // so the old inline formatting no longer lines up with it and is
+          // dropped rather than smeared across different words.
+          made.indent = block.indent
+          made.align = block.align
+        }
+        return made
+      }),
+    )
+    bumpRevision()
+    setMade(chosen.length)
+    // The lines that were offered and not ticked are not offered again: the
+    // writer has just looked at all of them and said which ones were tasks.
+    setTurnedDown((current) => {
+      const next = new Set(current)
+      for (const task of suggestions) next.add(task.blockId)
+      return next
+    })
+  }
+
+  const turnDown = () => {
+    setMade(0)
+    setTurnedDown((current) => {
+      const next = new Set(current)
+      for (const task of suggestions) next.add(task.blockId)
+      return next
+    })
+  }
+
+  /* ---------------------------------------------------------------- typing */
 
   /**
    * Where a "/" was just typed, or null if this change was anything else.
@@ -405,42 +694,6 @@ export default function Editor({
     return true
   }
 
-  /**
-   * What writing help will work on: the selected blocks if any are selected,
-   * otherwise the whole document. Never a silent guess — the panel says which.
-   */
-  const aiSource = (): { text: string; label: string } => {
-    const chosen = selectedBlocks()
-    if (chosen.length) {
-      return {
-        text: blocksToText(chosen),
-        label: `${chosen.length} selected ${chosen.length === 1 ? 'block' : 'blocks'}`,
-      }
-    }
-    return { text: blocksToText(doc.blocks), label: 'the whole document' }
-  }
-
-  /** Turns the result into blocks, replacing the source or following it. */
-  const applyAi = (pasted: PastedBlock[], mode: 'replace' | 'after') => {
-    if (!pasted.length) return
-    const created = blocksFromPasted(pasted)
-
-    const range = selectedRange()
-    const next = range
-      ? mode === 'replace'
-        ? [...doc.blocks.slice(0, range[0]), ...created, ...doc.blocks.slice(range[1] + 1)]
-        : [...doc.blocks.slice(0, range[1] + 1), ...created, ...doc.blocks.slice(range[1] + 1)]
-      : mode === 'replace'
-        ? created
-        : [...doc.blocks, ...created]
-
-    setBlocks(next)
-    setBlockSel(null)
-    bumpRevision()
-    const last = created[created.length - 1]
-    if (last) setFocus({ id: last.id, caret: 'end' })
-  }
-
   /** Text typed into a text-ish or todo block. Handles markdown shortcuts. */
   const onTextChange = (
     block: TextishBlock | Extract<Block, { type: 'todo' }>,
@@ -460,6 +713,23 @@ export default function Editor({
         return
       }
       convert(block.id, shortcut, '')
+      return
+    }
+
+    /*
+      "++" asks for help, the way "/" asks for a block.
+
+      Detected from the text the input event produced, never from keydown, for
+      exactly the reason the slash menu is: a phone keyboard reports keydown as
+      `Unidentified` and only reveals the character afterwards. The two plus
+      signs are removed as they are consumed, so the shortcut leaves nothing
+      behind if the popup is then dismissed.
+    */
+    if (aiReady && value.endsWith('++') && !block.text.endsWith('++')) {
+      updateBlock(block.id, { ...block, text: value.slice(0, -2), html: undefined } as Block)
+      bumpRevision()
+      setCurrentId(block.id)
+      setAssist({ anchor: caretBox() })
       return
     }
 
@@ -497,6 +767,28 @@ export default function Editor({
     // level and will have called preventDefault already.
     if (slash && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) {
       if (event.defaultPrevented) return
+    }
+
+    /*
+      Ctrl+A selects the paragraph, then the document.
+
+      The browser's own Ctrl+A stops at the edge of the contenteditable, which
+      in this editor is one paragraph — so in a five-page document it selected
+      a line and appeared broken. Pressing it again, once the paragraph is
+      already fully selected, takes the whole document, which is what a second
+      press does in every application that has two levels of "all".
+    */
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+      const selection = window.getSelection()
+      const whole = api.text()
+      if (whole && selection && !selection.isCollapsed && selection.toString() === whole) {
+        event.preventDefault()
+        selection.removeAllRanges()
+        const first = doc.blocks[0]
+        const last = doc.blocks[doc.blocks.length - 1]
+        if (first && last) setBlockSel({ anchor: first.id, focus: last.id })
+      }
+      return
     }
 
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -562,6 +854,9 @@ export default function Editor({
         created.html = tail.html
         // A new line in a list stays at the depth of the one above it.
         if (continues || announcesList) created.indent = (block as TextishBlock).indent
+        // And keeps the alignment, which is a property of the page rather than
+        // of the paragraph that happened to be above it.
+        if ((block as TextishBlock).align) created.align = (block as TextishBlock).align
         // And keeps its numbering, which then counts itself.
         if (created.type === 'bullet' && block.type === 'bullet' && block.ordered) {
           created.ordered = true
@@ -654,12 +949,35 @@ export default function Editor({
       return
     }
 
-    // Alt+Arrow moves the block itself. Drag-and-drop is not reachable from a
-    // keyboard, and reordering should not require a pointing device.
+    // Alt+Arrow moves the paragraph itself, and so does Alt+Shift+Arrow, which
+    // is the binding Word has used for it since before most of this app's
+    // users were typing. There is no drag handle any more; this is the way.
     if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && event.altKey) {
       event.preventDefault()
       nudgeBlock(block.id, event.key === 'ArrowUp' ? -1 : 1)
       return
+    }
+
+    /*
+      Shift with the arrows, at the top or bottom of a paragraph, extends the
+      selection into the paragraph above or below.
+
+      Without this, holding Shift and pressing Down stopped dead at the end of
+      the line — each block being its own contenteditable, there is nowhere for
+      a native selection to go. Selecting three paragraphs with the keyboard is
+      not an advanced gesture; it is how people delete a section.
+    */
+    if (event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      const index = indexOf(block.id)
+      const up = event.key === 'ArrowUp'
+      const edge = up ? api.atStart() : api.atEnd()
+      const target = index + (up ? -1 : 1)
+      if (edge && target >= 0 && target < doc.blocks.length) {
+        event.preventDefault()
+        window.getSelection()?.removeAllRanges()
+        setBlockSel({ anchor: block.id, focus: doc.blocks[target].id })
+        return
+      }
     }
 
     if (event.key === 'ArrowUp' && api.atStart()) {
@@ -679,256 +997,181 @@ export default function Editor({
     }
   }
 
+  /* ------------------------------------------------------------------ render */
+
+  /*
+    The text size lives on <html> and in localStorage rather than in React
+    state, so it is applied before the first paint and does not flash. Read
+    here through the same hook the rest of the interface uses; unset means
+    medium, which is already the larger default. See lib/ui-prefs.ts.
+  */
+  const { value: textPref, set: setTextPref } = usePref(TEXT)
+  const textSize = textPref ?? 'medium'
+
   return (
-    /*
-      The left inset is where the gutter controls live. They are positioned
-      into it rather than laid out inline: inline, they pushed every block
-      right and left the title sitting on its own, out of line with the text
-      beneath it. On a phone there is no inset at all — the width matters more
-      than the handles, and the floating button below covers inserting.
-    */
-    <div
-      ref={container}
-      className="relative pb-40 sm:pl-11"
-      onPointerDown={(event) => {
-        // A press inside the gutter is the start of a block drag, not a text
-        // selection, and must not arm this.
-        const target = event.target as Element | null
-        if (target?.closest('[aria-label^="Drag to reorder"]')) return
-        const host = target?.closest<HTMLElement>('[data-block-id]')
-        dragAnchor.current = host?.dataset.blockId ?? null
-        if (blockSel) setBlockSel(null)
-      }}
-      onPointerMove={(event) => {
-        const anchor = dragAnchor.current
-        // buttons === 0 means nothing is held down, so this is just a hover.
-        if (!anchor || event.buttons === 0) return
-        const over = document
-          .elementFromPoint(event.clientX, event.clientY)
-          ?.closest<HTMLElement>('[data-block-id]')
-        const id = over?.dataset.blockId
-        if (!id || id === anchor) return
-        // The drag has left the block it started in. The browser cannot carry
-        // a text selection across the boundary, so drop it and select blocks.
-        window.getSelection()?.removeAllRanges()
-        setBlockSel((current) =>
-          current?.anchor === anchor && current.focus === id ? current : { anchor, focus: id },
-        )
-      }}
-      onPointerUp={() => {
-        dragAnchor.current = null
-      }}
-    >
-      <FormatToolbar scope={container} />
-      <input
-        value={doc.title}
-        onChange={(e) => onChange({ ...doc, title: e.target.value, updatedAt: Date.now() })}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === 'ArrowDown') {
-            e.preventDefault()
-            if (doc.blocks[0]) setFocus({ id: doc.blocks[0].id, caret: 'start' })
-          }
+    <div ref={container} className="relative">
+      <Ribbon
+        target={ribbonTarget}
+        onStyle={styleCurrent}
+        onAlign={alignCurrent}
+        onIndent={indentCurrent}
+        onInsert={insertFromToolbar}
+        onAssist={aiReady ? openAssist : undefined}
+        textSize={textSize}
+        onTextSize={setTextPref}
+      />
+
+      <div
+        className="px-4 pt-5 pb-32 sm:px-12 sm:pt-8"
+        onPointerDown={(event) => {
+          const target = event.target as Element | null
+          const host = target?.closest<HTMLElement>('[data-block-id]')
+          dragAnchor.current = host?.dataset.blockId ?? null
+          if (blockSel) setBlockSel(null)
         }}
-        placeholder="Untitled"
-        aria-label="Document title"
-        className="mb-2 w-full bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-[var(--color-faint)] sm:text-4xl"
-      />
+        onPointerMove={(event) => {
+          const anchor = dragAnchor.current
+          // buttons === 0 means nothing is held down, so this is just a hover.
+          if (!anchor || event.buttons === 0) return
+          const over = document
+            .elementFromPoint(event.clientX, event.clientY)
+            ?.closest<HTMLElement>('[data-block-id]')
+          const id = over?.dataset.blockId
+          if (!id || id === anchor) return
+          // The drag has left the block it started in. The browser cannot
+          // carry a text selection across the boundary, so drop it and select
+          // whole blocks instead.
+          window.getSelection()?.removeAllRanges()
+          setBlockSel((current) =>
+            current?.anchor === anchor && current.focus === id ? current : { anchor, focus: id },
+          )
+        }}
+        onPointerUp={() => {
+          dragAnchor.current = null
+        }}
+      >
+        <FormatToolbar scope={container} />
 
-      {doc.blocks.map((block, blockIndex) => (
-        <div
-          key={block.id}
-          data-block-id={block.id}
-          className={`group/block relative rounded-md ${
-            drag?.id === block.id ? 'opacity-40' : ''
-          } ${
-            (() => {
-              const range = selectedRange()
-              return range && blockIndex >= range[0] && blockIndex <= range[1]
-                ? 'bg-[var(--color-accent-soft)]'
-                : ''
-            })()
-          }`}
-          // Indentation as padding rather than nested markup: a list is still
-          // a flat run of blocks, so dragging one out of a sub-list is the
-          // same operation as any other move.
-          style={{ paddingLeft: ((block as TextishBlock).indent ?? 0) * 1.6 + 'rem' }}
-        >
-          {/* Where the block would land if you let go now. */}
-          {drag?.overId === block.id && (
-            <span
-              aria-hidden
-              className={`pointer-events-none absolute inset-x-0 h-0.5 rounded-full bg-[var(--color-accent)] ${
-                drag.below ? '-bottom-px' : '-top-px'
+        {(offered.length > 0 || made > 0) && (
+          <TaskSuggestions
+            suggestions={offered}
+            made={made}
+            onCreate={makeTasks}
+            onDismiss={turnDown}
+          />
+        )}
+
+        <input
+          value={doc.title}
+          onChange={(e) => onChange({ ...doc, title: e.target.value, updatedAt: Date.now() })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === 'ArrowDown') {
+              e.preventDefault()
+              if (doc.blocks[0]) setFocus({ id: doc.blocks[0].id, caret: 'start' })
+            }
+          }}
+          placeholder="Untitled"
+          aria-label="Document title"
+          className="pad-doc-title mb-3 w-full bg-transparent font-semibold tracking-tight outline-none placeholder:text-[var(--color-faint)]"
+        />
+
+        <div className="pad-doc">
+          {doc.blocks.map((block, blockIndex) => (
+            <div
+              key={block.id}
+              data-block-id={block.id}
+              className={`relative rounded-sm ${
+                (() => {
+                  const range = selectedRange()
+                  return range && blockIndex >= range[0] && blockIndex <= range[1]
+                    ? 'bg-[var(--color-accent-soft)]'
+                    : ''
+                })()
               }`}
-            />
-          )}
-          {/*
-            The gutter stays visible on a touch screen. It used to be
-            `hidden sm:block`, which left a phone with no way to insert a block
-            except typing "/" — and that did not work there either. Hover only
-            fades it in on devices that have a pointer.
-          */}
-          <div className="absolute top-1 -left-11 hidden shrink-0 items-center opacity-0 transition-opacity group-focus-within/block:opacity-100 group-hover/block:opacity-100 sm:flex">
-            <button
-              type="button"
-              aria-label="Insert block below"
-              onClick={() => openMenuFor(block.id)}
-              className="rounded p-1 text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+              // Indentation as padding rather than nested markup: a list is
+              // still a flat run of blocks, so moving one out of a sub-list is
+              // the same operation as any other move.
+              style={{ paddingLeft: ((block as TextishBlock).indent ?? 0) * 1.75 + 'rem' }}
             >
-              <Plus size={14} />
-            </button>
-            <button
-              type="button"
-              aria-label={`Drag to reorder, or press Alt with the arrow keys`}
-              // touch-none stops the browser scrolling the page instead of
-              // giving us the pointermove events a drag is made of.
-              className="touch-none rounded p-1 text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
-              onPointerDown={(e) => {
-                e.preventDefault()
-                e.currentTarget.setPointerCapture(e.pointerId)
-                setDrag({ id: block.id, overId: null, below: false })
-              }}
-              onPointerMove={(e) => {
-                if (!drag) return
-                const under = document
-                  .elementFromPoint(e.clientX, e.clientY)
-                  ?.closest('[data-block-id]')
-                const overId = under?.getAttribute('data-block-id') ?? null
-                if (!overId || overId === drag.id) {
-                  if (drag.overId !== null) setDrag({ ...drag, overId: null })
-                  return
-                }
-                // Past the midpoint means below, which is what makes dropping
-                // onto the lower half of a block land after it.
-                const box = under!.getBoundingClientRect()
-                const below = e.clientY > box.top + box.height / 2
-                if (drag.overId !== overId || drag.below !== below) {
-                  setDrag({ ...drag, overId, below })
-                }
-              }}
-              onPointerUp={() => {
-                if (drag?.overId) moveBlock(drag.id, drag.overId, drag.below)
-                setDrag(null)
-              }}
-              onPointerCancel={() => setDrag(null)}
-            >
-              <GripVertical size={14} />
-            </button>
-          </div>
-
-          <div className="relative min-w-0">
-            <BlockBody
-              block={block}
-              onChange={(next) => updateBlock(block.id, next)}
-              onTextChange={onTextChange}
-              onTextKeyDown={onTextKeyDown}
-              slashOpen={slash?.id === block.id}
-              revision={revision}
-              onRemove={() => removeBlock(block.id)}
-              number={orderedNumber(doc.blocks, blockIndex)}
-              onPasteBlocks={insertPasted}
-              onExtractPdf={onExtractPdf}
-            />
-            {slash?.id === block.id && (
-              <SlashMenu
-                query={slash.query}
-                onPick={pickFromSlash}
-                onClose={() => setSlash(null)}
-              />
-            )}
-          </div>
+              <div className="relative min-w-0">
+                <BlockBody
+                  block={block}
+                  onChange={(next) => updateBlock(block.id, next)}
+                  onTextChange={onTextChange}
+                  onTextKeyDown={onTextKeyDown}
+                  onTextFocus={() => setCurrentId(block.id)}
+                  slashOpen={slash?.id === block.id}
+                  revision={revision}
+                  onRemove={() => removeBlock(block.id)}
+                  number={orderedNumber(doc.blocks, blockIndex)}
+                  onPasteBlocks={insertPasted}
+                  onExtractPdf={onExtractPdf}
+                  assistReady={!!aiReady}
+                />
+                {slash?.id === block.id && (
+                  <SlashMenu
+                    query={slash.query}
+                    onPick={pickFromSlash}
+                    onClose={() => setSlash(null)}
+                  />
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
 
-      {/*
-        A wide click target below the last block. Without it, clicking the
-        empty space under a document does nothing, which reads as the page
-        being finished rather than continuing.
-      */}
-      <AiPanel
-        open={aiOpen}
-        onClose={() => setAiOpen(false)}
-        source={aiOpen ? aiSource() : { text: '', label: '' }}
-        title={doc.title}
-        onReplace={(blocks) => applyAi(blocks, 'replace')}
-        onInsert={(blocks) => applyAi(blocks, 'after')}
-      />
-
-      {/*
-        Writing help is the primary action at the bottom of a phone, with
-        inserting a block as the smaller one above it. Inserting is also
-        reachable by typing "/" and from the gutter on a desktop; asking for
-        help with the writing is not reachable any other way, which is what
-        earns it the larger target under the thumb.
-      */}
-      {aiReady && (
+        {/*
+          A wide click target below the last block. Without it, clicking the
+          empty space under a document does nothing, which reads as the page
+          being finished rather than continuing.
+        */}
         <button
           type="button"
-          aria-label="Writing help"
-          onClick={() => setAiOpen(true)}
-          className="fixed right-4 bottom-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-accent)] text-white shadow-lg active:scale-95"
-        >
-          <Sparkles size={20} />
-        </button>
-      )}
+          aria-label="Continue writing"
+          onClick={() => {
+            const last = doc.blocks[doc.blocks.length - 1]
+            if (last && isTextish(last) && !last.text) {
+              setFocus({ id: last.id, caret: 'end' })
+              return
+            }
+            const fresh = makeBlock('text')
+            setBlocks([...doc.blocks, fresh])
+            setFocus({ id: fresh.id, caret: 'start' })
+          }}
+          className="mt-2 h-48 w-full cursor-text"
+        />
+      </div>
 
-      {/*
-        The phone's way in to blocks. Typing "/" works again now, but a visible
-        button is discoverable in a way an invisible keystroke is not, and on a
-        touch screen there is no gutter to hover.
-      */}
-      <button
-        type="button"
-        aria-label="Insert block"
-        onClick={() => {
-          const last = doc.blocks[doc.blocks.length - 1]
-          if (last && (isTextish(last) || last.type === 'todo') && !last.text) {
-            openMenuFor(last.id)
-            return
-          }
-          const fresh = makeBlock('text')
-          if (isTextish(fresh)) fresh.text = '/'
-          setBlocks([...doc.blocks, fresh])
-          setSlash({ id: fresh.id, at: 0, query: '' })
-          setFocus({ id: fresh.id, caret: 'end' })
-        }}
-        className={`fixed right-5 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] text-[var(--color-ink)] shadow-md active:scale-95 sm:hidden ${
-          aiReady ? 'bottom-20' : 'bottom-4'
-        }`}
-      >
-        <Plus size={20} />
-      </button>
-
-      <button
-        type="button"
-        aria-label="Continue writing"
-        onClick={() => {
-          const last = doc.blocks[doc.blocks.length - 1]
-          if (last && isTextish(last) && !last.text) {
-            setFocus({ id: last.id, caret: 'end' })
-            return
-          }
-          const fresh = makeBlock('text')
-          setBlocks([...doc.blocks, fresh])
-          setFocus({ id: fresh.id, caret: 'start' })
-        }}
-        className="mt-1 h-40 w-full cursor-text"
+      <AssistPopup
+        open={assist !== null}
+        onClose={() => setAssist(null)}
+        anchor={assist?.anchor ?? null}
+        scopes={assist ? assistScopes() : []}
+        title={doc.title}
+        context={assist ? assistContext() : ''}
+        onReplace={(blocks, scope) => applyAssist(blocks, scope, 'replace')}
+        onInsert={(blocks, scope) => applyAssist(blocks, scope, 'after')}
       />
     </div>
   )
 }
+
+/** How long typing has to stop before the document is read for tasks. */
+const TASK_SCAN_PAUSE_MS = 1_200
 
 function BlockBody({
   block,
   onChange,
   onTextChange,
   onTextKeyDown,
+  onTextFocus,
   slashOpen,
   revision,
   onRemove,
   onPasteBlocks,
   onExtractPdf,
   number,
+  assistReady,
 }: {
   block: Block
   onChange: (next: Block) => void
@@ -947,6 +1190,7 @@ function BlockBody({
       }
     },
   ) => void
+  onTextFocus: () => void
   slashOpen: boolean
   revision: number
   onRemove: () => void
@@ -954,9 +1198,10 @@ function BlockBody({
   onExtractPdf?: (file: Blob, name: string) => void
   /** The printed position of an ordered list item. */
   number: number
+  assistReady: boolean
 }) {
   if (block.type === 'divider') {
-    return <hr className="my-4 border-0 border-t border-[var(--color-line)]" />
+    return <hr className="my-6 border-0 border-t border-[var(--color-line)]" />
   }
 
   if (block.type === 'table') {
@@ -982,15 +1227,25 @@ function BlockBody({
     )
   }
 
+  /** Alignment is a class on the paragraph. See `Align` in lib/types.ts. */
+  const aligned =
+    block.align === 'center'
+      ? ' pad-align-center'
+      : block.align === 'right'
+        ? ' pad-align-right'
+        : block.align === 'justify'
+          ? ' pad-align-justify'
+          : ''
+
   if (block.type === 'todo') {
     return (
-      <div className="flex items-start gap-2 py-0.5">
+      <div className="flex items-start gap-2.5 py-0.5">
         <input
           type="checkbox"
           checked={block.done}
           onChange={(e) => onChange({ ...block, done: e.target.checked })}
           aria-label={block.text || 'Task'}
-          className="mt-[0.35rem] h-[15px] w-[15px] shrink-0 cursor-pointer accent-[var(--color-accent)]"
+          className="mt-[0.5em] h-[15px] w-[15px] shrink-0 cursor-pointer accent-[var(--color-accent)]"
         />
         <Editable
           value={block.text}
@@ -1001,7 +1256,8 @@ function BlockBody({
           ariaLabel="Task"
           onChange={(value, html) => onTextChange(block as never, value, html)}
           onKeyDown={(event, api) => onTextKeyDown(block, event, api)}
-          className={`min-w-0 flex-1 py-0.5 leading-relaxed ${
+          onFocus={onTextFocus}
+          className={`min-w-0 flex-1 py-0.5${aligned} ${
             block.done ? 'text-[var(--color-faint)] line-through' : ''
           }`}
         />
@@ -1009,21 +1265,26 @@ function BlockBody({
     )
   }
 
+  /*
+    Every size here is a multiple of --doc-text rather than a fixed Tailwind
+    step, so the size control in the toolbar moves the whole typographic scale
+    together. See globals.css.
+  */
   const styles: Record<string, string> = {
-    text: 'py-1 leading-relaxed',
-    bullet: 'py-0.5 leading-relaxed',
-    quote: 'py-1 leading-relaxed italic text-[var(--color-muted)]',
+    text: 'py-1',
+    bullet: 'py-0.5',
+    quote: 'py-1 italic text-[var(--color-muted)]',
   }
   const headingStyles: Record<number, string> = {
-    1: 'text-2xl font-semibold tracking-tight mt-6 mb-1',
-    2: 'text-xl font-semibold tracking-tight mt-5 mb-0.5',
-    3: 'text-base font-semibold mt-4',
+    1: 'pad-h1 font-semibold tracking-tight mt-8 mb-1',
+    2: 'pad-h2 font-semibold tracking-tight mt-6 mb-0.5',
+    3: 'pad-h3 font-semibold mt-5',
   }
 
   const className =
-    block.type === 'heading'
+    (block.type === 'heading'
       ? headingStyles[block.level ?? 1]
-      : (styles[block.type] ?? styles.text)
+      : (styles[block.type] ?? styles.text)) + aligned
 
   const placeholder = slashOpen
     ? ''
@@ -1033,7 +1294,9 @@ function BlockBody({
         ? 'Quote'
         : block.type === 'bullet'
           ? 'List item'
-          : 'Type / for anything'
+          : assistReady
+            ? 'Write, press / to insert, or Ctrl+J to ask'
+            : 'Write, or press / to insert'
 
   const editable = (
     <Editable
@@ -1045,6 +1308,7 @@ function BlockBody({
       ariaLabel={block.type === 'heading' ? 'Heading' : 'Text'}
       onChange={(value, html) => onTextChange(block as never, value, html)}
       onKeyDown={(event, api) => onTextKeyDown(block, event, api)}
+      onFocus={onTextFocus}
       className={className}
     />
   )
@@ -1055,10 +1319,10 @@ function BlockBody({
     // renumbers the rest, with nothing to keep in step.
     if (block.ordered) {
       return (
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-2.5">
           <span
             aria-hidden
-            className="mt-[0.15rem] min-w-[1.4rem] shrink-0 text-right text-[var(--color-muted)] tabular-nums"
+            className="min-w-[1.6em] shrink-0 py-0.5 text-right text-[var(--color-muted)] tabular-nums"
           >
             {number}.
           </span>
@@ -1070,10 +1334,10 @@ function BlockBody({
     // readable without counting the indentation.
     const glyph = bulletFor(block.indent)
     return (
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2.5">
         <span
           aria-hidden
-          className={`mt-[0.72rem] h-[5px] w-[5px] shrink-0 ${
+          className={`mt-[0.75em] h-[5px] w-[5px] shrink-0 ${
             glyph === 'square' ? '' : 'rounded-full'
           } ${
             glyph === 'circle'
@@ -1087,9 +1351,7 @@ function BlockBody({
   }
 
   if (block.type === 'quote') {
-    return (
-      <div className="border-l-2 border-[var(--color-line)] pl-3">{editable}</div>
-    )
+    return <div className="border-l-2 border-[var(--color-line)] pl-4">{editable}</div>
   }
 
   return editable

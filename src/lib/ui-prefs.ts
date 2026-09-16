@@ -4,7 +4,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 
 /**
  * Interface preferences: theme, whether the sidebar is open, how wide the
- * page runs.
+ * page runs, and how large the text is set.
  *
  * All three live on `<html>` as data attributes and in localStorage, not in
  * React state. An inline script in the root layout applies them before the
@@ -30,12 +30,26 @@ export interface Pref<T extends string> {
 export const THEME = { key: 'pad-theme', attr: 'theme', values: ['light', 'dark'] } as const
 export const SIDEBAR = { key: 'pad-sidebar', attr: 'sidebar', values: ['open', 'closed'] } as const
 export const WIDTH = { key: 'pad-width', attr: 'width', values: ['wide', 'narrow'] } as const
+/**
+ * How large the document's text is set.
+ *
+ * Unset means `medium`, and medium is deliberately larger than the app used to
+ * be: text you have to lean towards is the single most common complaint about
+ * an editor, and a default nobody has to find is worth more than a setting
+ * everybody has to. The two neighbours exist because reading distance is a
+ * fact about a person and their desk, not something an app can know.
+ */
+export const TEXT = {
+  key: 'pad-text',
+  attr: 'text',
+  values: ['medium', 'large', 'huge'],
+} as const
 
 /**
  * The script that applies the saved preferences before anything is painted.
  * Kept here, next to the keys it reads, so the two cannot drift apart.
  */
-export const PREFS_SCRIPT = `(function(){try{var p=[['pad-theme','theme'],['pad-sidebar','sidebar'],['pad-width','width']];for(var i=0;i<p.length;i++){var v=localStorage.getItem(p[i][0]);if(v){document.documentElement.setAttribute('data-'+p[i][1],v)}}}catch(e){}})()`
+export const PREFS_SCRIPT = `(function(){try{var p=[['pad-theme','theme'],['pad-sidebar','sidebar'],['pad-width','width'],['pad-text','text']];for(var i=0;i<p.length;i++){var v=localStorage.getItem(p[i][0]);if(v){document.documentElement.setAttribute('data-'+p[i][1],v)}}}catch(e){}})()`
 
 const listeners = new Set<() => void>()
 

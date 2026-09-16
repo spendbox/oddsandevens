@@ -7,6 +7,11 @@ five kinds of block inside one document, so a meeting note can carry its own
 budget, its own list of actions and the form you are about to send out —
 without leaving the page or picking a file type first.
 
+It types like a word processor, not like a stack of components. There is a
+toolbar above the page, the page is a sheet of paper, and Enter, Tab, Ctrl+B
+and Alt+Up do what they have done in every editor for thirty years. The block
+model is underneath, where it belongs.
+
 Everything is saved on your device as you type. Signing in is optional and
 lives in one small button in the top right corner; it adds a copy on the
 server so your other devices catch up. Nothing waits for it.
@@ -23,13 +28,27 @@ server so your other devices catch up. Nothing waits for it.
 | File | Attach anything, download it back | `/file`, or drop a file in |
 | Bullet, divider | List item, horizontal line | `-` + space, or `---` |
 
-Type `/` anywhere to see all of them, or press the **+** in the margin — on a
-phone, the round button in the corner.
+Type `/` anywhere to see all of them, or use **Insert** in the toolbar.
 
-**Formatting.** Select any text and a small bar appears: bold, italic,
-strikethrough, inline code. Or use `Ctrl+B`, `Ctrl+I`, `Ctrl+E`. Typing
-`**bold**`, `*italic*` or `` `code` `` formats it the moment you close the
-span, and the markers disappear.
+**The toolbar.** Along the top of the page, always visible, always in the same
+order: the paragraph style (Normal text, Heading 1–3, lists, task, quote), bold,
+italic, underline, strikethrough and inline code, lists, indent, alignment, the
+size of the type, and Insert. There are no handles in the margin that appear
+when you hover a paragraph — the controls are in one place you can learn, which
+is the point of a toolbar.
+
+**Formatting.** Select any text and a small bar appears over it as well: bold,
+italic, underline, strikethrough, inline code. Or use `Ctrl+B`, `Ctrl+I`,
+`Ctrl+U`, `Ctrl+E`. Typing `**bold**`, `*italic*` or `` `code` `` formats it
+the moment you close the span, and the markers disappear.
+
+**Alignment** is left, centred, right or justified, per paragraph, from the
+toolbar. It belongs to the paragraph, so pressing Enter carries it to the next
+one.
+
+**The size of the type** is the two **A**s in the toolbar. It moves the whole
+typographic scale — headings, lists, the title — not just the paragraphs, and
+it is remembered.
 
 **Typing does the obvious things for you.** The first letter of a line, and
 the first after a full stop, are capitalised — but not after "e.g.", "Dr." or
@@ -48,37 +67,65 @@ document, or plain text with `-` bullets in it. Inline bold and italic come
 through; scripts, links and styling do not. `Ctrl+Shift+V` pastes as plain
 text instead.
 
-**Moving things.** Drag the grip handle in the left margin, or hold `Alt` and
-press the up and down arrows.
+**Moving things.** Hold `Alt` and press the up and down arrows to move the
+paragraph you are in. `Ctrl+A` selects the paragraph, and again selects the
+whole document; holding `Shift` with the up and down arrows extends a selection
+across paragraphs.
 
-**Projects.** Drag one document onto another in the sidebar and they become a
-project — the same gesture as putting two pieces of paper in one folder. There
-is no "new project" button, because a project with nothing in it is not useful;
-every project starts with two documents already inside.
+**The sidebar** holds four things and nothing else: **New**, **Search**, the
+**Library**, and three short lists — what else is in this document's folder,
+what you have starred, and what you had open recently. Everything that used to
+be here as well is still in the app, one press away, on the home screen or in
+the Library.
 
-Once a document is in a project, a bar appears above it listing the others, so
-you can move between them without opening the sidebar. The magnifying glass in
-that bar (or `Ctrl+P`) searches **within that project only** — titles and
-contents. Drag a document onto a project's name to add it, or out to the
-Documents area below to remove it. A project left with one document dissolves
-by itself, so dragging the second one out simply undoes the merge. Ungrouping a
-project never deletes anything; the documents go back to the main list.
+**The home screen** is the grid button in the header, or the Pad mark at the
+top of the sidebar. It fills the window and shows the document you are writing,
+large, with its opening lines; the others in its folder; your favourites; and
+what was open recently. It is not what the app opens into — opening straight
+into a document with the caret already in it matters more.
 
-**Writing help.** The sparkle button (bottom right on a phone) offers to tidy
-up punctuation and grammar, shorten, expand, add headings and lists, or draft
-from a topic. It works on whatever you have selected, or the whole document if
-nothing is. **It never changes anything on its own** — you read the result and
-choose Replace, Add below, or Discard. Needs an API key (see below); without
-one the button is simply absent.
+**Favourites.** The star on a row in the sidebar, or on a card on the home
+screen. Starred documents get their own section in both.
 
-**Deleting is undoable.** A deleted document goes to the trash at the foot of
-the sidebar and stays there for 7 days, with each row saying how long it has
-left. You can put it back, or delete it for good straight away — that one asks
-first, because it means it.
+**Folders.** The **⋯** menu on any row in the sidebar: **New folder…** makes
+one named after that document, and the folders you already have are listed
+above it to move a document into. Once a document is in a folder, a bar appears
+above it listing the others, so you can move between them without opening the
+sidebar. The magnifying glass in that bar (or `Ctrl+P`) searches **within that
+folder only**. A folder left with one document dissolves by itself.
 
-**Getting out of the way.** `Ctrl+\` collapses the sidebar. The page runs the
-full width of the window; if you prefer a narrower column for reading, there
-is a toggle at the bottom of the sidebar.
+**The Library** is both the way documents come in and the one place all of them
+are listed. Drop a pile of files in and each one is read, titled from its
+contents rather than its filename, and given a sentence saying what it covers;
+nothing is added until you have seen it. Underneath, every document you have is
+listed and searchable — the app's own search, over contents as well as names.
+
+**Writing help.** Press `Ctrl+J`, or type `++`, or press **Ask** in the
+toolbar. A small box opens next to the line you are writing. Type what you want
+— "expand this", "make it less annoyed", "turn this into an email to the
+landlord" — or press one of Expand, Continue writing, Tidy up, Bullet points,
+Shorten, Summarise. It can work on what you have selected, on the paragraph you
+are in, or on the whole document, and it says which. **It never changes
+anything on its own** — you read the result and choose Insert below, Replace,
+Again, or Discard. Needs an API key (see below); without one it is simply
+absent.
+
+**Tasks it notices.** Write "I need to call the landlord by Friday" in the
+middle of a meeting note and a strip appears above the page offering to make it
+a task. Every line is shown with a tick beside it and confirmed one at a time;
+a date found in the line is kept in your own words, ready for a calendar. This
+runs on your device with no key and no network. Sending tasks to Google
+Calendar is not connected yet, and the app says so rather than implying it.
+
+**Deleting is undoable.** A deleted document goes to the trash on the home
+screen and stays there for 7 days, with each row saying how long it has left.
+You can put it back, or delete it for good straight away — that one asks first,
+because it means it.
+
+**Getting out of the way.** `Ctrl+\` collapses the sidebar. The page is a
+reading measure by default, because a line that runs the width of a large
+monitor is genuinely harder to read; there is a **Wide** toggle at the foot of
+the sidebar for anyone who disagrees.
 
 The spreadsheet understands `=SUM(A1:A5)`, `=AVERAGE(...)`, `=IF(A1>50,
 "big", "small")`, `=ROUND(x, 2)`, cell references, ranges, `&` to join text,
@@ -200,6 +247,7 @@ src/lib/slash-items.ts  what "/" offers, and how a query is ranked
 src/lib/store.ts        saving to the device (IndexedDB), documents and files
 src/lib/sync.ts         optional sync to Supabase
 src/lib/projects.ts     grouping documents, and searching within a group
+src/lib/tasks.ts        finding the things somebody has agreed to do
 src/lib/smart-typing.ts capitalisation, list and formatting rules
 src/lib/paste.ts        turning pasted content into blocks
 src/lib/trash.ts        the seven-day retention rules
@@ -209,8 +257,8 @@ src/lib/pdf.ts          reading text out of a PDF (loaded on demand)
 src/lib/zip.ts          reading and writing ZIP archives, with no dependency
 src/lib/docx.ts         Word documents in and out, built on zip.ts
 src/app/api/ai/         the one server route: writing help
-src/lib/ui-prefs.ts     theme, sidebar and width, applied before first paint
-src/components/         the editor and one file per block type
+src/lib/ui-prefs.ts     theme, sidebar, width and text size, before first paint
+src/components/         the editor, the toolbar, and one file per block type
 src/app/s/[id]/         the public page a shared link opens
 supabase/migrations/    the database tables and their security policies
 scripts/make-icons.py   regenerates the app icons from src/app/icon.svg
@@ -250,8 +298,18 @@ These are real and worth knowing before you rely on them:
   Collecting responses from other people needs the answers to go to the server
   rather than into the document, which is the next step for forms.
 - **Writing help was not tested against the real service.** There is no API
-  key in this repository, so every failure path is tested but the successful
-  rewrite is not. Try it once before relying on it.
+  key in this repository, so every failure path is tested, and the interface
+  around it is tested against a stubbed route, but the real rewrite is not.
+  Try it once before relying on it.
+- **Tasks do not reach a calendar yet.** The detection is real and runs on
+  your device; what it makes is a task block in the document it found. Google
+  Calendar is the next step and is not connected, which the screen says
+  plainly rather than implying otherwise.
+- **The detector is a set of rules, not a model.** It reads lines beginning
+  with an action verb, lines saying you need to do something, and anything
+  under a "next steps" heading. It will miss an oddly worded one and will
+  occasionally offer a sentence that was not a task — which is why every
+  suggestion is confirmed one at a time rather than applied.
 - **A Word table becomes a list, not a spreadsheet, on import.** Merged cells
   and nested tables have nowhere to go in a grid. Going the other way, a
   spreadsheet becomes a real Word table.

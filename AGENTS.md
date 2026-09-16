@@ -90,9 +90,17 @@ to work, it is the wrong shape for this app.
   revision to override it; typing must never bump it.
 - **The editable surface is `white-space: pre-wrap`.** HTML collapses a leading
   space, and splitting a line at one produced blocks that silently lost it.
-- **Gutter controls live in the left margin, not inline.** Laid out inline they
-  push every block right, leave the title out of line with its own text, and
-  shift the text sideways as the pointer moves down the page.
+- **The controls live in one toolbar, not in the margin.** The gutter grip and
+  "+" that appeared on hover were the thing that made this read as a block
+  editor rather than a word processor: you could not see what the app did
+  without waving the pointer over the page, and the controls moved as the
+  pointer moved. `ribbon.tsx` is fixed above the page and always in the same
+  order. Reordering a paragraph is Alt+Up/Down, which is what a word processor
+  has always used. Do not put per-block chrome back into the margin.
+- **Every toolbar button is `onPointerDown` with `preventDefault`, never
+  `onClick`.** A click blurs the block first, so the command has no selection
+  left to act on. This is the most common way a toolbar over a contenteditable
+  ends up silently doing nothing.
 - **Weigh every dependency against the first load, and load the big ones
   lazily.** The sign-in client (~100KB) and the PDF reader (~500KB) are both
   dynamic imports, fetched the first time they are actually needed. `npm run
@@ -231,6 +239,51 @@ to work, it is the wrong shape for this app.
   shown and applied only on request. An assistant that silently rewrites what
   someone wrote is one they stop trusting the first time it makes a sentence
   worse, and by then they cannot tell what it changed.
+- **Writing help opens at the caret, not in a corner.** A button pinned to the
+  bottom right is furniture, and furniture is invisible after the first day.
+  `assist-popup.tsx` opens where the caret is, with the instruction box already
+  focused, so the distance between wanting a fuller paragraph and asking for
+  one is a shortcut and a sentence. The anchor is captured once on opening —
+  tracked, it would follow the caret into the popup's own input.
+- **`++` is detected from the text the input event produced**, exactly as "/"
+  is, and for the same reason: a phone keyboard reports keydown as
+  `Unidentified` and only reveals the character afterwards.
+- **Expanding is the action this exists for.** It gets the longest instruction,
+  the most guardrails and `effort: 'high'` in `api/ai/route.ts`. The failure to
+  write against is not too few words but a paragraph of filler in a voice the
+  author would not use.
+- **A suggested task is offered, never created.** Whether "speak to Sam about
+  the lease" is a task or a description of something that already happened is
+  not decidable from the sentence, so `lib/tasks.ts` returns candidates and
+  every one is confirmed on its own. It is a pure string scan with no model
+  call: it runs with no key, no network and no cost, and every awkward case is
+  a unit test rather than something to reproduce by typing.
+- **A date in a task is kept as the writer wrote it**, never parsed into a
+  timestamp. "Friday" means a different day depending on when it was written,
+  and a reminder on the wrong day is worse than a reminder with no day. The
+  wording is what a calendar's own parser will want when one is connected.
+- **The sidebar shows three lists and nothing else**: this document's folder,
+  favourites, recent. Adding a fourth section is how it became a tree the first
+  time. Everything taken off it still exists — the whole collection is in the
+  Library, the trash is on the home screen.
+- **A document appears in exactly one section.** Not only tidiness: a row
+  carries a menu, and the same document rendered twice opened two menus on top
+  of each other, so nothing in either could be pressed.
+- **A favourite is one optional field on the document** (`favoritedAt`), like
+  its project. One home for the fact, so it syncs with everything else and
+  there is no second list to disagree with it.
+- **The home screen is the way back, not the way in.** Opening straight into a
+  document with the caret already in it is this app's oldest promise; a home
+  screen in front of that is one press between somebody and their first
+  sentence.
+- **Alignment is a property of the paragraph, so it is a class on the block**
+  and never markup inside `html`. That is what lets the sanitiser go on
+  allowing no attributes at all, which is the rule that makes formatting safe
+  to sync.
+- **Every size inside the page is a multiple of `--doc-text`.** One variable
+  drives the body, the headings, the title and the small print, so the size
+  control moves a typographic scale rather than one paragraph — which is what
+  stops a large setting producing body text bigger than the heading above it.
 - **Never capture the pointer on pointerdown** (restated because it recurred):
   it retargets the following `click` and kills every button inside the element.
 - **A menu that closes on an outside press must test where the press landed**,

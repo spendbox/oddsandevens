@@ -423,7 +423,15 @@ export default function Editable({
         if (event.metaKey || event.ctrlKey) {
           const key = event.key.toLowerCase()
           const command =
-            key === 'b' ? 'bold' : key === 'i' ? 'italic' : key === 'e' ? 'code' : null
+            key === 'b'
+              ? 'bold'
+              : key === 'i'
+                ? 'italic'
+                : key === 'u'
+                  ? 'underline'
+                  : key === 'e'
+                    ? 'code'
+                    : null
           if (command) {
             event.preventDefault()
             applyFormat(command)

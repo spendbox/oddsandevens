@@ -70,7 +70,7 @@ await page.keyboard.type('# Budget')
 await page.waitForTimeout(250)
 const hasHeading = await page.evaluate(() =>
   [...document.querySelectorAll('[data-block-id]')].some(
-    (b) => b.innerText.trim() === 'Budget' && b.querySelector('[contenteditable]')?.className.includes('text-2xl'),
+    (b) => b.innerText.trim() === 'Budget' && b.querySelector('[contenteditable]')?.className.includes('pad-h1'),
   ),
 )
 log('markdown "# " makes a heading', hasHeading)
@@ -443,35 +443,33 @@ log(
 await page.keyboard.press('Escape')
 await page.waitForTimeout(200)
 
-// --- Drag to reorder --------------------------------------------------------
+// --- Moving a paragraph, the way a word processor does it ------------------
 {
   const texts = () =>
     page.evaluate(() =>
       [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
     )
   const before = await texts()
-  const rows = page.locator('[data-block-id]')
-  const count = await rows.count()
+  const blocks = page.locator('[data-block-id] [contenteditable]')
+  const count = await blocks.count()
   if (count >= 2 && before.length >= 2) {
-    const last = rows.nth(count - 1)
-    await last.hover()
+    await blocks.nth(count - 1).click()
     await page.waitForTimeout(200)
-    const grip = last.locator('[aria-label^="Drag to reorder"]')
-    const gb = await grip.boundingBox()
-    const topBox = await rows.first().boundingBox()
-    if (gb && topBox) {
-      await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2)
-      await page.mouse.down()
-      await page.mouse.move(topBox.x + 150, topBox.y + 2, { steps: 12 })
-      await page.waitForTimeout(200)
-      await page.mouse.up()
-      await page.waitForTimeout(400)
-    }
+    await page.keyboard.press('Alt+ArrowUp')
+    await page.waitForTimeout(400)
     const after = await texts()
-    log('a block can be dragged to a new position', JSON.stringify(before) !== JSON.stringify(after))
+    log(
+      'Alt+Up moves a paragraph up, with no drag handle in the margin',
+      JSON.stringify(before) !== JSON.stringify(after),
+    )
   } else {
-    log('a block can be dragged to a new position', false, 'not enough blocks to test')
+    log('Alt+Up moves a paragraph up, with no drag handle in the margin', false, 'not enough blocks')
   }
+  log(
+    'the Notion-style gutter handles are gone',
+    (await page.locator('[aria-label^="Drag to reorder"]').count()) === 0 &&
+      (await page.locator('[aria-label="Insert block below"]').count()) === 0,
+  )
 }
 
 // --- Inline formatting ------------------------------------------------------
@@ -514,8 +512,11 @@ await page.waitForTimeout(200)
   await selectWord('bold')
   await page.waitForTimeout(350)
   log(
-    'formatting toolbar appears on a selection',
-    await page.locator('[role="toolbar"]').isVisible().catch(() => false),
+    'a formatting bar appears over a selection',
+    await page
+      .locator('[role="toolbar"][aria-label="Selection formatting"]')
+      .isVisible()
+      .catch(() => false),
   )
 
   await page.keyboard.press('Control+b')
@@ -524,13 +525,17 @@ await page.waitForTimeout(200)
 
   await selectWord('here')
   await page.waitForTimeout(300)
-  await page.locator('[aria-label="Italic"]').click({ force: true })
+  await page
+    .locator('[role="toolbar"][aria-label="Selection formatting"] [aria-label="Italic"]')
+    .click({ force: true })
   await page.waitForTimeout(400)
   log('the toolbar applies italic', /<(i|em)>here<\/(i|em)>/.test(await target.innerHTML()))
 
   await selectWord('word')
   await page.waitForTimeout(300)
-  await page.locator('[aria-label="Code"]').click({ force: true })
+  await page
+    .locator('[role="toolbar"][aria-label="Selection formatting"] [aria-label="Inline code"]')
+    .click({ force: true })
   await page.waitForTimeout(400)
   log('inline code can be applied', /<code>word<\/code>/.test(await target.innerHTML()))
 
@@ -745,11 +750,11 @@ await page.waitForTimeout(200)
     return {
       sidebar: hidden('aside'),
       header: hidden('header'),
-      fab: hidden('[aria-label="Insert block"]'),
+      toolbar: hidden('[role="toolbar"][aria-label="Formatting"]'),
       background: getComputedStyle(document.body).backgroundColor,
     }
   })
-  log('printing hides the app and leaves the document', shownInPrint.sidebar && shownInPrint.header && shownInPrint.fab)
+  log('printing hides the app and leaves the document', shownInPrint.sidebar && shownInPrint.header && shownInPrint.toolbar)
   log('printing is black on white whatever the theme', shownInPrint.background === 'rgb(255, 255, 255)', shownInPrint.background)
   log(
     'the document itself still prints',
@@ -793,7 +798,7 @@ await page.waitForTimeout(200)
   await page.waitForTimeout(200)
 }
 
-// --- Projects: merging documents, navigating and searching within one -------
+// --- Folders: grouping documents, navigating and searching within one ------
 {
   // Its own documents, so this does not depend on anything above it.
   const makeDoc = async (title, body) => {
@@ -809,47 +814,47 @@ await page.waitForTimeout(200)
   await makeDoc('Zeta overview', 'the shape of the launch')
   await makeDoc('Zeta budget', 'numbers for the launch')
   await makeDoc('Zeta timeline', 'dates and milestones')
-  await page.waitForTimeout(700)
+  await page.waitForTimeout(900)
 
-  /** Drags one sidebar row onto another and drops it. */
-  const dragRowOnto = async (fromTitle, toSelector) => {
-    const from = page.locator(`nav [data-doc-id]:has-text("${fromTitle}")`).first()
-    const to = page.locator(toSelector).first()
-    const fb = await from.boundingBox()
-    const tb = await to.boundingBox()
-    if (!fb || !tb) return false
-    await page.mouse.move(fb.x + 60, fb.y + fb.height / 2)
-    await page.mouse.down()
-    // Past the threshold that separates a drag from a tap.
-    await page.mouse.move(fb.x + 70, fb.y + fb.height / 2 + 5, { steps: 3 })
-    await page.mouse.move(tb.x + 60, tb.y + tb.height / 2, { steps: 12 })
-    await page.waitForTimeout(300)
-    await page.mouse.up()
-    await page.waitForTimeout(700)
-    return true
+  /**
+   * Opens a sidebar row's own menu.
+   *
+   * Grouping used to be a drag from one row onto another, which needed the
+   * whole project tree in the sidebar to drag between. The tree has gone, so
+   * every folder action lives in this menu — which also means it works with a
+   * thumb, where a drag never did.
+   */
+  const rowMenu = async (title) => {
+    const row = page.locator(`nav [data-doc-id]:has-text("${title}")`).first()
+    await row.hover()
+    await page.waitForTimeout(200)
+    await row.locator('[aria-label^="Actions for"]').first().click()
+    await page.waitForTimeout(350)
   }
 
-  await dragRowOnto('Zeta timeline', 'nav [data-doc-id]:has-text("Zeta budget")')
-  const projectInput = page.locator('nav [data-project-id] input[aria-label="Project name"]').first()
-  const projectName = await projectInput.inputValue().catch(() => null)
-  log('dropping one document onto another creates a project', projectName !== null, String(projectName))
-  log(
-    'the new project is named after the document dropped onto',
-    projectName === 'Zeta budget',
-    String(projectName),
-  )
-  log(
-    'the project shows how many documents are inside',
-    (await page.locator('nav [data-project-id]').first().innerText()).includes('2'),
-  )
+  await rowMenu('Zeta timeline')
+  await page.locator('[role="menu"] button:has-text("New folder")').first().click()
+  await page.waitForTimeout(800)
 
-  // The bar above the open document.
-  const barName = await page.locator('main input[aria-label="Project name"]').inputValue().catch(() => null)
-  log('a project bar appears above a document in a project', barName !== null, String(barName))
+  const barName = await page
+    .locator('main input[aria-label="Project name"]')
+    .inputValue()
+    .catch(() => null)
+  log('a row menu makes a folder from a document', barName !== null, String(barName))
+  log('the folder is named after the document it was made from', barName === 'Zeta timeline', String(barName))
+
+  await rowMenu('Zeta budget')
+  await page.locator('[role="menu"] button:has-text("Zeta timeline")').first().click()
+  await page.waitForTimeout(900)
+
   const chips = await page.locator('main [data-chip]').allInnerTexts().catch(() => [])
-  log('the bar lists the documents in the project', chips.length === 2, JSON.stringify(chips))
+  log('the bar lists the documents in the folder', chips.length === 2, JSON.stringify(chips))
+  log(
+    'the sidebar heads a section with the folder name',
+    (await page.locator('nav').innerText()).toLowerCase().includes('zeta timeline'),
+  )
 
-  const sibling = chips.find((c) => c !== 'Zeta timeline') ?? chips[0]
+  const sibling = chips.find((c) => c !== 'Zeta budget') ?? chips[0]
   await page.locator(`main [data-chip]:has-text("${sibling}")`).first().click()
   await page.waitForTimeout(700)
   log(
@@ -857,55 +862,48 @@ await page.waitForTimeout(200)
     (await page.locator('[aria-label="Document title"]').inputValue()) === sibling,
   )
 
-  // Search inside the project.
+  // Search inside the folder.
   await page.locator('[aria-label="Search within this project"]').first().click()
   await page.waitForTimeout(400)
-  await page.keyboard.type('timeline')
+  await page.keyboard.type('budget')
   await page.waitForTimeout(500)
-  log('searching within a project finds a sibling', (await page.locator('main button:has-text("Zeta timeline")').count()) > 0)
+  log('searching within a folder finds a sibling', (await page.locator('main button:has-text("Zeta budget")').count()) > 0)
   await page.keyboard.press('Enter')
   await page.waitForTimeout(700)
   log(
     'Enter opens the top match',
-    (await page.locator('[aria-label="Document title"]').inputValue()) === 'Zeta timeline',
+    (await page.locator('[aria-label="Document title"]').inputValue()) === 'Zeta budget',
   )
 
-  // The search must not reach documents outside the project.
+  // The search must not reach documents outside the folder.
   await page.locator('[aria-label="Search within this project"]').first().click()
   await page.waitForTimeout(350)
   await page.keyboard.type('Zeta overview')
   await page.waitForTimeout(500)
   log(
-    'project search is scoped to the project',
+    'folder search is scoped to the folder',
     (await page.evaluate(() => document.body.innerText)).includes('Nothing in this project matches'),
   )
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
 
-  // Dropping onto the project header adds a document.
-  await dragRowOnto('Zeta overview', 'nav [data-project-id]')
-  log(
-    'dropping onto the project header adds a document to it',
-    (await page.locator('nav [data-project-id]').first().innerText()).includes('3'),
-  )
-
   await page.waitForTimeout(600)
   await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(1100)
+  await page.waitForTimeout(1200)
   log(
-    'projects survive a reload',
+    'folders survive a reload',
     (await page
-      .locator('nav [data-project-id] input[aria-label="Project name"]')
+      .locator('main input[aria-label="Project name"]')
       .first()
       .inputValue()
-      .catch(() => null)) === 'Zeta budget',
+      .catch(() => null)) === 'Zeta timeline',
   )
 
   // An ungrouped document must not show the bar at all.
   await page.locator('button:has-text("New")').first().click()
-  await page.waitForTimeout(600)
+  await page.waitForTimeout(700)
   log(
-    'an ungrouped document shows no project bar',
+    'an ungrouped document shows no folder bar',
     (await page.locator('main input[aria-label="Project name"]').count()) === 0,
   )
 }
@@ -1010,7 +1008,7 @@ await page.waitForTimeout(200)
     'the opening line becomes the heading',
     await page.evaluate(() =>
       [...document.querySelectorAll('[data-block-id] [contenteditable]')].some(
-        (e) => e.textContent === 'Quarterly Review' && /text-2xl/.test(e.className),
+        (e) => e.textContent === 'Quarterly Review' && /pad-h1/.test(e.className),
       ),
     ),
   )
@@ -1023,7 +1021,7 @@ await page.waitForTimeout(200)
     (await page.evaluate(
       () =>
         [...document.querySelectorAll('[data-block-id] [contenteditable]')].filter((e) =>
-          /text-2xl/.test(e.className),
+          /pad-h1/.test(e.className),
         ).length,
     )) === 1,
   )
@@ -1056,7 +1054,7 @@ await page.waitForTimeout(200)
     'a pasted heading is still a heading',
     await page.evaluate(() =>
       [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
-        /text-2xl|text-xl/.test(e.className),
+        /pad-h1|pad-h2/.test(e.className),
       ),
     ),
   )
@@ -1089,28 +1087,84 @@ await page.waitForTimeout(200)
   )
 }
 
-// --- Trash ------------------------------------------------------------------
+// --- Home screen, favourites and the trash ---------------------------------
 {
+  const openHome = async () => {
+    await page.locator('header [aria-label="Home"]').first().click()
+    await page.waitForTimeout(600)
+  }
+  const closeHome = async () => {
+    await page
+      .locator('[role="dialog"][aria-label="Home"] [aria-label="Back to the document"]')
+      .click()
+    await page.waitForTimeout(500)
+  }
+  /** Deletes a document from its row menu, which is where every action is now. */
+  const deleteRow = async (title) => {
+    const row = page.locator(`nav [data-doc-id]:has-text("${title}")`).first()
+    await row.hover()
+    await page.waitForTimeout(200)
+    await row.locator('[aria-label^="Actions for"]').first().click()
+    await page.waitForTimeout(350)
+    await page.locator('[role="menu"] button:has-text("Delete")').first().click()
+    await page.waitForTimeout(800)
+  }
+
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(500)
+  await page.locator('[aria-label="Document title"]').click()
+  await page.keyboard.type('Disposable')
+  await page.waitForTimeout(700)
+
+  // The home screen: the open document large, and the rest as small cards.
+  await openHome()
+  const homeUp = await page.locator('[role="dialog"][aria-label="Home"]').isVisible()
+  log('the home screen fills the window', homeUp)
+  const homeText = await page.locator('[role="dialog"][aria-label="Home"]').innerText()
+  log('it leads with the document being worked on', /Carry on with/i.test(homeText) && homeText.includes('Disposable'))
+  log('and lists what was open recently', /Recent/i.test(homeText))
+  await page.screenshot({ path: `${SHOTS}/21-home.png` })
+  await closeHome()
+
+  // Favourites.
+  const star = page
+    .locator('nav [data-doc-id]:has-text("Disposable") [aria-label^="Add Disposable to favourites"]')
+    .first()
+  await page.locator('nav [data-doc-id]:has-text("Disposable")').first().hover()
+  await page.waitForTimeout(250)
+  await star.click()
+  await page.waitForTimeout(700)
+  log(
+    'starring a document puts it under Favourites',
+    (await page.locator('nav').innerText()).includes('FAVOURITES') ||
+      (await page.locator('nav').innerText()).toLowerCase().includes('favourites'),
+  )
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+  log(
+    'a favourite survives a reload',
+    (await page.locator('nav').innerText()).toLowerCase().includes('favourites'),
+  )
+
+  // Deleting, and the trash on the home screen.
+  await deleteRow('Disposable')
+  log(
+    'deleting removes it from the sidebar',
+    (await page.locator('nav [data-doc-id]:has-text("Disposable")').count()) === 0,
+  )
+
   const openTrash = async () => {
-    const toggle = page.locator('aside button[aria-expanded]').filter({ hasText: 'Trash' }).first()
+    await openHome()
+    const toggle = page
+      .locator('[role="dialog"][aria-label="Home"] button[aria-expanded]')
+      .filter({ hasText: 'Trash' })
+      .first()
     if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
     await page.waitForTimeout(500)
   }
 
-  await page.locator('button:has-text("New")').first().click()
-  await page.waitForTimeout(400)
-  await page.locator('[aria-label="Document title"]').click()
-  await page.keyboard.type('Disposable')
-  await page.waitForTimeout(600)
-
-  await page.locator('nav [data-doc-id]:has-text("Disposable")').first().hover()
-  await page.waitForTimeout(250)
-  await page.locator('nav [data-doc-id]:has-text("Disposable") [aria-label^="Delete"]').first().click()
-  await page.waitForTimeout(800)
-  log('deleting removes it from the list', (await page.locator('nav [data-doc-id]:has-text("Disposable")').count()) === 0)
-  log('and the trash appears', (await page.locator('button:has-text("Trash")').count()) > 0)
-
   await openTrash()
+  log('the trash lives on the home screen', (await page.locator('[role="dialog"][aria-label="Home"] button:has-text("Trash")').count()) > 0)
   log(
     'the trash says when it will go',
     /Deletes in 7 days/.test(await page.evaluate(() => document.body.innerText)),
@@ -1118,12 +1172,13 @@ await page.waitForTimeout(200)
 
   await page.locator('[aria-label^="Restore Disposable"]').first().click()
   await page.waitForTimeout(800)
-  log('restoring puts it back', (await page.locator('nav [data-doc-id]:has-text("Disposable")').count()) > 0)
+  await closeHome()
+  log(
+    'restoring puts it back',
+    (await page.locator('nav [data-doc-id]:has-text("Disposable")').count()) > 0,
+  )
 
-  await page.locator('nav [data-doc-id]:has-text("Disposable")').first().hover()
-  await page.waitForTimeout(250)
-  await page.locator('nav [data-doc-id]:has-text("Disposable") [aria-label^="Delete"]').first().click()
-  await page.waitForTimeout(700)
+  await deleteRow('Disposable')
   await openTrash()
   await page.locator('[aria-label*="permanently"]').first().click()
   await page.waitForTimeout(400)
@@ -1134,7 +1189,7 @@ await page.waitForTimeout(200)
   await page.locator('button:has-text("Delete")').last().click()
   await page.waitForTimeout(900)
   await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(1000)
+  await page.waitForTimeout(1100)
   log(
     'a permanently deleted document does not come back',
     !(await page.evaluate(() => document.body.innerText)).includes('Disposable'),
@@ -1189,16 +1244,44 @@ await page.waitForTimeout(200)
   )
 
   // Nothing is added until it is asked for.
-  const before = await page.locator('nav [data-doc-id]').count()
   await page.locator('[role="dialog"][aria-label="Library"] button:has-text("Add 3")').click()
   await page.waitForTimeout(1200)
-  const after = await page.locator('nav [data-doc-id]').count()
-  log('adding the batch puts them in the ordinary sidebar', after === before + 3, `${before} → ${after}`)
+  log(
+    'adding the batch opens the first of them as an ordinary document',
+    /tenancy/i.test(await page.locator('[aria-label="Document title"]').inputValue()),
+    await page.locator('[aria-label="Document title"]').inputValue(),
+  )
   log(
     'the contents came through, not just the title',
     (await page.evaluate(() => document.body.innerText)).includes('Bourdillon Road'),
   )
   await page.screenshot({ path: `${SHOTS}/18-library-added.png` })
+
+  // The Library is no longer a one-way door: everything already in the
+  // collection is listed in it, and searchable there.
+  await page.locator('button:has-text("Library")').first().click()
+  await page.waitForTimeout(600)
+  const shelf = page.locator('[role="dialog"][aria-label="Library"]')
+  log(
+    'the library lists every document, not just new ones',
+    /everything/i.test(await shelf.innerText()) &&
+      (await shelf.locator('button:has-text("Bourdillon")').count()) > 0,
+  )
+  await shelf.locator('input[aria-label="Search the library"]').fill('Bourdillon')
+  await page.waitForTimeout(700)
+  const found = await shelf.innerText()
+  log('searching the library looks inside the documents', /found \d/i.test(found))
+  await shelf.locator('input[aria-label="Search the library"]').fill('')
+  await page.waitForTimeout(400)
+  await shelf.locator('button:has-text("Bourdillon")').first().click()
+  await page.waitForTimeout(900)
+  log(
+    'a document in the library opens from it',
+    (await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id]')].map((e) => e.innerText).join(' '),
+    )).includes('Bourdillon'),
+  )
+  await page.screenshot({ path: `${SHOTS}/22-library-shelf.png` })
 
   // And they are searchable like anything else, which is the whole point of
   // not giving the library a store of its own.
@@ -1268,26 +1351,277 @@ await page.waitForTimeout(200)
 
   await panel.locator('button:has-text("Add 2")').click()
   await page.waitForTimeout(1400)
-  // The project name is an editable input in the sidebar, so it too is read
-  // as a value rather than as text.
-  const projectNames = await page
-    .locator('nav input[aria-label="Project name"]')
-    .evaluateAll((els) => els.map((el) => el.value))
+  // The folder now shows as the bar above the document that was opened, and
+  // as a named section in the sidebar — the sidebar tree it used to be read
+  // from has gone.
+  await page.waitForTimeout(600)
+  const folderName = await page
+    .locator('main input[aria-label="Project name"]')
+    .first()
+    .inputValue()
+    .catch(() => null)
   log(
-    'the project is made',
-    projectNames.includes('Property'),
-    JSON.stringify(projectNames),
+    'the folder is made',
+    (folderName ?? '').toLowerCase().includes('propert'),
+    String(folderName),
   )
-  // The member rows are siblings of the project header, not children of it.
-  const inProject = await page.evaluate(() => {
-    const header = [...document.querySelectorAll('nav [data-project-id]')].find(
-      (el) => el.querySelector('input')?.value === 'Property',
-    )
-    return header?.parentElement?.querySelectorAll('[data-doc-id]').length ?? -1
-  })
-  log('and both documents are in it', inProject === 2, `${inProject} in the project`)
-  await page.screenshot({ path: `${SHOTS}/20-library-project.png` })
+  const inFolder = await page.locator('main [data-chip]').count()
+  log('and both documents are in it', inFolder === 2, `${inFolder} in the folder`)
+  await page.screenshot({ path: `${SHOTS}/20-library-folder.png` })
+}
 
+// --- The toolbar above the page --------------------------------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('Alignment and weight both belong to the paragraph.')
+  await page.waitForTimeout(400)
+
+  const para = page.locator('[data-block-id] [contenteditable]', { hasText: 'belong to the' }).first()
+
+  log('the toolbar is always on screen, not only on hover', await page.locator('[role="toolbar"][aria-label="Formatting"]').isVisible())
+
+  // Bold from the toolbar, over a selected word.
+  await para.evaluate((el) => {
+    const node = el.firstChild
+    const at = (el.textContent ?? '').indexOf('weight')
+    const range = document.createRange()
+    range.setStart(node, at)
+    range.setEnd(node, at + 6)
+    const selection = window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+  })
+  await page.waitForTimeout(250)
+  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Bold"]').first().click()
+  await page.waitForTimeout(400)
+  log('the toolbar applies bold', /<(b|strong)>weight<\/(b|strong)>/.test(await para.innerHTML()))
+
+  // Underline, which a word processor has and a block editor usually does not.
+  await para.evaluate((el) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    const node = walker.nextNode()
+    const range = document.createRange()
+    range.setStart(node, 0)
+    range.setEnd(node, 9)
+    const selection = window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+  })
+  await page.waitForTimeout(250)
+  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Underline"]').first().click()
+  await page.waitForTimeout(400)
+  log('underline is available and survives the sanitiser', /<u>/.test(await para.innerHTML()), await para.innerHTML())
+
+  // The style menu, which is the word-processor way to make a heading.
+  await para.click()
+  await page.waitForTimeout(250)
+  await page.selectOption('select[aria-label="Paragraph style"]', 'h2')
+  await page.waitForTimeout(500)
+  log(
+    'the style menu turns a paragraph into a heading',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+        /pad-h2/.test(e.className),
+      ),
+    ),
+  )
+  await page.selectOption('select[aria-label="Paragraph style"]', 'text')
+  await page.waitForTimeout(400)
+
+  // Alignment, which is a property of the paragraph and not of the text in it.
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.waitForTimeout(200)
+  await page.locator('[aria-label="Align centre"]').first().click()
+  await page.waitForTimeout(500)
+  log(
+    'the toolbar centres a paragraph',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+        /pad-align-center/.test(e.className),
+      ),
+    ),
+  )
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1100)
+  log(
+    'alignment survives a reload',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+        /pad-align-center/.test(e.className),
+      ),
+    ),
+  )
+  await page.screenshot({ path: `${SHOTS}/23-toolbar.png` })
+}
+
+// --- The size of the type ---------------------------------------------------
+{
+  const size = () =>
+    page.evaluate(() => {
+      const el = document.querySelector('[data-block-id] [contenteditable]')
+      return el ? parseFloat(getComputedStyle(el).fontSize) : 0
+    })
+  const start = await size()
+  log('body text is set large enough to read', start >= 17, `${start}px`)
+
+  await page.locator('[aria-label="Larger text"]').first().click()
+  await page.waitForTimeout(400)
+  const bigger = await size()
+  log('the toolbar makes the type bigger', bigger > start, `${start}px → ${bigger}px`)
+
+  const headingScaled = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement)
+    return root.getPropertyValue('--doc-text').trim().length > 0
+  })
+  log('the whole typographic scale moves together, not just paragraphs', headingScaled)
+
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1100)
+  log('the chosen size survives a reload', (await size()) === bigger)
+  await page.locator('[aria-label="Smaller text"]').first().click()
+  await page.waitForTimeout(400)
+}
+
+// --- Tasks found in what somebody wrote -------------------------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('Met the agent this morning and went through the flat.')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('I need to call the landlord about the boiler by Friday')
+  // The scan waits for a pause, so it does not appear halfway through a word.
+  await page.waitForTimeout(2200)
+
+  const strip = await page.evaluate(() => document.body.innerText)
+  log('lines that read like tasks are noticed', /look like things to do|looks like something to do/i.test(strip))
+
+  await page.locator('button:has-text("Have a look")').first().click()
+  await page.waitForTimeout(500)
+  const review = await page.evaluate(() => document.body.innerText)
+  log('the suggestion drops the lead-in', review.includes('Call the landlord about the boiler'))
+  log('a date in the line is carried across for a calendar', /by Friday/.test(review))
+  log('it says where the task will live', /calendar is not connected|stay in this document/i.test(review))
+  await page.screenshot({ path: `${SHOTS}/24-tasks-found.png` })
+
+  const before = await page.locator('[data-block-id] input[type="checkbox"]').count()
+  await page.locator('button:has-text("Make 1 task")').first().click()
+  await page.waitForTimeout(900)
+  log(
+    'confirming turns the line into a real task',
+    (await page.locator('[data-block-id] input[type="checkbox"]').count()) > before,
+    `${before} → ${await page.locator('[data-block-id] input[type="checkbox"]').count()}`,
+  )
+  log(
+    'and it says the calendar is still to come',
+    /calendar/i.test(await page.evaluate(() => document.body.innerText)),
+  )
+
+  // Nothing is offered for a document with no actions in it.
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('The weather was pleasant and the coffee was good.')
+  await page.waitForTimeout(2200)
+  log(
+    'ordinary prose is left alone',
+    !/look like things to do/i.test(await page.evaluate(() => document.body.innerText)),
+  )
+}
+
+// --- Writing help, at the caret ---------------------------------------------
+{
+  // Stubbed, because the real route needs a key and this is about the
+  // interface around it: where it opens, what it says, and that it changes
+  // nothing until it is told to.
+  await page.route('**/api/ai', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ configured: true }),
+      })
+    }
+    const body = request.postDataJSON()
+    if (body.action === 'file') return route.fallback()
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ text: `Expanded: ${String(body.text).slice(0, 40)}` }),
+    })
+  })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1000)
+
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('The boiler is old and the landlord keeps putting it off.')
+  await page.waitForTimeout(400)
+
+  log(
+    'the floating sparkle button is gone',
+    (await page.locator('button[aria-label="Writing help"].fixed').count()) === 0,
+  )
+
+  await page.keyboard.press('Control+j')
+  await page.waitForTimeout(600)
+  const popup = page.locator('[role="dialog"][aria-label="Writing help"]')
+  log('Ctrl+J opens writing help at the caret', await popup.isVisible())
+
+  const box = await popup.boundingBox()
+  const caretBlock = await page
+    .locator('[data-block-id] [contenteditable]', { hasText: 'boiler is old' })
+    .first()
+    .boundingBox()
+  log(
+    'it opens next to the line being written, not in a corner',
+    !!box && !!caretBlock && Math.abs(box.y - caretBlock.y) < 400,
+  )
+  log('it says what it will act on', /paragraph|Selection/i.test(await popup.innerText()))
+  log('expanding is the first thing it offers', (await popup.locator('button:has-text("Expand")').count()) > 0)
+  await page.screenshot({ path: `${SHOTS}/25-writing-help.png` })
+
+  await popup.locator('button:has-text("Expand")').first().click()
+  await page.waitForTimeout(900)
+  log('a result is shown before anything changes', /Nothing has changed yet/.test(await popup.innerText()))
+  const blocksNow = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+        .map((e) => e.textContent)
+        .join(' '),
+    )
+  log('and the document is untouched until it is applied', !(await blocksNow()).includes('Expanded:'))
+
+  await popup.locator('button:has-text("Insert below")').click()
+  await page.waitForTimeout(900)
+  log(
+    'inserting puts it in the document',
+    (await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+        .map((e) => e.textContent)
+        .join(' '),
+    )).includes('Expanded:'),
+  )
+
+  // "++" is the same door, for people who never learn a shortcut.
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('A short note++')
+  await page.waitForTimeout(700)
+  log('typing ++ opens it too', await popup.isVisible())
+  const leftBehind = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+      .map((e) => e.textContent)
+      .join(' '),
+  )
+  log('and the ++ is consumed rather than left in the text', !leftBehind.includes('++'), leftBehind)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
   await page.unroute('**/api/ai')
 }
 
