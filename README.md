@@ -31,8 +31,8 @@ server so your other devices catch up. Nothing waits for it.
 Type `/` anywhere to see all of them, or use **Insert** in the toolbar.
 
 **The toolbar.** Along the top of the page, always visible, always in the same
-order: the paragraph style, the marks, lists, **Insert**, a **⋯** for the rest,
-and **Ask**. The style button opens a menu where each style is set in its own
+order: **undo** and **redo**, the paragraph style, the marks, lists,
+**Insert**, a **⋯** for the rest, and **Ask**. The style button opens a menu where each style is set in its own
 type, so Heading 1 looks like a heading rather than reading as words. Alignment,
 indent and the size of the text live behind the **⋯**, which keeps the row to
 one line even on a phone. There are no handles in the margin that appear when
@@ -68,6 +68,19 @@ stay headings, lists stay lists, and nesting survives — from a web page, a
 document, or plain text with `-` bullets in it. Inline bold and italic come
 through; scripts, links and styling do not. `Ctrl+Shift+V` pastes as plain
 text instead.
+
+**Undo and redo** are the first two buttons, or `Ctrl+Z` and `Ctrl+Shift+Z`
+(`Ctrl+Y` also redoes). They work on the whole document, so they take back a
+paragraph you split, a block you deleted, a heading you converted or a rewrite
+the assistant applied — none of which a browser's own undo knows anything
+about. Rapid typing collapses into one step, so undo comes back a phrase at a
+time rather than a letter at a time.
+
+**Every document gets an icon that matches what it is** — a banknote on a
+budget, a scroll on a tenancy agreement, cutlery on a recipe, a spreadsheet on
+a document that mostly is one. It is worked out on your device from the title
+and the opening lines. It costs nothing, needs no key and no network, and it
+never sends a word of your document anywhere.
 
 **Moving things.** Hold `Alt` and press the up and down arrows to move the
 paragraph you are in. `Ctrl+A` selects the paragraph, and again selects the
@@ -131,12 +144,17 @@ a date found in the line is kept in your own words, ready for a calendar. This
 runs on your device with no key and no network. Sending tasks to Google
 Calendar is not connected yet, and the app says so rather than implying it.
 
-**Deleting is undoable.** A deleted document goes to the trash on the home
-screen and stays there for 7 days, with each row saying how long it has left.
-You can put it back, or delete it for good straight away — that one asks first,
-because it means it.
+**Deleting is undoable.** From the **⋯** on a sidebar row, or from the
+document's own **⋯** menu in the header while you have it open. Either way it
+goes to the trash on the home screen and stays for 7 days, with each row saying
+how long it has left. You can put it back, or delete it for good straight away
+— that one asks first, because it means it.
 
-**Getting out of the way.** `Ctrl+\` collapses the sidebar. The page is a
+**Getting out of the way.** Scrolling down into a document folds the app's
+header away, so the toolbar is the only bar between you and the page; coming
+back to the top brings it straight back. `Ctrl+\` collapses the sidebar, and
+on a phone the sidebar is the whole screen rather than a strip over the
+document. The page is a
 reading measure by default, because a line that runs the width of a large
 monitor is genuinely harder to read; there is a **Wide** toggle at the foot of
 the sidebar for anyone who disagrees.
@@ -262,6 +280,8 @@ src/lib/store.ts        saving to the device (IndexedDB), documents and files
 src/lib/sync.ts         optional sync to Supabase
 src/lib/projects.ts     grouping documents, and searching within a group
 src/lib/tasks.ts        finding the things somebody has agreed to do
+src/lib/history.ts      undo and redo, over whole documents
+src/lib/doc-icon.ts     which icon a document gets, and why
 src/lib/smart-typing.ts capitalisation, list and formatting rules
 src/lib/paste.ts        turning pasted content into blocks
 src/lib/trash.ts        the seven-day retention rules

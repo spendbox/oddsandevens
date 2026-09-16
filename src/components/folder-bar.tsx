@@ -1,10 +1,11 @@
 'use client'
 
-import { Check, ChevronDown, FileText, FolderOpen, Plus, Search, X } from 'lucide-react'
+import { Check, ChevronDown, FolderOpen, Plus, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { docLabel } from '@/lib/blocks'
 import { searchDocs } from '@/lib/projects'
 import type { Doc, Project } from '@/lib/types'
+import DocIcon from './doc-icon'
 import FolderChoices from './folder-choices'
 
 /**
@@ -211,7 +212,7 @@ export default function FolderBar({
                   item.id === currentId ? 'bg-[var(--color-accent-soft)]' : ''
                 }`}
               >
-                <FileText size={15} className="shrink-0 text-[var(--color-faint)]" />
+                <DocIcon doc={item} size={16} className="shrink-0 text-[var(--color-faint)]" />
                 <span className="min-w-0 flex-1 truncate text-[14px]">{docLabel(item)}</span>
                 {item.id === currentId && (
                   <Check size={14} className="shrink-0 text-[var(--color-accent)]" />

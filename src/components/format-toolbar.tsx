@@ -107,12 +107,15 @@ export default function FormatToolbar({
             type="button"
             aria-label="Writing help"
             title="Writing help"
-            // Pointer down with preventDefault, like every other button here:
-            // a click would collapse the selection this is meant to act on.
-            onPointerDown={(e) => {
-              e.preventDefault()
-              onAssist()
-            }}
+            /*
+              preventDefault on pointerdown keeps the selection; the action
+              runs on click. Running it on pointerdown put the assistant's
+              backdrop under the finger that was still down, so the click
+              completing the tap closed it again — which on a phone looked like
+              a button that only worked if you held it. See ribbon.tsx.
+            */
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={onAssist}
             className="flex h-8 items-center gap-1.5 rounded-md px-2 text-[14px] font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]"
           >
             <Sparkles size={14} />

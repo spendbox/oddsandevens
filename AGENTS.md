@@ -108,10 +108,38 @@ to work, it is the wrong shape for this app.
   the "More" button rather than on the row. A toolbar that wraps to two lines
   pushes the page down and moves every control somebody had started to learn
   the position of.
-- **Every toolbar button is `onPointerDown` with `preventDefault`, never
-  `onClick`.** A click blurs the block first, so the command has no selection
-  left to act on. This is the most common way a toolbar over a contenteditable
-  ends up silently doing nothing.
+- **A toolbar button that applies a command acts on `pointerdown` with
+  `preventDefault`; one that opens something acts on `click`.** The first half
+  is because a click blurs the block, leaving the command no selection to act
+  on. The second half is because acting on pointerdown puts a panel — or its
+  backdrop — under a finger that is still down, and the click completing the
+  tap then lands on it: on a phone the Ask button appeared to work only if you
+  held it. Keep the `preventDefault` on pointerdown either way, which is what
+  saves the selection; only move where the action runs.
+- **Undo is over whole documents, and takes Ctrl+Z from the browser.** The
+  browser keeps a stack per contenteditable, which here is per paragraph, so
+  its undo knew nothing about a split, a delete, a conversion or a rewrite
+  applied to the page. `lib/history.ts` keeps snapshots — cheap, because every
+  edit already produces a whole new `Doc` immutably — coalesces edits closer
+  together than 600ms, and is thrown away when a different document is opened.
+  Restoring one bumps a revision the editor adds to its own, because Editable
+  will not repaint a focused element otherwise.
+- **An icon never costs a model call.** `lib/doc-icon.ts` is a table of words
+  matched against the title first and the opening lines second. Paying for a
+  decoration on every document forever is a bad trade, and it would mean no
+  document had an icon until a network round trip finished. Only whole words
+  count — substring matching made everything containing "planning" a plane —
+  and a word earns its place only if it almost always means the same thing:
+  "call", "numbers", "draft", "book" and "release" were all in there once and
+  are all deliberately gone.
+- **The header folds from the scroll position, never from its direction.**
+  Folding it makes the scroller taller, that relayout fires another scroll
+  event, and a direction-based version reads the change it caused itself as a
+  scroll the other way and unfolds — then folds — forever. Two thresholds, with
+  a gap wider than the header is tall, cannot oscillate.
+- **The sidebar is the whole screen on a phone**, not a 16rem drawer over the
+  document. A strip with the page showing down one side reads as something
+  half-open, and it costs every row the width that made the names readable.
 - **Weigh every dependency against the first load, and load the big ones
   lazily.** The sign-in client (~100KB) and the PDF reader (~500KB) are both
   dynamic imports, fetched the first time they are actually needed. `npm run

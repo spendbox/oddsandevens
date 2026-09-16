@@ -56,11 +56,30 @@ export default function Editor({
   doc,
   onChange,
   onExtractPdf,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  externalRevision = 0,
 }: {
   doc: Doc
   onChange: (next: Doc) => void
   /** Offered on an attached PDF: pull its text into editable blocks. */
   onExtractPdf?: (file: Blob, name: string) => void
+  onUndo: () => void
+  onRedo: () => void
+  canUndo: boolean
+  canRedo: boolean
+  /**
+   * Bumped by whatever owns the history when it puts an older document back.
+   *
+   * It is added to this editor's own revision before being handed to each
+   * block, because an undo rewrites text the caret may be sitting in — and
+   * Editable deliberately refuses to repaint a focused element unless the
+   * revision says the change was structural. Without this, undoing while the
+   * caret is in the paragraph being undone leaves the old text on screen.
+   */
+  externalRevision?: number
 }) {
   /**
    * Which block to put the caret in after the next render, and where.
@@ -88,6 +107,8 @@ export default function Editor({
    */
   const [revision, setRevision] = useState(0)
   const bumpRevision = () => setRevision((r) => r + 1)
+  /** What the blocks are actually painted against. See `externalRevision`. */
+  const paintRevision = revision + externalRevision
   /**
    * A selection that spans whole blocks.
    *
@@ -483,6 +504,35 @@ export default function Editor({
     setAssist({ anchor: caretBox() })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId])
+
+  /*
+    Undo and redo, taken over from the browser.
+
+    The browser's own Ctrl+Z works inside one contenteditable, which here is
+    one paragraph — so it took back a few characters and knew nothing about the
+    split, the delete or the whole-page rewrite somebody actually wanted back.
+    Two undo systems that disagree is worse than one that is slightly coarser,
+    so this one wins and the native one is prevented.
+  */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.metaKey && !event.ctrlKey) return
+      const key = event.key.toLowerCase()
+      if (key === 'z') {
+        event.preventDefault()
+        if (event.shiftKey) onRedo()
+        else onUndo()
+        return
+      }
+      // Ctrl+Y is redo on Windows, and costs one line to honour.
+      if (key === 'y') {
+        event.preventDefault()
+        onRedo()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onUndo, onRedo])
 
   // Ctrl+J, the shortcut, bound at the document so it works from anywhere on
   // the page rather than only from inside a block.
@@ -1019,6 +1069,10 @@ export default function Editor({
         onAssist={aiReady ? openAssist : undefined}
         textSize={textSize}
         onTextSize={setTextPref}
+        onUndo={onUndo}
+        onRedo={onRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
       <div
@@ -1101,7 +1155,7 @@ export default function Editor({
                   onTextKeyDown={onTextKeyDown}
                   onTextFocus={() => setCurrentId(block.id)}
                   slashOpen={slash?.id === block.id}
-                  revision={revision}
+                  revision={paintRevision}
                   onRemove={() => removeBlock(block.id)}
                   number={orderedNumber(doc.blocks, blockIndex)}
                   onPasteBlocks={insertPasted}

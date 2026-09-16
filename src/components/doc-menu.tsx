@@ -13,6 +13,7 @@ import {
   LoaderCircle,
   MoreHorizontal,
   Printer,
+  Trash2,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { docToMarkdown, docToText, safeFilename } from '@/lib/export'
@@ -38,6 +39,7 @@ export default function DocMenu({
   onImportWord,
   onMove,
   onNewFolder,
+  onDelete,
   importing,
   accountId,
 }: {
@@ -55,6 +57,8 @@ export default function DocMenu({
    */
   onMove: (projectId: string | null) => void
   onNewFolder: () => void
+  /** Moves this document to the trash, where it is recoverable for a week. */
+  onDelete: () => void
   importing: boolean
   /** Null when nobody is signed in, which is what sharing requires. */
   accountId: string | null
@@ -66,10 +70,24 @@ export default function DocMenu({
     busy: false,
   })
   const [copied, setCopied] = useState(false)
+  /**
+   * Whether the delete row has been pressed once.
+   *
+   * Deleting is the one thing in this menu that is not obviously reversible to
+   * somebody looking at it, so it asks — inline, with the document's own name
+   * in the question, rather than in a dialog that covers what is about to go.
+   */
+  const [confirming, setConfirming] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const picker = useRef<HTMLInputElement>(null)
   const wordPicker = useRef<HTMLInputElement>(null)
   const [problem, setProblem] = useState<string | null>(null)
+
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (!open) setConfirming(false)
+  }
 
   // Look up an existing link when the menu is opened, not on every render, so
   // a document that was shared once still shows its link after a reload.
@@ -156,6 +174,49 @@ export default function DocMenu({
               onNewFolder()
             }}
           />
+
+          {/*
+            Deleting, at the top with the other things that are about this
+            document rather than about getting it out. It goes to the trash on
+            the home screen and can be put back for a week, which is what the
+            hint says so that the question is answerable without knowing the
+            app.
+          */}
+          {confirming ? (
+            <div className="px-2.5 py-2">
+              <p className="mb-1.5 text-[14px] text-[var(--color-danger)]">
+                Move “{doc.title.trim() || 'Untitled'}” to the trash?
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    setConfirming(false)
+                    onDelete()
+                  }}
+                  className="rounded-md bg-[var(--color-danger)] px-2.5 py-1.5 text-[13px] font-medium text-white"
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirming(false)}
+                  className="rounded-md px-2.5 py-1.5 text-[13px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+                >
+                  Keep it
+                </button>
+              </div>
+            </div>
+          ) : (
+            <Item
+              icon={<Trash2 size={14} />}
+              label="Delete this document"
+              hint="Recoverable from the trash for 7 days"
+              danger
+              onClick={() => setConfirming(true)}
+            />
+          )}
 
           <div className="my-1 h-px bg-[var(--color-line)]" />
 
@@ -366,20 +427,24 @@ function Item({
   icon,
   label,
   hint,
+  danger,
   onClick,
 }: {
   icon: React.ReactNode
   label: string
   hint?: string
+  danger?: boolean
   onClick: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-[var(--color-hover)]"
+      className={`flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-[var(--color-hover)] ${
+        danger ? 'text-[var(--color-danger)]' : ''
+      }`}
     >
-      <span className="mt-0.5 text-[var(--color-muted)]">{icon}</span>
+      <span className={`mt-0.5 ${danger ? '' : 'text-[var(--color-muted)]'}`}>{icon}</span>
       <span className="min-w-0">
         <span className="block text-[14px]">{label}</span>
         {hint && <span className="block text-[13px] text-[var(--color-faint)]">{hint}</span>}

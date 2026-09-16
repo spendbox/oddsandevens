@@ -412,9 +412,18 @@ log('nothing in the search sheet runs off the side', insideViewport)
 await mobile.keyboard.press('Escape')
 await mobile.waitForTimeout(300)
 
-// The library, reached through the drawer.
+// The drawer, which is the whole screen on a phone rather than a strip over it.
 await mobile.locator('[aria-label="Open menu"]').first().click()
-await mobile.waitForTimeout(500)
+await mobile.waitForTimeout(600)
+const drawerBox = await mobile.locator('aside').boundingBox()
+log(
+  'the sidebar opens as the whole screen on a phone',
+  !!drawerBox && drawerBox.width >= 380,
+  drawerBox ? `${Math.round(drawerBox.width)}px wide` : 'missing',
+)
+await mobile.screenshot({ path: `${SHOTS}/11e-mobile-sidebar.png` })
+
+// The library, reached from it.
 await mobile.locator('button:has-text("Library")').first().click()
 await mobile.waitForTimeout(500)
 const libraryBox = await mobile.locator('[role="dialog"][aria-label="Library"]').boundingBox()
@@ -1753,7 +1762,14 @@ await page.waitForTimeout(200)
   // On a phone there is no Ctrl+J, so it has to be a button — on the toolbar,
   // and on the bar that appears over a selection.
   {
-    const touch = await ctx.newPage()
+    // A context with touch, so `tap()` sends the real pointer sequence a
+    // finger does. The bug this guards was invisible to a synthetic click.
+    const touchCtx = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    })
+    const touch = await touchCtx.newPage()
     // Routes are per page, so the stub has to be installed on this one too.
     await touch.route('**/api/ai', async (route) => {
       if (route.request().method() === 'GET') {
@@ -1769,17 +1785,23 @@ await page.waitForTimeout(200)
         body: JSON.stringify({ text: 'Expanded on a phone.' }),
       })
     })
-    await touch.setViewportSize({ width: 390, height: 844 })
     await touch.goto(URL, { waitUntil: 'networkidle' })
     await touch.waitForTimeout(1000)
     log(
       'Ask is on the toolbar at phone width',
       await touch.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Writing help"]').isVisible(),
     )
-    await touch.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Writing help"]').click()
-    await touch.waitForTimeout(700)
+    /*
+      A single tap, not a long press.
+
+      Acting on pointerdown meant the popup's backdrop arrived under a finger
+      that was still down, so the tap that opened it also closed it — and only
+      a press held long enough to lose the click appeared to work.
+    */
+    await touch.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Writing help"]').tap()
+    await touch.waitForTimeout(800)
     log(
-      'and opens writing help without a keyboard',
+      'one tap opens writing help — no long press',
       await touch.locator('[role="dialog"][aria-label="Writing help"]').isVisible(),
     )
     const sheet = await touch.locator('[role="dialog"][aria-label="Writing help"]').boundingBox()
@@ -1789,7 +1811,14 @@ await page.waitForTimeout(200)
       sheet ? `${Math.round(sheet.width)}x${Math.round(sheet.height)} at y=${Math.round(sheet.y)}` : 'missing',
     )
     await touch.screenshot({ path: `${SHOTS}/26-mobile-ask.png` })
+    // The other menus open the same way, and were the same shape of bug.
+    await touch.locator('[role="dialog"][aria-label="Writing help"] [aria-label="Close"]').tap()
+    await touch.waitForTimeout(400)
+    await touch.locator('[aria-label="More formatting"]').tap()
+    await touch.waitForTimeout(500)
+    log('and one tap opens the toolbar menus', await touch.locator('[role="menu"]').first().isVisible())
     await touch.close()
+    await touchCtx.close()
   }
 
   // "++" is the same door, for people who never learn a shortcut.
@@ -1808,6 +1837,230 @@ await page.waitForTimeout(200)
   await page.keyboard.press('Escape')
   await page.waitForTimeout(400)
   await page.unroute('**/api/ai')
+}
+
+// --- Undo and redo ----------------------------------------------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  const block = page.locator('[data-block-id] [contenteditable]').first()
+  await block.click()
+  await page.keyboard.type('The first sentence.')
+  await page.waitForTimeout(900)
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('The second sentence.')
+  await page.waitForTimeout(900)
+
+  const lines = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+        .map((e) => e.textContent)
+        .join(' | '),
+    )
+  const both = await lines()
+  log('two paragraphs to undo', both.includes('first') && both.includes('second'), both)
+
+  // The button, which is the point: the browser's own undo knows nothing
+  // about the paragraph split between these two.
+  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Undo"]').click()
+  await page.waitForTimeout(600)
+  const undone = await lines()
+  log('Undo takes back the last edit', undone !== both, undone)
+
+  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Redo"]').click()
+  await page.waitForTimeout(600)
+  log('Redo puts it back', (await lines()) === both, await lines())
+
+  // And the shortcut, which is where most hands go.
+  await page.keyboard.press('Control+z')
+  await page.waitForTimeout(600)
+  log('Ctrl+Z does the same', (await lines()) !== both)
+  await page.keyboard.press('Control+Shift+z')
+  await page.waitForTimeout(600)
+  log('Ctrl+Shift+Z redoes', (await lines()) === both)
+
+  // Undo reaches a structural change, not only the last few characters.
+  let steps = 0
+  while (steps < 12 && /first/.test(await lines())) {
+    await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Undo"]').click()
+    await page.waitForTimeout(350)
+    steps++
+  }
+  log('undo walks all the way back to an empty document', !/first/.test(await lines()), `${steps} steps`)
+  log(
+    'and then stops offering itself',
+    await page.evaluate(() => {
+      const el = document.querySelector('[role="toolbar"][aria-label="Formatting"] [aria-label="Undo"]')
+      return !!el && el.disabled
+    }),
+  )
+  await page.screenshot({ path: `${SHOTS}/27-undo.png` })
+}
+
+// --- Icons that say what a document is --------------------------------------
+{
+  /** The lucide glyph used for a document in the sidebar, by its class. */
+  const iconFor = async (title) =>
+    page.evaluate((name) => {
+      const row = [...document.querySelectorAll('nav [data-doc-id]')].find((el) =>
+        el.innerText.includes(name),
+      )
+      const svg = row?.querySelector('svg')
+      return svg ? [...svg.classList].find((c) => c.startsWith('lucide-') && c !== 'lucide') : null
+    }, title)
+
+  // Counted for real: the icons must not send anything to the model. The page
+  // does ask the route once per editor whether writing help is configured at
+  // all, so only a POST would mean an icon had been paid for.
+  let aiPosts = 0
+  const countPosts = (request) => {
+    if (request.method() === 'POST' && /\/api\/ai/.test(request.url())) aiPosts++
+  }
+  page.on('request', countPosts)
+
+  const makeDoc = async (title) => {
+    await page.locator('button:has-text("New")').first().click()
+    await page.waitForTimeout(500)
+    await page.locator('[aria-label="Document title"]').click()
+    await page.keyboard.type(title)
+    await page.waitForTimeout(700)
+  }
+
+  await makeDoc('March budget')
+  await makeDoc('Tenancy agreement for the flat')
+  await makeDoc('Recipe for jollof rice')
+  await makeDoc('Saturday')
+  await page.waitForTimeout(700)
+
+  const budget = await iconFor('March budget')
+  const tenancy = await iconFor('Tenancy agreement')
+  const recipe = await iconFor('Recipe for jollof')
+  const plain = await iconFor('Saturday')
+
+  log('a budget gets a banknote', budget === 'lucide-banknote', String(budget))
+  log('an agreement gets a scroll', tenancy === 'lucide-scroll-text', String(tenancy))
+  log('a recipe gets cutlery', recipe === 'lucide-utensils', String(recipe))
+  log('an unremarkable note stays a sheet of paper', plain === 'lucide-file-text', String(plain))
+  log('and none of it cost a call to the model', aiPosts === 0, `${aiPosts} posts`)
+  page.off('request', countPosts)
+  await page.screenshot({ path: `${SHOTS}/28-icons.png` })
+}
+
+// --- Deleting from the document's own menu ----------------------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(500)
+  await page.locator('[aria-label="Document title"]').click()
+  await page.keyboard.type('Delete me from settings')
+  await page.waitForTimeout(800)
+
+  await page.locator('[aria-label="Document actions"]').click()
+  await page.waitForTimeout(400)
+  log(
+    'the document menu offers to delete it',
+    /delete this document/i.test(await page.evaluate(() => document.body.innerText)),
+  )
+  await page.locator('button:has-text("Delete this document")').click()
+  await page.waitForTimeout(300)
+  log(
+    'and asks first, naming the document',
+    /Delete me from settings/.test(await page.evaluate(() => document.body.innerText)) &&
+      /to the trash\?/i.test(await page.evaluate(() => document.body.innerText)),
+  )
+  await page.locator('[aria-label="Document actions"] ~ * button:has-text("Delete"), button:has-text("Delete")').last().click()
+  await page.waitForTimeout(900)
+  log(
+    'deleting from the menu removes it from the sidebar',
+    (await page.locator('nav [data-doc-id]:has-text("Delete me from settings")').count()) === 0,
+  )
+}
+
+// --- The header folds away as you scroll ------------------------------------
+{
+  // From a fresh load, so this measures the folding rather than whatever the
+  // section before it left the page scrolled to.
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1000)
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(700)
+
+  const headerHeight = () =>
+    page.evaluate(() => {
+      const el = document.querySelector('main header')
+      return el ? Math.round(el.getBoundingClientRect().height) : -1
+    })
+
+  log('a fresh document opens with the header on screen', (await headerHeight()) > 20)
+
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.type(`Paragraph number ${i} with enough words in it to take up a line.`)
+    await page.keyboard.press('Enter')
+  }
+  await page.waitForTimeout(900)
+
+  /*
+    The caret is blurred before scrolling.
+
+    Left in the document, the browser scrolls back to it and the handler never
+    sees the position the test meant to put the page at. Escape blurs the
+    block, which is what it is for.
+  */
+  const scrollTo = async (top) => {
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
+    await page.evaluate((y) => {
+      const scroller = document.querySelector('main > div.pad-desk')
+      if (scroller) scroller.scrollTop = y
+    }, top)
+    await page.waitForTimeout(400)
+  }
+
+  /**
+   * Waits for the header to reach a height, rather than reading it once.
+   *
+   * The fold is driven by a scroll event and then animated, so a single
+   * measurement taken at an arbitrary moment is a race with the transition,
+   * not a statement about the behaviour. A poll that gives up still fails.
+   */
+  const headerSettlesTo = async (test, within = 2500) => {
+    const until = Date.now() + within
+    let last = await headerHeight()
+    while (Date.now() < until) {
+      last = await headerHeight()
+      if (test(last)) return last
+      await page.waitForTimeout(100)
+    }
+    return last
+  }
+
+  await scrollTo(700)
+  const folded = await headerSettlesTo((h) => h < 10)
+  log('scrolling down folds it away, leaving one bar', folded < 10, `${folded}px`)
+  log(
+    'and the toolbar is still there, now at the very top',
+    await page.locator('[role="toolbar"][aria-label="Formatting"]').isVisible(),
+  )
+  await page.screenshot({ path: `${SHOTS}/29-scrolled.png` })
+
+  /*
+    Coming back to the top brings it back, and it does not flap on the way.
+
+    Folding the header makes the scroller taller, which fires another scroll
+    event; a version that decided from the direction of travel read its own
+    relayout as a fresh scroll and folded itself straight back again. Deciding
+    from the position, with a gap between the two thresholds wider than the
+    header is tall, is what makes this settle.
+  */
+  await scrollTo(0)
+  const back = await headerSettlesTo((h) => h > 20)
+  log('coming back to the top brings it back', back > 20, `${back}px`)
+
+  await scrollTo(700)
+  const again = await headerSettlesTo((h) => h < 10)
+  log('and folds away again on the way back down', again < 10, `${again}px`)
+  await page.waitForTimeout(900)
+  log('and it settles rather than flapping', (await headerHeight()) === again)
 }
 
 // Manifest + service worker, the installable part.
