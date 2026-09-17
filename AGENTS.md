@@ -103,6 +103,36 @@ to work, it is the wrong shape for this app.
   style control is therefore a plain button opening a menu that sets each
   option in its own type; groups are separated by space; buttons have no border
   until the pointer is over them.
+- **The side menu is about the open document, not about the collection.**
+  Three ways out (home, Library, search), one way onward (New), then Carry on —
+  the document you are in — the rest of its folder, and everything the document
+  has: where it is filed, how typing behaves, Brain, Ask, its goals, and every
+  way of getting it out or bringing something in. Recent and favourites are not
+  here: they answer "what was I doing", which is a question asked on the way in,
+  so they are on the home screen where the whole collection is. A list of other
+  documents beside the one being written is the thing this surface has been cut
+  down from twice.
+- **"Carry on" exists because the menu covers the page on a phone.** At 390px
+  the side menu is the whole screen, so the way back has to be a visible thing
+  the size of a card, not a cross in a corner.
+- **"Move this to a folder" is one button and a picker, never an inline list.**
+  Four menus each printing every folder is a menu you scroll past to reach
+  Delete, and it is a different length for everybody. `folder-picker.tsx` is
+  shared by the side menu, the folder dropdown and every row in the Library, so
+  none of them can quietly stop offering "Take it out of its folder". A document
+  in no folder says so at the top of its settings rather than showing nothing —
+  an absent row reads as "there is no such thing as a folder here", and the
+  loose document is precisely the one somebody wants to file.
+- **The home screen has two tabs and will go on having two.** Carry on and
+  Library. A tab bar that can grow is a navigation system, and this screen
+  exists because the app had one too many of those.
+- **Unfiled documents are the first shelf in the Library, not the last.** They
+  are the ones whose answer to "where is it" is "nowhere", which is the question
+  that screen is for.
+- **Dragging to make a folder lives in the Library now.** It is the one place
+  every document is listed, so it is the only place there is anything to drag
+  between. Selecting several and pressing Move is the same tidying with a thumb,
+  and the only one of the two that moves nine documents at once.
 - **The toolbar is four controls: undo, redo, ⋯ and Ask.** It had twenty, all
   correct and collectively a band of grey furniture across the top of every
   page somebody opened to write on. Everything else is one press inside the ⋯,
@@ -349,6 +379,34 @@ to work, it is the wrong shape for this app.
   the most guardrails and `effort: 'high'` in `api/ai/route.ts`. The failure to
   write against is not too few words but a paragraph of filler in a voice the
   author would not use.
+- **Goals are on the document, and suggestions are only ever suggestions.**
+  `lib/goals.ts` is string functions with no JSX and no fetch, so the awkward
+  cases are unit tests. Suggestions are sentences about what to do next;
+  pressing one does nothing, because there is nothing to apply — the same rule
+  every other piece of writing help here keeps. The model is asked once, on the
+  transition into "has goals and has something written", and otherwise only
+  when the refresh is pressed: a call per keystroke is somebody's money spent to
+  be told what they were told ten seconds ago. `addGoal` returns the identical
+  array when nothing was added, so a blank or duplicate does not rewrite, save
+  and sync the document.
+- **Whether writing help is configured is asked once, by the workspace.** Three
+  panels each asking `/api/ai` on mount is three requests for one answer that
+  cannot change while the tab is open.
+- **Folds are one store, not one per component.** `lib/folds.ts`, and the
+  snapshot is the raw string for the same reason the theme's is: a freshly
+  parsed Set is a new object every time, which `useSyncExternalStore` reads as
+  a change and turns into an infinite render loop.
+- **Nothing scans a document for tasks any more.** `lib/tasks.ts` is kept and
+  still tested, and nothing calls it: a strip appearing over the page mid-
+  sentence to ask about a line you have just typed is an interruption, and
+  whether "speak to Sam about the lease" is a job or a report of one is not
+  decidable from the sentence anyway.
+- **An optional field on the document has to reach the row, or it does not
+  sync.** Favourites, Brain's rules and goals were all on the document and all
+  silently dropped by `toRow`, so a star set on a laptop was not a star on the
+  phone. `0004_doc_settings.sql` is the columns; the lesson is that "it is one
+  field on the document, so it travels with everything else" is only true once
+  `toRow` and `toDoc` know about it.
 - **A suggested task is offered, never created.** Whether "speak to Sam about
   the lease" is a task or a description of something that already happened is
   not decidable from the sentence, so `lib/tasks.ts` returns candidates and
@@ -359,11 +417,6 @@ to work, it is the wrong shape for this app.
   timestamp. "Friday" means a different day depending on when it was written,
   and a reminder on the wrong day is worse than a reminder with no day. The
   wording is what a calendar's own parser will want when one is connected.
-- **The sidebar shows three lists and nothing else**: this document's folder,
-  favourites, and five recent with the rest behind "Show more". Adding a fourth
-  section, or raising that five, is how it became a tree the first time.
-  Everything taken off it still exists — the whole collection is in the
-  Library, the trash is on the home screen.
 - **A folder is one button, not a strip of its contents.** The folder's other
   documents used to sit above the open one as a scrolling row of chips: the
   first thing on the page was a list of things that were not the page, and the

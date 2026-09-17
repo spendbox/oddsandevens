@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { blocksFromPasted, makeBlock, shortcutFor } from '@/lib/blocks'
 import { blocksToText } from '@/lib/export'
 import type { PastedBlock } from '@/lib/paste'
@@ -13,7 +13,6 @@ import {
   orderedNumber,
 } from '@/lib/smart-typing'
 import { applyRules, type Rule } from '@/lib/rules'
-import { findTasks, type TaskSuggestion } from '@/lib/tasks'
 import type { Align, Block, Doc, TextishBlock } from '@/lib/types'
 import { blockText, isTextish } from '@/lib/types'
 import { MODE, TEXT, usePref } from '@/lib/ui-prefs'
@@ -27,7 +26,6 @@ import FormBlock from './form-block'
 import Ribbon, { type RibbonTarget } from './ribbon'
 import SlashMenu, { type SlashChoice } from './slash-menu'
 import TableBlock from './table-block'
-import TaskSuggestions from './task-suggestions'
 
 /**
  * The document editor.
@@ -63,6 +61,8 @@ export default function Editor({
   canUndo,
   canRedo,
   externalRevision = 0,
+  aiReady,
+  command = null,
   onRules,
   onIgnoreRules,
 }: {
@@ -84,6 +84,22 @@ export default function Editor({
    * caret is in the paragraph being undone leaves the old text on screen.
    */
   externalRevision?: number
+  /**
+   * Whether writing help is configured. Asked once by the workspace and handed
+   * down, rather than by every panel that wants to know: three components
+   * asking the same question on mount is three requests for one answer that
+   * cannot change while the tab is open.
+   */
+  aiReady: boolean
+  /**
+   * A press in the side menu that has to land in here.
+   *
+   * Brain and Ask are offered beside the document's other settings, but both
+   * are painted over the editing surface, which is what knows where the caret
+   * is. A counter rather than a flag, so pressing Ask twice opens it twice and
+   * there is nothing for the sender to clear afterwards.
+   */
+  command?: { kind: 'brain' | 'ask'; n: number } | null
   /** Writes this document's rules. See lib/rules.ts. */
   onRules: (rules: Rule[]) => void
   onIgnoreRules: (ignored: boolean) => void
@@ -149,30 +165,25 @@ export default function Editor({
    * offer is only ever shown while the document is still empty anyway.
    */
   const [offerDeclined, setOfferDeclined] = useState(false)
-  /**
-   * Whether writing help is available at all.
-   *
-   * The key lives on the server, so the browser cannot see it; the route says
-   * yes or no once, on mount. Unknown until it answers, which is why the
-   * button is not drawn before then — a control that appears and then fails is
-   * worse than one that was never there.
-   */
-  const [aiReady, setAiReady] = useState<boolean | null>(null)
+  /*
+    A press in the side menu, acted on as it arrives.
 
-  useEffect(() => {
-    let cancelled = false
-    void fetch('/api/ai')
-      .then((r) => r.json())
-      .then((data: { configured?: boolean }) => {
-        if (!cancelled) setAiReady(!!data.configured)
-      })
-      .catch(() => {
-        if (!cancelled) setAiReady(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    Adjusted during render rather than in an effect — the pattern this codebase
+    uses for "a prop changed, so this state is stale" — because in an effect
+    the drawer has already closed and the page has painted once without the
+    panel, which reads as the press having done nothing.
+
+    Ask opens with no anchor, which the popup already handles by centring
+    itself: there is no caret to sit beside when the press came from a menu
+    covering the document.
+  */
+  const [seenCommand, setSeenCommand] = useState(command?.n ?? 0)
+  if (command && command.n !== seenCommand) {
+    setSeenCommand(command.n)
+    if (command.kind === 'brain') setBrain(true)
+    else setAssist({ anchor: null })
+  }
+
   const container = useRef<HTMLDivElement>(null)
 
   const setBlocks = useCallback(
@@ -635,53 +646,21 @@ export default function Editor({
     if (last) setFocus({ id: last.id, caret: 'end' })
   }
 
-  /* -------------------------------------------------------- tasks in the text */
-
-  /**
-   * Lines in this document that read like things to be done.
-   *
-   * A pure scan over the blocks (see lib/tasks.ts), memoised so it runs once
-   * per change rather than once per render, and settled behind a pause so the
-   * strip does not appear halfway through the word "need".
-   */
-  /**
-   * The blocks as they were when typing last stopped.
-   *
-   * Compared by identity against the live blocks, which is what makes the
-   * scan wait for a pause: the moment a keystroke replaces the array these
-   * two stop matching, and no suggestion is shown again until the timer
-   * below fires with the newer one. One piece of state, set from a timer
-   * rather than from the effect body, so nothing cascades.
-   */
-  const [scanned, setScanned] = useState<Block[] | null>(null)
-  /**
-   * Suggestions already turned down, by the block they came from.
-   *
-   * Not a single "dismissed" flag: turning down the four lines in today's
-   * meeting note should not mean the app stays quiet about the three you write
-   * tomorrow in the same document.
-   */
-  const [turnedDown, setTurnedDown] = useState<Set<string>>(() => new Set())
-  /** How many tasks the last confirmation made, so it can say so. */
-  const [made, setMade] = useState(0)
+  /* ----------------------------------------------------------- settling down */
 
   useEffect(() => {
     const blocks = doc.blocks
     const rules = doc.rules
     const ignored = doc.ignoreRules
+    if (ignored || !rules?.length) return
     /*
-      One timer for both things that read a settled document: the task scan,
-      and Brain.
-
-      Both belong after a pause rather than on every keystroke — a strip that
-      appears halfway through the word "need", or a line that converts itself
-      while it is still being typed, is the application arguing with the
-      writer. Setting the state from the timer's callback rather than from the
-      effect body is also what keeps this out of a cascading render.
+      Brain, applied when typing settles rather than on every keystroke — a
+      line that converts itself while it is still being typed is the
+      application arguing with the writer. Setting the state from the timer's
+      callback rather than from the effect body is what keeps this out of a
+      cascading render.
     */
     const timer = setTimeout(() => {
-      setScanned(blocks)
-      if (ignored || !rules?.length) return
       // `applyRules` returns the identical array when nothing matched, which
       // is the common case by a very long way, so this usually does nothing at
       // all — and running it on its own output is a no-op, so it cannot loop.
@@ -690,57 +669,12 @@ export default function Editor({
         setBlocks(ruled)
         bumpRevision()
       }
-    }, TASK_SCAN_PAUSE_MS)
+    }, SETTLE_MS)
     return () => clearTimeout(timer)
     // `setBlocks` is rebuilt whenever `doc` changes, and re-arming the timer
     // for that would mean it never fired while somebody was typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.blocks, doc.rules, doc.ignoreRules])
-
-  const suggestions: TaskSuggestion[] = useMemo(
-    () => (scanned === doc.blocks ? findTasks(doc.blocks) : []),
-    [scanned, doc.blocks],
-  )
-  const offered = suggestions.filter((task) => !turnedDown.has(task.blockId))
-
-  /** Turns the confirmed lines into task blocks, in place. */
-  const makeTasks = (chosen: TaskSuggestion[]) => {
-    const wording = new Map(chosen.map((task) => [task.blockId, task.text]))
-    setBlocks(
-      doc.blocks.map((block) => {
-        const text = wording.get(block.id)
-        if (text === undefined || !isTextish(block)) return block
-        const made = makeBlock('todo')
-        if (made.type === 'todo') {
-          made.text = text
-          // The wording was tidied — the lead-in removed, the glyph stripped —
-          // so the old inline formatting no longer lines up with it and is
-          // dropped rather than smeared across different words.
-          made.indent = block.indent
-          made.align = block.align
-        }
-        return made
-      }),
-    )
-    bumpRevision()
-    setMade(chosen.length)
-    // The lines that were offered and not ticked are not offered again: the
-    // writer has just looked at all of them and said which ones were tasks.
-    setTurnedDown((current) => {
-      const next = new Set(current)
-      for (const task of suggestions) next.add(task.blockId)
-      return next
-    })
-  }
-
-  const turnDown = () => {
-    setMade(0)
-    setTurnedDown((current) => {
-      const next = new Set(current)
-      for (const task of suggestions) next.add(task.blockId)
-      return next
-    })
-  }
 
   /* ---------------------------------------------------------------- typing */
 
@@ -1183,14 +1117,6 @@ export default function Editor({
             <BrainOffer onOpen={() => setBrain(true)} onDismiss={() => setOfferDeclined(true)} />
           )}
 
-        {(offered.length > 0 || made > 0) && (
-          <TaskSuggestions
-            suggestions={offered}
-            made={made}
-            onCreate={makeTasks}
-            onDismiss={turnDown}
-          />
-        )}
 
         <input
           value={doc.title}
@@ -1306,8 +1232,8 @@ export default function Editor({
   )
 }
 
-/** How long typing has to stop before the document is read for tasks. */
-const TASK_SCAN_PAUSE_MS = 1_200
+/** How long typing has to stop before the document is read again. */
+const SETTLE_MS = 1_200
 
 function BlockBody({
   block,

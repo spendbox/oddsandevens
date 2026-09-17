@@ -47,10 +47,15 @@ import { applyFormat } from './format-toolbar'
  * It had twenty. Undo, redo, a style menu, five marks, four lists, Insert,
  * More and Ask — all correct, all reachable, and collectively a band of grey
  * furniture across the top of every page somebody opened to write on. So it is
- * down to what is worth permanent room: undo, redo, Brain and Ask. Everything
- * else moved one press away into the ⋯ menu, and the formatting people reach
- * for most is already on the bar that appears over a selection, which is where
- * a word processor has put its mini toolbar for twenty years.
+ * down to what is worth permanent room: undo, redo, ⋯ and Ask. Everything else
+ * moved one press away into the ⋯ menu, and the formatting people reach for
+ * most is already on the bar that appears over a selection, which is where a
+ * word processor has put its mini toolbar for twenty years.
+ *
+ * Brain went the same way. It had its own button for a round, and then the
+ * side menu grew a proper place for everything about the open document —
+ * where it is filed, what it is for, how typing behaves — and a second Brain
+ * button on the bar was a second door onto one room.
  *
  * Nothing became unreachable. That is the line: a quieter toolbar is worth a
  * press, and is not worth a feature.
@@ -201,7 +206,7 @@ export default function Ribbon({
       Closed by testing where the press landed, never by stopPropagation.
       Relying on propagation closes the menu on pointerdown and unmounts the
       button before its own click can fire — which is how every item in a menu
-      ends up doing nothing. See the same note in doc-list.tsx.
+      ends up doing nothing. See the same note in library-view.tsx.
     */
     const close = (event: Event) => {
       const el = event.target as Element | null
@@ -388,6 +393,34 @@ export default function Ribbon({
             <div className="my-1 h-px bg-[var(--color-line)]" />
 
             {/*
+              Brain: this document's own rules. Also in the side menu, which is
+              where everything about the open document lives — this is here so
+              that somebody already in the ⋯ menu does not have to go looking.
+            */}
+            <button
+              type="button"
+              role="menuitem"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setMenu(null)
+                onBrain()
+              }}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[14px] hover:bg-[var(--color-hover)]"
+            >
+              <span className={`shrink-0 ${hasRules ? 'text-[var(--color-accent)]' : 'text-[var(--color-muted)]'}`}>
+                <Brain size={15} />
+              </span>
+              Brain
+              {hasRules && (
+                <span className="ml-auto rounded-full bg-[var(--color-accent)] px-1.5 text-[12px] font-medium text-white">
+                  {ruleCount}
+                </span>
+              )}
+            </button>
+
+            <div className="my-1 h-px bg-[var(--color-line)]" />
+
+            {/*
               How typing behaves. A preference rather than a document field: it
               is about the hands doing the typing, not about the document.
             */}
@@ -430,30 +463,7 @@ export default function Ribbon({
         )}
       </div>
 
-      {/*
-        Brain: this document's own rules. Next to Ask because they are the two
-        things on this bar that think about the writing rather than format it.
-      */}
-      <button
-        type="button"
-        aria-label="Brain"
-        title="Rules for this document"
-        onPointerDown={(e) => e.preventDefault()}
-        onClick={onBrain}
-        className={`ml-auto flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[14px] transition-colors ${
-          hasRules
-            ? 'text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]'
-            : 'text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]'
-        }`}
-      >
-        <Brain size={16} />
-        <span className="hidden sm:inline">Brain</span>
-        {hasRules && (
-          <span className="rounded-full bg-[var(--color-accent)] px-1.5 text-[12px] font-medium text-white">
-            {ruleCount}
-          </span>
-        )}
-      </button>
+      <div className="ml-auto" />
 
       {/*
         Writing help, and the only way to it without a keyboard.

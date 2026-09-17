@@ -52,7 +52,8 @@ one.
 toolbar. It moves the whole typographic scale — headings, lists, the title —
 not just the paragraphs, and it is remembered.
 
-**Document or blocks.** Under the **⋯**, *Typing*. **Document** is the default
+**Document or blocks.** In the side menu under *Writing*, or under the
+toolbar's **⋯**. **Document** is the default
 and is what most people mean by writing: Enter makes a paragraph, the markdown
 shortcuts still work, and typing `/` types a slash — so "and/or" and a date
 stay what you typed. **Blocks** turns the `/` menu back on for anyone who came
@@ -62,7 +63,8 @@ here from an editor that has one.
 toolbar until the next one takes its place, so you always know which part of a
 long document you are reading.
 
-**Brain: rules for one document.** The **Brain** button on the toolbar. A rule
+**Brain: rules for one document.** In the side menu under *Writing*, and in
+the toolbar's **⋯**. A rule
 is a sentence — *every line starting with “AI:” becomes a task*, *every bullet
 becomes a task*, *every line ending with “?” becomes a quote* — and it applies
 as you type, in that document and nowhere else. Three are offered ready-made;
@@ -108,23 +110,44 @@ paragraph you are in. `Ctrl+A` selects the paragraph, and again selects the
 whole document; holding `Shift` with the up and down arrows extends a selection
 across paragraphs.
 
-**The sidebar** holds four things and nothing else: **New**, **Search**, the
-**Library**, and three short lists — what else is in this document's folder,
-what you have starred, and the five you had open most recently, with a **Show
-more** under them. Every one of the three folds away with the chevron beside
-its name, and stays folded next time. Everything that used to be here as well is still in the app,
-one press away, on the home screen or in the Library.
+**The side menu** is about the document you are in. Three ways out along the
+top — **Home**, **Library**, **Search** — then **New document**, then
+**Carry on**, which is the document you are writing and the way back to it.
+Under that: what else is in its folder, and then everything about the document
+itself, in one column, from where it is filed through to what you can bring
+into it.
 
-**The home screen** is the grid button in the header, or the Pad mark at the
-top of the sidebar. It fills the window and shows the document you are writing,
-large, with its opening lines; the others in its folder; your favourites; and
-what was open recently. On a phone it is one column with the labels dropped
-from the header buttons, so the row never wraps. It is not what the app opens
-into — opening straight into a document with the caret already in it matters
-more.
+*Writing* holds the typing mode, **Brain** and **Ask**. *Goals* is what this
+document is trying to do. *This file* is sharing, saving as PDF, downloading as
+Markdown, plain text or Word, importing a Word document or a PDF, and deleting.
+Every section folds with the chevron beside its name and stays folded next
+time.
 
-**Favourites.** The star on a row in the sidebar, or on a card on the home
-screen. Starred documents get their own section in both.
+There is deliberately no Recent and no Favourites in here. Those answer "what
+was I doing", which is a question you ask on the way in — so they are on the
+home screen, where the whole collection is.
+
+**Goals, and what to do next.** Under *Goals* in the side menu, say what the
+document is for in your own words: *persuade the landlord to fix the boiler*,
+*under 400 words*, *no jargon*. Up to five, on that document only. Once there
+are goals and something written, the assistant reads the draft against them and
+offers a few short things to do next — *say what the boiler does now*, *cut the
+second paragraph, it repeats the first*. They are suggestions and nothing else:
+pressing one does not apply it, because there is nothing to apply. It reads the
+draft once when you set a goal and otherwise waits for the arrow beside
+*What to do next*, so it is not a meter running in the corner of your screen.
+Needs an API key; without one the goals stay and the suggestions are absent.
+
+**The home screen** is the house button in the header, or **Home** in the side
+menu. It fills the window and has two tabs. **Carry on** shows the document you
+are writing, large, with its opening lines; the others in its folder; your
+favourites; what was open recently; and the trash. **Library** is the whole
+collection. On a phone it is one column, three icon buttons in the header and
+two half-width tabs, so nothing wraps. It is not what the app opens into —
+opening straight into a document with the caret already in it matters more.
+
+**Favourites.** The star on a card on the home screen, or **Favourite** on a
+selection in the Library. Starred documents get their own shelf on Carry on.
 
 **Folders.** A document in a folder gets a button in the header saying which
 one (`Ctrl+P` opens it). That button is the folder: it lists everything inside,
@@ -132,29 +155,35 @@ searches within it, makes a new document in it, renames it, and moves this
 document somewhere else — all in the one menu, because "where am I" and "put me
 somewhere else" are the same thought half a second apart.
 
-**Making a folder** is a drag: pull one document in the sidebar onto another
+**Making a folder** is a drag: in the Library, pull one document onto another
 and they become a folder named after the one you dropped onto. Drop onto a
-folder's heading to add a document to it, or onto **Recent** to take it out.
+folder's heading to add a document to it, or onto **Not in a folder** to take it
+out. Or select several and press **Move** → *New folder from this document*.
 
-**Moving a document** to another folder is in four places, whichever you reach
-for first: that folder button, the document's own **⋯** menu in the header (the
-only route for a document that is in no folder yet), the **⋯** on any row in
-the sidebar, and the **⋯** on any row in the Library. A folder left with one
+**Moving a document** is always one button and a picker, never a menu with
+every folder printed into it. The button is at the top of the side menu — it
+says which folder you are in, or **Not in a folder** when you are in none — and
+on every row in the Library, and inside the folder dropdown in the header.
+Pressing it opens a searchable list of folders, with *New folder from this
+document* and *Take it out of its folder* at the end. A folder left with one
 document dissolves by itself.
 
 **The Library** is both the way documents come in and the one place all of them
 are listed. Drop a pile of files in and each one is read, titled from its
 contents rather than its filename, and given a sentence saying what it covers;
 nothing is added until you have seen it. Underneath, every document you have is
-listed **under the folder it is in**, collapsible, with the loose ones last —
-and searchable with the app's own search, over contents as well as names. A
+listed **under the folder it is in**, collapsible, with **the ones in no folder
+first** — those are the ones that still need a home. **Collapse all** folds
+every folder at once, and becomes **Expand all**. **Select** turns the rows into
+tick boxes so you can move, favourite or delete several at a time. Everything
+here is searchable with the app's own search, over contents as well as names: a
 result shows the sentence it matched with the word picked out, exactly as the
-main search does, so it is obvious the box is reading inside documents rather
-than filtering a list of names. Search results are a flat ranked list rather
-than a grouped one, because when you are searching the best match should be at
-the top, not under a heading.
+main search does. Search results are a flat ranked list rather than a grouped
+one, because when you are searching the best match should be at the top, not
+under a heading.
 
-**Writing help.** Press **Ask** in the toolbar, or `Ctrl+J`, or type `++` — and
+**Writing help.** Press **Ask** in the toolbar or in the side menu, or
+`Ctrl+J`, or type `++` — and
 if you have text selected, **Ask** is on the end of the little bar that appears
 over the selection. A small box opens next to the line you are writing; on a
 phone it is a sheet along the bottom, above the keyboard. Type what you want
@@ -166,27 +195,20 @@ anything on its own** — you read the result and choose Insert below, Replace,
 Again, or Discard. Needs an API key (see below); without one it is simply
 absent.
 
-**Tasks it notices.** Write "I need to call the landlord by Friday" in the
-middle of a meeting note and a strip appears above the page offering to make it
-a task. Every line is shown with a tick beside it and confirmed one at a time;
-a date found in the line is kept in your own words, ready for a calendar. This
-runs on your device with no key and no network. Sending tasks to Google
-Calendar is not connected yet, and the app says so rather than implying it.
-
-**Deleting is undoable.** From the **⋯** on a sidebar row, or from the
-document's own **⋯** menu in the header while you have it open. Either way it
-goes to the trash on the home screen and stays for 7 days, with each row saying
+**Deleting is undoable.** *Delete this document* at the foot of *This file* in
+the side menu, or **Delete** on a selection in the Library. Either way it goes
+to the trash on the home screen and stays for 7 days, with each row saying
 how long it has left. You can put it back, or delete it for good straight away
 — that one asks first, because it means it.
 
 **Getting out of the way.** Scrolling down into a document folds the app's
 header away, so the toolbar is the only bar between you and the page; coming
-back to the top brings it straight back. `Ctrl+\` collapses the sidebar, and
-on a phone the sidebar is the whole screen rather than a strip over the
-document. The page is a
-reading measure by default, because a line that runs the width of a large
-monitor is genuinely harder to read; there is a **Wide** toggle at the foot of
-the sidebar for anyone who disagrees.
+back to the top brings it straight back. `Ctrl+\` collapses the side menu, and
+on a phone it is the whole screen rather than a strip over the document — which
+is why **Carry on** is in it, as a visible way back rather than a cross in a
+corner. The page is a reading measure by default, because a line that runs the
+width of a large monitor is genuinely harder to read; there is a **Wide**
+toggle at the foot of the side menu for anyone who disagrees.
 
 The spreadsheet understands `=SUM(A1:A5)`, `=AVERAGE(...)`, `=IF(A1>50,
 "big", "small")`, `=ROUND(x, 2)`, cell references, ranges, `&` to join text,
@@ -196,7 +218,7 @@ of freezing the page.
 
 ## Getting things in and out
 
-The **⋯** button, top right:
+In the side menu, under *This file*:
 
 - **Save as PDF** — opens your browser's print window; choose *Save as PDF* as
   the destination. This costs no download at all, because your browser already
@@ -214,6 +236,8 @@ The **⋯** button, top right:
   account (see below). The link shows a snapshot, so editing the document does
   not silently change what someone you shared it with is looking at; there is
   an **Update the shared copy** button for when you want it to.
+
+A whole pile of files at once goes through the **Library** instead — see above.
 
 ## Installing it as an app
 
@@ -239,7 +263,8 @@ configuration beyond pointing it at this repository.
 
 ## Turning on writing help (optional)
 
-Writing help uses **GPT-4o**. Get a key from
+Writing help — **Ask**, the Library's titling, and the suggestions under
+*Goals* — uses **GPT-4o**. Get a key from
 [platform.openai.com](https://platform.openai.com/api-keys), then put it in
 `.env.local`:
 
@@ -265,7 +290,8 @@ device, and the corner shows "On this device" instead of a sign-in button.
 2. In its SQL editor, paste and run the files in `supabase/migrations/` in
    order: `0001_docs.sql`, then `0002_shared_docs.sql` (which makes **Share a
    link** work), then `0003_projects.sql` (which syncs projects between
-   devices).
+   devices), then `0004_doc_settings.sql` (which syncs favourites, a document's
+   Brain rules and its goals).
 3. Copy `.env.example` to `.env.local` and fill in the two values from
    Supabase's Settings → API page:
 
@@ -312,7 +338,10 @@ src/lib/slash-items.ts  what "/" offers, and how a query is ranked
 src/lib/store.ts        saving to the device (IndexedDB), documents and files
 src/lib/sync.ts         optional sync to Supabase
 src/lib/projects.ts     grouping documents, and searching within a group
-src/lib/tasks.ts        finding the things somebody has agreed to do
+src/lib/tasks.ts        finding the things somebody has agreed to do (unused)
+src/lib/goals.ts        what a document is for, and reading suggestions back
+src/lib/folds.ts        which sections are folded away, per device
+src/lib/when.ts         "3 minutes ago", "yesterday"
 src/lib/history.ts      undo and redo, over whole documents
 src/lib/doc-icon.ts     which icon a document gets, and why
 src/lib/rules.ts        Brain: a document's own rules, and applying them
@@ -325,7 +354,7 @@ src/lib/pdf.ts          reading text out of a PDF (loaded on demand)
 src/lib/zip.ts          reading and writing ZIP archives, with no dependency
 src/lib/docx.ts         Word documents in and out, built on zip.ts
 src/app/api/ai/         the one server route: writing help
-src/lib/ui-prefs.ts     theme, sidebar, width and text size, before first paint
+src/lib/ui-prefs.ts     theme, sidebar, width, text size and typing mode
 src/components/         the editor, the toolbar, and one file per block type
 src/app/s/[id]/         the public page a shared link opens
 supabase/migrations/    the database tables and their security policies
@@ -375,15 +404,22 @@ These are real and worth knowing before you rely on them:
   instruction. That is deliberate — it is what makes rules instant, free and
   the same every time — but it means a rule is something you write for a shape
   you already know you write.
-- **Tasks do not reach a calendar yet.** The detection is real and runs on
-  your device; what it makes is a task block in the document it found. Google
-  Calendar is the next step and is not connected, which the screen says
-  plainly rather than implying otherwise.
+- **Nothing scans your writing for tasks.** Pad used to offer to turn lines
+  like "call the landlord by Friday" into tasks as you typed, and it now does
+  not: whether a sentence is a job to do or a description of something already
+  done is not decidable from the sentence, and a strip appearing over the page
+  to ask was an interruption in the middle of writing. The scanner is still in
+  the code and still tested; nothing calls it. Tasks are a block type you
+  insert yourself, and a calendar is not connected.
+- **Suggestions under Goals cost a model call.** One when you first set a goal
+  on a document with something written in it, and one each time you press the
+  arrow. Nothing else on this screen costs anything — the icons, the rules, the
+  titles in the Library and the search are all worked out on your device.
 - **The detector is a set of rules, not a model.** It reads lines beginning
   with an action verb, lines saying you need to do something, and anything
   under a "next steps" heading. It will miss an oddly worded one and will
-  occasionally offer a sentence that was not a task — which is why every
-  suggestion is confirmed one at a time rather than applied.
+  occasionally offer a sentence that was not a task — which is why it never
+  applied one on its own, and why nothing calls it now.
 - **A Word table becomes a list, not a spreadsheet, on import.** Merged cells
   and nested tables have nowhere to go in a grid. Going the other way, a
   spreadsheet becomes a real Word table.

@@ -128,6 +128,62 @@ const setMode = async (mode) => {
   await closeMore()
 }
 
+/**
+ * The home screen, on one of its two tabs.
+ *
+ * The Library is a tab in here now rather than a dialog of its own, so
+ * anything about the whole collection goes through opening this first.
+ */
+const openHome = async (tab = 'carry', target = page) => {
+  const home = target.locator('[role="dialog"][aria-label="Home"]')
+  if (!(await home.isVisible().catch(() => false))) {
+    await target.locator('header [aria-label="Home"]').first().click()
+    await target.waitForTimeout(600)
+  }
+  await target
+    .locator(`[role="tab"]:has-text("${tab === 'library' ? 'Library' : 'Carry on'}")`)
+    .click()
+  await target.waitForTimeout(600)
+  return home
+}
+const closeHome = async (target = page) => {
+  await target.locator('[aria-label="Back to the document"]').first().click()
+  await target.waitForTimeout(500)
+}
+/** Every document the Library lists, as rows. */
+const libraryRows = () => page.locator('[role="dialog"][aria-label="Home"] li[data-doc-id]')
+/** Opens a document by title, from the Library tab. */
+const openDocNamed = async (title) => {
+  await openHome('library')
+  await libraryRows().filter({ hasText: title }).first().locator('button').first().click()
+  await page.waitForTimeout(900)
+}
+/**
+ * Opens one of the side menu's folding sections by its heading.
+ *
+ * Everything about the open document lives there now — where it is filed, how
+ * typing behaves, what it is for, and every way of getting it in or out.
+ */
+const openSide = async (label, target = page) => {
+  const head = target.locator(`aside button[aria-expanded]:has-text("${label}")`).first()
+  if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click()
+  await target.waitForTimeout(300)
+}
+/** Opens the folder picker from the side menu. */
+const openPicker = async () => {
+  await page.locator('aside [aria-label="Move this document to a folder"]').click()
+  await page.waitForTimeout(450)
+}
+/** Files the open document into a named folder, through the picker. */
+const fileOpenDocInto = async (folder) => {
+  await openPicker()
+  await page
+    .locator(`[role="dialog"][aria-label="Move to folder"] button:has-text("${folder}")`)
+    .first()
+    .click()
+  await page.waitForTimeout(900)
+}
+
 // Find the first editable block and use it from here on.
 const firstBlock = page.locator('[data-block-id] [contenteditable]').first()
 await firstBlock.click()
@@ -275,8 +331,13 @@ await page.locator('button:has-text("New")').first().click()
 await page.waitForTimeout(400)
 await page.keyboard.type('Shopping list')
 await page.waitForTimeout(300)
-const docCount = await page.locator('nav [class*="group/doc"]').count()
-log('a second document can be created', docCount >= 2, `${docCount} in sidebar`)
+const docCount = await (async () => {
+  await openHome('library')
+  const n = await libraryRows().count()
+  await closeHome()
+  return n
+})()
+log('a second document can be created', docCount >= 2, `${docCount} in the Library`)
 
 // Search: the panel, not a filter on the list of names.
 await page.keyboard.press('Control+k')
@@ -425,7 +486,7 @@ log('no horizontal scroll on a phone', noHorizontalScroll)
 // Search on a phone. It reaches the header directly, because the sidebar is
 // a drawer there and a search that starts with "open the menu" is one people
 // stop using.
-await mobile.locator('[aria-label="Search"]').first().click()
+await mobile.locator('header [aria-label="Search"]').first().click()
 await mobile.waitForTimeout(500)
 const sheet = await mobile.locator('[role="dialog"][aria-label="Search"]').boundingBox()
 log(
@@ -459,18 +520,33 @@ log(
 )
 await mobile.screenshot({ path: `${SHOTS}/11e-mobile-sidebar.png` })
 
-// The library, reached from it.
-await mobile.locator('button:has-text("Library")').first().click()
-await mobile.waitForTimeout(500)
-const libraryBox = await mobile.locator('[role="dialog"][aria-label="Library"]').boundingBox()
+// Carry on: the way back to the document from a menu that covers it.
+log(
+  'the side menu leads with the document you are in',
+  /carry on/i.test(await mobile.locator('aside').innerText()),
+)
+
+// The library, reached from it — a tab of the home screen rather than a
+// dialog stacked on top of one.
+await mobile.locator('aside [aria-label="Library"]').first().click()
+await mobile.waitForTimeout(800)
+const libraryBox = await mobile.locator('[role="dialog"][aria-label="Home"]').boundingBox()
 log(
   'the library opens full screen on a phone',
   !!libraryBox && libraryBox.width >= 380,
   libraryBox ? `${Math.round(libraryBox.width)}x${Math.round(libraryBox.height)}` : 'missing',
 )
+log(
+  'and it is the Library tab that is showing',
+  (await mobile.locator('[role="tab"][aria-selected="true"]').innerText()).includes('Library'),
+)
+log(
+  'the tabs do not run off the side of a phone',
+  await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+)
 await mobile.screenshot({ path: `${SHOTS}/11c-mobile-library.png` })
-await mobile.keyboard.press('Escape')
-await mobile.waitForTimeout(400)
+await mobile.locator('[aria-label="Back to the document"]').first().click()
+await mobile.waitForTimeout(500)
 
 /*
   The parts of the redesign that only a phone can fail.
@@ -831,10 +907,9 @@ await page.waitForTimeout(200)
 
 // --- Exporting the document -------------------------------------------------
 {
+  await openSide('This file')
   const pending = page.waitForEvent('download', { timeout: 15000 })
-  await page.locator('[aria-label="Document actions"]').click()
-  await page.waitForTimeout(300)
-  await page.locator('button:has-text("Download Markdown")').click()
+  await page.locator('aside button:has-text("Download Markdown")').click()
   const file = await pending
   const saved = join(FIXTURES, 'export.md')
   await file.saveAs(saved)
@@ -856,9 +931,8 @@ await page.waitForTimeout(200)
     () => performance.getEntriesByType('resource').filter((r) => /pdf/i.test(r.name)).length,
   )
 
-  await page.locator('[aria-label="Document actions"]').click()
-  await page.waitForTimeout(300)
-  await page.locator('input[aria-label="Choose a PDF"]').setInputFiles(pdf)
+  await openSide('This file')
+  await page.locator('aside input[aria-label="Choose a PDF"]').setInputFiles(pdf)
   await page.waitForTimeout(5000)
 
   const text = await page.evaluate(() => document.body.innerText)
@@ -923,21 +997,21 @@ await page.waitForTimeout(200)
 
   await page.goto(URL, { waitUntil: 'networkidle' })
   await page.waitForTimeout(800)
-  await page.locator('[aria-label="Document actions"]').click()
-  await page.waitForTimeout(400)
-  const menuText = await page.evaluate(() => document.body.innerText)
+  await openSide('This file')
+  const menuText = await page.locator('aside').innerText()
   log(
-    'the document menu offers every action',
+    'the side menu offers every action, from moving it to importing into it',
     ['Save as PDF', 'Download Markdown', 'Download plain text', 'Share a link', 'Import a PDF'].every(
       (item) => menuText.includes(item),
     ),
+    menuText.replace(/\n+/g, ' / ').slice(0, 160),
   )
-  await page.locator('button:has-text("Share a link")').click()
+  await page.locator('aside button:has-text("Share a link")').click()
   await page.waitForTimeout(600)
-  const explained = await page.evaluate(() => document.body.innerText)
-  log('sharing explains why it is unavailable instead of failing', explained.includes('needs an account'))
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(200)
+  log(
+    'sharing explains why it is unavailable instead of failing',
+    (await page.locator('aside').innerText()).includes('needs an account'),
+  )
 }
 
 // --- Folders: grouping documents, navigating and searching within one ------
@@ -958,34 +1032,45 @@ await page.waitForTimeout(200)
   await makeDoc('Zeta timeline', 'dates and milestones')
   await page.waitForTimeout(900)
 
-  /**
-   * Opens a sidebar row's own menu.
-   *
-   * Grouping used to be a drag from one row onto another, which needed the
-   * whole project tree in the sidebar to drag between. The tree has gone, so
-   * every folder action lives in this menu — which also means it works with a
-   * thumb, where a drag never did.
-   */
-  const rowMenu = async (title) => {
-    const row = page.locator(`nav [data-doc-id]:has-text("${title}")`).first()
-    await row.scrollIntoViewIfNeeded()
-    await row.hover()
-    await page.waitForTimeout(200)
-    await row.locator('[aria-label^="Actions for"]').first().click()
-    await page.waitForTimeout(350)
-  }
-  /** Moves a document into a named folder from its sidebar row. */
+  /** Opens a document and files it, both through the one picker. */
   const fileInto = async (title, folder) => {
-    await rowMenu(title)
-    await page.locator(`[role="menu"] [role="menuitem"]:has-text("${folder}")`).first().click()
-    await page.waitForTimeout(900)
+    await openDocNamed(title)
+    await fileOpenDocInto(folder)
   }
 
-  await rowMenu('Zeta timeline')
-  await page.locator('[role="menu"] [role="menuitem"]:has-text("New folder")').first().click()
+  // Zeta timeline is the open document, and it is in no folder yet.
+  log(
+    'a document in no folder says so, at the top of its settings',
+    /not in a folder/i.test(await page.locator('aside').innerText()),
+  )
+  await openPicker()
+  log(
+    'moving is one button and a picker, not a list of every folder in a menu',
+    await page.locator('[role="dialog"][aria-label="Move to folder"]').isVisible(),
+  )
+  /*
+    It hung off the left of the window once. `inset-x-2 … sm:inset-x-auto
+    sm:left-1/2` reads correctly and does not work, because the two utilities
+    set the same property and Tailwind emits them in its own order — so the
+    panel fell back to its static position inside the side menu.
+  */
+  const pickerBox = await page.locator('[role="dialog"][aria-label="Move to folder"]').boundingBox()
+  const pickerWidth = await page.evaluate(() => window.innerWidth)
+  log(
+    'and the picker is centred on the window, not trapped in the side menu',
+    !!pickerBox &&
+      pickerBox.x > 300 &&
+      pickerBox.x + pickerBox.width <= pickerWidth + 1 &&
+      pickerBox.width > 380,
+    pickerBox ? `x=${Math.round(pickerBox.x)} w=${Math.round(pickerBox.width)}` : 'missing',
+  )
+  await page.screenshot({ path: `${SHOTS}/34-folder-picker.png` })
+  await page
+    .locator('[role="dialog"][aria-label="Move to folder"] button:has-text("New folder from this document")')
+    .click()
   await page.waitForTimeout(900)
 
-  log('a row menu makes a folder from a document', (await folderName()) === 'Zeta timeline', String(await folderName()))
+  log('the picker makes a folder from a document', (await folderName()) === 'Zeta timeline', String(await folderName()))
   log(
     'the folder is a dropdown in the header, not a strip of files above the page',
     (await page.locator('header [aria-label^="Folder:"]').count()) === 1 &&
@@ -1001,6 +1086,12 @@ await page.waitForTimeout(200)
     'and offers to move this document somewhere else',
     /move this document/i.test(await page.locator('[role="menu"][aria-label="Folder"]').innerText()),
   )
+  await closeFolderMenu()
+  log(
+    'the side menu lists the folder\u2019s other documents',
+    /zeta/i.test(await page.locator('aside').innerText()),
+  )
+  await openFolderMenu()
 
   // Opening a sibling from the dropdown.
   await page.locator('[data-chip]:has-text("Zeta budget")').first().click()
@@ -1046,7 +1137,11 @@ await page.waitForTimeout(200)
 
   // Moving the open document out, from the same menu it navigates with.
   await page
-    .locator('[role="menu"][aria-label="Folder"] [role="menuitem"]:has-text("Take out of this folder")')
+    .locator('[role="menu"][aria-label="Folder"] [role="menuitem"]:has-text("Move this document")')
+    .click()
+  await page.waitForTimeout(500)
+  await page
+    .locator('[role="dialog"][aria-label="Move to folder"] button:has-text("Take it out of its folder")')
     .click()
   await page.waitForTimeout(900)
   log('a document leaves its folder from the same dropdown', (await folderName()) === null)
@@ -1055,17 +1150,14 @@ await page.waitForTimeout(200)
     (await page.locator('header [aria-label^="Folder:"]').count()) === 0,
   )
 
-  // Filing it again, this time from the document's own menu — which is the
-  // only route a document with no folder has.
-  await page.locator('[aria-label="Document actions"]').click()
-  await page.waitForTimeout(400)
+  // Filing it again, from the side menu — which is the only route a document
+  // with no folder has, because it has no folder button in the header.
   log(
-    'a document with no folder can still be filed from its own menu',
-    /move to folder/i.test(await page.evaluate(() => document.body.innerText)),
+    'a document with no folder can still be filed, from the side menu',
+    /not in a folder/i.test(await page.locator('aside').innerText()),
   )
-  await page.locator('[role="menuitem"]:has-text("Zeta timeline")').first().click()
-  await page.waitForTimeout(900)
-  log('moving from the document menu works', (await folderName()) === 'Zeta timeline')
+  await fileOpenDocInto('Zeta timeline')
+  log('moving from the side menu works', (await folderName()) === 'Zeta timeline')
 
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1200)
@@ -1261,25 +1353,20 @@ await page.waitForTimeout(200)
 
 // --- Home screen, favourites and the trash ---------------------------------
 {
-  const openHome = async () => {
-    await page.locator('header [aria-label="Home"]').first().click()
-    await page.waitForTimeout(600)
+  /** Deletes the open document, from the side menu where its settings are. */
+  const deleteOpenDoc = async () => {
+    await openSide('This file')
+    await page.locator('aside button:has-text("Delete this document")').click()
+    await page.waitForTimeout(300)
+    await page.locator('aside button:has-text("Delete")').last().click()
+    await page.waitForTimeout(900)
   }
-  const closeHome = async () => {
-    await page
-      .locator('[role="dialog"][aria-label="Home"] [aria-label="Back to the document"]')
-      .click()
-    await page.waitForTimeout(500)
-  }
-  /** Deletes a document from its row menu, which is where every action is now. */
-  const deleteRow = async (title) => {
-    const row = page.locator(`nav [data-doc-id]:has-text("${title}")`).first()
-    await row.hover()
-    await page.waitForTimeout(200)
-    await row.locator('[aria-label^="Actions for"]').first().click()
-    await page.waitForTimeout(350)
-    await page.locator('[role="menu"] button:has-text("Delete")').first().click()
-    await page.waitForTimeout(800)
+  /** Whether a document is still listed in the Library. */
+  const inLibrary = async (title) => {
+    await openHome('library')
+    const n = await libraryRows().filter({ hasText: title }).count()
+    await closeHome()
+    return n > 0
   }
 
   await page.locator('button:has-text("New")').first().click()
@@ -1289,44 +1376,57 @@ await page.waitForTimeout(200)
   await page.waitForTimeout(700)
 
   // The home screen: the open document large, and the rest as small cards.
-  await openHome()
+  await openHome('carry')
   const homeUp = await page.locator('[role="dialog"][aria-label="Home"]').isVisible()
   log('the home screen fills the window', homeUp)
   const homeText = await page.locator('[role="dialog"][aria-label="Home"]').innerText()
   log('it leads with the document being worked on', /Carry on with/i.test(homeText) && homeText.includes('Disposable'))
   log('and lists what was open recently', /Recent/i.test(homeText))
+  log(
+    'recent is on the home screen and not in the side menu',
+    !/recent/i.test(await page.locator('aside').innerText()),
+  )
+  log(
+    'the home screen has two tabs, Carry on and Library',
+    (await page.locator('[role="tab"]').count()) === 2,
+  )
   await page.screenshot({ path: `${SHOTS}/21-home.png` })
-  await closeHome()
 
-  // Favourites.
-  const star = page
-    .locator('nav [data-doc-id]:has-text("Disposable") [aria-label^="Add Disposable to favourites"]')
-    .first()
-  await page.locator('nav [data-doc-id]:has-text("Disposable")').first().hover()
-  await page.waitForTimeout(250)
-  await star.click()
+  // Favourites, starred from a card on the home screen. It has to be a card,
+  // so something else is open: the document being written is the hero at the
+  // top of this screen and a hero is not a row with a star on it.
+  await closeHome()
+  await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(700)
+  await openHome('carry')
+  await page
+    .locator('[role="dialog"][aria-label="Home"] [aria-label^="Add Disposable to favourites"]')
+    .first()
+    .click()
+  await page.waitForTimeout(900)
+  await closeHome()
+  await openHome('carry')
   log(
     'starring a document puts it under Favourites',
-    (await page.locator('nav').innerText()).includes('FAVOURITES') ||
-      (await page.locator('nav').innerText()).toLowerCase().includes('favourites'),
+    /favourites/i.test(await page.locator('[role="dialog"][aria-label="Home"]').innerText()),
   )
+  await closeHome()
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1200)
+  await openHome('carry')
   log(
     'a favourite survives a reload',
-    (await page.locator('nav').innerText()).toLowerCase().includes('favourites'),
+    /favourites/i.test(await page.locator('[role="dialog"][aria-label="Home"]').innerText()),
   )
+  await closeHome()
 
   // Deleting, and the trash on the home screen.
-  await deleteRow('Disposable')
-  log(
-    'deleting removes it from the sidebar',
-    (await page.locator('nav [data-doc-id]:has-text("Disposable")').count()) === 0,
-  )
+  await openDocNamed('Disposable')
+  await deleteOpenDoc()
+  log('deleting removes it from the Library', !(await inLibrary('Disposable')))
 
   const openTrash = async () => {
-    await openHome()
+    await openHome('carry')
     const toggle = page
       .locator('[role="dialog"][aria-label="Home"] button[aria-expanded]')
       .filter({ hasText: 'Trash' })
@@ -1345,12 +1445,10 @@ await page.waitForTimeout(200)
   await page.locator('[aria-label^="Restore Disposable"]').first().click()
   await page.waitForTimeout(800)
   await closeHome()
-  log(
-    'restoring puts it back',
-    (await page.locator('nav [data-doc-id]:has-text("Disposable")').count()) > 0,
-  )
+  log('restoring puts it back', await inLibrary('Disposable'))
 
-  await deleteRow('Disposable')
+  await openDocNamed('Disposable')
+  await deleteOpenDoc()
   await openTrash()
   await page.locator('[aria-label*="permanently"]').first().click()
   await page.waitForTimeout(400)
@@ -1388,16 +1486,15 @@ await page.waitForTimeout(200)
   const named = join(FIXTURES, 'Lagos budget 2026.txt')
   writeFileSync(named, 'Figures for the year, by quarter. Nothing is agreed yet.\n')
 
-  await page.locator('button:has-text("Library")').first().click()
-  await page.waitForTimeout(500)
-  log('the library opens from the sidebar', await page.locator('[role="dialog"][aria-label="Library"]').isVisible())
+  const shelf = await openHome('library')
+  log('the library opens as a tab of the home screen', await shelf.isVisible())
 
   await page.locator('input[aria-label="Choose documents"]').setInputFiles([tenancy, receipt, named])
   await page.waitForTimeout(2500)
   await page.screenshot({ path: `${SHOTS}/17-library.png` })
 
-  const titles = await page
-    .locator('[role="dialog"][aria-label="Library"] input[aria-label^="Title"]')
+  const titles = await shelf
+    .locator('input[aria-label^="Title"]')
     .evaluateAll((els) => els.map((el) => el.value))
   log('every dropped file is listed for review', titles.length === 3, JSON.stringify(titles))
   log(
@@ -1410,13 +1507,10 @@ await page.waitForTimeout(200)
     /lagos budget/i.test(titles[2] ?? ''),
     titles[2],
   )
-  log(
-    'each one says what it covers',
-    (await page.locator('[role="dialog"][aria-label="Library"]').innerText()).includes('Bourdillon'),
-  )
+  log('each one says what it covers', (await shelf.innerText()).includes('Bourdillon'))
 
   // Nothing is added until it is asked for.
-  await page.locator('[role="dialog"][aria-label="Library"] button:has-text("Add 3")').click()
+  await shelf.locator('button:has-text("Add 3")').click()
   await page.waitForTimeout(1200)
   log(
     'adding the batch opens the first of them as an ordinary document',
@@ -1431,18 +1525,53 @@ await page.waitForTimeout(200)
 
   // The Library is no longer a one-way door: everything already in the
   // collection is listed in it, and searchable there.
-  await page.locator('button:has-text("Library")').first().click()
-  await page.waitForTimeout(600)
-  const shelf = page.locator('[role="dialog"][aria-label="Library"]')
+  await openHome('library')
   log(
     'the library lists every document, not just new ones',
     (await shelf.locator('button:has-text("Bourdillon")').count()) > 0,
   )
+  const shelfText = await shelf.innerText()
   log(
     'and lists them under the folder they are in',
-    /no folder/i.test(await shelf.innerText()),
-    (await shelf.innerText()).split('\n').slice(0, 6).join(' / '),
+    /not in a folder/i.test(shelfText),
+    shelfText.split('\n').slice(0, 6).join(' / '),
   )
+  log(
+    'the documents in no folder are the first thing on the shelf',
+    shelfText.indexOf('Not in a folder') >= 0 &&
+      (shelfText.indexOf('Not in a folder') < shelfText.indexOf('Zeta timeline') ||
+        shelfText.indexOf('Zeta timeline') === -1),
+  )
+
+  // Collapse all, for somebody with more folders than screen.
+  await shelf.locator('button:has-text("Collapse all")').click()
+  await page.waitForTimeout(500)
+  log('collapse all folds every folder at once', (await libraryRows().count()) === 0)
+  log(
+    'and the same button offers the way back out',
+    (await shelf.locator('button:has-text("Expand all")').count()) === 1,
+  )
+  await shelf.locator('button:has-text("Expand all")').click()
+  await page.waitForTimeout(500)
+  log('expand all brings them back', (await libraryRows().count()) > 0)
+
+  // Bulk select: the same tidying a drag does, with a thumb and several at once.
+  await shelf.locator('button:has-text("Select")').click()
+  await page.waitForTimeout(400)
+  const firstTwo = libraryRows()
+  await firstTwo.nth(0).locator('button').first().click()
+  await firstTwo.nth(1).locator('button').first().click()
+  await page.waitForTimeout(400)
+  log('several documents can be selected at once', /2 selected/.test(await shelf.innerText()))
+  await page.screenshot({ path: `${SHOTS}/35-library-select.png` })
+  await shelf.locator('button:has-text("Favourite")').click()
+  await page.waitForTimeout(900)
+  await openHome('carry')
+  log(
+    'and a bulk action reaches all of them',
+    /favourites/i.test(await page.locator('[role="dialog"][aria-label="Home"]').innerText()),
+  )
+  await openHome('library')
   await shelf.locator('input[aria-label="Search the library"]').fill('Bourdillon')
   await page.waitForTimeout(700)
   const found = await shelf.innerText()
@@ -1511,11 +1640,9 @@ await page.waitForTimeout(200)
   const two = join(FIXTURES, 'scan_0045.txt')
   writeFileSync(two, 'Another document about the same flat.\n')
 
-  await page.locator('button:has-text("Library")').first().click()
-  await page.waitForTimeout(500)
+  const panel = await openHome('library')
   await page.locator('input[aria-label="Choose documents"]').setInputFiles([one, two])
   await page.waitForTimeout(2500)
-  const panel = page.locator('[role="dialog"][aria-label="Library"]')
   // Titles are inputs, so they are read as values — innerText cannot see them.
   const filedTitles = await panel
     .locator('input[aria-label^="Title"]')
@@ -1669,51 +1796,34 @@ await page.waitForTimeout(200)
   await pressTool('Medium text')
 }
 
-// --- Tasks found in what somebody wrote -------------------------------------
+// --- Nothing scans what somebody wrote ---------------------------------------
 {
+  /*
+    Pad used to watch for lines like "call the landlord by Friday" and offer to
+    turn them into tasks. It does not any more, and this checks that it really
+    does not: the offer appeared over the page in the middle of a sentence, and
+    whether a line is a job to do or a report of one already done is not
+    decidable from the line. The scanner is still in lib/tasks.ts and still unit
+    tested; nothing calls it.
+  */
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(600)
   await page.locator('[data-block-id] [contenteditable]').first().click()
   await page.keyboard.type('Met the agent this morning and went through the flat.')
   await page.keyboard.press('Enter')
   await page.keyboard.type('I need to call the landlord about the boiler by Friday')
-  // The scan waits for a pause, so it does not appear halfway through a word.
-  await page.waitForTimeout(2200)
+  await page.waitForTimeout(2400)
 
-  const strip = await page.evaluate(() => document.body.innerText)
-  log('lines that read like tasks are noticed', /look like things to do|looks like something to do/i.test(strip))
-
-  await page.locator('button:has-text("Have a look")').first().click()
-  await page.waitForTimeout(500)
-  const review = await page.evaluate(() => document.body.innerText)
-  log('the suggestion drops the lead-in', review.includes('Call the landlord about the boiler'))
-  log('a date in the line is carried across for a calendar', /by Friday/.test(review))
-  log('it says where the task will live', /calendar is not connected|stay in this document/i.test(review))
-  await page.screenshot({ path: `${SHOTS}/24-tasks-found.png` })
-
-  const before = await page.locator('[data-block-id] input[type="checkbox"]').count()
-  await page.locator('button:has-text("Make 1 task")').first().click()
-  await page.waitForTimeout(900)
+  const quiet = await page.evaluate(() => document.body.innerText)
   log(
-    'confirming turns the line into a real task',
-    (await page.locator('[data-block-id] input[type="checkbox"]').count()) > before,
-    `${before} → ${await page.locator('[data-block-id] input[type="checkbox"]').count()}`,
+    'writing a line that reads like a task interrupts nothing',
+    !/look like things to do|looks like something to do/i.test(quiet),
   )
   log(
-    'and it says the calendar is still to come',
-    /calendar/i.test(await page.evaluate(() => document.body.innerText)),
+    'and the words are left exactly as they were typed',
+    quiet.includes('I need to call the landlord about the boiler by Friday'),
   )
-
-  // Nothing is offered for a document with no actions in it.
-  await page.locator('button:has-text("New")').first().click()
-  await page.waitForTimeout(600)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
-  await page.keyboard.type('The weather was pleasant and the coffee was good.')
-  await page.waitForTimeout(2200)
-  log(
-    'ordinary prose is left alone',
-    !/look like things to do/i.test(await page.evaluate(() => document.body.innerText)),
-  )
+  await page.screenshot({ path: `${SHOTS}/24-no-task-strip.png` })
 }
 
 // --- Writing help, at the caret ---------------------------------------------
@@ -1932,10 +2042,10 @@ await page.waitForTimeout(200)
 
 // --- Icons that say what a document is --------------------------------------
 {
-  /** The lucide glyph used for a document in the sidebar, by its class. */
+  /** The lucide glyph used for a document in the Library, by its class. */
   const iconFor = async (title) =>
     page.evaluate((name) => {
-      const row = [...document.querySelectorAll('nav [data-doc-id]')].find((el) =>
+      const row = [...document.querySelectorAll('li[data-doc-id]')].find((el) =>
         el.innerText.includes(name),
       )
       // The first svg in a row is the drag grip; the document's own icon is
@@ -1966,6 +2076,7 @@ await page.waitForTimeout(200)
   await makeDoc('Recipe for jollof rice')
   await makeDoc('Saturday')
   await page.waitForTimeout(700)
+  await openHome('library')
 
   const budget = await iconFor('March budget')
   const tenancy = await iconFor('Tenancy agreement')
@@ -1979,6 +2090,7 @@ await page.waitForTimeout(200)
   log('and none of it cost a call to the model', aiPosts === 0, `${aiPosts} posts`)
   page.off('request', countPosts)
   await page.screenshot({ path: `${SHOTS}/28-icons.png` })
+  await closeHome()
 }
 
 // --- Deleting from the document's own menu ----------------------------------
@@ -1989,25 +2101,24 @@ await page.waitForTimeout(200)
   await page.keyboard.type('Delete me from settings')
   await page.waitForTimeout(800)
 
-  await page.locator('[aria-label="Document actions"]').click()
-  await page.waitForTimeout(400)
+  await openSide('This file')
   log(
-    'the document menu offers to delete it',
-    /delete this document/i.test(await page.evaluate(() => document.body.innerText)),
+    'the side menu offers to delete the document',
+    /delete this document/i.test(await page.locator('aside').innerText()),
   )
-  await page.locator('button:has-text("Delete this document")').click()
+  await page.locator('aside button:has-text("Delete this document")').click()
   await page.waitForTimeout(300)
+  const asked = await page.locator('aside').innerText()
   log(
     'and asks first, naming the document',
-    /Delete me from settings/.test(await page.evaluate(() => document.body.innerText)) &&
-      /to the trash\?/i.test(await page.evaluate(() => document.body.innerText)),
+    /Delete me from settings/.test(asked) && /to the trash\?/i.test(asked),
   )
-  await page.locator('[aria-label="Document actions"] ~ * button:has-text("Delete"), button:has-text("Delete")').last().click()
+  await page.locator('aside button:has-text("Delete")').last().click()
   await page.waitForTimeout(900)
-  log(
-    'deleting from the menu removes it from the sidebar',
-    (await page.locator('nav [data-doc-id]:has-text("Delete me from settings")').count()) === 0,
-  )
+  await openHome('library')
+  const gone = (await libraryRows().filter({ hasText: 'Delete me from settings' }).count()) === 0
+  await closeHome()
+  log('deleting from the side menu removes it from the Library', gone)
 }
 
 // --- The header folds away as you scroll ------------------------------------
@@ -2098,29 +2209,40 @@ await page.waitForTimeout(200)
   log('and it settles rather than flapping', (await headerHeight()) === again)
 }
 
-// --- The document menu is not cropped to the header -------------------------
+// --- A menu opened in the header is not cropped to it -----------------------
 {
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1000)
-  await page.locator('[aria-label="Document actions"]').click()
-  await page.waitForTimeout(500)
-  const menu = await page.locator('[aria-label="Document actions"] ~ div').boundingBox()
+  // A document in a folder, because the folder dropdown is the one menu that
+  // still opens from inside the header.
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[aria-label="Document title"]').click()
+  await page.keyboard.type('Clipping check')
+  await page.waitForTimeout(600)
+  await openPicker()
+  await page
+    .locator('[role="dialog"][aria-label="Move to folder"] button:has-text("New folder from this document")')
+    .click()
+  await page.waitForTimeout(1000)
+
+  await openFolderMenu()
+  const menu = await page.locator('[role="menu"][aria-label="Folder"]').boundingBox()
   const header = await page.locator('main header').boundingBox()
   /*
     The regression: the header was folded away by animating its height with
     the overflow hidden, which clipped every menu opened from inside it. The
-    document's own menu came out cropped to the height of the bar, which reads
+    folder's own menu came out cropped to the height of the bar, which reads
     as the menu being behind the page.
   */
   log(
-    'the document menu hangs below the header rather than being clipped by it',
+    'a header menu hangs below the header rather than being clipped by it',
     !!menu && !!header && menu.y + menu.height > header.y + header.height + 40,
     menu && header ? `menu ends at ${Math.round(menu.y + menu.height)}, header at ${Math.round(header.y + header.height)}` : 'missing',
   )
   log('and it is a real menu, not a sliver', !!menu && menu.height > 120, menu ? `${Math.round(menu.height)}px tall` : 'missing')
-  await page.screenshot({ path: `${SHOTS}/30-doc-menu.png` })
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(300)
+  await page.screenshot({ path: `${SHOTS}/30-header-menu.png` })
+  await closeFolderMenu()
 }
 
 // --- Typing like a document, or like blocks ---------------------------------
@@ -2234,6 +2356,12 @@ await page.waitForTimeout(200)
   await page.locator('button:has-text("Set rules")').click()
   await page.waitForTimeout(600)
   const brain = page.locator('[role="dialog"][aria-label="Brain"]')
+  /** Brain, from the side menu, which is where the document's settings live. */
+  const openBrain = async () => {
+    await openSide('Writing')
+    await page.locator('aside button:has-text("Brain")').first().click()
+    await page.waitForTimeout(600)
+  }
   log('Brain opens', await brain.isVisible())
   log(
     'and says the rules are this document only',
@@ -2247,9 +2375,15 @@ await page.waitForTimeout(200)
   await page.keyboard.press('Escape')
   await page.waitForTimeout(400)
 
+  await openSide('Writing')
   log(
-    'the toolbar says how many rules this document has',
-    (await page.locator('[aria-label="Brain"]').first().innerText()).includes('1'),
+    'the side menu says how many rules this document has',
+    /1 rule on this document/i.test(await page.locator('aside').innerText()),
+    (await page.locator('aside').innerText()).replace(/\n+/g, ' / ').slice(0, 120),
+  )
+  log(
+    'and offers the typing mode and Ask beside it',
+    /typing/i.test(await page.locator('aside').innerText()),
   )
 
   // Now write a bullet and watch the rule do its work.
@@ -2273,8 +2407,7 @@ await page.waitForTimeout(200)
   log('and it is undoable like anything else', true)
 
   // Pausing the rules stops them without throwing them away.
-  await page.locator('[aria-label="Brain"]').first().click()
-  await page.waitForTimeout(500)
+  await openBrain()
   await brain.locator('[aria-label="Ignore the rules in this document"]').check()
   await page.waitForTimeout(400)
   log('the rules can be paused rather than deleted', await brain.locator('[aria-label="Ignore the rules in this document"]').isChecked())
@@ -2284,8 +2417,7 @@ await page.waitForTimeout(200)
 
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1100)
-  await page.locator('[aria-label="Brain"]').first().click()
-  await page.waitForTimeout(600)
+  await openBrain()
   log('rules survive a reload', /Every bullet becomes a task/.test(await brain.innerText()))
   log('and belong to this document alone', /this document only/i.test(await brain.innerText()))
   await page.keyboard.press('Escape')
@@ -2294,13 +2426,14 @@ await page.waitForTimeout(200)
   // A different document has none of them.
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(700)
+  await openSide('Writing')
   log(
     'a different document starts with no rules',
-    !(await page.locator('[aria-label="Brain"]').first().innerText()).match(/\d/),
+    !/\d+ rules? on this document/i.test(await page.locator('aside').innerText()),
   )
 }
 
-// --- The sidebar: folding sections, and dragging to make a folder -----------
+// --- The side menu: folding, and dragging in the Library to make a folder ---
 {
   const makeDoc = async (title) => {
     await page.locator('button:has-text("New")').first().click()
@@ -2313,28 +2446,33 @@ await page.waitForTimeout(200)
   await makeDoc('Kappa two')
   await page.waitForTimeout(700)
 
-  // Folding.
-  const recentToggle = page.locator('nav button[aria-expanded]').filter({ hasText: 'RECENT' }).first()
-  log('every sidebar section folds', (await recentToggle.count()) > 0)
-  await recentToggle.click()
+  // Folding. The sections are about the open document now, not lists of others.
+  const fileToggle = page.locator('aside button[aria-expanded]').filter({ hasText: 'THIS FILE' }).first()
+  log('every side menu section folds', (await fileToggle.count()) > 0)
+  await fileToggle.click()
   await page.waitForTimeout(500)
   log(
-    'folding Recent hides its rows',
-    (await page.locator('nav [data-doc-id]').count()) === 0,
+    'folding This file hides its rows',
+    (await page.locator('aside button:has-text("Save as PDF")').count()) === 0,
   )
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1100)
   log(
     'and it is remembered',
-    (await page.locator('nav [data-doc-id]').count()) === 0,
+    (await page.locator('aside button:has-text("Save as PDF")').count()) === 0,
   )
-  await page.locator('nav button[aria-expanded]').filter({ hasText: 'RECENT' }).first().click()
+  await page.locator('aside button[aria-expanded]').filter({ hasText: 'THIS FILE' }).first().click()
   await page.waitForTimeout(500)
-  log('unfolding brings them back', (await page.locator('nav [data-doc-id]').count()) > 0)
+  log(
+    'unfolding brings them back',
+    (await page.locator('aside button:has-text("Save as PDF")').count()) === 1,
+  )
 
-  // Dragging one row onto another, which is how a folder gets made.
-  const from = page.locator('nav [data-doc-id]:has-text("Kappa two")').first()
-  const onto = page.locator('nav [data-doc-id]:has-text("Kappa one")').first()
+  // Dragging one row onto another, which is how a folder gets made. It lives
+  // in the Library now, which is the one place every document is listed.
+  await openHome('library')
+  const from = libraryRows().filter({ hasText: 'Kappa two' }).first()
+  const onto = libraryRows().filter({ hasText: 'Kappa one' }).first()
   const a = await from.boundingBox()
   const b = await onto.boundingBox()
   if (a && b) {
@@ -2345,15 +2483,76 @@ await page.waitForTimeout(200)
     await page.mouse.move(b.x + 80, b.y + b.height / 2, { steps: 12 })
     await page.waitForTimeout(300)
     await page.mouse.up()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(1200)
   }
+  await page.screenshot({ path: `${SHOTS}/33-drag-folder.png` })
+  const grouped = await page.locator('[role="dialog"][aria-label="Home"]').innerText()
   log(
     'dragging one document onto another makes a folder',
-    (await page.locator('header [aria-label^="Folder:"]').count()) === 1 ||
-      /kappa/i.test(await page.locator('nav').innerText()),
+    /kappa one/i.test(grouped),
+    grouped.split('\n').slice(0, 8).join(' / '),
   )
-  log('the folder is named after the document dropped onto', (await folderName()) === 'Kappa one', String(await folderName()))
-  await page.screenshot({ path: `${SHOTS}/33-drag-folder.png` })
+  await closeHome()
+}
+
+// --- Goals: what a document is for ------------------------------------------
+{
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[aria-label="Document title"]').click()
+  await page.keyboard.type('Letter to the landlord')
+  await page.waitForTimeout(600)
+
+  await openSide('Goals')
+  const box = page.locator('aside input[aria-label="Add a goal for this document"]')
+  log('the side menu asks what the document is for', await box.isVisible())
+  await box.fill('Persuade the landlord to fix the boiler')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(800)
+  log(
+    'a goal is kept on the document',
+    /persuade the landlord/i.test(await page.locator('aside').innerText()),
+  )
+
+  // A blank one, and the same one twice, both do nothing.
+  await box.fill('   ')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(400)
+  await box.fill('persuade the landlord to fix the boiler')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(600)
+  log(
+    'a blank or duplicate goal is not added twice',
+    (await page.locator('aside li:has-text("Persuade the landlord")').count()) === 1,
+  )
+
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+  await openSide('Goals')
+  log(
+    'goals survive a reload',
+    /persuade the landlord/i.test(await page.locator('aside').innerText()),
+  )
+  await page.screenshot({ path: `${SHOTS}/36-goals.png` })
+
+  await page.locator('aside [aria-label^="Remove goal"]').first().click()
+  await page.waitForTimeout(900)
+  log(
+    'and a goal can be taken off again',
+    (await page.locator('aside [aria-label^="Remove goal"]').count()) === 0,
+  )
+
+  // A different document has none of them.
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(700)
+  await openSide('Goals')
+  log(
+    'goals belong to one document, not to the app',
+    (await page.locator('aside [aria-label^="Remove goal"]').count()) === 0 &&
+      (await page
+        .locator('aside input[aria-label="Add a goal for this document"]')
+        .getAttribute('placeholder')) === 'What is this document for?',
+  )
 }
 
 // Manifest + service worker, the installable part.

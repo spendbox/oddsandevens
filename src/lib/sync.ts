@@ -42,6 +42,12 @@ interface Row {
   updated_at: number
   deleted_at: number | null
   project_id: string | null
+  favorited_at: number | null
+  /** The document's Brain rules. See lib/rules.ts. */
+  rules: unknown
+  ignore_rules: boolean
+  /** What it is for, in the writer's own words. See lib/goals.ts. */
+  goals: unknown
 }
 
 interface ProjectRow {
@@ -62,6 +68,14 @@ function toDoc(row: Row): Doc {
     createdAt: Number(row.created_at) || Date.now(),
     updatedAt: Number(row.updated_at) || Date.now(),
     ...(row.project_id ? { projectId: row.project_id } : {}),
+    // Absent rather than empty, so a document that has never been given rules
+    // or goals is stored here exactly as one written before either existed.
+    ...(Array.isArray(row.rules) && row.rules.length ? { rules: row.rules as Doc['rules'] } : {}),
+    ...(row.ignore_rules ? { ignoreRules: true } : {}),
+    ...(Array.isArray(row.goals) && row.goals.length
+      ? { goals: (row.goals as unknown[]).filter((goal): goal is string => typeof goal === 'string') }
+      : {}),
+    ...(row.favorited_at ? { favoritedAt: Number(row.favorited_at) } : {}),
     ...(row.deleted_at ? { deletedAt: Number(row.deleted_at) } : {}),
   }
 }
@@ -98,6 +112,10 @@ function toRow(doc: Doc, userId: string): Row {
     created_at: doc.createdAt,
     updated_at: doc.updatedAt,
     project_id: doc.projectId ?? null,
+    favorited_at: doc.favoritedAt ?? null,
+    rules: doc.rules ?? null,
+    ignore_rules: !!doc.ignoreRules,
+    goals: doc.goals ?? null,
     deleted_at: doc.deletedAt ?? null,
   }
 }

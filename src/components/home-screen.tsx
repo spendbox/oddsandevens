@@ -2,38 +2,55 @@
 
 import { ArrowRight, Clock, FolderOpen, Library, Plus, Search, Star, X } from 'lucide-react'
 import { docLabel, docPreview } from '@/lib/blocks'
+import type { Grouping } from '@/lib/library'
 import { blockText, type Doc, type Project } from '@/lib/types'
+import { when } from '@/lib/when'
 import DocIcon from './doc-icon'
+import LibraryView, { type Incoming } from './library-view'
 import TrashSection from './trash-section'
 
 /**
- * The home screen: the whole window, and four things in it.
+ * The home screen: the way back, in two tabs.
  *
- * The document being written, large. The others in its folder, small. What was
- * open recently. What has been starred. That is the list, and the discipline
- * is in what is not on it — there is no tree, no tag cloud, no activity feed
- * and no counts of anything. A place you pass through on the way back to
- * writing should be readable in one look, and a screen with nine sections on
- * it is read in none.
+ * ## Carry on
+ *
+ * The document being written, large. The others in its folder, small. What has
+ * been starred, and what was open recently. That is the list, and the
+ * discipline is in what is not on it — no tree, no tag cloud, no activity feed,
+ * no counts of anything. A place you pass through on the way back to writing
+ * should be readable in one look, and a screen with nine sections on it is read
+ * in none.
+ *
+ * ## Library
+ *
+ * The whole collection, and the way new documents come in. It used to be a
+ * dialog reached from a button at the top of this screen, which made it a
+ * third place stacked on top of two others; it is a tab, because "what was I
+ * doing" and "what do I have" are two questions about the same collection and
+ * they deserve to be two tabs rather than two screens.
  *
  * It is not what the app opens into. Opening straight into a document, with
  * the caret already in it, is the oldest promise this app makes, and a home
  * screen in front of that would be one press between somebody and their first
- * sentence. This is the way *back* — reached deliberately, filling the window
- * when it is, gone again the moment something is opened.
+ * sentence.
  *
  * ## On a phone
  *
  * This fills a 390-pixel screen as readily as a monitor, which took some
- * doing: one column, labels dropped from the header buttons so the row cannot
- * wrap, a smaller hero card showing three lines instead of six, and every
- * target at least a thumb high. The cross that gets you back to writing is the
- * largest control on the screen, because on a phone this covers the document
- * completely and being unable to find the way out of a full-screen view is the
- * worst thing a full-screen view can do.
+ * doing: one column, a header of three icon buttons that cannot wrap, a
+ * smaller hero card showing three lines instead of six, tabs that are two
+ * halves of the width rather than a scrolling strip, and every target at least
+ * a thumb high. The cross that gets you back to writing is the largest control
+ * on the screen, because on a phone this covers the document completely and
+ * being unable to find the way out of a full-screen view is the worst thing a
+ * full-screen view can do.
  */
+export type HomeTab = 'carry' | 'library'
+
 export interface HomeScreenProps {
   open: boolean
+  tab: HomeTab
+  onTab: (tab: HomeTab) => void
   onClose: () => void
   docs: Doc[]
   projects: Project[]
@@ -44,18 +61,26 @@ export interface HomeScreenProps {
   onOpen: (id: string) => void
   onNew: () => void
   onSearch: () => void
-  onLibrary: () => void
   onFavorite: (id: string, favorite: boolean) => void
   onRestore: (id: string) => void
   onPurge: (id: string) => void
   onEmptyTrash: () => void
+  /* The Library tab's own handles. */
+  onMove: (docId: string, projectId: string | null) => void
+  onNewFolder: (docId: string) => void
+  onGroup: (docIds: string[]) => void
+  onMerge: (draggedId: string, targetId: string) => void
+  onDelete: (docId: string) => void
+  onAdd: (items: Incoming[], groups: Grouping[], withSummaries: boolean) => void
+  /** Whether the model can improve imported titles. */
+  aiReady: boolean
 }
 
 /** Lines of the document shown on the large card. Enough to recognise it by. */
 const PREVIEW_LINES = 6
 /** How many of those a phone shows, where six would fill the screen. */
 const PREVIEW_LINES_SMALL = 3
-/** How many recent documents to show. Past this, the answer is search. */
+/** How many recent documents to show. Past this, the answer is the Library. */
 const RECENT = 12
 
 /** The opening of a document, as lines, for the large card. */
@@ -69,22 +94,10 @@ function opening(doc: Doc): string[] {
   return lines
 }
 
-/** "3 minutes ago", "yesterday" — relative, because that is how memory works. */
-function when(at: number, now = Date.now()): string {
-  const seconds = Math.max(0, Math.round((now - at) / 1000))
-  if (seconds < 60) return 'just now'
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
-  const days = Math.round(hours / 24)
-  if (days === 1) return 'yesterday'
-  if (days < 7) return `${days} days ago`
-  return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-}
-
 export default function HomeScreen({
   open,
+  tab,
+  onTab,
   onClose,
   docs,
   projects,
@@ -94,11 +107,17 @@ export default function HomeScreen({
   onOpen,
   onNew,
   onSearch,
-  onLibrary,
   onFavorite,
   onRestore,
   onPurge,
   onEmptyTrash,
+  onMove,
+  onNewFolder,
+  onGroup,
+  onMerge,
+  onDelete,
+  onAdd,
+  aiReady,
 }: HomeScreenProps) {
   if (!open) return null
 
@@ -124,20 +143,27 @@ export default function HomeScreen({
     >
       {/* The bottom padding clears a phone's home indicator and toolbar. */}
       <div className="mx-auto w-full max-w-5xl px-3 pt-4 pb-20 sm:px-8 sm:py-8">
-        <header className="mb-5 flex items-center gap-2 sm:mb-6">
+        <header className="mb-3 flex items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent)] text-[13px] font-bold text-white">
             P
           </span>
           <h1 className="text-[17px] font-semibold">Pad</h1>
           {/*
             No wrapping. A header that becomes two rows on a narrow screen
-            pushes everything below it down and reads as a mistake, so the
-            labels go instead — the icons are the same three everywhere else
-            in the app.
+            pushes everything below it down and reads as a mistake, so there
+            are three controls and the labels go on the two that can spare
+            them.
           */}
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            <HeaderButton icon={<Search size={17} />} label="Search" onClick={onSearch} />
-            <HeaderButton icon={<Library size={17} />} label="Library" onClick={onLibrary} />
+            <button
+              type="button"
+              onClick={onSearch}
+              aria-label="Search"
+              title="Search (Ctrl+K)"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+            >
+              <Search size={17} />
+            </button>
             <button
               type="button"
               onClick={onNew}
@@ -160,144 +186,199 @@ export default function HomeScreen({
         </header>
 
         {/*
-          The document being worked on, at the size its importance deserves.
-          Everything else on this screen is a thumbnail; this is the thing you
-          came back for, so it gets to be a page rather than a row.
+          Two halves of the width, not a scrolling strip of tabs. There are two
+          of them and there will go on being two: a tab bar that can grow is a
+          navigation system, and this screen exists because the app had one too
+          many of those already.
         */}
-        {current && (
-          <section className="mb-7 sm:mb-8">
-            <p className="mb-1.5 text-[13px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
-              Carry on with
-            </p>
-            <button
-              type="button"
-              onClick={() => onOpen(current.id)}
-              className="pad-page group block w-full p-4 text-left transition-shadow hover:shadow-lg sm:p-7"
-            >
-              <span className="flex items-start gap-3">
-                <DocIcon
-                  doc={current}
-                  size={22}
-                  className="mt-0.5 shrink-0 text-[var(--color-faint)] sm:mt-1"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[19px] font-semibold tracking-tight sm:text-[26px]">
-                    {docLabel(current)}
+        <div
+          role="tablist"
+          aria-label="Home"
+          className="mb-5 flex items-stretch gap-1 rounded-lg bg-[var(--color-hover)] p-1 sm:mb-6 sm:w-fit"
+        >
+          <Tab
+            id="carry"
+            current={tab}
+            onTab={onTab}
+            icon={<Clock size={15} />}
+            label="Carry on"
+          />
+          <Tab
+            id="library"
+            current={tab}
+            onTab={onTab}
+            icon={<Library size={15} />}
+            label="Library"
+          />
+        </div>
+
+        {tab === 'library' ? (
+          <LibraryView
+            docs={docs}
+            projects={projects}
+            onOpen={onOpen}
+            onMove={onMove}
+            onNewFolder={onNewFolder}
+            onGroup={onGroup}
+            onMerge={onMerge}
+            onFavorite={onFavorite}
+            onDelete={onDelete}
+            onAdd={onAdd}
+            aiReady={aiReady}
+          />
+        ) : (
+          <>
+            {/*
+              The document being worked on, at the size its importance
+              deserves. Everything else on this tab is a thumbnail; this is the
+              thing you came back for, so it gets to be a page rather than a
+              row.
+            */}
+            {current && (
+              <section className="mb-7 sm:mb-8">
+                <p className="mb-1.5 text-[13px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
+                  Carry on with
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onOpen(current.id)}
+                  className="pad-page group block w-full p-4 text-left transition-shadow hover:shadow-lg sm:p-7"
+                >
+                  <span className="flex items-start gap-3">
+                    <DocIcon
+                      doc={current}
+                      size={22}
+                      className="mt-0.5 shrink-0 text-[var(--color-faint)] sm:mt-1"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[19px] font-semibold tracking-tight sm:text-[26px]">
+                        {docLabel(current)}
+                      </span>
+                      <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[13px] text-[var(--color-faint)]">
+                        <Clock size={12} /> Edited {when(current.updatedAt)}
+                        {currentProject && (
+                          <>
+                            <span aria-hidden>·</span>
+                            <FolderOpen size={12} />
+                            <span className="min-w-0 truncate">{currentProject.name}</span>
+                          </>
+                        )}
+                      </span>
+                    </span>
+                    <span className="mt-1 shrink-0 text-[var(--color-faint)] transition-colors group-hover:text-[var(--color-accent)]">
+                      <ArrowRight size={20} />
+                    </span>
                   </span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[13px] text-[var(--color-faint)]">
-                    <Clock size={12} /> Edited {when(current.updatedAt)}
-                    {currentProject && (
-                      <>
-                        <span aria-hidden>·</span>
-                        <FolderOpen size={12} />
-                        <span className="min-w-0 truncate">{currentProject.name}</span>
-                      </>
+                  <span className="mt-3 block space-y-1 border-t border-[var(--color-line)] pt-3 sm:mt-4 sm:pt-4">
+                    {opening(current).length ? (
+                      opening(current).map((line, i) => (
+                        <span
+                          key={i}
+                          // Three lines on a phone, six on a desktop. A card
+                          // that takes the whole screen is not a preview.
+                          className={`truncate text-[15px] leading-relaxed text-[var(--color-muted)] ${
+                            i < PREVIEW_LINES_SMALL ? 'block' : 'hidden sm:block'
+                          }`}
+                        >
+                          {line}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="block text-[15px] text-[var(--color-faint)]">
+                        Nothing written yet — the caret is waiting.
+                      </span>
                     )}
                   </span>
-                </span>
-                <span className="mt-1 shrink-0 text-[var(--color-faint)] transition-colors group-hover:text-[var(--color-accent)]">
-                  <ArrowRight size={20} />
-                </span>
-              </span>
-              <span className="mt-3 block space-y-1 border-t border-[var(--color-line)] pt-3 sm:mt-4 sm:pt-4">
-                {opening(current).length ? (
-                  opening(current).map((line, i) => (
-                    <span
-                      key={i}
-                      // Three lines on a phone, six on a desktop. A card that
-                      // takes the whole screen is not a preview.
-                      className={`truncate text-[15px] leading-relaxed text-[var(--color-muted)] ${
-                        i < PREVIEW_LINES_SMALL ? 'block' : 'hidden sm:block'
-                      }`}
-                    >
-                      {line}
-                    </span>
-                  ))
-                ) : (
-                  <span className="block text-[15px] text-[var(--color-faint)]">
-                    Nothing written yet — the caret is waiting.
-                  </span>
-                )}
-              </span>
-            </button>
-          </section>
-        )}
+                </button>
+              </section>
+            )}
 
-        {folder.length > 0 && currentProject && (
-          <Shelf
-            icon={<FolderOpen size={14} />}
-            label={`Also in ${currentProject.name}`}
-            docs={folder}
-            onOpen={onOpen}
-            onFavorite={onFavorite}
-          />
-        )}
+            {folder.length > 0 && currentProject && (
+              <Shelf
+                icon={<FolderOpen size={14} />}
+                label={`Also in ${currentProject.name}`}
+                docs={folder}
+                onOpen={onOpen}
+                onFavorite={onFavorite}
+              />
+            )}
 
-        {favorites.length > 0 && (
-          <Shelf
-            icon={<Star size={14} />}
-            label="Favourites"
-            docs={favorites}
-            onOpen={onOpen}
-            onFavorite={onFavorite}
-          />
-        )}
+            {favorites.length > 0 && (
+              <Shelf
+                icon={<Star size={14} />}
+                label="Favourites"
+                docs={favorites}
+                onOpen={onOpen}
+                onFavorite={onFavorite}
+              />
+            )}
 
-        <Shelf
-          icon={<Clock size={14} />}
-          label="Recent"
-          docs={recent}
-          onOpen={onOpen}
-          onFavorite={onFavorite}
-          empty="Everything you write shows up here."
-        />
-
-        {/*
-          The trash lives here rather than pinned to the bottom of the sidebar,
-          where "delete for good" sat one row below the document somebody was
-          working in. Same component, same behaviour, somewhere you go on
-          purpose.
-        */}
-        {trashed.length > 0 && (
-          <section className="mt-8 border-t border-[var(--color-line)] pt-3">
-            <TrashSection
-              docs={trashed}
-              onRestore={onRestore}
-              onPurge={onPurge}
-              onEmpty={onEmptyTrash}
+            <Shelf
+              icon={<Clock size={14} />}
+              label="Recent"
+              docs={recent}
+              onOpen={onOpen}
+              onFavorite={onFavorite}
+              empty="Everything you write shows up here."
             />
-          </section>
-        )}
 
-        {projects.length > 0 && (
-          <p className="mt-8 text-[13px] text-[var(--color-faint)]">
-            Every document you have, including the ones not shown here, is in the Library.
-          </p>
+            {/*
+              The trash lives here rather than pinned to the bottom of the side
+              menu, where "delete for good" sat one row below the document
+              somebody was working in. Same component, same behaviour,
+              somewhere you go on purpose.
+            */}
+            {trashed.length > 0 && (
+              <section className="mt-8 border-t border-[var(--color-line)] pt-3">
+                <TrashSection
+                  docs={trashed}
+                  onRestore={onRestore}
+                  onPurge={onPurge}
+                  onEmpty={onEmptyTrash}
+                />
+              </section>
+            )}
+
+            {live.length > RECENT && (
+              <p className="mt-8 text-[13px] text-[var(--color-faint)]">
+                Every document you have, including the ones not shown here, is in the Library tab.
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>
   )
 }
 
-function HeaderButton({
+function Tab({
+  id,
+  current,
+  onTab,
   icon,
   label,
-  onClick,
 }: {
+  id: HomeTab
+  current: HomeTab
+  onTab: (tab: HomeTab) => void
   icon: React.ReactNode
   label: string
-  onClick: () => void
 }) {
+  const on = current === id
   return (
     <button
       type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="flex h-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+      role="tab"
+      aria-selected={on}
+      onClick={() => onTab(id)}
+      className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[14px] sm:flex-none sm:px-5 ${
+        on
+          ? 'bg-[var(--color-paper)] font-medium shadow-sm'
+          : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+      }`}
     >
       {icon}
-      <span className="hidden sm:inline">{label}</span>
+      {label}
     </button>
   )
 }
