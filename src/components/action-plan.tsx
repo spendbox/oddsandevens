@@ -36,12 +36,12 @@ import type { Doc } from '@/lib/types'
  *
  * ## Why nothing in here does anything
  *
- * Because nothing in here is connected yet, and a button that looks as if it
- * will send an email had better send one. The steps marked as Pad's are a
- * statement of shape — this is the half a writing app could take on — and the
- * panel says, in as many words, that it is not wired to anything. Drafting
- * through the API and putting dated steps into a calendar are the two that
- * come next.
+ * Because none of it is built yet, and a row that looks as if it will send an
+ * email had better send one. The second group is a list of what this app will
+ * be able to take on — drafting through the API, putting a dated step into a
+ * calendar — and the heading says exactly that, in words somebody reading it
+ * for the first time can act on. "This is the shape of it" was the previous
+ * wording and it needed explaining, which is the whole argument against it.
  *
  * ## Why it works with no key
  *
@@ -229,8 +229,8 @@ export default function ActionPlan({ open, onClose, doc, aiReady }: ActionPlanPr
                 {ours.length > 0 && (
                   <Group
                     icon={<Sparkles size={13} />}
-                    label="Pad could do these"
-                    note="Not connected yet — this is the shape of it."
+                    label="Pad will be able to do these"
+                    note="Not built yet. Listed so you can see what is coming."
                   >
                     {ours.map(({ step, i }) => (
                       <StepRow key={i} step={step} muted />
@@ -243,9 +243,9 @@ export default function ActionPlan({ open, onClose, doc, aiReady }: ActionPlanPr
 
           <p className="shrink-0 border-t border-[var(--color-line)] px-3 py-2 text-[12px] leading-snug text-[var(--color-faint)]">
             {fromModel
-              ? 'Nothing here has been done, and nothing in your document has changed.'
+              ? 'This is a list to read. Nothing has been done, and your document is unchanged.'
               : aiReady
-                ? 'Read off the words on this device. Nothing here has been done.'
+                ? 'Read off the words on this device. Nothing has been done.'
                 : 'Read off the words on this device — no key is set up, so nothing was sent anywhere.'}
           </p>
         </div>

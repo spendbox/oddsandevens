@@ -7,6 +7,9 @@ Two buttons in it talk to a model. One reads the page back and says what
 happens next; one listens and writes down what was said. Nothing else does,
 and nothing runs without being pressed.
 
+It has two writing surfaces — a block at a time, or one page like a word
+processor — and they are the same document underneath.
+
 Read `README.md` before changing anything structural.
 
 > Running `next dev` prepends a Next.js version block to this file. Commit it
@@ -53,11 +56,33 @@ to work, it is the wrong shape for this app.
 - **The theme is applied by an inline script before first paint.** That is what
   stops a dark-mode user seeing a white flash, and why the theme is read
   through `useSyncExternalStore` rather than an effect.
-- **There is no slash menu and no typing mode.** Typing is a word processor,
-  always: Enter makes a paragraph, the markdown shortcuts work, and "/" is a
-  slash — which is what somebody writing "and/or" or a date meant by it. Every
-  block type is in the toolbar's ⋯ under Insert, so nothing became unreachable.
-  A mode to switch into is the shape this app is specifically not.
+- **There is no slash menu.** "/" is a slash, which is what somebody writing
+  "and/or" or a date meant by it. Every block type is in the toolbar's ⋯ under
+  Insert.
+- **There are two writing surfaces and they are the same document.** `blocks`
+  is one `contenteditable` per paragraph — this app's own shape, and what lets
+  a spreadsheet sit between two sentences. `plain` is one `contenteditable` for
+  the whole page, where Enter makes a line, Ctrl+A takes everything and a
+  selection runs past the end of a paragraph *because the browser does all
+  three*, rather than because three hundred lines reimplement them. The block
+  list underneath is identical either way, so switching is a repaint and never
+  a conversion, and nothing that reads a document — search, export, sync, the
+  plan — knows there are two. This is the one exception to "if a feature needs
+  its own screen it is the wrong shape": it is not a feature, it is the same
+  document with the browser doing more of the work.
+- **The plain surface paints blocks out and reads lines back, and the rules for
+  the reading back live in `lib/plain-doc.ts`.** No DOM in that file, so a
+  paragraph deleted, a paragraph split and a spreadsheet the caret ran over are
+  unit tests rather than something to reproduce by typing.
+- **Pressing Enter on the plain surface clones the element, `data-block-id` and
+  all.** Two lines then wear one id, and every question of the form "which line
+  is the caret on" answers with the line above — which is why the new ids are
+  stamped back onto the children after every read-back, before anything asks.
+  It is an attribute write, never a text-node write, so the caret does not feel
+  it.
+- **A block the plain surface cannot edit is painted `contenteditable="false"`
+  and carried across untouched.** A mode that quietly eats the spreadsheet it
+  cannot show is the worst thing a second surface can do.
 - **The formula engine matches Excel where they disagree with maths.** `^` is
   left-associative, so `2^3^2` is 64. Blank cells are skipped by `AVERAGE`
   rather than counted as zero. A cycle returns `#CYCLE` instead of recursing
@@ -383,6 +408,11 @@ to work, it is the wrong shape for this app.
   replaced them is `action-plan.tsx`: pressed on purpose, it says what happens
   next and changes nothing. If something in this app ever edits a document
   without being told to, that is the rule being broken.
+- **Say what a thing is, not what shape it is.** The plan's second group said
+  "Not connected yet — this is the shape of it", and the person who asked for
+  it had to ask what it meant. It says "Not built yet. Listed so you can see
+  what is coming." A line of interface copy that needs explaining has already
+  failed, however true it is.
 - **A plan says who, and is honest about which half is not wired up.** Every
   step is `you` or `app`, because "ring the plumber" and "draft the email" are
   different kinds of sentence and only one of them is ever software's to take
@@ -484,8 +514,8 @@ to work, it is the wrong shape for this app.
 
 ## Checking work
 
-`npm test` covers the formula engine, the highlighter, the plan and the
-transcript handling.
+`npm test` covers the formula engine, the highlighter, the plan, the transcript
+handling and the plain surface's read-back.
 `npm run e2e` drives a real browser through every feature and is the one that
 catches what the others cannot — caret behaviour, saving, and whether a
 document survives a reload. Run both before claiming something works.

@@ -1911,7 +1911,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="What to do next"]').click()
   await page.waitForTimeout(1200)
   const answered = await plan.innerText()
-  log('the plan is split by who has to do it', /yours to do/i.test(answered) && /pad could do these/i.test(answered))
+  log('the plan is split by who has to do it', /yours to do/i.test(answered) && /pad will be able to do these/i.test(answered))
   /*
     Compared in one case. The group headings are uppercased by CSS, and
     `innerText` returns what is painted — so a case-sensitive search for "Pad
@@ -1921,11 +1921,11 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   const lower = answered.toLowerCase()
   log(
     'the steps only a person can take are listed as theirs',
-    lower.indexOf('call the landlord') < lower.indexOf('pad could do these'),
+    lower.indexOf('call the landlord') < lower.indexOf('pad will be able to do these'),
   )
   log(
-    'and what is not connected yet says so rather than pretending',
-    /not connected yet/i.test(answered),
+    'and what is not built yet says so in words, rather than hinting',
+    /not built yet/i.test(answered),
   )
   log('pressing it is what costs a call', planPosts === 1, `${planPosts} posts`)
   await page.screenshot({ path: `${SHOTS}/25-plan.png` })
@@ -2479,6 +2479,171 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await closeFolderMenu()
 }
 
+// --- Document mode: one page, the way a word processor works ----------------
+{
+  /** Switches the writing surface from the side menu, where the toggle is. */
+  const setSurface = async (which) => {
+    await page.locator(`aside [aria-label="${which === 'plain' ? 'Type like a word document' : 'Type with blocks'}"]`).click()
+    await page.waitForTimeout(700)
+  }
+
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  log(
+    'the side menu offers both writing surfaces',
+    (await page.locator('aside [aria-label="Type like a word document"]').count()) === 1 &&
+      (await page.locator('aside [aria-label="Type with blocks"]').count()) === 1,
+  )
+  log(
+    'and blocks is what it starts on',
+    (await page
+      .locator('aside [aria-label="Type with blocks"]')
+      .getAttribute('aria-pressed')) === 'true',
+  )
+
+  await setSurface('plain')
+  const page1 = page.locator('[role="textbox"][aria-label="Document"]')
+  log('switching gives one editable page instead of a paragraph each', await page1.isVisible())
+  log(
+    'and the per-paragraph editors are gone',
+    (await page.locator('[data-block-id] [contenteditable="true"]').count()) === 0,
+  )
+
+  // Enter makes a line, because the browser makes a line.
+  await page1.click()
+  await page.keyboard.type('The first line.')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('The second line.')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('The third line.')
+  await page.waitForTimeout(900)
+  const lines = await page.evaluate(() =>
+    [...document.querySelectorAll('[role="textbox"][aria-label="Document"] > div')].map(
+      (el) => el.textContent,
+    ),
+  )
+  log(
+    'Enter moves to the next line, with no menu and no block to pick',
+    lines.length === 3 && lines[2] === 'The third line.',
+    JSON.stringify(lines),
+  )
+
+  // The thing this mode exists for: selecting the whole document at once.
+  await page.keyboard.press('Control+a')
+  await page.waitForTimeout(300)
+  const selected = await page.evaluate(() => String(window.getSelection() ?? ''))
+  log(
+    'Ctrl+A selects the whole document in one press, not one paragraph',
+    selected.includes('The first line.') && selected.includes('The third line.'),
+    JSON.stringify(selected.slice(0, 80)),
+  )
+
+  // And dragging across it, which the block surface had to fake.
+  const box = await page1.boundingBox()
+  if (box) {
+    await page.mouse.move(box.x + 6, box.y + 8)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width - 20, box.y + 90, { steps: 12 })
+    await page.mouse.up()
+    await page.waitForTimeout(300)
+  }
+  const dragged = await page.evaluate(() => String(window.getSelection() ?? ''))
+  log(
+    'a selection runs past the end of a paragraph',
+    dragged.includes('first line') && dragged.includes('second line'),
+    JSON.stringify(dragged.slice(0, 80)),
+  )
+
+  // No block furniture at all.
+  log(
+    'there are no block handles, grips or per-paragraph menus',
+    (await page.locator('[role="textbox"][aria-label="Document"] [aria-label^="Actions for"]').count()) === 0 &&
+      (await page.locator('.lucide-grip-vertical').count()) === 0,
+  )
+
+  // It survives a reload, as the same document.
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+  log(
+    'what was typed in document mode is saved like anything else',
+    /The third line\./.test(await page.locator('[role="textbox"][aria-label="Document"]').innerText()),
+  )
+  log('and the mode is remembered', await page.locator('[role="textbox"][aria-label="Document"]').isVisible())
+  await page.screenshot({ path: `${SHOTS}/39-document-mode.png` })
+
+  // The markdown shortcuts are what a word processor does, so they stay.
+  await page.locator('[role="textbox"][aria-label="Document"]').click()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('# A heading in document mode')
+  await page.waitForTimeout(900)
+  log(
+    'markdown shortcuts still work on the plain page',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[role="textbox"][aria-label="Document"] > div')].some(
+        (el) => /pad-h1/.test(el.className) && (el.textContent ?? '').includes('heading in document mode'),
+      ),
+    ),
+  )
+
+  // Switching back is a repaint, not a conversion: the same document either way.
+  await setSurface('blocks')
+  const back = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+      .map((el) => el.textContent)
+      .join(' | '),
+  )
+  log(
+    'switching back to blocks finds the same document',
+    /The first line\./.test(back) && /The third line\./.test(back),
+    back.slice(0, 120),
+  )
+  log(
+    'and the heading came across as a heading',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((el) =>
+        /pad-h1/.test(el.className),
+      ),
+    ),
+  )
+
+  /*
+    A document with a spreadsheet in it, opened on the plain page. It cannot be
+    edited there and it must not be lost there either — the failure worth
+    guarding against is a mode that quietly eats what it cannot show.
+  */
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('Above the grid')
+  await insertBlock('spreadsheet')
+  await page.waitForTimeout(700)
+  await setSurface('plain')
+  log(
+    'a spreadsheet is still there on the plain page, marked as not editable here',
+    (await page.locator('[data-plain-locked="true"]').count()) === 1,
+  )
+  await page.locator('[role="textbox"][aria-label="Document"]').click()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type(' and after it')
+  await page.waitForTimeout(900)
+  await setSurface('blocks')
+  log(
+    'and typing around it does not lose it',
+    (await page.locator('table').count()) > 0,
+  )
+  log(
+    'nor lose what was typed',
+    /and after it/.test(
+      await page.evaluate(() =>
+        [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+          .map((el) => el.textContent)
+          .join(' '),
+      ),
+    ),
+  )
+}
+
 // --- Typing is always a word processor now ----------------------------------
 {
   await page.locator('button:has-text("New")').first().click()
@@ -2509,11 +2674,16 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     ),
   )
 
-  // And the switch that used to be in the toolbar and the side menu is gone.
+  // The toolbar holds no writing-surface switch: that lives in the side menu,
+  // beside the rest of what belongs to the document being written.
   await openMore()
   const moreText = await page.locator('[role="menu"]').first().innerText()
   await closeMore()
-  log('there is no Document/Blocks switch left to find', !/blocks/i.test(moreText), moreText.replace(/\n+/g, ' / ').slice(0, 120))
+  log(
+    'the toolbar menu is formatting and inserting, not modes',
+    !/blocks/i.test(moreText),
+    moreText.replace(/\n+/g, ' / ').slice(0, 120),
+  )
 }
 
 // --- Headings stay put while their section is on screen ---------------------
@@ -2666,7 +2836,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     side.replace(/\n+/g, ' / ').slice(0, 140),
   )
   log('and Brain, Ask and Goals are gone from it', !/(brain|goals)/i.test(side) && !/\bAsk\b/.test(side))
-  log('as is the typing switch', !/\bblocks\b/i.test(side))
+  log('and the writing surface is chosen here', /typing/i.test(side) && /\bblocks\b/i.test(side))
 
   await page.locator('aside button:has-text("What to do next")').first().click()
   await page.waitForTimeout(900)
