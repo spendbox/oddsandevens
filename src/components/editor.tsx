@@ -14,10 +14,11 @@ import {
 } from '@/lib/smart-typing'
 import type { Align, Block, BlockType, Doc, TextishBlock } from '@/lib/types'
 import { isTextish } from '@/lib/types'
-import { TEXT, usePref } from '@/lib/ui-prefs'
+import { MODE, TEXT, usePref } from '@/lib/ui-prefs'
 import ActionPlan from './action-plan'
 import CodeBlock from './code-block'
 import DictationButton from './dictation-button'
+import PlainEditor from './plain-editor'
 import Editable, { placeCaret } from './editable'
 import FormatToolbar from './format-toolbar'
 import FileBlock from './file-block'
@@ -784,6 +785,13 @@ export default function Editor({
   */
   const { value: textPref, set: setTextPref } = usePref(TEXT)
   const textSize = textPref ?? 'medium'
+  /*
+    Which writing surface. `blocks` is the default and is this app's own shape;
+    `plain` is one editable element for the whole page, where the browser does
+    the selecting and the line breaking. See lib/plain-doc.ts.
+  */
+  const { value: modePref } = usePref(MODE)
+  const plain = modePref === 'plain'
   return (
     <div ref={container} className="relative">
       <Ribbon
@@ -846,6 +854,15 @@ export default function Editor({
           className="pad-doc-title mb-3 w-full bg-transparent font-semibold tracking-tight outline-none placeholder:text-[var(--color-faint)]"
         />
 
+        {plain ? (
+          /*
+            One editable element for the whole page. Everything the block
+            surface reimplements — Ctrl+A across the document, a selection that
+            runs past the end of a paragraph, Enter making a line — is the
+            browser's own behaviour in here. See plain-editor.tsx.
+          */
+          <PlainEditor doc={doc} onChange={onChange} revision={paintRevision} />
+        ) : (
         <div className="pad-doc">
           {doc.blocks.map((block, blockIndex) => (
             <div
@@ -892,12 +909,14 @@ export default function Editor({
             </div>
           ))}
         </div>
+        )}
 
         {/*
           A wide click target below the last block. Without it, clicking the
           empty space under a document does nothing, which reads as the page
           being finished rather than continuing.
         */}
+        {!plain && (
         <button
           type="button"
           aria-label="Continue writing"
@@ -913,6 +932,7 @@ export default function Editor({
           }}
           className="mt-2 h-48 w-full cursor-text"
         />
+        )}
       </div>
 
       {/*
