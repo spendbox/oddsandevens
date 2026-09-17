@@ -17,6 +17,7 @@ import { isTextish } from '@/lib/types'
 import { TEXT, usePref } from '@/lib/ui-prefs'
 import ActionPlan from './action-plan'
 import CodeBlock from './code-block'
+import DictationButton from './dictation-button'
 import Editable, { placeCaret } from './editable'
 import FormatToolbar from './format-toolbar'
 import FileBlock from './file-block'
@@ -913,6 +914,26 @@ export default function Editor({
           className="mt-2 h-48 w-full cursor-text"
         />
       </div>
+
+      {/*
+        Speech into the document. It writes where the caret is, or at the end
+        when there is no caret — which is where somebody who has just pressed
+        record and talked for ten minutes expects their meeting to appear.
+      */}
+      <DictationButton
+        title={doc.title}
+        aiReady={aiReady}
+        onWrite={(pasted) => {
+          if (!pasted.length) return
+          const at = currentId ?? doc.blocks[doc.blocks.length - 1]?.id
+          if (at && insertPasted(at, pasted)) return
+          const created = blocksFromPasted(pasted)
+          setBlocks([...doc.blocks, ...created])
+          bumpRevision()
+          const last = created[created.length - 1]
+          if (last) setFocus({ id: last.id, caret: 'end' })
+        }}
+      />
 
       <ActionPlan
         open={planning}

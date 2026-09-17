@@ -132,8 +132,35 @@ It works with no API key at all: the plan is worked out on your device from the
 words on the page, and shown either way. With a key it is sorted into the two
 groups and written more tightly.
 
-**The home screen** is the house button in the header, or **Home** in the side
-menu. It fills the window and has two tabs. **Carry on** shows the document you
+**Talk instead of typing.** The round button in the bottom right corner. Tap it
+once and it starts listening — a red dot, a clock, and the words appearing as
+you say them, so you can see it is hearing you. Tap it again and what you said
+goes into the document where your caret is.
+
+It handles a sentence and it handles a meeting. Speak a paragraph into a note
+and it comes out punctuated, in your own words, with the "um"s and false starts
+gone. Leave it running through a forty-minute conversation and it comes out as
+notes: short headings for what was actually discussed, bullets under them, and
+an **Actions** list at the end with anything anybody committed to — with the day
+kept in the words it was said in.
+
+The listening is done by your browser, which already has a speech recogniser
+built in. That means it is free, it starts instantly, and the words appear as
+you speak rather than after an upload. It also means it works in Chrome, Edge,
+Safari and Chrome on Android; in a browser without one the button simply is not
+there. A pause does not end the recording — browsers stop listening after a
+silence, and this starts them again and keeps everything already heard, which
+is what makes a long meeting survive.
+
+Nothing is written into the document until you stop, so a correction the
+recogniser makes half a sentence later does not rewrite the page under your
+caret. And one `Ctrl+Z` takes the whole thing back out.
+
+Without an API key it still records and still writes what you said into the
+document, broken into paragraphs — not a word added, removed or reworded. The
+key is what turns a transcript into writing.
+
+**The home screen** is **Home** in the side menu. It fills the window and has two tabs. **Carry on** shows the document you
 are writing, large, with its opening lines; the others in its folder; your
 favourites; what was open recently; and the trash. **Library** is the whole
 collection. On a phone it is one column, three icon buttons in the header and
@@ -244,9 +271,9 @@ configuration beyond pointing it at this repository.
 
 ## Turning on the model (optional)
 
-Three things use it, and nothing else: **Actions**, the question you can ask of
-your own notes from the search panel, and the titles the Library gives imported
-files. All three work without it — worked out on your device, more roughly. It
+Four things use it, and nothing else: **Actions**, writing up what you dictate,
+the question you can ask of your own notes from the search panel, and the
+titles the Library gives imported files. All three work without it — worked out on your device, more roughly. It
 is **GPT-4o**. Get a key from
 [platform.openai.com](https://platform.openai.com/api-keys), then put it in
 `.env.local`:
@@ -321,6 +348,7 @@ src/lib/sync.ts         optional sync to Supabase
 src/lib/projects.ts     grouping documents, and searching within a group
 src/lib/tasks.ts        finding the things somebody has agreed to do
 src/lib/plan.ts         notes in, a plan out — and reading a reply back
+src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
 src/lib/folds.ts        which sections are folded away, per device
 src/lib/when.ts         "3 minutes ago", "yesterday"
 src/lib/history.ts      undo and redo, over whole documents
@@ -333,7 +361,7 @@ src/lib/export.ts       turning a document into markdown or plain text
 src/lib/pdf.ts          reading text out of a PDF (loaded on demand)
 src/lib/zip.ts          reading and writing ZIP archives, with no dependency
 src/lib/docx.ts         Word documents in and out, built on zip.ts
-src/app/api/ai/         the one server route: plans, questions, titles
+src/app/api/ai/         the one server route: plans, speech, questions, titles
 src/lib/ui-prefs.ts     theme, sidebar, width, text size and typing mode
 src/components/         the editor, the toolbar, and one file per block type
 src/app/s/[id]/         the public page a shared link opens
@@ -345,7 +373,7 @@ scripts/e2e.mjs         drives a real browser through every feature
 ## Checking it works
 
 ```bash
-npm test        # the formula engine, highlighter, plan and the rest
+npm test        # the formula engine, highlighter, plan, transcripts, the rest
 npm run lint
 npm run typecheck
 
@@ -383,9 +411,24 @@ These are real and worth knowing before you rely on them:
   and putting dated steps into a calendar are the next two pieces of work, and
   until they exist the panel says so rather than showing a button that would
   lie.
-- **Pressing Actions costs a model call**, and it is the only thing in the
-  editor that does. The icons, the titles in the Library, the search and the
-  offline half of the plan are all worked out on your device.
+- **Pressing Actions costs a model call**, and so does stopping a recording —
+  those two are the only things in the editor that do. Recording itself is
+  free, and so are the icons, the titles in the Library, the search and the
+  offline half of the plan, which are all worked out on your device.
+- **Dictation is as accurate as your browser's recogniser.** That is very good
+  in Chrome and good in Safari, and it is not Whisper. Names and unusual words
+  are where it slips; the model fixes the obvious mis-hearings and is told to
+  leave the rest alone rather than guess. Uploading the audio to a
+  transcription service would be more accurate and would cost money per minute
+  of every meeting — a switch for people who want that trade is the next step,
+  not a replacement for this.
+- **Dictation needs Chrome, Edge, Safari or Chrome on Android.** Firefox has no
+  speech recogniser, so the button is not shown there rather than shown and
+  broken.
+- **A long recording is sent to the model in pieces**, because an hour of
+  speech is tens of thousands of characters and one request for all of it times
+  out. The pieces are cut on sentence ends and joined back up; a very long
+  meeting can therefore repeat a heading at a seam.
 - **The detector behind the offline plan is a set of rules, not a model.** It
   reads lines beginning with an action verb, lines saying you need to do
   something, and anything under a "next steps" heading. It will miss an oddly

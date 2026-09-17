@@ -132,7 +132,7 @@ const insertBlock = async (label) => {
 const openHome = async (tab = 'carry', target = page) => {
   const home = target.locator('[role="dialog"][aria-label="Home"]')
   if (!(await home.isVisible().catch(() => false))) {
-    await target.locator('header [aria-label="Home"]').first().click()
+    await target.locator('aside [aria-label="Home"]').first().click()
     await target.waitForTimeout(600)
   }
   await target
@@ -555,7 +555,9 @@ await mobile.waitForTimeout(500)
   )
 
   // The home screen, which covers the document completely on a phone.
-  await mobile.locator('header [aria-label="Home"]').first().click()
+  await mobile.locator('[aria-label="Open menu"]').first().click()
+  await mobile.waitForTimeout(500)
+  await mobile.locator('aside [aria-label="Home"]').first().click()
   await mobile.waitForTimeout(700)
   const home = mobile.locator('[role="dialog"][aria-label="Home"]')
   const homeBox = await home.boundingBox()
@@ -1988,6 +1990,230 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.unroute('**/api/ai')
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(900)
+}
+
+/*
+  Dictation: a recorder in the corner that writes what was said.
+
+  The browser's own speech recogniser is stubbed, for two reasons. Chromium as
+  Playwright ships it has none at all — the real one talks to a Google service
+  — and a test that depends on a microphone and somebody speaking into it is
+  not a test. The stub drives the same events the real one does, which is what
+  every decision in dictation-button.tsx is made from.
+
+  It runs in its own context because an init script cannot be taken off a page
+  once it is on, and the rest of the suite should go on seeing a browser that
+  cannot listen.
+*/
+{
+  /*
+    A browser with no recogniser at all — Firefox, in practice. Chromium
+    carries the interface even where the service behind it is unreachable, so
+    this has to be a context where both constructors are actually taken away.
+  */
+  {
+    const deaf = await browser.newContext({ viewport: { width: 1280, height: 860 } })
+    await deaf.addInitScript(() => {
+      delete window.SpeechRecognition
+      delete window.webkitSpeechRecognition
+    })
+    const quiet = await deaf.newPage()
+    await quiet.goto(URL, { waitUntil: 'networkidle' })
+    await quiet.waitForTimeout(900)
+    log(
+      'a browser that cannot listen shows no recorder at all, rather than a broken one',
+      (await quiet.locator('[aria-label="Record what you say"]').count()) === 0,
+    )
+    await deaf.close()
+  }
+
+  const heard = await browser.newContext({ viewport: { width: 1280, height: 860 } })
+  await heard.addInitScript(() => {
+    class Fake {
+      constructor() {
+        this.continuous = false
+        this.interimResults = false
+        this.lang = ''
+        this.maxAlternatives = 1
+        this.onstart = null
+        this.onresult = null
+        this.onerror = null
+        this.onend = null
+        window.__rec = this
+      }
+      start() {
+        window.__starts = (window.__starts ?? 0) + 1
+        setTimeout(() => this.onstart && this.onstart(), 0)
+      }
+      stop() {
+        setTimeout(() => this.onend && this.onend(), 0)
+      }
+      abort() {}
+    }
+    window.SpeechRecognition = Fake
+    window.__say = (text, isFinal) => {
+      const rec = window.__rec
+      if (!rec || !rec.onresult) return false
+      rec.onresult({
+        resultIndex: 0,
+        results: { length: 1, 0: { isFinal, 0: { transcript: text } } },
+      })
+      return true
+    }
+    window.__stopOnItsOwn = () => {
+      if (window.__rec && window.__rec.onend) window.__rec.onend()
+    }
+  })
+
+  const mic = await heard.newPage()
+  const micErrors = []
+  mic.on('pageerror', (e) => micErrors.push(String(e)))
+  await mic.goto(URL, { waitUntil: 'networkidle' })
+  await mic.waitForTimeout(900)
+
+  const button = mic.locator('[aria-label="Record what you say"]')
+  log('a browser that can listen gets a recorder in the corner', await button.isVisible())
+
+  // Bottom right, and out of the way of the writing rather than over it.
+  const corner = await button.boundingBox()
+  log(
+    'it sits in the lower right corner',
+    !!corner && corner.x > 1280 - 140 && corner.y > 860 - 140,
+    corner ? `x=${Math.round(corner.x)} y=${Math.round(corner.y)}` : 'missing',
+  )
+
+  await mic.locator('[data-block-id] [contenteditable]').first().click()
+  await mic.keyboard.type('Before the recording.')
+  await mic.waitForTimeout(400)
+
+  // One tap starts it. Not a long press, and not a hold.
+  await button.click()
+  await mic.waitForTimeout(500)
+  const sign = mic.locator('[role="status"]', { hasText: 'Listening' })
+  log('one tap starts it, with a sign that it is recording', await sign.isVisible())
+  log(
+    'and the sign carries a clock',
+    /\d:\d\d/.test(await sign.innerText()),
+    (await sign.innerText()).replace(/\n+/g, ' / '),
+  )
+  log('the button says it is now the way to stop', (await mic.locator('[aria-label="Stop recording"]').count()) === 1)
+
+  // Words as they arrive, in the sign and nowhere else yet.
+  await mic.evaluate(() => window.__say('I need to call the landlord about the boiler', true))
+  await mic.waitForTimeout(500)
+  log('what is being heard shows in the sign', /call the landlord/i.test(await sign.innerText()))
+  log(
+    'and nothing is written into the document while it is still recording',
+    !/call the landlord/i.test(
+      await mic.evaluate(() =>
+        [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+          .map((e) => e.textContent)
+          .join(' '),
+      ),
+    ),
+  )
+  await mic.screenshot({ path: `${SHOTS}/37-recording.png` })
+
+  /*
+    The silence. Every browser recogniser stops itself after a pause, and in a
+    meeting the pauses are where people are thinking — so a stop nobody asked
+    for has to start it again with the transcript intact. Without this a
+    recording ends the first time somebody stops to consider a question.
+  */
+  const startsBefore = await mic.evaluate(() => window.__starts)
+  await mic.evaluate(() => window.__stopOnItsOwn())
+  await mic.waitForTimeout(900)
+  const startsAfter = await mic.evaluate(() => window.__starts)
+  log(
+    'a pause does not end the recording — it starts listening again',
+    startsAfter === startsBefore + 1 && (await sign.isVisible()),
+    `${startsBefore} → ${startsAfter}`,
+  )
+  await mic.evaluate(() => window.__say('and send the signed inventory to Ada', true))
+  await mic.waitForTimeout(400)
+  log('and what was said before the pause is still there', /call the landlord/i.test(await sign.innerText()))
+
+  // Stopping writes it in. With no key it goes in as it was heard.
+  await mic.locator('[aria-label="Stop recording"]').click()
+  await mic.waitForTimeout(1200)
+  const written = await mic.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+      .map((e) => e.textContent)
+      .join(' | '),
+  )
+  log('stopping writes what was said into the document', /call the landlord/i.test(written), written.slice(0, 160))
+  log('both halves of the recording go in', /inventory to Ada/i.test(written))
+  log('and what was already written is untouched', /Before the recording/i.test(written))
+  log('the recording sign goes away', (await sign.count()) === 0)
+  await mic.screenshot({ path: `${SHOTS}/38-dictated.png` })
+
+  // One Ctrl+Z takes the whole thing back out.
+  await mic.keyboard.press('Control+z')
+  await mic.waitForTimeout(700)
+  log(
+    'and one undo takes the whole dictation back out',
+    !/call the landlord/i.test(
+      await mic.evaluate(() =>
+        [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+          .map((e) => e.textContent)
+          .join(' '),
+      ),
+    ),
+  )
+
+  /*
+    Now with a key configured, which is what turns a transcript into writing.
+    The route is stubbed: this is about what the panel does with the answer,
+    not about the model.
+  */
+  await mic.route('**/api/ai', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ configured: true }),
+      })
+    }
+    const body = request.postDataJSON()
+    if (body.action !== 'notes') return route.fallback()
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        text: `## Boiler\n\n- Tidied from ${String(body.text).split(' ').length} spoken words`,
+      }),
+    })
+  })
+  await mic.reload({ waitUntil: 'networkidle' })
+  await mic.waitForTimeout(1000)
+
+  let notesPosts = 0
+  const countNotes = (request) => {
+    if (request.method() === 'POST' && /\/api\/ai/.test(request.url())) notesPosts++
+  }
+  mic.on('request', countNotes)
+
+  await mic.locator('[aria-label="Record what you say"]').click()
+  await mic.waitForTimeout(500)
+  await mic.evaluate(() => window.__say('um so the boiler is broken you know', true))
+  await mic.waitForTimeout(400)
+  log('recording itself costs nothing', notesPosts === 0, `${notesPosts} posts`)
+
+  await mic.locator('[aria-label="Stop recording"]').click()
+  await mic.waitForTimeout(1500)
+  const tidied = await mic.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+      .map((e) => e.textContent)
+      .join(' | '),
+  )
+  log('with a key the transcript is written up rather than dumped in', /Tidied from/.test(tidied), tidied.slice(0, 140))
+  log('and it went in as real blocks, not one line', /Boiler/.test(tidied))
+  log('stopping is what costs a call', notesPosts === 1, `${notesPosts} posts`)
+  mic.off('request', countNotes)
+
+  log('no uncaught errors from the recorder', micErrors.length === 0, micErrors.slice(0, 2).join(' | '))
+  await heard.close()
 }
 
 // --- Undo and redo ----------------------------------------------------------

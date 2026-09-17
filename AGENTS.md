@@ -3,9 +3,9 @@
 A universal document editor. Notes, spreadsheets, tasks, code and forms are
 five block types inside one document, not five applications.
 
-One button in it reads the page back and says what happens next. Nothing else
-in the editing surface talks to a model, and nothing changes the document on
-its own.
+Two buttons in it talk to a model. One reads the page back and says what
+happens next; one listens and writes down what was said. Nothing else does,
+and nothing runs without being pressed.
 
 Read `README.md` before changing anything structural.
 
@@ -340,6 +340,42 @@ to work, it is the wrong shape for this app.
 - **A document with no title is called by its first line.** The caret starts in
   the body, so plenty of notes never get a title; three rows reading "Untitled"
   tell the reader nothing. `docLabel` is the one place that decides.
+- **The recorder is the one thing allowed to be a floating button.** Every
+  other corner-pinned control was taken out of this app, because a button
+  pinned to the bottom right is furniture and furniture is invisible after the
+  first day. A recorder is the exception everywhere: a phone, a voice memo app
+  and a dictaphone all put one round button where a thumb already is, because
+  you reach for it rather than going looking — usually while somebody else is
+  still talking.
+- **The browser does the listening, not a transcription service.** Chrome,
+  Edge, Safari and Chrome on Android all ship a recogniser that is free, live
+  and weighs nothing. Uploading audio is more accurate and is also money per
+  minute of every meeting anybody records, an upload on a phone connection, and
+  a wait at the end instead of words arriving as they are said. The model makes
+  up most of the difference afterwards by tidying the text, which costs one
+  request rather than one per minute.
+- **A recogniser that stops on its own is restarted.** Every browser one stops
+  after a pause, however plainly it has been told to run continuously — and in
+  a meeting the pauses are where people are thinking. Every stop that was not
+  asked for starts it again and keeps what has been settled. That single detail
+  is the difference between this working for a dictated line and working for
+  forty minutes.
+- **The transcript has one home, and what is painted is a separate value.**
+  `finals` is a ref, because a phrase arriving while a request is in flight has
+  to be in the record whatever React has painted; the live line is state,
+  because a ref changing repaints nothing and reading one during render is a
+  value React cannot see change. One callback writes both.
+- **Tidying speech never adds a word.** The dictation prompt punctuates and
+  drops "um"; the meeting prompt makes headings out of what was actually
+  discussed. Both are told, at the top of the list, that every fact, name,
+  number and date must already be in the transcript. A meeting note containing
+  something nobody said is worse than no note, and it is the failure this is
+  written against.
+- **Speech is written in when the recording stops, not while it runs.** Words
+  landing in the document as they are recognised means every correction the
+  recogniser makes rewrites the page under the caret. The sign shows the live
+  words instead, which answers the question somebody actually has while
+  recording — not "is it on" but "is it hearing me".
 - **One button reads the page, and it only ever reads it.** Ask rewrote the
   sentence somebody was in the middle of; Brain applied a document's rules to
   lines as they were typed; Goals watched a draft against what it was for. All
@@ -448,7 +484,8 @@ to work, it is the wrong shape for this app.
 
 ## Checking work
 
-`npm test` covers the formula engine, the highlighter and the plan.
+`npm test` covers the formula engine, the highlighter, the plan and the
+transcript handling.
 `npm run e2e` drives a real browser through every feature and is the one that
 catches what the others cannot — caret behaviour, saving, and whether a
 document survives a reload. Run both before claiming something works.
