@@ -338,6 +338,47 @@ async function file(items: Intake[]) {
   return NextResponse.json({ text })
 }
 
+const SUGGEST_SYSTEM =
+  'Somebody is part-way through writing a document and has written down what they want it to ' +
+  'do. You read the draft against those goals and say what to do next.\n\n' +
+  'Return ONLY a plain list, one suggestion per line, each starting with "- ". No preamble, no ' +
+  'heading, no closing remark, no explanation of your reasoning.\n\n' +
+  'Rules:\n' +
+  '- At most four suggestions, and fewer is better. Three obvious ones are worth less than one ' +
+  'that names the actual problem.\n' +
+  '- Each is one short imperative sentence, under about fifteen words, and describes something ' +
+  'the writer could do in the next minute: "Say what the boiler does now", "Cut the second ' +
+  'paragraph, it repeats the first".\n' +
+  '- Work from THIS draft against THESE goals. Never give writing advice that would be true of ' +
+  'any document; if a goal is already met, say nothing about it rather than praising it.\n' +
+  '- Do not rewrite anything, do not quote the draft back, and do not invent facts the draft ' +
+  'does not contain.\n' +
+  '- If the draft is too empty to judge, return a single line saying what to write first.'
+
+/**
+ * What to do next, read off the draft and what it is for.
+ *
+ * Suggestions only — nothing here can touch the document, which is the rule
+ * every piece of writing help in this app keeps. See AGENTS.md.
+ */
+async function suggest(goals: string[], title: string, text: string) {
+  const result = await complete({
+    system: SUGGEST_SYSTEM,
+    user:
+      (title.trim() ? `The document is titled "${title.trim()}".\n\n` : '') +
+      `What it is meant to do:\n${goals.map((goal) => `- ${goal}`).join('\n')}\n\n` +
+      `The draft so far:\n\n${text}`,
+    maxTokens: 600,
+    // Reading a draft against a stated aim is a judgement, and a suggestion
+    // that would fit any document at all is the failure to write against.
+    effort: 'high',
+  })
+  if (!result) {
+    return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
+  }
+  return NextResponse.json({ text: result })
+}
+
 /** Answers a question from extracts of the reader's own notes. */
 async function ask(question: string, sources: Source[]) {
   const text = await complete({
@@ -393,6 +434,8 @@ export async function POST(request: Request) {
     question?: string
     sources?: Source[]
     items?: Intake[]
+    /** What the document is for, when the action is 'suggest'. */
+    goals?: string[]
   }
   try {
     body = await request.json()
@@ -442,6 +485,33 @@ export async function POST(request: Request) {
     }
     try {
       return await file(items)
+    } catch (error) {
+      return failure(error)
+    }
+  }
+
+  /*
+    What to do next, given what this document is for. It shares this route for
+    the same reason everything else does: the key is the thing worth keeping
+    on a server.
+  */
+  if (body.action === 'suggest') {
+    const goals = (Array.isArray(body.goals) ? body.goals : [])
+      .filter((goal): goal is string => typeof goal === 'string' && !!goal.trim())
+      .slice(0, 8)
+      .map((goal) => goal.trim().slice(0, 200))
+    const draft = (body.text ?? '').trim()
+    if (!goals.length) {
+      return NextResponse.json(
+        { error: 'Say what this document is for first.' },
+        { status: 400 },
+      )
+    }
+    if (draft.length > MAX_INPUT_CHARS) {
+      return NextResponse.json({ error: 'That document is too long to read at once.' }, { status: 413 })
+    }
+    try {
+      return await suggest(goals, body.title ?? '', draft)
     } catch (error) {
       return failure(error)
     }

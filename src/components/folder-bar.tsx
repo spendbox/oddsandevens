@@ -1,12 +1,12 @@
 'use client'
 
-import { Check, ChevronDown, FolderOpen, Plus, Search, X } from 'lucide-react'
+import { Check, ChevronDown, FolderOpen, FolderInput, Plus, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { docLabel } from '@/lib/blocks'
 import { searchDocs } from '@/lib/projects'
 import type { Doc, Project } from '@/lib/types'
 import DocIcon from './doc-icon'
-import FolderChoices from './folder-choices'
+import FolderPicker from './folder-picker'
 
 /**
  * Which folder this document is in, as one button in the header.
@@ -58,6 +58,8 @@ export default function FolderBar({
   onNewFolder,
 }: FolderBarProps) {
   const [open, setOpen] = useState(false)
+  /** Whether the folder picker is up. See folder-picker.tsx. */
+  const [moving, setMoving] = useState(false)
   const [query, setQuery] = useState('')
   const root = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
@@ -91,7 +93,7 @@ export default function FolderBar({
     /*
       Closed by testing where the press landed, never by stopPropagation:
       relying on propagation unmounts a button before its own click can fire.
-      The same note is in doc-list.tsx, where that bug actually happened.
+      The same note is in library-view.tsx, where that bug actually happened.
     */
     const close = (event: Event) => {
       const el = event.target as Element | null
@@ -236,21 +238,34 @@ export default function FolderBar({
 
           <div className="my-1 h-px bg-[var(--color-line)]" />
 
-          <FolderChoices
-            heading="Move this document"
-            projects={projects}
-            currentId={project.id}
-            onMove={(id) => {
-              onMove(id)
+          {/*
+            One row, not a list of every folder. This menu is already holding
+            the folder's contents; printing every other folder underneath them
+            made the answer to "where am I" twice as long as the question.
+          */}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
               setOpen(false)
+              setMoving(true)
             }}
-            onNewFolder={() => {
-              onNewFolder()
-              setOpen(false)
-            }}
-          />
+            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2.5 text-left text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] sm:py-2"
+          >
+            <FolderInput size={15} className="shrink-0" />
+            Move this document…
+          </button>
         </div>
       )}
+
+      <FolderPicker
+        open={moving}
+        onClose={() => setMoving(false)}
+        projects={projects}
+        currentId={project.id}
+        onMove={onMove}
+        onNewFolder={onNewFolder}
+      />
     </div>
   )
 }

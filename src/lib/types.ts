@@ -203,6 +203,14 @@ export interface Doc {
    */
   ignoreRules?: boolean
   /**
+   * What this document is trying to do, in the writer's own words.
+   *
+   * On the document rather than in a setting, for the same reason its rules
+   * are: what a tenancy complaint is for is not what a recipe is for. Absent
+   * on every document nobody has told, which is most of them. See lib/goals.ts.
+   */
+  goals?: string[]
+  /**
    * When it was starred, or absent when it never was.
    *
    * A timestamp rather than a boolean, so favourites can be listed in the
