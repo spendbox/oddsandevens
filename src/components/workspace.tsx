@@ -1,9 +1,9 @@
 'use client'
 
-import { Menu, PanelLeft, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { blocksFromLines, makeBlock } from '@/lib/blocks'
+import { blocksFromLines, blocksFromPasted, makeBlock } from '@/lib/blocks'
 import { newId } from '@/lib/id'
+import type { PastedBlock } from '@/lib/paste'
 import { allDocs, allDocsRaw, allProjects, deleteFile, loadDoc, saveDoc, saveProject } from '@/lib/store'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { pushAll, runSync, type SyncState } from '@/lib/sync'
@@ -21,8 +21,7 @@ import type { Grouping } from '@/lib/library'
 import { attachmentRefs, purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
 import { isTextish, type Doc, type Project } from '@/lib/types'
 import { SIDEBAR, THEME, WIDTH, usePref } from '@/lib/ui-prefs'
-import AccountButton, { type Account } from './account'
-import FolderBar from './folder-bar'
+import { type Account } from './account'
 import HomeScreen, { type HomeTab } from './home-screen'
 import Editor from './editor'
 import type { Incoming } from './library-view'
@@ -31,19 +30,6 @@ import SideMenu from './side-menu'
 
 /** How long after the last keystroke a document is written to disk. */
 const SAVE_DEBOUNCE_MS = 400
-/**
- * Where the header folds away, and where it comes back.
- *
- * Two thresholds rather than one, and decided by *where* the page is rather
- * than by which way it was last moving. Direction is the obvious way to write
- * this and it oscillates: folding the header makes the scroller 52 pixels
- * taller, that relayout fires another scroll event, and the handler reads the
- * change it caused itself as a fresh scroll in the other direction. The gap
- * between these two numbers is wider than the header is tall, so nothing the
- * fold does to the layout can carry the page across both of them.
- */
-const HEADER_FOLDS_BELOW = 140
-const HEADER_RETURNS_ABOVE = 60
 /** How often to reconcile with the server while signed in. */
 const SYNC_EVERY_MS = 20_000
 
@@ -98,17 +84,6 @@ export default function Workspace() {
    */
   const [command, setCommand] = useState<{ kind: 'plan'; n: number } | null>(null)
   /**
-   * Whether the app header has folded away.
-   *
-   * Two bars stacked at the top of a phone — the application's, then the
-   * document's — is a third of the screen gone before a word of the document.
-   * Scrolling down folds the header away and leaves the toolbar, which is
-   * sticky inside the scroller and so lands at the very top; scrolling up
-   * brings it straight back, which is the behaviour every reading app on a
-   * phone already has.
-   */
-  const [condensed, setCondensed] = useState(false)
-  /**
    * Undo and redo for the open document.
    *
    * Held here rather than in the editor because it has to survive everything
@@ -116,6 +91,8 @@ export default function Workspace() {
    * batch from the Library, a rewrite from the assistant — and because it must
    * be thrown away when a different document is opened. See lib/history.ts.
    */
+  /** Whether the last keystrokes are still on their way to the disk. */
+  const [saving, setSaving] = useState(false)
   const [history, setHistory] = useState<History>(emptyHistory)
   /**
    * Bumped whenever an older document is put back.
@@ -160,20 +137,6 @@ export default function Workspace() {
   useEffect(() => {
     latest.current = doc
   }, [doc])
-
-  /*
-    A different document starts at the top, so the header comes back with it.
-
-    Adjusted during render rather than in an effect — the pattern this codebase
-    uses for "a value changed, so this state is stale" — because in an effect
-    the new document paints once with the header still folded away, which looks
-    like the application has lost its chrome.
-  */
-  const [lastDocId, setLastDocId] = useState<string | null>(null)
-  if (doc && doc.id !== lastDocId) {
-    setLastDocId(doc.id)
-    if (condensed) setCondensed(false)
-  }
 
   /* ---------------------------------------------------------------- start up */
 
@@ -246,6 +209,9 @@ export default function Workspace() {
   /* ------------------------------------------------------------------ saving */
 
   const update = useCallback((next: Doc) => {
+    // The bar says "Saving…" from the keystroke until the disk has it. It is
+    // the only thing this app says about saving, and it has to be true.
+    setSaving(true)
     // The state being replaced is what undo comes back to. `latest` is kept in
     // step with `doc` by the effect above, so it is the previous document by
     // the time any user action gets here.
@@ -266,7 +232,9 @@ export default function Workspace() {
     // window, and 400ms later the timer wrote the document you had switched
     // *to*, leaving the edit unsaved. Anything typed in the last 400ms before
     // changing documents simply disappeared.
-    saveTimer.current = setTimeout(() => void saveDoc(next), SAVE_DEBOUNCE_MS)
+    saveTimer.current = setTimeout(() => {
+      void saveDoc(next).then(() => setSaving(false))
+    }, SAVE_DEBOUNCE_MS)
   }, [])
 
   // A debounce means up to SAVE_DEBOUNCE_MS of typing is only in memory. If
@@ -284,6 +252,7 @@ export default function Workspace() {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = null
     if (latest.current) await saveDoc(latest.current)
+    setSaving(false)
   }, [])
 
   useEffect(() => {
@@ -693,6 +662,27 @@ export default function Workspace() {
   }
 
   /**
+   * A note dictated from the notes screen rather than into an open note.
+   *
+   * The same recorder and the same write-up; the difference is only where it
+   * lands. Pressing record on a screen listing every note means "take this
+   * down", which is a new note — writing it into whichever note happened to be
+   * open last would put a meeting in the middle of somebody's shopping list.
+   */
+  const newDocFrom = (blocks: PastedBlock[]) => {
+    if (!blocks.length) return
+    void flushSave()
+    const fresh = emptyDoc()
+    fresh.blocks = blocksFromPasted(blocks)
+    setDocs((all) => [fresh, ...all])
+    setHistory(emptyHistory())
+    setDoc(fresh)
+    void saveDoc(fresh)
+    setHome(false)
+    setDrawer(false)
+  }
+
+  /**
    * Takes a reviewed batch from the Library.
    *
    * Everything it makes is an ordinary document in the ordinary list: there is
@@ -844,6 +834,19 @@ export default function Workspace() {
           onTheme={toggleTheme}
           wide={wide}
           onWide={() => setWidthPref(wide ? 'narrow' : 'wide')}
+          account={account}
+          syncState={syncState}
+          onSignedIn={(next) => {
+            setAccount(next)
+            // Everything written before signing in belongs to this account
+            // now; without this first push it would stay on one device.
+            void pushAll(next.id).then(() => sync(next.id))
+          }}
+          onSignedOut={() => {
+            setAccount(null)
+            setSyncState('idle')
+          }}
+          onSyncNow={() => account && void sync(account.id)}
           settings={{
             onMove: (projectId) => doc && void moveDoc(doc.id, projectId),
             onNewFolder: () => doc && void newProjectWith(doc.id),
@@ -861,93 +864,7 @@ export default function Workspace() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        {/*
-          Folded away by not being rendered, not by a height of zero with the
-          overflow hidden.
-
-          The height-and-clip version animated nicely and clipped every menu
-          opened from inside the header — the folder menu came out cropped to
-          the height of the header, which reads as the menu being behind the
-          page. A menu that cannot escape its bar is worse than a fold that
-          does not animate.
-        */}
-        {!condensed && (
-          <header className="sticky top-0 z-30 flex h-[3.25rem] shrink-0 items-center gap-1.5 border-b border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2">
-            <button
-              type="button"
-              onClick={() => setDrawer(true)}
-              aria-label="Open menu"
-              className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)] md:hidden"
-            >
-              <Menu size={18} />
-            </button>
-            {/* The way back once the sidebar is collapsed. Without it,
-                collapsing is a one-way door for anyone who does not know the
-                shortcut. */}
-            {!sidebarOpen && (
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                aria-label="Show sidebar"
-                title="Show sidebar (Ctrl+\)"
-                className="hidden rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)] md:block"
-              >
-                <PanelLeft size={18} />
-              </button>
-            )}
-            {ready && doc && openProject && (
-              <FolderBar
-                project={openProject}
-                docs={projectDocs}
-                currentId={doc.id}
-                projects={projects}
-                onOpen={(id) => void openDoc(id)}
-                onNew={() => newDoc(openProject.id)}
-                onRename={(name) => putProject({ ...openProject, name, updatedAt: Date.now() })}
-                onMove={(projectId) => void moveDoc(doc.id, projectId)}
-                onNewFolder={() => void newProjectWith(doc.id)}
-              />
-            )}
-            <div className="ml-auto flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setSearching(true)}
-                aria-label="Search"
-                title="Search (Ctrl+K)"
-                className="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
-              >
-                <Search size={18} />
-              </button>
-              <AccountButton
-                account={account}
-                syncState={syncState}
-                onSignedIn={(next) => {
-                  setAccount(next)
-                  // Everything written before signing in belongs to this
-                  // account now; without this first push it would stay on one
-                  // device.
-                  void pushAll(next.id).then(() => sync(next.id))
-                }}
-                onSignedOut={() => {
-                  setAccount(null)
-                  setSyncState('idle')
-                }}
-                onSyncNow={() => account && void sync(account.id)}
-              />
-            </div>
-          </header>
-        )}
-
-        <div
-          className="pad-desk min-h-0 flex-1 overflow-y-auto"
-          onScroll={(event) => {
-            // Between the two thresholds nothing changes, which is what makes
-            // the fold stable. See the note on the constants.
-            const top = event.currentTarget.scrollTop
-            if (top <= HEADER_RETURNS_ABOVE) setCondensed(false)
-            else if (top >= HEADER_FOLDS_BELOW) setCondensed(true)
-          }}
-        >
+        <div className="pad-desk min-h-0 flex-1 overflow-y-auto">
           {/*
             The document is a sheet of paper on a desk. Narrow is a reading
             measure and is the default, because a line of text that runs the
@@ -988,6 +905,22 @@ export default function Workspace() {
                   key={doc.id}
                   doc={doc}
                   onChange={update}
+                  saving={saving}
+                  covered={home || searching}
+                  folder={openProject?.name}
+                  onBack={() => {
+                    void flushSave()
+                    setHomeTab('carry')
+                    setHome(true)
+                  }}
+                  onMenu={() => {
+                    // On a phone this is a drawer; on a desktop it is the
+                    // column, which may have been collapsed. Opening one
+                    // without the other would be a menu item that does
+                    // nothing on half the screens it is pressed on.
+                    setDrawer(true)
+                    if (!sidebarOpen) setSidebarPref('open')
+                  }}
                   onExtractPdf={(file, name) => void importPdf(file, name)}
                   onUndo={undoEdit}
                   onRedo={redoEdit}
@@ -1022,6 +955,7 @@ export default function Workspace() {
           setHome(false)
         }}
         onSearch={() => setSearching(true)}
+        onRecord={newDocFrom}
         onFavorite={(id, favorite) => void setFavorite(id, favorite)}
         onRestore={(id) => void restoreDoc(id)}
         onPurge={(id) => void purgeDoc(id)}

@@ -2,22 +2,26 @@
 
 One place to write, plan, calculate and build. Open it and start typing.
 
-Notes, spreadsheets, tasks, code and forms are not five apps here. They are
-five kinds of block inside one document, so a meeting note can carry its own
-budget, its own list of actions and the form you are about to send out —
-without leaving the page or picking a file type first.
+Everything here is a **note** — two lines or twenty pages, and the same thing
+either way. Notes, spreadsheets, tasks, code and forms are not five apps: they
+are five kinds of block inside one note, so a meeting note can carry its own
+budget, its own list of actions and the form you are about to send out, without
+leaving the page or picking a file type first.
 
-It types like a word processor, not like a stack of components. One page, one
-toolbar, and Enter, Tab and Ctrl+B do what they have done in every editor for
-thirty years. `Ctrl+A` selects the whole document in one press and a selection
-runs straight across paragraphs, because the page is one editable element and
-the browser is doing it rather than the app imitating it. There is no block
-furniture at all: no handles, no menus hanging off paragraphs, nothing to drag
-and no `/` menu. The block model is underneath, where it belongs.
+It types the way writing types. One page, one bar above it, and Enter, Tab and
+Ctrl+B do what they have done in every editor for thirty years. `Ctrl+A` selects
+the whole note in one press and a selection runs straight across paragraphs,
+because the page is one editable element and the browser is doing it rather than
+the app imitating it. There is no block furniture at all: no handles, no menus
+hanging off paragraphs, nothing to drag and no `/` menu. The block model is
+underneath, where it belongs.
 
-Everything is saved on your device as you type. Signing in is optional and
-lives in one small button in the top right corner; it adds a copy on the
-server so your other devices catch up. Nothing waits for it.
+The note itself is set in a serif on cream paper, and the app around it is not —
+so what you wrote never reads like a field in a form.
+
+Everything is saved on your device as you type; the bar says so. Signing in is
+optional and lives at the foot of the side menu; it adds a copy on the server so
+your other devices catch up. Nothing waits for it.
 
 ## What it does
 
@@ -65,14 +69,19 @@ Pressing Enter in a list carries the list on, and pressing it on an empty item
 leaves the list. Backspace at the start of a bullet, a checkbox, a heading or a
 quote takes that off and leaves the words.
 
-**The toolbar.** Along the top of the page, always visible, always in the same
-order: **undo**, **redo**, a **⋯** for everything else, and **Actions**. The
-**⋯** holds the paragraph style, the marks, lists, alignment, indent, the size
-of the text and Insert, which keeps the row to one line even on a phone. The
-style button inside it opens a menu where each style is set in its own
-type, so Heading 1 looks like a heading rather than reading as words. There are
-no handles in the margin that appear when you hover a paragraph — the controls
-are in one place you can learn, which is the point of a toolbar.
+**The bar.** One bar above the note and nothing above that: **‹ Notes** to go
+back, **Saved** in the middle, then **Actions** and a **⋯**. The **⋯** holds
+undo and redo, the paragraph style, the marks, lists, alignment, indent, the
+size of the text, Insert, and this note's own settings — which keeps the row to
+one line even on a phone. The style button inside it opens a menu where each
+style is set in its own type, so Heading 1 looks like a heading rather than
+reading as words. There are no handles in the margin that appear when you hover
+a paragraph.
+
+**Under the bar**, in green: what kind of note this is — Meeting, Task, Idea,
+Person, Research or Note — when it was last written in, and the folder it is
+filed in. The kind is worked out on your device from the words in the note. It
+costs nothing, needs no key and no network, and it never sends a word anywhere.
 
 **Formatting.** Select any text and a small bar appears over it as well: bold,
 italic, underline, strikethrough, inline code. Or use `Ctrl+B`, `Ctrl+I`,
@@ -89,13 +98,14 @@ not just the paragraphs, and it is remembered.
 
 **Headings stay put.** Scroll into a section and its heading sticks under the
 toolbar until the next one takes its place, so you always know which part of a
-long document you are reading.
+long note you are reading.
 
 **Typing does the obvious things for you.** The first letter of a line, and
 the first after a full stop, are capitalised — but not after "e.g.", "Dr." or
 a decimal point. A line ending in a colon starts a bullet list when you press
-Enter. The opening line of a new document becomes its heading. Every one of
-these is undone by a single Backspace, and none of them happens twice.
+Enter. The opening line of a new note becomes its name, so you never type it
+twice — unless you formatted it, in which case it stays where you wrote it.
+Every one of these is undone by a single Backspace, and none happens twice.
 
 **Tab makes sub-lists.** Tab indents the line you are on instead of jumping
 away; Shift+Tab brings it back out, and so does Backspace at the start of an
@@ -108,32 +118,33 @@ document, or plain text with `-` bullets in it. Inline bold and italic come
 through; scripts, links and styling do not. `Ctrl+Shift+V` pastes as plain
 text instead.
 
-**Undo and redo** are the first two buttons, or `Ctrl+Z` and `Ctrl+Shift+Z`
-(`Ctrl+Y` also redoes). They work on the whole document, so they take back a
+**Undo and redo** are the first two things in the **⋯**, or `Ctrl+Z` and `Ctrl+Shift+Z`
+(`Ctrl+Y` also redoes). They work on the whole note, so they take back a
 paragraph you split, a block you deleted, a heading you converted or a rewrite
 the assistant applied — none of which a browser's own undo knows anything
 about. Rapid typing collapses into one step, so undo comes back a phrase at a
 time rather than a letter at a time.
 
-**Every document gets an icon that matches what it is** — a banknote on a
+**Every note gets an icon that matches what it is** — a banknote on a
 budget, a scroll on a tenancy agreement, cutlery on a recipe, a spreadsheet on
-a document that mostly is one. It is worked out on your device from the title
+a note that mostly is one. It is worked out on your device from the title
 and the opening lines. It costs nothing, needs no key and no network, and it
-never sends a word of your document anywhere.
+never sends a word of your note anywhere.
 
-**Selecting.** `Ctrl+A` takes the whole document in one press, and dragging
+**Selecting.** `Ctrl+A` takes the whole note in one press, and dragging
 runs straight across paragraphs — the page is one editable element, so this is
 the browser's own selection rather than something the app imitates.
 
-**The side menu** is about the document you are in. Three ways out along the
-top — **Home**, **Library**, **Search** — then **New document**, then
-**Carry on**, which is the document you are writing and the way back to it.
-Under that: what else is in its folder, and then everything about the document
-itself, in one column, from where it is filed through to what you can bring
-into it.
+**The side menu** is about the note you are in, and it opens from the **⋯**.
+Three ways out along the top — **Notes**, **Library**, **Search** — then **New
+note**, then **Carry on**, which is the note you are writing and the way back to
+it. Under that: what else is in its folder, and then everything about the note
+itself, in one column, from where it is filed through to what you can bring into
+it. Signing in is at the foot of it, with the light/dark and narrow/wide
+switches.
 
 **What to do next** sits under that — the one action button, described below.
-Then *This file*, which folds: sharing, saving as PDF, downloading as Markdown,
+Then *This note*, which folds: sharing, saving as PDF, downloading as Markdown,
 plain text or Word, importing a Word document or a PDF, and deleting.
 
 There is deliberately no Recent and no Favourites in here. Those answer "what
@@ -147,7 +158,7 @@ It reads the page back and lists the next steps in two groups:
 
 - **Yours to do** — ring the plumber, sign the form, decide. Only you can do
   these. Each one can be ticked off while the panel is open.
-- **Pad could do these** — draft the email, lay out the document, put a dated
+- **Pad could do these** — draft the email, lay out the note, put a dated
   step in a calendar. The half a writing app could take on.
 
 A date you wrote is kept in your own words — *by Friday*, not a timestamp,
@@ -158,16 +169,17 @@ what this *could* do, and it is not connected to anything yet — actually
 drafting through the API, and syncing dated steps to a calendar, are the next
 two pieces of work. And nothing happens unless you press the button. It does
 not watch what you type, it does not interrupt, and reading a plan never
-changes a word of your document.
+changes a word of your note.
 
 It works with no API key at all: the plan is worked out on your device from the
 words on the page, and shown either way. With a key it is sorted into the two
 groups and written more tightly.
 
-**Talk instead of typing.** The round button in the bottom right corner. Tap it
-once and it starts listening — a red dot, a clock, and the words appearing as
+**Talk instead of typing.** The black round button in the bottom right corner,
+on the note and on the notes screen — on the note it writes into the note, on
+the notes screen it makes a new one. Tap it once and it starts listening — a red dot, a clock, and the words appearing as
 you say them, so you can see it is hearing you. Tap it again and what you said
-goes into the document where your caret is.
+goes into the note where your caret is.
 
 It handles a sentence and it handles a meeting. Speak a paragraph into a note
 and it comes out punctuated, in your own words, with the "um"s and false starts
@@ -184,47 +196,46 @@ there. A pause does not end the recording — browsers stop listening after a
 silence, and this starts them again and keeps everything already heard, which
 is what makes a long meeting survive.
 
-Nothing is written into the document until you stop, so a correction the
+Nothing is written into the note until you stop, so a correction the
 recogniser makes half a sentence later does not rewrite the page under your
 caret. And one `Ctrl+Z` takes the whole thing back out.
 
 Without an API key it still records and still writes what you said into the
-document, broken into paragraphs — not a word added, removed or reworded. The
+note, broken into paragraphs — not a word added, removed or reworded. The
 key is what turns a transcript into writing.
 
-**The home screen** is **Home** in the side menu. It fills the window and has two tabs. **Carry on** shows the document you
-are writing, large, with its opening lines; the others in its folder; your
-favourites; what was open recently; and the trash. **Library** is the whole
-collection. On a phone it is one column, three icon buttons in the header and
-two half-width tabs, so nothing wraps. It is not what the app opens into —
-opening straight into a document with the caret already in it matters more.
+**The notes screen** is **‹ Notes** on the bar, or **Notes** in the side menu.
+It fills the window and has two tabs. **Notes** is one column of everything you
+have written, newest first: a green tile saying what kind of note it is, its
+name, the first two lines of it and the time it was last written in — with a
+search field across the top, your favourites above, the trash below, and a bar
+at the bottom to write a note or record one. **Library** is the whole collection
+by folder. It is not what the app opens into — opening straight into a note with
+the caret already in it matters more.
 
-**Favourites.** The star on a card on the home screen, or **Favourite** on a
-selection in the Library. Starred documents get their own shelf on Carry on.
+**Favourites.** The star on a row on the notes screen, or **Favourite** on a
+selection in the Library. Starred notes get their own section at the top.
 
-**Folders.** A document in a folder gets a button in the header saying which
-one (`Ctrl+P` opens it). That button is the folder: it lists everything inside,
-searches within it, makes a new document in it, renames it, and moves this
-document somewhere else — all in the one menu, because "where am I" and "put me
-somewhere else" are the same thought half a second apart.
+**Folders.** A note in a folder says so on the green line under the bar. The
+folder's other notes are in the side menu, under the folder's name, and the
+Library lists everything by folder.
 
-**Making a folder** is a drag: in the Library, pull one document onto another
+**Making a folder** is a drag: in the Library, pull one note onto another
 and they become a folder named after the one you dropped onto. Drop onto a
-folder's heading to add a document to it, or onto **Not in a folder** to take it
-out. Or select several and press **Move** → *New folder from this document*.
+folder's heading to add a note to it, or onto **Not in a folder** to take it
+out. Or select several and press **Move** → *New folder from this note*.
 
-**Moving a document** is always one button and a picker, never a menu with
-every folder printed into it. The button is at the top of the side menu — it
-says which folder you are in, or **Not in a folder** when you are in none — and
-on every row in the Library, and inside the folder dropdown in the header.
-Pressing it opens a searchable list of folders, with *New folder from this
-document* and *Take it out of its folder* at the end. A folder left with one
-document dissolves by itself.
+**Moving a note** is always one button and a picker, never a menu with every
+folder printed into it. The button is at the top of the side menu — it says
+which folder you are in, or **Not in a folder** when you are in none — and on
+every row in the Library. Pressing it opens a searchable list of folders, with
+*New folder from this note* and *Take it out of its folder* at the end. A folder
+left with one note dissolves by itself.
 
-**The Library** is both the way documents come in and the one place all of them
+**The Library** is both the way notes come in and the one place all of them
 are listed. Drop a pile of files in and each one is read, titled from its
 contents rather than its filename, and given a sentence saying what it covers;
-nothing is added until you have seen it. Underneath, every document you have is
+nothing is added until you have seen it. Underneath, every note you have is
 listed **under the folder it is in**, collapsible, with **the ones in no folder
 first** — those are the ones that still need a home. **Collapse all** folds
 every folder at once, and becomes **Expand all**. **Select** turns the rows into
@@ -235,18 +246,25 @@ main search does. Search results are a flat ranked list rather than a grouped
 one, because when you are searching the best match should be at the top, not
 under a heading.
 
-**Deleting is undoable.** *Delete this document* at the foot of *This file* in
-the side menu, or **Delete** on a selection in the Library. Either way it goes
-to the trash on the home screen and stays for 7 days, with each row saying
+**Search** is **Search** in the side menu, the field across the top of the notes
+screen, or `Ctrl+K`. It reads inside every note rather than filtering their
+names, and it says what it found — *4 notes · 6 mentions* — with the words you
+searched for marked in yellow in the name and in the passage it found them in.
+Ask a question rather than typing a word and it will answer from your notes,
+with the note each claim came from attached.
+
+**Deleting is undoable.** *Delete this note* at the foot of *This note* in the
+side menu, or **Delete** on a selection in the Library. Either way it goes to
+the trash on the notes screen and stays for 7 days, with each row saying
 how long it has left. You can put it back, or delete it for good straight away
 — that one asks first, because it means it.
 
-**Getting out of the way.** Scrolling down into a document folds the app's
-header away, so the toolbar is the only bar between you and the page; coming
-back to the top brings it straight back. `Ctrl+\` collapses the side menu, and
-on a phone it is the whole screen rather than a strip over the document — which
-is why **Carry on** is in it, as a visible way back rather than a cross in a
-corner. The page is a reading measure by default, because a line that runs the
+**Getting out of the way.** There is one bar above a note, not two: the app used
+to have a header of its own above this one and fold it away as you scrolled,
+which on a phone was a third of the screen gone before a word of the note.
+`Ctrl+\` collapses the side menu, and on a phone it is the whole screen rather
+than a strip over the note — which is why **Carry on** is in it, as a visible
+way back rather than a cross in a corner. The page is a reading measure by default, because a line that runs the
 width of a large monitor is genuinely harder to read; there is a **Wide**
 toggle at the foot of the side menu for anyone who disagrees.
 
@@ -258,13 +276,13 @@ of freezing the page.
 
 ## Getting things in and out
 
-In the side menu, under *This file*:
+In the side menu, under *This note*:
 
 - **Save as PDF** — opens your browser's print window; choose *Save as PDF* as
   the destination. This costs no download at all, because your browser already
   has a typesetter that handles page breaks and fonts properly.
 - **Download Markdown** — opens in any editor, and keeps the structure. This is
-  the one to use if you ever want to leave; a document you can only read inside
+  the one to use if you ever want to leave; a note you can only read inside
   one app is not really yours.
 - **Download plain text** — for when markdown would just be noise.
 - **Download as Word** — a real .docx that opens in Word, Pages or Google Docs.
@@ -273,7 +291,7 @@ In the side menu, under *This file*:
   A scanned PDF (a photograph of a page) has no text to pull out; that would
   need character recognition, which is a much larger thing again.
 - **Share a link** — publishes a read-only copy at a public address. Needs an
-  account (see below). The link shows a snapshot, so editing the document does
+  account (see below). The link shows a snapshot, so editing the note does
   not silently change what someone you shared it with is looking at; there is
   an **Update the shared copy** button for when you want it to.
 
@@ -344,7 +362,7 @@ device, and the corner shows "On this device" instead of a sign-in button.
 4. Restart the app. A **Sign in** button appears in the top right.
 
 The migration sets up row level security so each person can only ever read and
-write their own documents. That is enforced by the database, not by the app.
+write their own notes. That is enforced by the database, not by the app.
 
 ## How it is built
 
@@ -362,7 +380,7 @@ write their own documents. That is enforced by the database, not by the app.
 
 ### The one rule
 
-A document is a list of blocks, and every tool is a block type. Adding a sixth
+A note is a list of blocks, and every tool is a block type. Adding a sixth
 tool means adding a block type — not a second application, a second save path
 or a second toolbar. If a change would need its own mode to switch into, it is
 probably the wrong shape for this app.
@@ -370,34 +388,35 @@ probably the wrong shape for this app.
 ### Where things live
 
 ```
-src/lib/types.ts        what a document and a block are
+src/lib/types.ts        what a note and a block are
 src/lib/blocks.ts       making blocks, and the markdown shortcuts
 src/lib/formula.ts      the spreadsheet engine
 src/lib/highlight.ts    the syntax highlighter
 src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
-src/lib/store.ts        saving to the device (IndexedDB), documents and files
+src/lib/store.ts        saving to the device (IndexedDB), notes and files
 src/lib/sync.ts         optional sync to Supabase
-src/lib/projects.ts     grouping documents, and searching within a group
+src/lib/projects.ts     grouping notes, and searching within a group
 src/lib/tasks.ts        finding the things somebody has agreed to do
 src/lib/plan.ts         notes in, a plan out — and reading a reply back
 src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
 src/lib/plain-doc.ts    the page read back into blocks
 src/lib/beautify.ts     what a line was trying to be, with no model in it
 src/lib/folds.ts        which sections are folded away, per device
-src/lib/when.ts         "3 minutes ago", "yesterday"
-src/lib/history.ts      undo and redo, over whole documents
-src/lib/doc-icon.ts     which icon a document gets, and why
+src/lib/when.ts         "3 minutes ago", and the stamp a list prints
+src/lib/kind.ts         what kind of note it is, from its own words
+src/lib/history.ts      undo and redo, over whole notes
+src/lib/doc-icon.ts     which icon a note gets, and why
 src/lib/smart-typing.ts capitalisation, list and formatting rules
 src/lib/paste.ts        turning pasted content into blocks
 src/lib/trash.ts        the seven-day retention rules
 src/lib/share.ts        publishing a read-only copy to a link
-src/lib/export.ts       turning a document into markdown or plain text
+src/lib/export.ts       turning a note into markdown or plain text
 src/lib/pdf.ts          reading text out of a PDF (loaded on demand)
 src/lib/zip.ts          reading and writing ZIP archives, with no dependency
 src/lib/docx.ts         Word documents in and out, built on zip.ts
 src/app/api/ai/         the one server route: plans, speech, questions, titles
-src/lib/ui-prefs.ts     theme, sidebar, width, text size and typing mode
-src/components/         the editor, the toolbar, and one file per block type
+src/lib/ui-prefs.ts     theme, sidebar, width and text size
+src/components/         the editor, the bar, and one file per block type
 src/app/s/[id]/         the public page a shared link opens
 supabase/migrations/    the database tables and their security policies
 scripts/make-icons.py   regenerates the app icons from src/app/icon.svg
@@ -425,17 +444,17 @@ can see what it saw.
 These are real and worth knowing before you rely on them:
 
 - **Attachments stay on the device that added them.** The file's bytes live in
-  that browser, not in the document, which is what keeps documents small enough
+  that browser, not in the note, which is what keeps notes small enough
   to sync on every keystroke. Syncing attachments needs file storage on the
   server — a separate piece of work. The screen says "on this device" so this
   is never a surprise.
-- **Sync resolves conflicts per document, last edit wins.** Two devices editing
-  the *same* document while both offline will keep the later one. Different
-  documents on different devices merge fine. Doing better needs real
+- **Sync resolves conflicts per note, last edit wins.** Two devices editing
+  the *same* note while both offline will keep the later one. Different
+  notes on different devices merge fine. Doing better needs real
   collaborative-editing machinery, which is a large piece of work.
 - **A shared link is read-only, and a shared form cannot be answered.**
   Collecting responses from other people needs the answers to go to the server
-  rather than into the document, which is the next step for forms.
+  rather than into the note, which is the next step for forms.
 - **The model was not tested against the real service.** There is no API key
   in this repository, so every failure path is tested, and the interface around
   it is tested against a stubbed route, but a real plan from a real model is
@@ -443,12 +462,12 @@ These are real and worth knowing before you rely on them:
 - **A spreadsheet, a form or a code block splits the page in two.** They are
   not text, so they sit between two editable runs rather than inside one, and a
   selection stops when it reaches one. `Ctrl+A` still takes everything. For a
-  document that is only writing — nearly all of them — the page is one element
+  note that is only writing — nearly all of them — the page is one element
   and none of this applies.
 - **The line rules are rules, not understanding.** They read notation and two
   narrow shapes, so a line that meant to be a list and did not say so stays a
   paragraph. That is deliberate: a guess that is right nine times in ten is a
-  guess that is wrong in your document, and undoing a surprise costs more than
+  guess that is wrong in your note, and undoing a surprise costs more than
   typing "- ".
 - **Nothing in Actions is carried out.** The steps marked as Pad's are a
   statement of what this could take on, not a queue. Drafting through the API
@@ -482,14 +501,14 @@ These are real and worth knowing before you rely on them:
   and nested tables have nowhere to go in a grid. Going the other way, a
   spreadsheet becomes a real Word table.
 - **Sub-lists are an indent, not a nested list.** A block records how deep it
-  is; the document stays a flat run of blocks. That keeps dragging a line out
+  is; the note stays a flat run of blocks. That keeps dragging a line out
   of a sub-list the same operation as any other move, but it means numbered
   lists do not renumber themselves per level yet.
 - **The trash sweep runs when the app opens**, not on a schedule, because
-  there is no server here to run a nightly job. A document that expired while
+  there is no server here to run a nightly job. A note that expired while
   the app was closed is removed the next time you open it.
 - **A project is a flat group, not a folder tree.** There are no projects
-  inside projects, and a document belongs to one project or none. Nesting is a
+  inside projects, and a note belongs to one project or none. Nesting is a
   much larger change and, so far, not one anything has asked for.
 - **A scanned PDF imports nothing.** If the PDF is a photograph of a page there
   is no text layer to read, and getting one needs OCR.

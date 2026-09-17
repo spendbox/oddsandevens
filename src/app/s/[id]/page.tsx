@@ -47,7 +47,7 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { id } = await props.params
   const shared = await fetchShared(id)
-  const title = shared?.title?.trim() || 'Shared document'
+  const title = shared?.title?.trim() || 'Shared note'
   return {
     title,
     description: 'Shared from Pad.',

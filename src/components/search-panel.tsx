@@ -12,8 +12,9 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { citedSources, gatherSources, splitCitations, type Source } from '@/lib/ask'
 import { docLabel } from '@/lib/blocks'
-import { buildIndex, looksLikeQuestion, search, type SearchHit } from '@/lib/search'
+import { buildIndex, excerpt, looksLikeQuestion, search, type SearchHit } from '@/lib/search'
 import type { Doc, Project } from '@/lib/types'
+import { KindTile } from './note-kind'
 import Snippet from './snippet'
 
 /**
@@ -71,6 +72,7 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
     [index, query],
   )
   const recent = useMemo(() => docs.filter((d) => !d.deletedAt).slice(0, RECENT), [docs])
+  const mentions = hits.reduce((sum, hit) => sum + hit.mentions, 0)
   const rows = query.trim() ? hits.map((hit) => hit.doc) : recent
 
   /*
@@ -242,7 +244,7 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
         type="button"
         aria-label="Close search"
         onClick={onClose}
-        className="fixed inset-0 z-50 bg-black/30"
+        className="fixed inset-0 z-[70] bg-black/30"
       />
       <div
         role="dialog"
@@ -251,7 +253,7 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
         // Full height on a phone, a floating panel on a desktop. A phone
         // keyboard takes half the screen, and a short panel above it leaves
         // room for about two results.
-        className="fixed inset-0 z-50 flex flex-col bg-[var(--color-paper)] sm:inset-x-0 sm:top-[10vh] sm:bottom-auto sm:mx-auto sm:max-h-[70vh] sm:w-[36rem] sm:rounded-xl sm:border sm:border-[var(--color-line)] sm:shadow-2xl"
+        className="fixed inset-0 z-[70] flex flex-col bg-[var(--color-paper)] sm:inset-x-0 sm:top-[10vh] sm:bottom-auto sm:mx-auto sm:max-h-[70vh] sm:w-[36rem] sm:rounded-xl sm:border sm:border-[var(--color-line)] sm:shadow-2xl"
       >
         <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-line)] px-3 py-2.5">
           <Search size={15} className="shrink-0 text-[var(--color-faint)]" />
@@ -259,9 +261,9 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
             ref={input}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search, or ask a question"
+            placeholder="Search every word in every note"
             aria-label="Search everything"
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--color-faint)]"
+            className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-[var(--color-faint)]"
           />
           <button
             type="button"
@@ -275,7 +277,7 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
 
         <div ref={list} className="min-h-0 flex-1 overflow-y-auto p-1.5">
           {!query.trim() && (
-            <p className="px-2 py-1.5 text-[11px] text-[var(--color-faint)]">Recent</p>
+            <p className="px-2 py-1.5 text-[13px] text-[var(--color-faint)]">Recent</p>
           )}
 
           {askLeads && askRow}
@@ -290,6 +292,23 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
               className="mx-1 my-1.5 rounded-md border border-[var(--color-line)] bg-[var(--color-hover)] px-2.5 py-2 text-[11px] leading-snug text-[var(--color-danger)]"
             >
               {problem}
+            </p>
+          )}
+
+          {/*
+            What the search found, before the results themselves.
+
+            Two numbers rather than one, because they answer two different
+            questions: how many notes to look through, and how much there is
+            about this. "4 notes · 6 mentions" tells somebody straight away
+            whether they wrote about this once in passing or kept coming back
+            to it — and a list of titles cannot say either.
+          */}
+          {query.trim() && hits.length > 0 && (
+            <p role="status" className="px-2.5 pt-1 pb-2 text-[13px] text-[var(--color-muted)]">
+              {hits.length === 1 ? '1 note' : `${hits.length} notes`}
+              {' · '}
+              {mentions === 1 ? '1 mention' : `${mentions} mentions`}
             </p>
           )}
 
@@ -314,26 +333,36 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
                   at === active ? 'bg-[var(--color-hover)]' : ''
                 }`}
               >
-                <FileText size={14} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
+                <KindTile doc={doc} size={30} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
-                    <span className="truncate text-xs font-medium">
-                      {docLabel(doc)}
+                    {/*
+                      The searched words are marked in the name as well as in
+                      the passage. A result whose title is the reason it came
+                      back, with nothing marked in it, reads as a result that
+                      does not know why it is there.
+                    */}
+                    <span className="pad-serif truncate text-[15px] font-semibold">
+                      {hit ? (
+                        <TitleWithMarks title={docLabel(doc)} terms={hit.matched} />
+                      ) : (
+                        docLabel(doc)
+                      )}
                     </span>
                     {project && (
-                      <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-[var(--color-faint)]">
-                        <Folder size={9} /> {project}
+                      <span className="inline-flex shrink-0 items-center gap-0.5 text-[12px] text-[var(--color-faint)]">
+                        <Folder size={11} /> {project}
                       </span>
                     )}
                   </span>
                   {hit && (
-                    <span className="mt-0.5 block text-[11px] leading-snug text-[var(--color-muted)]">
+                    <span className="pad-serif mt-0.5 block text-[13px] leading-snug text-[var(--color-muted)]">
                       <Snippet text={hit.snippet} highlights={hit.highlights} />
                     </span>
                   )}
                 </span>
                 {at === active && (
-                  <CornerDownLeft size={12} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
+                  <CornerDownLeft size={13} className="mt-0.5 shrink-0 text-[var(--color-faint)]" />
                 )}
               </button>
             )
@@ -344,6 +373,14 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
       </div>
     </>
   )
+}
+
+/** A note's name with the searched words marked in it. */
+function TitleWithMarks({ title, terms }: { title: string; terms: string[] }) {
+  const { snippet, highlights } = excerpt(title, terms)
+  // `excerpt` may centre a long passage on its first match; a name is short
+  // enough that it never does, so what comes back is the name itself.
+  return <Snippet text={snippet} highlights={highlights} />
 }
 
 /**

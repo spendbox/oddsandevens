@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { when } from '../when.ts'
+import { longStamp, stamp, when } from '../when.ts'
 
 const NOW = Date.UTC(2026, 1, 14, 12, 0, 0)
 const minute = 60_000
@@ -35,4 +35,26 @@ test('past a week it becomes a date rather than a countdown', () => {
 
 test('a clock that is behind does not produce a negative', () => {
   assert.equal(when(NOW + 5 * minute, NOW), 'just now')
+})
+
+test('a stamp in a list is a time today, a word yesterday and a date before that', () => {
+  const now = new Date('2026-09-17T16:32:00').getTime()
+  assert.match(stamp(new Date('2026-09-17T09:05:00').getTime(), now), /9[:.]05/)
+  assert.equal(stamp(new Date('2026-09-16T22:10:00').getTime(), now), 'Yesterday')
+  assert.match(stamp(new Date('2026-09-02T10:00:00').getTime(), now), /Sep/)
+  // An older year says which one, or "17 Sep" is ambiguous by twelve months.
+  assert.match(stamp(new Date('2024-09-17T10:00:00').getTime(), now), /2024/)
+})
+
+test('a stamp from a device whose clock is ahead is still today', () => {
+  // Two devices a minute apart produce this constantly, and "in 40 seconds"
+  // is not a thing a list should ever say.
+  const now = new Date('2026-09-17T16:32:00').getTime()
+  assert.match(stamp(now + 40_000, now), /[:.]/)
+})
+
+test('the line under a title says the day as well as the time', () => {
+  const now = new Date('2026-09-17T16:32:00').getTime()
+  assert.match(longStamp(new Date('2026-09-17T09:05:00').getTime(), now), /^Today, /)
+  assert.match(longStamp(new Date('2026-09-16T09:05:00').getTime(), now), /^Yesterday, /)
 })

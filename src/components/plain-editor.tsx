@@ -145,12 +145,16 @@ export default function PlainEditor({
     called from something it believes might run during a render.
   */
   const replaceRun = useCallback(
-    (from: number, count: number, next: Block[]) => {
+    (from: number, count: number, next: Block[], title?: string) => {
       const current = latest.current
       const blocks = [...current.blocks]
       blocks.splice(from, count, ...next)
       onChange({
         ...current,
+        // One write, never two: naming the note and taking the line out of it
+        // are the same keystroke, and a second change reading `latest` would
+        // read the note as it was before the first.
+        title: title && !current.title.trim() ? title : current.title,
         blocks: blocks.length ? blocks : [makeBlock('text')],
         updatedAt: Date.now(),
       })
@@ -232,7 +236,7 @@ export default function PlainEditor({
             revision={revision}
             opening={entry.from === 0 && !doc.title.trim()}
             onCaret={onCaret}
-            onBlocks={(next) => replaceRun(entry.from, entry.blocks.length, next)}
+            onBlocks={(next, title) => replaceRun(entry.from, entry.blocks.length, next, title)}
           />
         ) : (
           <div key={entry.key} data-block-id={entry.block.id} className="my-3">
@@ -263,7 +267,8 @@ function TextRun({
   /** True for the run that starts an untitled document. See `enter`. */
   opening: boolean
   onCaret: (id: string | null) => void
-  onBlocks: (next: Block[]) => void
+  /** The lines, and — when the opening line just named the note — its name. */
+  onBlocks: (next: Block[], title?: string) => void
 }) {
   const host = useRef<HTMLDivElement>(null)
   /** The blocks as this run last painted them, so a read-back has a base. */
@@ -278,6 +283,15 @@ function TextRun({
   const first = useRef(true)
   /** Set by Escape, so the next Tab moves focus instead of indenting. */
   const letGo = useRef(false)
+  /**
+   * The current `enter`, for the native listener that is bound once.
+   *
+   * The listener is bound on mount and never rebound, so without this it would
+   * go on calling the very first `enter` — and that one writes back with the
+   * length this run had on its first paint, which after three more paragraphs
+   * is the wrong number of lines to replace.
+   */
+  const entering = useRef<(el: HTMLElement) => void>(() => {})
   const [paintKey, setPaintKey] = useState(0)
 
   /*
@@ -397,9 +411,9 @@ function TextRun({
   /** What the page says the blocks are now. */
   const current = (): Block[] => reconcile(painted.current, read())
 
-  const publish = (next: Block[]) => {
+  const publish = (next: Block[], title?: string) => {
     painted.current = next
-    onBlocks(next)
+    onBlocks(next, title)
   }
 
   const onInput = () => {
@@ -505,6 +519,36 @@ function TextRun({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /*
+    Return, taken from the input event rather than from a key.
+
+    A laptop's Return arrives as a keydown saying "Enter". A phone's does not:
+    virtual keyboards report keydown as `Unidentified`, and the only reliable
+    account of what happened is the input event's `inputType`, which says
+    `insertParagraph` on every keyboard there is. Reading the key meant that on
+    a phone none of the rules below ran — so a list never ended, because
+    "Return on an empty item leaves the list" lives in `enter` and `enter` was
+    never called. Pressing Return again just made another numbered line, and
+    another, with no way out of the list at all.
+
+    Bound as a native listener for the same reason the smart typing is: React's
+    synthetic `onBeforeInput` is a polyfill over older events and does not
+    carry `inputType`.
+  */
+  useEffect(() => {
+    const el = host.current
+    if (!el) return
+    const onBeforeInput = (event: InputEvent) => {
+      // Shift+Return is a line break inside the paragraph, and stays the
+      // browser's own — it is the one that does not make a new line.
+      if (event.inputType !== 'insertParagraph') return
+      event.preventDefault()
+      entering.current(el)
+    }
+    el.addEventListener('beforeinput', onBeforeInput)
+    return () => el.removeEventListener('beforeinput', onBeforeInput)
+  }, [])
+
   const onBlur = () => {
     const left = wasOn.current
     wasOn.current = null
@@ -514,12 +558,6 @@ function TextRun({
   const onKeyDown = (event: React.KeyboardEvent) => {
     const el = host.current
     if (!el) return
-
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault()
-      enter(el)
-      return
-    }
 
     /*
       Tab indents the line rather than jumping out of the document.
@@ -624,23 +662,49 @@ function TextRun({
       else delete (asTyped as { html?: string }).html
     }
     const shape = beautify(asCurrent(asTyped))
-    let finished = shape ? applyShape(asTyped, shape) : asTyped
+    const finished = shape ? applyShape(asTyped, shape) : asTyped
 
     /*
-      The opening line of a document that has no title yet becomes its heading.
+      The opening line of a note that has no name yet becomes its name.
 
-      Only at the moment Enter is pressed, only on the first line, and only
+      Only at the moment Return is pressed, only on the first line, and only
       when it reads like a title rather than the start of a sentence — short,
       unpunctuated, a handful of words. It is the one line of a note that is
       almost always its name, and typing it twice is the thing nobody does.
+
+      It used to become a heading instead, which left the note wearing its name
+      twice over: an empty title box the size of a headline, and the same words
+      again as the first line under it. Handed up rather than painted here, and
+      in the same write as the lines, because two separate changes in one
+      keystroke means the second one reads a note that does not have the first.
     */
-    if (opening && at === 0 && finished.type === 'text' && looksLikeTitle(before.text)) {
-      finished = applyShape(finished, {
-        type: 'heading',
-        level: 1,
-        text: blockText(finished),
-        html: (finished as TextishBlock).html,
-      })
+    /*
+      A line carrying emphasis is never taken as the name, however much it
+      reads like one. A title is plain text — that is what makes it searchable,
+      previewable and safe to sync — so promoting "make this **important** now"
+      would quietly throw the bold away.
+    */
+    const painting = (finished as TextishBlock).html
+    const plainOpening = !painting || painting === escapeHtml(blockText(finished))
+    if (
+      opening &&
+      at === 0 &&
+      finished.type === 'text' &&
+      plainOpening &&
+      looksLikeTitle(before.text)
+    ) {
+      const carried = makeBlock('text')
+      if (isTextish(carried)) {
+        carried.text = after.text
+        if (after.html) carried.html = after.html
+      }
+      const named = [...blocks]
+      named[at] = carried
+      caretTo.current = { id: carried.id, offset: 0 }
+      wasOn.current = carried.id
+      publish(named, blockText(finished))
+      setPaintKey((key) => key + 1)
+      return
     }
 
     const next = [...blocks]
@@ -688,6 +752,10 @@ function TextRun({
     setPaintKey((key) => key + 1)
   }
 
+  useEffect(() => {
+    entering.current = enter
+  })
+
   /**
    * Paste, parsed into lines rather than dropped in as markup.
    *
@@ -727,7 +795,7 @@ function TextRun({
       ref={host}
       role="textbox"
       aria-multiline="true"
-      aria-label="Document"
+      aria-label="Note"
       contentEditable
       suppressContentEditableWarning
       spellCheck

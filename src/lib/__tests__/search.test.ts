@@ -278,3 +278,13 @@ test('a note with all the words still beats one with some', () => {
   const all = note('All', 'The printing budget is settled with the generator.')
   assert.equal(ids([some, all], 'what about the printing budget generator')[0], 'All')
 })
+
+test('a result counts how many times the word really appears', () => {
+  // The title is indexed several times over so a name outranks a mention, and
+  // that weighting must never reach the number shown to the reader.
+  const index = buildIndex([
+    note('Contract research', 'Read the tenancy contract clauses.', 'The contract is signed.'),
+  ])
+  const [hit] = search(index, 'contract')
+  assert.equal(hit.mentions, 3)
+})

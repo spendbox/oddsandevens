@@ -159,7 +159,7 @@ export default function AccountButton({
               }}
             />
             <p className="px-2.5 pt-1.5 pb-1 text-[10px] leading-snug text-[var(--color-faint)]">
-              Signing out leaves every document on this device.
+              Signing out leaves every note on this device.
             </p>
           </div>
         )}

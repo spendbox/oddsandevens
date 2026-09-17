@@ -450,7 +450,7 @@ export default function LibraryView({
         {!selecting && (
           <span
             aria-hidden
-            title="Drag onto another document to put them in a folder"
+            title="Drag onto another note to put them in a folder"
             className="ml-0.5 hidden shrink-0 cursor-grab touch-none text-[var(--color-faint)] opacity-0 group-hover/row:opacity-100 sm:block"
             onPointerDown={(event) => {
               event.stopPropagation()
@@ -562,7 +562,7 @@ export default function LibraryView({
           <Upload size={17} className="shrink-0 text-[var(--color-faint)]" />
           <span className="min-w-0">
             <span className="block text-[14px] font-medium">
-              Drop documents here, or choose files
+              Drop files here to make notes of them
             </span>
             <span className="block text-[13px] text-[var(--color-faint)]">
               PDF, Word, text and markdown are read into editable text. Anything else is kept as a
@@ -574,7 +574,7 @@ export default function LibraryView({
           ref={picker}
           type="file"
           multiple
-          aria-label="Choose documents"
+          aria-label="Choose files"
           onChange={(event) => {
             void take([...(event.target.files ?? [])])
             event.target.value = ''
@@ -585,7 +585,7 @@ export default function LibraryView({
         {busy && (
           <p className="mt-3 flex items-center justify-center gap-2 text-[13px] text-[var(--color-muted)]">
             <LoaderCircle size={13} className="animate-spin" />
-            {busy === 'reading' ? 'Reading the documents…' : 'Working out what these are…'}
+            {busy === 'reading' ? 'Reading the files…' : 'Working out what these are…'}
           </p>
         )}
 
@@ -665,7 +665,7 @@ export default function LibraryView({
                   checked={withSummaries}
                   onChange={(event) => setWithSummaries(event.target.checked)}
                 />
-                Put the summary at the top of each document
+                Put the summary at the top of each note
               </label>
               <div className="ml-auto flex items-center gap-1.5">
                 <button
@@ -684,7 +684,7 @@ export default function LibraryView({
                   }}
                   className="rounded-md bg-[var(--color-accent)] px-3 py-2 text-[14px] font-medium text-white disabled:opacity-50 sm:py-1.5"
                 >
-                  Add {usable.length} {usable.length === 1 ? 'document' : 'documents'}
+                  Add {usable.length} {usable.length === 1 ? 'note' : 'notes'}
                 </button>
               </div>
             </div>
@@ -742,7 +742,7 @@ export default function LibraryView({
               <>
                 <div className="mt-3 flex items-center gap-1 px-0.5">
                   <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-faint)]">
-                    {docs.length === 1 ? '1 document' : `${docs.length} documents`}
+                    {docs.length === 1 ? '1 note' : `${docs.length} notes`}
                   </span>
                   <button
                     type="button"

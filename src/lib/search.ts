@@ -88,8 +88,17 @@ export function searchableText(doc: Doc): string {
 interface Entry {
   id: string
   doc: Doc
-  /** Term -> how many times it appears. */
+  /** Term -> how many times it appears, with the title weighted. */
   counts: Map<string, number>
+  /**
+   * Term -> how many times it actually appears.
+   *
+   * A second, honest count, because the one above is deliberately not: the
+   * title is indexed several times over so a word in the name outranks the
+   * same word in the body. That is right for ranking and a lie to print, and
+   * "6 mentions" is printed.
+   */
+  mentions: Map<string, number>
   length: number
   /** The body text as written, for pulling a snippet out of. */
   text: string
@@ -119,6 +128,10 @@ export function buildIndex(docs: Doc[]): SearchIndex {
     const terms = tokenize(text)
     const counts = new Map<string, number>()
     for (const term of terms) counts.set(term, (counts.get(term) ?? 0) + 1)
+    const mentions = new Map<string, number>()
+    for (const term of tokenize(`${doc.title} ${doc.blocks.map(blockText).join(' ')}`)) {
+      mentions.set(term, (mentions.get(term) ?? 0) + 1)
+    }
     for (const term of counts.keys()) {
       docFrequency.set(term, (docFrequency.get(term) ?? 0) + 1)
     }
@@ -126,6 +139,7 @@ export function buildIndex(docs: Doc[]): SearchIndex {
       id: doc.id,
       doc,
       counts,
+      mentions,
       length: terms.length,
       text: [doc.title, ...doc.blocks.map(blockText)].filter(Boolean).join('  '),
     })
@@ -147,6 +161,15 @@ export interface SearchHit {
   highlights: Array<[number, number]>
   /** Which query words actually matched, so a result can explain itself. */
   matched: string[]
+  /**
+   * How many times those words appear in the whole note, not just in the
+   * passage shown.
+   *
+   * It is what lets the results say "4 notes · 6 mentions", which answers a
+   * question a list of titles cannot: whether the thing you are looking for
+   * was written about once in passing or six times.
+   */
+  mentions: number
 }
 
 /** BM25's two knobs, at the values the literature settled on. */
@@ -182,6 +205,7 @@ export function search(index: SearchIndex, query: string, limit = 20): SearchHit
   for (const entry of index.entries) {
     let score = 0
     let found = 0
+    let mentions = 0
     const matched: string[] = []
 
     for (const word of words) {
@@ -196,7 +220,13 @@ export function search(index: SearchIndex, query: string, limit = 20): SearchHit
           frequency * (K1 + 1) /
           (frequency + K1 * (1 - B + (B * entry.length) / (index.averageLength || 1)))
         best = Math.max(best, idf * normalised * weight)
-        if (!matched.includes(term)) matched.push(term)
+        if (!matched.includes(term)) {
+          matched.push(term)
+          // From the honest count, not the ranking one — and once per
+          // distinct term, so a word and the longer word it expands to are
+          // not both counted for the same occurrence.
+          mentions += entry.mentions.get(term) ?? 0
+        }
       }
       if (best > 0) found++
       score += best
@@ -204,7 +234,10 @@ export function search(index: SearchIndex, query: string, limit = 20): SearchHit
 
     if (score > 0) {
       const { snippet, highlights } = excerpt(entry.text, matched)
-      scored.push({ hit: { doc: entry.doc, score, snippet, highlights, matched }, found })
+      scored.push({
+        hit: { doc: entry.doc, score, snippet, highlights, matched, mentions },
+        found,
+      })
     }
   }
 

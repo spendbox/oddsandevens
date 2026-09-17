@@ -113,9 +113,22 @@ export interface DictationButtonProps {
   title: string
   /** False when no key is configured: the transcript goes in as it was heard. */
   aiReady: boolean
+  /**
+   * True when this one is on the notes screen rather than on a note.
+   *
+   * That screen is a full-window dialog, and this button is a portal to the
+   * body — so without being lifted above it, the recorder renders behind the
+   * screen it belongs to and cannot be pressed at all.
+   */
+  overDialog?: boolean
 }
 
-export default function DictationButton({ onWrite, title, aiReady }: DictationButtonProps) {
+export default function DictationButton({
+  onWrite,
+  title,
+  aiReady,
+  overDialog = false,
+}: DictationButtonProps) {
   const supported = useSyncExternalStore(
     neverChanges,
     () => recogniser() !== null,
@@ -322,6 +335,10 @@ export default function DictationButton({ onWrite, title, aiReady }: DictationBu
   if (!supported) return null
 
   const listening = state === 'listening'
+  // Whole class names, never a string built from a variable: Tailwind reads
+  // the source for the classes it generates and cannot see one that is
+  // assembled at runtime.
+  const layer = overDialog ? 'z-[60]' : 'z-30'
 
   return createPortal(
     <>
@@ -335,7 +352,7 @@ export default function DictationButton({ onWrite, title, aiReady }: DictationBu
         <div
           role="status"
           aria-live="polite"
-          className="fixed right-4 bottom-20 z-30 max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2 shadow-lg sm:right-6 sm:bottom-24 sm:w-80 print:hidden"
+          className={`fixed right-4 bottom-20 ${layer} max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2 shadow-lg sm:right-6 sm:bottom-24 sm:w-80 print:hidden`}
         >
           {listening && (
             <p className="flex items-center gap-2 text-[13px] font-medium">
@@ -365,7 +382,7 @@ export default function DictationButton({ onWrite, title, aiReady }: DictationBu
           )}
           {listening && (
             <p className="mt-1 text-[12px] text-[var(--color-faint)]">
-              Press again to stop. It goes into the document then, not before.
+              Press again to stop. It goes into the note then, not before.
             </p>
           )}
         </div>
@@ -386,10 +403,17 @@ export default function DictationButton({ onWrite, title, aiReady }: DictationBu
           is granted against.
         */
         onClick={() => (listening ? stop() : start())}
-        className={`fixed right-4 bottom-4 z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-colors disabled:opacity-60 sm:right-6 sm:bottom-6 print:hidden ${
+        /*
+          Black, not the app's green. The green says "this is what kind of note
+          that is" everywhere else in the app, and a recorder is not a kind of
+          note; a black circle is what a microphone button is on every phone
+          ever made, and it is the one control here that has to be recognised
+          before it is read.
+        */
+        className={`fixed right-4 bottom-4 ${layer} flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-colors disabled:opacity-60 sm:right-6 sm:bottom-6 print:hidden ${
           listening
             ? 'bg-[var(--color-danger)] text-white'
-            : 'bg-[var(--color-accent)] text-white hover:opacity-90'
+            : 'bg-[var(--color-ink)] text-[var(--color-paper)] hover:opacity-90'
         }`}
       >
         {state === 'writing' ? (

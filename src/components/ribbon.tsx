@@ -6,7 +6,7 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
-  ChevronDown,
+  ChevronLeft,
   Code,
   Ellipsis,
   IndentDecrease,
@@ -18,6 +18,7 @@ import {
   Minus,
   Paperclip,
   Redo2,
+  Settings2,
   ListChecks,
   Strikethrough,
   Table,
@@ -30,35 +31,42 @@ import type { Align, BlockType } from '@/lib/types'
 import { applyFormat } from './format-toolbar'
 
 /**
- * The toolbar above the page.
+ * The one bar above a note.
  *
- * ## Why a word processor has one and a block editor does not
+ * ## What is on it
  *
- * A block editor hides its controls until you hover the thing they act on,
- * which is elegant in a screenshot and unhelpful in use: you cannot see what
- * the application can do without waving the pointer over the document, and the
- * controls move as the pointer moves. A word processor puts them in one fixed
- * place, always visible, always in the same order — so after a week your hand
- * goes to Bold without your eyes going anywhere at all.
- *
- * ## Why there are four buttons on it
- *
- * It had twenty. Undo, redo, a style menu, five marks, four lists, Insert,
- * More and Ask — all correct, all reachable, and collectively a band of grey
- * furniture across the top of every page somebody opened to write on. So it is
- * down to what is worth permanent room: undo, redo, ⋯ and one action button.
- * Everything else moved one press away into the ⋯ menu, and the formatting
- * people reach for most is already on the bar that appears over a selection,
+ * The way back to the notes, a word saying the note is saved, the action
+ * button, and ⋯. That is all of it, and it is the second time this row has
+ * been cut in half: it had twenty controls, then four, and now it does not
+ * even hold undo. Everything that left is one press inside the ⋯, and the
+ * marks people reach for most are on the bar that appears over a selection,
  * which is where a word processor has put its mini toolbar for twenty years.
  *
- * The last slot has held three different things. It was a sparkle in the
- * corner, then Ask, then Ask beside Brain — and every version of it was a way
- * of rewriting the sentence somebody was in the middle of. What is there now
- * is the one thing a page of notes is actually for: reading it back and saying
- * what happens next. Nothing else on this bar talks to a model.
- *
- * Nothing became unreachable. That is the line: a quieter toolbar is worth a
+ * Nothing became unreachable. That is the line: a quieter bar is worth a
  * press, and is not worth a feature.
+ *
+ * ## Why there is only one bar now
+ *
+ * There were two — the application's, then the note's — which on a 390-pixel
+ * screen is a third of the display gone before a word of the note. The
+ * elaborate machinery that folded one of them away on scroll went with it:
+ * the best way to stop two bars stacking is to have one bar.
+ *
+ * ## Why "Saved" is on it at all
+ *
+ * Because nothing here has a save button, and an app with no save button has
+ * to say so. It is the quietest possible reassurance — a word, in the middle,
+ * in grey — and it is the answer to the only question somebody has about a
+ * notes app they have just started trusting.
+ *
+ * ## Why every button is pointerdown with preventDefault
+ *
+ * A click blurs the block first, and a formatting command with no selection
+ * left to act on does nothing at all. This is the single most common way a
+ * toolbar over a contenteditable ends up silently broken. The ones that *open*
+ * something still act on click, because acting on pointerdown puts a panel
+ * under a finger that is still down and the click completing the tap lands on
+ * it.
  *
  * ## Why the marks are read from the selection rather than from the block
  *
@@ -66,12 +74,6 @@ import { applyFormat } from './format-toolbar'
  * honest source for "is the caret in bold text" is the selection itself. One
  * `selectionchange` listener for the whole editor, as in format-toolbar.tsx,
  * rather than one per block: blocks are cheap and document listeners are not.
- *
- * ## Why every button is pointerdown with preventDefault
- *
- * A click blurs the block first, and a formatting command with no selection
- * left to act on does nothing at all. This is the single most common way a
- * toolbar over a contenteditable ends up silently broken.
  */
 
 /** What the caret is currently sitting in, as far as these controls care. */
@@ -100,6 +102,12 @@ export interface RibbonProps {
   onRedo: () => void
   canUndo: boolean
   canRedo: boolean
+  /** Back to the notes. The only navigation on this bar, and the first thing on it. */
+  onBack: () => void
+  /** Opens the menu that holds this note's settings. */
+  onMenu: () => void
+  /** False once every keystroke has reached the disk. */
+  saving: boolean
 }
 
 /** The paragraph styles, in the order a style menu has listed them since 1990. */
@@ -156,6 +164,9 @@ export default function Ribbon({
   onRedo,
   canUndo,
   canRedo,
+  onBack,
+  onMenu,
+  saving,
 }: RibbonProps) {
   const [marks, setMarks] = useState({
     bold: false,
@@ -225,33 +236,65 @@ export default function Ribbon({
       className="sticky top-0 z-20 flex items-center gap-0.5 rounded-t-lg border-b border-[var(--color-line)] bg-[var(--color-paper)] px-1.5 py-1.5 sm:px-2"
     >
       {/*
-        Undo and redo, first, which is where they have been in every editor
-        since they existed. See lib/history.ts for why the browser's own undo
-        could not do this: it keeps a stack per paragraph, and knows nothing
-        about a split, a delete or a rewrite applied to the whole page.
+        The way back to the notes, which on a phone is the only way back there
+        is. A word beside the chevron, because a bare chevron is a guess.
       */}
-      <Tool label="Undo" shortcut="Ctrl+Z" disabled={!canUndo} onRun={onUndo}>
-        <Undo2 size={15} />
-      </Tool>
-      <Tool label="Redo" shortcut="Ctrl+Shift+Z" disabled={!canRedo} onRun={onRedo}>
-        <Redo2 size={15} />
-      </Tool>
+      <button
+        type="button"
+        onClick={onBack}
+        aria-label="Back to notes"
+        className="flex h-9 shrink-0 items-center gap-0.5 rounded-lg pr-2 pl-1 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+      >
+        <ChevronLeft size={19} />
+        Notes
+      </button>
 
-      {/* --------------------------------------------------------- everything */}
-      <div className="relative ml-1 shrink-0">
+      {/*
+        The one word this app says about saving.
+
+        In the middle, in grey, and never a button: there is nothing to press,
+        which is the point being made. It says "Saving…" for the few hundred
+        milliseconds between a keystroke and the disk, so the word is
+        demonstrably live rather than a label somebody printed on the bar.
+      */}
+      <p
+        role="status"
+        aria-live="polite"
+        className="min-w-0 flex-1 truncate text-center text-[13px] text-[var(--color-faint)]"
+      >
+        {saving ? 'Saving…' : 'Saved'}
+      </p>
+
+      <div className="relative shrink-0">
         <button
           type="button"
-          aria-label="Formatting and insert"
+          aria-label="More"
           aria-expanded={menu === 'more'}
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => setMenu(menu === 'more' ? null : 'more')}
-          className="flex h-8 items-center gap-1 rounded-lg px-2 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
         >
-          <Ellipsis size={16} />
-          <ChevronDown size={13} className="opacity-50" />
+          <Ellipsis size={18} />
         </button>
         {menu === 'more' && (
           <Menu>
+            {/*
+              Undo and redo used to have permanent room on the bar, which is
+              where they have been in every editor since they existed — and
+              which is also two more pieces of furniture over a page somebody
+              opened to write on. They are first in here, they are still
+              Ctrl+Z, and they are still not the browser's own: see
+              lib/history.ts for why a stack per paragraph could not do this.
+            */}
+            <Group label="Undo">
+              <Tool label="Undo" shortcut="Ctrl+Z" disabled={!canUndo} onRun={onUndo}>
+                <Undo2 size={15} />
+              </Tool>
+              <Tool label="Redo" shortcut="Ctrl+Shift+Z" disabled={!canRedo} onRun={onRedo}>
+                <Redo2 size={15} />
+              </Tool>
+            </Group>
+
             <Group label="Style">
               <select
                 aria-label="Paragraph style"
@@ -361,6 +404,27 @@ export default function Ribbon({
 
             <div className="my-1 h-px bg-[var(--color-line)]" />
 
+            {/*
+              Everything about this note that is not typing — where it is
+              filed, how it gets out, and deleting it — is one row from here
+              and lives in the menu beside it. One home for those, rather than
+              a second copy of each drifting out of step.
+            */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenu(null)
+                onMenu()
+              }}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[14px] hover:bg-[var(--color-hover)]"
+            >
+              <span className="shrink-0 text-[var(--color-muted)]">
+                <Settings2 size={15} />
+              </span>
+              This note, and where it is filed
+            </button>
+
             {INSERTS.map((item) => (
               <button
                 key={item.type}
@@ -381,8 +445,6 @@ export default function Ribbon({
           </Menu>
         )}
       </div>
-
-      <div className="ml-auto" />
 
       {/*
         The action button, and the only thing on this bar that reads the page.
@@ -408,7 +470,7 @@ export default function Ribbon({
         */
         onPointerDown={(e) => e.preventDefault()}
         onClick={onPlan}
-        className="ml-1 flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-accent-soft)] px-2.5 text-[14px] font-medium text-[var(--color-accent)] hover:opacity-85"
+        className="mr-1 flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-accent-soft)] px-2.5 text-[14px] font-medium text-[var(--color-accent)] hover:opacity-85"
       >
         <ListChecks size={15} />
         Actions
@@ -424,7 +486,7 @@ function Menu({ children }: { children: React.ReactNode }) {
       role="menu"
       // Full width on a phone, where a panel hanging off a button near the
       // right-hand edge is half off the side of the screen.
-      className="fixed inset-x-2 top-14 z-50 max-h-[70dvh] overflow-y-auto rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-2xl sm:absolute sm:inset-x-auto sm:top-full sm:left-0 sm:mt-1 sm:w-60"
+      className="fixed inset-x-2 top-14 z-50 max-h-[70dvh] overflow-y-auto rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-2xl sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-1 sm:w-60"
     >
       {children}
     </div>

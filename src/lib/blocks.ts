@@ -1,6 +1,6 @@
 import { newId } from './id.ts'
 import type { PastedBlock } from './paste.ts'
-import { isTextish, type Block, type BlockType, type Doc } from './types.ts'
+import { blockText, isTextish, type Block, type BlockType, type Doc } from './types.ts'
 
 /**
  * Makes an empty block of a given type. One factory, so a block created by
@@ -148,6 +148,32 @@ export function docLabel(doc: Doc): string {
   const preview = docPreview(doc.blocks)
   if (preview === 'Empty') return 'Untitled'
   return preview.length > 60 ? `${preview.slice(0, 60).trimEnd()}…` : preview
+}
+
+/**
+ * The opening of a note, as one run of words, for the two lines under its name
+ * in a list.
+ *
+ * Longer than `docPreview` and for a different job: that one is a single line
+ * standing in for the note, this is the start of the note itself. Whatever is
+ * already being shown as the name is skipped, because a row that says the same
+ * sentence twice — once in bold and once under it — has told the reader one
+ * thing and spent two lines doing it.
+ */
+export function docOpening(doc: Doc, chars = 200): string {
+  const label = docLabel(doc)
+  const parts: string[] = []
+  for (const block of doc.blocks) {
+    const text = blockText(block).trim()
+    if (!text) continue
+    // The line the name came from, whether that was the title or a heading.
+    if (!parts.length && (text === label || label.startsWith(text.slice(0, 60)))) continue
+    parts.push(text)
+    if (parts.join(' ').length >= chars) break
+  }
+  const all = parts.join(' ')
+  if (all.length <= chars) return all
+  return `${all.slice(0, chars).trimEnd()}…`
 }
 
 /**

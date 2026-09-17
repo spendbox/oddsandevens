@@ -11,23 +11,44 @@
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono:
     ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  /*
+   * The writing is set in a serif, and it is a system serif for exactly the
+   * reason there is no web font: every machine this runs on already has one in
+   * memory. A serif is what a note written by a person looks like — the app
+   * chrome stays in the interface sans, so the two never read as one voice.
+   */
+  --font-serif:
+    ui-serif, Charter, 'Iowan Old Style', Georgia, 'Times New Roman', 'Noto Serif', serif;
 
-  --color-paper: #ffffff;
-  --color-ink: #17171a;
-  --color-muted: #5f5f6b;
-  --color-faint: #8b8b98;
-  --color-line: #e4e4ea;
-  --color-hover: #f3f3f6;
-  --color-accent: #4f46e5;
-  --color-accent-soft: #eef2ff;
-  --color-danger: #dc2626;
-  --color-good: #059669;
+  /*
+   * Paper, not screen. A note is a small warm thing somebody writes in a queue
+   * or in a meeting, and a pure #fff rectangle reads as an empty form to fill
+   * in. The cream is the whole difference between the two, and it costs
+   * nothing.
+   */
+  --color-paper: #faf7f1;
+  --color-ink: #1d1b17;
+  --color-muted: #6a6459;
+  --color-faint: #9a9287;
+  --color-line: #e8e1d4;
+  --color-hover: #f1ebe0;
+  /*
+   * Green is the only colour in here with a job: it says what kind of note
+   * this is, and it is the same green every time it does. Nothing else is
+   * allowed it, so the eye learns it in a day.
+   */
+  --color-accent: #2f7d5d;
+  --color-accent-soft: #e2efe7;
+  --color-danger: #b4402c;
+  --color-good: #2f7d5d;
+  /* The yellow a searched word is marked in, and nothing else. */
+  --color-mark: #f7e08a;
   /*
    * The surface *behind* the page. A word processor puts the sheet on a desk;
    * without something behind it there is no page, only a window with words in
    * it, and the edge of the writing measure has nothing to be an edge of.
    */
-  --color-desk: #f4f4f6;
+  --color-desk: #f2ece1;
 }
 
 /*
@@ -37,32 +58,34 @@
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --color-paper: #1c1d21;
-    --color-ink: #eeeff3;
-    --color-muted: #a3a4ae;
-    --color-faint: #76777f;
-    --color-line: #2f3138;
-    --color-hover: #26282d;
-    --color-accent: #8b85f5;
-    --color-accent-soft: #26263e;
-    --color-danger: #f87171;
-    --color-good: #34d399;
-    --color-desk: #131417;
+    --color-paper: #1b1a17;
+    --color-ink: #efeae1;
+    --color-muted: #a49d91;
+    --color-faint: #7b746a;
+    --color-line: #2e2b26;
+    --color-hover: #26231e;
+    --color-accent: #77c4a0;
+    --color-accent-soft: #1f3029;
+    --color-danger: #e08b78;
+    --color-good: #77c4a0;
+    --color-mark: #6a5a20;
+    --color-desk: #131210;
   }
 }
 
 :root[data-theme='dark'] {
-  --color-paper: #1c1d21;
-  --color-ink: #eeeff3;
-  --color-muted: #a3a4ae;
-  --color-faint: #76777f;
-  --color-line: #2f3138;
-  --color-hover: #26282d;
-  --color-accent: #8b85f5;
-  --color-accent-soft: #26263e;
-  --color-danger: #f87171;
-  --color-good: #34d399;
-  --color-desk: #131417;
+  --color-paper: #1b1a17;
+  --color-ink: #efeae1;
+  --color-muted: #a49d91;
+  --color-faint: #7b746a;
+  --color-line: #2e2b26;
+  --color-hover: #26231e;
+  --color-accent: #77c4a0;
+  --color-accent-soft: #1f3029;
+  --color-danger: #e08b78;
+  --color-good: #77c4a0;
+  --color-mark: #6a5a20;
+  --color-desk: #131210;
 }
 
 /*
@@ -137,14 +160,46 @@ body {
  * it, the small print steps down from it, and nothing is a fixed pixel value —
  * so the size control changes a typographic scale rather than one paragraph.
  */
+/*
+ * The writing is a serif; the app around it is not.
+ *
+ * It is the one typographic decision in here that people notice without being
+ * able to say what it was. A note set in the same interface font as the
+ * buttons reads as a field in a form; set in a book face it reads as something
+ * somebody wrote. The stack is the system's own, so no byte is downloaded for
+ * it — see the note at the top of this file.
+ */
 .pad-doc {
+  font-family: var(--font-serif);
   font-size: var(--doc-text);
   line-height: var(--doc-leading);
 }
 
 .pad-doc-title {
+  font-family: var(--font-serif);
   font-size: calc(var(--doc-text) * 1.9);
   line-height: 1.2;
+}
+
+/* The same book face, for the places outside the page that quote a note: the
+   title and the two lines of preview in a list, and a search result. */
+.pad-serif {
+  font-family: var(--font-serif);
+}
+
+/*
+ * A searched word, marked where it was found.
+ *
+ * `<mark>` is the element for it, so a screen reader says so, and the colour
+ * is the one yellow in the app. Inheriting the colour rather than taking the
+ * browser's black keeps it readable in dark mode, where the yellow is a dark
+ * olive and black text on it would not be.
+ */
+.pad-mark {
+  background: var(--color-mark);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.1em;
 }
 
 .pad-h1 {
@@ -181,11 +236,12 @@ body {
 .pad-sticky-heading {
   position: sticky;
   /*
-    Just below the toolbar, which is 45px tall and sticky at zero in the same
+    Just below the bar, which is 49px tall and sticky at zero in the same
     scroller. Two things stuck to the same line sit on top of each other, and a
-    heading that covers the undo button is worse than one that scrolls away.
+    heading that covers the way back to the notes is worse than one that
+    scrolls away.
   */
-  top: 2.9rem;
+  top: 3.1rem;
   z-index: 10;
   background: var(--color-paper);
   /* A hair of padding, so descenders are not clipped by the line above. */

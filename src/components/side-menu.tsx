@@ -19,8 +19,10 @@ import { docLabel } from '@/lib/blocks'
 import { useFolds } from '@/lib/folds'
 import type { Doc, Project } from '@/lib/types'
 import { when } from '@/lib/when'
+import AccountButton, { type Account } from './account'
 import DocIcon from './doc-icon'
 import DocSettings, { type DocSettingsProps } from './doc-settings'
+import type { SyncState } from '@/lib/sync'
 
 /**
  * The side menu: where you are, and everything about it.
@@ -68,8 +70,21 @@ export interface SideMenuProps {
   onTheme: () => void
   wide: boolean
   onWide: () => void
-  /** Everything the open document's settings need. */
+  /** Everything the open note's settings need. */
   settings: Omit<DocSettingsProps, 'doc' | 'projects' | 'project'>
+  /*
+    Signing in, and what sync is doing.
+
+    It used to be a button in the application's header. There is no
+    application header any more — a note has one bar and it belongs to the
+    note — so the account lives here, with the other things that are about the
+    app rather than about what is written in it.
+  */
+  account: Account | null
+  syncState: SyncState
+  onSignedIn: (account: Account) => void
+  onSignedOut: () => void
+  onSyncNow: () => void
 }
 
 export default function SideMenu({
@@ -90,6 +105,11 @@ export default function SideMenu({
   wide,
   onWide,
   settings,
+  account,
+  syncState,
+  onSignedIn,
+  onSignedOut,
+  onSyncNow,
 }: SideMenuProps) {
   const { folded, toggle } = useFolds()
   const siblings = doc ? folderDocs.filter((item) => item.id !== doc.id) : []
@@ -126,7 +146,7 @@ export default function SideMenu({
         sections and pushed the document itself below the fold on a phone.
       */}
       <div className="flex shrink-0 items-stretch gap-1 px-2 pb-1.5">
-        <Destination icon={<House size={17} />} label="Home" onClick={onHome} />
+        <Destination icon={<House size={17} />} label="Notes" onClick={onHome} />
         <Destination icon={<Library size={17} />} label="Library" onClick={onLibrary} />
         <Destination icon={<Search size={17} />} label="Search" onClick={onSearch} />
       </div>
@@ -137,7 +157,7 @@ export default function SideMenu({
           onClick={onNew}
           className="flex w-full items-center justify-center gap-1.5 rounded-md bg-[var(--color-accent)] px-2.5 py-2 text-[14px] font-medium text-white hover:opacity-90"
         >
-          <Plus size={15} /> New document
+          <Plus size={15} /> New note
         </button>
       </div>
 
@@ -205,6 +225,19 @@ export default function SideMenu({
         )}
 
         {doc && <DocSettings doc={doc} projects={projects} project={project} {...settings} />}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2 border-t border-[var(--color-line)] px-3 py-2">
+        <AccountButton
+          account={account}
+          syncState={syncState}
+          onSignedIn={onSignedIn}
+          onSignedOut={onSignedOut}
+          onSyncNow={onSyncNow}
+        />
+        <span className="truncate text-[13px] text-[var(--color-muted)]">
+          {account ? account.email : 'Not signed in'}
+        </span>
       </div>
 
       <div className="flex shrink-0 items-center gap-1 border-t border-[var(--color-line)] px-2 py-2">

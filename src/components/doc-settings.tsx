@@ -145,7 +145,7 @@ export default function DocSettings({
       */}
       <button
         type="button"
-        aria-label="Move this document to a folder"
+        aria-label="Move this note to a folder"
         onClick={() => setMoving(true)}
         className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] hover:bg-[var(--color-hover)] ${
           project ? 'text-[var(--color-muted)]' : 'text-[var(--color-accent)]'
@@ -184,7 +184,7 @@ export default function DocSettings({
         </span>
       </button>
 
-      <Section id="doc-file" label="This file" folded={folded('doc-file')} onToggle={toggle}>
+      <Section id="doc-file" label="This note" folded={folded('doc-file')} onToggle={toggle}>
         {share.url ? (
           <div className="px-1 py-1">
             <p className="mb-1 text-[12px] text-[var(--color-faint)]">
@@ -262,7 +262,7 @@ export default function DocSettings({
                   busy: false,
                   problem: isSyncConfigured()
                     ? 'Sign in first — the button is in the top right.'
-                    : 'Sharing publishes a copy to a server, so it needs an account. This copy of Pad has none set up. You can still download the document or save it as a PDF.',
+                    : 'Sharing publishes a copy to a server, so it needs an account. This copy of Pad has none set up. You can still download the note or save it as a PDF.',
                 })
                 return
               }
@@ -367,7 +367,7 @@ export default function DocSettings({
         ) : (
           <Row
             icon={<Trash2 size={14} />}
-            label="Delete this document"
+            label="Delete this note"
             hint="Recoverable from the trash for 7 days"
             danger
             onClick={() => setConfirming(true)}

@@ -22,3 +22,58 @@ export function when(at: number, now = Date.now()): string {
   if (days < 7) return `${days} days ago`
   return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
+
+/**
+ * When a note was last touched, as a list would print it.
+ *
+ * A different question from `when` above, and the reason both exist: in a
+ * sentence about one note, "3 minutes ago" is what somebody wants; in a column
+ * beside forty of them, every row saying "ago" is noise and the eye is
+ * actually scanning for *today* against *not today*. So today is a clock time,
+ * yesterday says so, and anything older is a date — which is what every
+ * messaging app and every mail client has settled on, because it is the form
+ * that answers the question at a glance.
+ *
+ * `now` is a parameter for the same reason it is above: midnight, the turn of
+ * the year and a stamp from the future are unit tests rather than something to
+ * reproduce by waiting.
+ */
+export function stamp(at: number, now = Date.now()): string {
+  const then = new Date(at)
+  const today = new Date(now)
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+
+  // A clock time, never a date, for anything written today — including
+  // anything stamped slightly in the future, which two devices with clocks a
+  // minute apart produce all the time.
+  if (sameDay(then, today) || at > now) {
+    return then.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  }
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (sameDay(then, yesterday)) return 'Yesterday'
+  if (then.getFullYear() === today.getFullYear()) {
+    return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  }
+  return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+/**
+ * The same moment, written out, for the one line under a note's title.
+ *
+ * There is room for both halves there and only one note to describe, so it
+ * says the day *and* the time — "Today, 4:32 PM" is the line somebody reads
+ * once when they open a note to work out whether it is the one from this
+ * morning.
+ */
+export function longStamp(at: number, now = Date.now()): string {
+  const day = stamp(at, now)
+  const time = new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  // Today's stamp is already the time, so saying it twice would read
+  // "4:32 PM, 4:32 PM".
+  if (day === time) return `Today, ${time}`
+  return `${day}, ${time}`
+}
