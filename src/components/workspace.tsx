@@ -89,15 +89,14 @@ export default function Workspace() {
    */
   const [aiReady, setAiReady] = useState(false)
   /**
-   * A press in the side menu that has to land inside the editor.
+   * A press of the action button in the side menu.
    *
-   * Brain and Ask are properties of the open document, so the side menu offers
-   * them — but both are painted over the editing surface, which owns where the
-   * caret is and what a rewrite would be applied to. A counter rather than a
-   * boolean, so pressing Ask twice in a row opens it twice; the editor reads
-   * the number changing and never has to be told to clear it.
+   * The plan is painted over the editing surface, which is what holds the
+   * document; the side menu only asks for it. A counter rather than a boolean,
+   * so pressing it twice in a row opens it twice, and the editor reads the
+   * number changing rather than having to be told to clear a flag.
    */
-  const [command, setCommand] = useState<{ kind: 'brain' | 'ask'; n: number } | null>(null)
+  const [command, setCommand] = useState<{ kind: 'plan'; n: number } | null>(null)
   /**
    * Whether the app header has folded away.
    *
@@ -596,27 +595,6 @@ export default function Workspace() {
     [docs],
   )
 
-  /**
-   * Writes what the open document is for. See lib/goals.ts.
-   *
-   * Through `update` like any other edit, so it is saved, listed, synced and
-   * undoable identically — a goal is a field on the document, not a setting
-   * beside it.
-   */
-  const setGoals = useCallback(
-    (goals: string[]) => {
-      const current = latest.current
-      if (!current) return
-      const next: Doc = { ...current, updatedAt: Date.now() }
-      // Absent rather than empty, so a document nobody has told is stored
-      // exactly as one written before goals existed.
-      if (goals.length) next.goals = goals
-      else delete next.goals
-      update(next)
-    },
-    [update],
-  )
-
   /** Puts one document into a new project of its own, from the row menu. */
   const newProjectWith = useCallback(
     async (docId: string) => {
@@ -874,17 +852,10 @@ export default function Workspace() {
             onImportWord: (file) => void importWord(file),
             importing,
             accountId: account?.id ?? null,
-            onBrain: () => {
+            onPlan: () => {
               setDrawer(false)
-              setCommand((current) => ({ kind: 'brain', n: (current?.n ?? 0) + 1 }))
+              setCommand((current) => ({ kind: 'plan', n: (current?.n ?? 0) + 1 }))
             },
-            onAsk: aiReady
-              ? () => {
-                  setDrawer(false)
-                  setCommand((current) => ({ kind: 'ask', n: (current?.n ?? 0) + 1 }))
-                }
-              : undefined,
-            onGoals: setGoals,
           }}
         />
       </aside>
@@ -1038,21 +1009,6 @@ export default function Workspace() {
                   externalRevision={undoRevision}
                   command={command}
                   aiReady={aiReady}
-                  onRules={(rules) => {
-                    const next: Doc = { ...doc, updatedAt: Date.now() }
-                    // An absent field rather than an empty array, so a document
-                    // with no rules is stored exactly as one written before
-                    // Brain existed.
-                    if (rules.length) next.rules = rules
-                    else delete next.rules
-                    update(next)
-                  }}
-                  onIgnoreRules={(ignored) => {
-                    const next: Doc = { ...doc, updatedAt: Date.now() }
-                    if (ignored) next.ignoreRules = true
-                    else delete next.ignoreRules
-                    update(next)
-                  }}
                 />
               </div>
             )}

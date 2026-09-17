@@ -38,7 +38,7 @@ import type { Doc } from '@/lib/types'
  *
  * Which picture is decided in `lib/doc-icon.ts`, which is plain data and has a
  * test; this file is only the translation from a name to a glyph. The split is
- * the same one `slash-items.ts` makes, and for the same reason: the thing worth
+ * the same one `plan.ts` makes, and for the same reason: the thing worth
  * testing is which icon a document gets, not which SVG the icon resolves to.
  */
 const GLYPHS: Record<IconName, React.ComponentType<{ size?: number; className?: string }>> = {

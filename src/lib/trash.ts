@@ -57,11 +57,6 @@ export function purge(doc: Doc, now = Date.now()): Doc {
     blocks: [],
     projectId: undefined,
     favoritedAt: undefined,
-    // Everything the document said about itself goes with its contents. What
-    // is left is a tombstone: an id and the fact that it is gone.
-    rules: undefined,
-    ignoreRules: undefined,
-    goals: undefined,
     purgedAt: now,
     updatedAt: now,
   }

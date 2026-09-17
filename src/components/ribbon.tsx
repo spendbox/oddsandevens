@@ -2,7 +2,6 @@
 
 import {
   AlignCenter,
-  Brain,
   AlignJustify,
   AlignLeft,
   AlignRight,
@@ -19,7 +18,7 @@ import {
   Minus,
   Paperclip,
   Redo2,
-  Sparkles,
+  ListChecks,
   Strikethrough,
   Table,
   TextQuote,
@@ -47,15 +46,16 @@ import { applyFormat } from './format-toolbar'
  * It had twenty. Undo, redo, a style menu, five marks, four lists, Insert,
  * More and Ask — all correct, all reachable, and collectively a band of grey
  * furniture across the top of every page somebody opened to write on. So it is
- * down to what is worth permanent room: undo, redo, ⋯ and Ask. Everything else
- * moved one press away into the ⋯ menu, and the formatting people reach for
- * most is already on the bar that appears over a selection, which is where a
- * word processor has put its mini toolbar for twenty years.
+ * down to what is worth permanent room: undo, redo, ⋯ and one action button.
+ * Everything else moved one press away into the ⋯ menu, and the formatting
+ * people reach for most is already on the bar that appears over a selection,
+ * which is where a word processor has put its mini toolbar for twenty years.
  *
- * Brain went the same way. It had its own button for a round, and then the
- * side menu grew a proper place for everything about the open document —
- * where it is filed, what it is for, how typing behaves — and a second Brain
- * button on the bar was a second door onto one room.
+ * The last slot has held three different things. It was a sparkle in the
+ * corner, then Ask, then Ask beside Brain — and every version of it was a way
+ * of rewriting the sentence somebody was in the middle of. What is there now
+ * is the one thing a page of notes is actually for: reading it back and saying
+ * what happens next. Nothing else on this bar talks to a model.
  *
  * Nothing became unreachable. That is the line: a quieter toolbar is worth a
  * press, and is not worth a feature.
@@ -92,21 +92,14 @@ export interface RibbonProps {
   onIndent: (by: -1 | 1) => void
   /** Insert a block that is not a paragraph: a table, some code, a form. */
   onInsert: (type: BlockType) => void
-  /** Open the writing assistant. Absent when no key is configured. */
-  onAssist?: () => void
+  /** Reads the document back and shows what to do next. Never runs on its own. */
+  onPlan: () => void
   textSize: 'medium' | 'large' | 'huge'
   onTextSize: (next: 'medium' | 'large' | 'huge') => void
   onUndo: () => void
   onRedo: () => void
   canUndo: boolean
   canRedo: boolean
-  /** How typing behaves. See MODE in lib/ui-prefs.ts. */
-  mode: 'word' | 'blocks'
-  onMode: (next: 'word' | 'blocks') => void
-  /** Opens this document's rules. */
-  onBrain: () => void
-  /** How many live rules it has, so the button can say so. */
-  ruleCount: number
 }
 
 /** The paragraph styles, in the order a style menu has listed them since 1990. */
@@ -156,19 +149,14 @@ export default function Ribbon({
   onAlign,
   onIndent,
   onInsert,
-  onAssist,
+  onPlan,
   textSize,
   onTextSize,
   onUndo,
   onRedo,
   canUndo,
   canRedo,
-  mode,
-  onMode,
-  onBrain,
-  ruleCount,
 }: RibbonProps) {
-  const hasRules = ruleCount > 0
   const [marks, setMarks] = useState({
     bold: false,
     italic: false,
@@ -390,75 +378,6 @@ export default function Ribbon({
               </button>
             ))}
 
-            <div className="my-1 h-px bg-[var(--color-line)]" />
-
-            {/*
-              Brain: this document's own rules. Also in the side menu, which is
-              where everything about the open document lives — this is here so
-              that somebody already in the ⋯ menu does not have to go looking.
-            */}
-            <button
-              type="button"
-              role="menuitem"
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setMenu(null)
-                onBrain()
-              }}
-              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[14px] hover:bg-[var(--color-hover)]"
-            >
-              <span className={`shrink-0 ${hasRules ? 'text-[var(--color-accent)]' : 'text-[var(--color-muted)]'}`}>
-                <Brain size={15} />
-              </span>
-              Brain
-              {hasRules && (
-                <span className="ml-auto rounded-full bg-[var(--color-accent)] px-1.5 text-[12px] font-medium text-white">
-                  {ruleCount}
-                </span>
-              )}
-            </button>
-
-            <div className="my-1 h-px bg-[var(--color-line)]" />
-
-            {/*
-              How typing behaves. A preference rather than a document field: it
-              is about the hands doing the typing, not about the document.
-            */}
-            <Group label="Typing">
-              <button
-                type="button"
-                aria-pressed={mode === 'word'}
-                aria-label="Type like a word processor"
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => onMode('word')}
-                className={`h-8 flex-1 rounded-md text-[14px] transition-colors ${
-                  mode === 'word'
-                    ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
-                    : 'text-[var(--color-muted)] hover:bg-[var(--color-hover)]'
-                }`}
-              >
-                Document
-              </button>
-              <button
-                type="button"
-                aria-pressed={mode === 'blocks'}
-                aria-label="Type with blocks and the slash menu"
-                onPointerDown={(e) => e.preventDefault()}
-                onClick={() => onMode('blocks')}
-                className={`h-8 flex-1 rounded-md text-[14px] transition-colors ${
-                  mode === 'blocks'
-                    ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
-                    : 'text-[var(--color-muted)] hover:bg-[var(--color-hover)]'
-                }`}
-              >
-                Blocks
-              </button>
-            </Group>
-            <p className="px-2.5 pb-1.5 text-[13px] leading-snug text-[var(--color-faint)]">
-              {mode === 'word'
-                ? 'Enter makes a paragraph and “/” types a slash.'
-                : 'Typing “/” opens the insert menu.'}
-            </p>
           </Menu>
         )}
       </div>
@@ -466,36 +385,34 @@ export default function Ribbon({
       <div className="ml-auto" />
 
       {/*
-        Writing help, and the only way to it without a keyboard.
+        The action button, and the only thing on this bar that reads the page.
 
-        Always on the row, at every width — Ctrl+J does not exist on a phone,
-        and a feature reachable only by a shortcut is a feature half the people
-        using this will never find.
+        Always on the row, at every width: the plan is the one thing here that
+        is not formatting, and a feature reachable only through a menu is a
+        feature half the people using this will never find. It never runs on
+        its own — a plan appears because somebody asked for one.
       */}
-      {onAssist && (
-        <button
-          type="button"
-          aria-label="Writing help"
-          title="Writing help (Ctrl+J)"
-          /*
-            Prevent the default on pointerdown so the block keeps its
-            selection, but act on click.
+      <button
+        type="button"
+        aria-label="What to do next"
+        title="Read this back and say what happens next"
+        /*
+          Prevent the default on pointerdown so the block keeps its selection,
+          but act on click.
 
-            Acting on pointerdown is what made this need a long press on a
-            phone: the popup rendered its backdrop under the finger that was
-            still down, and the click that completed the tap landed on the
-            backdrop and closed it again. A press only looked like it worked if
-            it was held long enough for the browser to drop the click.
-          */
-          onPointerDown={(e) => e.preventDefault()}
-          onClick={onAssist}
-          className="ml-1 flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-accent-soft)] px-2.5 text-[14px] font-medium text-[var(--color-accent)] hover:opacity-85"
-        >
-          <Sparkles size={15} />
-          Ask
-          <kbd className="hidden text-[12px] font-normal opacity-60 md:inline">Ctrl J</kbd>
-        </button>
-      )}
+          Acting on pointerdown is what made this need a long press on a phone:
+          the panel rendered its backdrop under the finger that was still down,
+          and the click that completed the tap landed on the backdrop and
+          closed it again. A press only looked like it worked if it was held
+          long enough for the browser to drop the click.
+        */
+        onPointerDown={(e) => e.preventDefault()}
+        onClick={onPlan}
+        className="ml-1 flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-accent-soft)] px-2.5 text-[14px] font-medium text-[var(--color-accent)] hover:opacity-85"
+      >
+        <ListChecks size={15} />
+        Actions
+      </button>
     </div>
   )
 }

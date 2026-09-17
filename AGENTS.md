@@ -3,6 +3,10 @@
 A universal document editor. Notes, spreadsheets, tasks, code and forms are
 five block types inside one document, not five applications.
 
+One button in it reads the page back and says what happens next. Nothing else
+in the editing surface talks to a model, and nothing changes the document on
+its own.
+
 Read `README.md` before changing anything structural.
 
 > Running `next dev` prepends a Next.js version block to this file. Commit it
@@ -44,15 +48,16 @@ to work, it is the wrong shape for this app.
   markup into the page.
 - **Do not call setState in an effect body.** The lint rule is on and it is
   right. Use lazy initial state, the render-phase "adjust state when a prop
-  changes" pattern (see `slash-menu.tsx`), or `useSyncExternalStore` for values
+  changes" pattern (see `folder-picker.tsx`), or `useSyncExternalStore` for values
   that live outside React (see `use-theme.ts`).
 - **The theme is applied by an inline script before first paint.** That is what
   stops a dark-mode user seeing a white flash, and why the theme is read
   through `useSyncExternalStore` rather than an effect.
-- **Slash matching is ranked, not filtered.** A label hit always beats a
-  keyword hit, and keywords match whole words by prefix. A plain substring
-  search made `/form` insert a spreadsheet, because "formula" contains "form".
-  `rankItems` lives in `src/lib/slash-items.ts` with no JSX so it can be tested.
+- **There is no slash menu and no typing mode.** Typing is a word processor,
+  always: Enter makes a paragraph, the markdown shortcuts work, and "/" is a
+  slash — which is what somebody writing "and/or" or a date meant by it. Every
+  block type is in the toolbar's ⋯ under Insert, so nothing became unreachable.
+  A mode to switch into is the shape this app is specifically not.
 - **The formula engine matches Excel where they disagree with maths.** `^` is
   left-associative, so `2^3^2` is 64. Blank cells are skipped by `AVERAGE`
   rather than counted as zero. A cycle returns `#CYCLE` instead of recursing
@@ -76,8 +81,9 @@ to work, it is the wrong shape for this app.
 - **Detect typed characters from the input event, never from keydown.** Virtual
   keyboards report keydown as `Unidentified` with keyCode 229 and only reveal
   the character afterwards. A keydown-based "/" check is why the slash menu did
-  nothing on a phone. The same applies to any future shortcut that watches for
-  a character rather than a modifier.
+  nothing on a phone, and it is why the markdown shortcuts read the input
+  event. The same applies to anything added later that watches for a character
+  rather than a modifier.
 - **Formatted text is two fields.** `text` is plain and stays the source of
   truth for search, preview and export; `html` is only how it is painted, and
   is absent when there is no formatting. Everything painted goes through
@@ -106,8 +112,8 @@ to work, it is the wrong shape for this app.
 - **The side menu is about the open document, not about the collection.**
   Three ways out (home, Library, search), one way onward (New), then Carry on —
   the document you are in — the rest of its folder, and everything the document
-  has: where it is filed, how typing behaves, Brain, Ask, its goals, and every
-  way of getting it out or bringing something in. Recent and favourites are not
+  has: where it is filed, the action button, and every way of getting it out or
+  bringing something in. Recent and favourites are not
   here: they answer "what was I doing", which is a question asked on the way in,
   so they are on the home screen where the whole collection is. A list of other
   documents beside the one being written is the thing this surface has been cut
@@ -133,7 +139,7 @@ to work, it is the wrong shape for this app.
   every document is listed, so it is the only place there is anything to drag
   between. Selecting several and pressing Move is the same tidying with a thumb,
   and the only one of the two that moves nine documents at once.
-- **The toolbar is four controls: undo, redo, ⋯ and Ask.** It had twenty, all
+- **The toolbar is four controls: undo, redo, ⋯ and the action button.** It had twenty, all
   correct and collectively a band of grey furniture across the top of every
   page somebody opened to write on. Everything else is one press inside the ⋯,
   and the marks are also on the bar that appears over a selection. The line to
@@ -146,8 +152,8 @@ to work, it is the wrong shape for this app.
   is because a click blurs the block, leaving the command no selection to act
   on. The second half is because acting on pointerdown puts a panel — or its
   backdrop — under a finger that is still down, and the click completing the
-  tap then lands on it: on a phone the Ask button appeared to work only if you
-  held it. Keep the `preventDefault` on pointerdown either way, which is what
+  tap then lands on it: on a phone the action button appeared to work only if
+  you held it. Keep the `preventDefault` on pointerdown either way, which is what
   saves the selection; only move where the action runs.
 - **Undo is over whole documents, and takes Ctrl+Z from the browser.** The
   browser keeps a stack per contenteditable, which here is per paragraph, so
@@ -183,22 +189,6 @@ to work, it is the wrong shape for this app.
   load. `useSyncExternalStore` with a constant server snapshot is the tool, as
   it is for the theme — and the snapshot must be the raw string, because a
   freshly parsed Set is a new object every time and that is a render loop.
-- **Typing has two modes and `word` is the default.** In it the slash menu
-  never opens, because "/" in "and/or" is a slash. `blocks` turns it back on.
-  The modes differ in what typing does, never in what the app can do: anything
-  the slash menu offers is also in the toolbar's ⋯ menu.
-- **A Brain rule is offered on a document, applied on a settled document, and
-  reversible.** `lib/rules.ts` is a string comparison per line with no model
-  call — the same bargain as the icons and the task scan. `applyRules` returns
-  the identical array when nothing matched and is a no-op on its own output,
-  which is the whole reason it can run on every settled keystroke without
-  rewriting, saving and syncing the document, and the reason it cannot loop. A
-  rule that would turn a kind into the same kind never fires.
-- **Rules live on the document, never in a setting.** The shapes in a meeting
-  note are not the shapes in a recipe, and one list applied to everything would
-  be wrong somewhere inside a day. `ignoreRules` pauses them without losing
-  them, because "not while I am drafting this" is a different thought from "I
-  was wrong about that rule".
 - **The header folds from the scroll position, never from its direction.**
   Folding it makes the scroller taller, that relayout fires another scroll
   event, and a direction-based version reads the change it caused itself as a
@@ -350,63 +340,63 @@ to work, it is the wrong shape for this app.
 - **A document with no title is called by its first line.** The caret starts in
   the body, so plenty of notes never get a title; three rows reading "Untitled"
   tell the reader nothing. `docLabel` is the one place that decides.
-- **Writing help never changes the document on its own.** Every result is
-  shown and applied only on request. An assistant that silently rewrites what
-  someone wrote is one they stop trusting the first time it makes a sentence
-  worse, and by then they cannot tell what it changed.
-- **Writing help opens at the caret, not in a corner.** A button pinned to the
-  bottom right is furniture, and furniture is invisible after the first day.
-  `assist-popup.tsx` opens where the caret is, with the instruction box already
-  focused, so the distance between wanting a fuller paragraph and asking for
-  one is a shortcut and a sentence. The anchor is captured once on opening —
-  tracked, it would follow the caret into the popup's own input.
-- **`++` is detected from the text the input event produced**, exactly as "/"
-  is, and for the same reason: a phone keyboard reports keydown as
-  `Unidentified` and only reveals the character afterwards.
-- **Nothing is reachable only by a keyboard shortcut.** Ctrl+J does not exist
-  on a phone, so Ask is on the toolbar at every width and on the end of the bar
-  that appears over a selection. The same test applies to anything added later:
-  if the only route to it is a chord, half the people using this will never
-  find it. For the same reason a placeholder never promises a shortcut — a hint
-  that is wrong on half the devices is worse than no hint.
+- **One button reads the page, and it only ever reads it.** Ask rewrote the
+  sentence somebody was in the middle of; Brain applied a document's rules to
+  lines as they were typed; Goals watched a draft against what it was for. All
+  three acted on the writing, which is the part nobody wants help with. What
+  replaced them is `action-plan.tsx`: pressed on purpose, it says what happens
+  next and changes nothing. If something in this app ever edits a document
+  without being told to, that is the rule being broken.
+- **A plan says who, and is honest about which half is not wired up.** Every
+  step is `you` or `app`, because "ring the plumber" and "draft the email" are
+  different kinds of sentence and only one of them is ever software's to take
+  on. Nothing marked `app` is done — drafting through the API and putting dated
+  steps in a calendar are the two that come next — and the panel says so in as
+  many words rather than showing a button that would lie.
+- **The plan works with no key.** `lib/plan.ts` builds one on the device from
+  `findTasks`, and it is shown either way; the model sorts and shortens it. The
+  same bargain as the icons, the Library's titles and the search: a refusal, a
+  missing key or a dead network costs the quality of the answer, never the
+  answer. `lib/plan.ts` has no JSX and no fetch, so every awkward reply is a
+  unit test.
+- **A date in a step is the writer's own words.** `whenIn` reads it off the
+  step's own wording rather than the model being asked for it, so there is one
+  rule about dates instead of two that can disagree — and "Friday" is never
+  turned into a timestamp, because a reminder on the wrong day is worse than a
+  reminder with no day.
+- **Nothing is reachable only by a keyboard shortcut.** The action button is on
+  the toolbar at every width, and in the side menu. The same test applies to
+  anything added later: if the only route to it is a chord, half the people
+  using this will never find it. For the same reason a placeholder never
+  promises a shortcut — a hint that is wrong on half the devices is worse than
+  no hint.
 - **An inline style always beats a class, so never write one a narrow layout
-  needs to win.** The assistant popup is anchored at the caret on a desktop and
-  is a bottom sheet on a phone; writing the desktop `left` inline collapsed the
-  sheet to the width of its own text, because `inset-x-2` cannot override it.
-  `place()` returns `{}` below the breakpoint. Check any anchored popup for
-  this.
-- **Expanding is the action this exists for.** It gets the longest instruction,
-  the most guardrails and `effort: 'high'` in `api/ai/route.ts`. The failure to
-  write against is not too few words but a paragraph of filler in a voice the
-  author would not use.
-- **Goals are on the document, and suggestions are only ever suggestions.**
-  `lib/goals.ts` is string functions with no JSX and no fetch, so the awkward
-  cases are unit tests. Suggestions are sentences about what to do next;
-  pressing one does nothing, because there is nothing to apply — the same rule
-  every other piece of writing help here keeps. The model is asked once, on the
-  transition into "has goals and has something written", and otherwise only
-  when the refresh is pressed: a call per keystroke is somebody's money spent to
-  be told what they were told ten seconds ago. `addGoal` returns the identical
-  array when nothing was added, so a blank or duplicate does not rewrite, save
-  and sync the document.
-- **Whether writing help is configured is asked once, by the workspace.** Three
+  needs to win.** A panel anchored on a desktop and a sheet on a phone cannot
+  have its desktop `left` written inline: `inset-x-2` cannot override it, and
+  the sheet collapses to the width of its own text. The same trap in Tailwind's
+  own output is why `folder-picker.tsx` and `action-plan.tsx` are centred by a
+  flex container rather than by `inset-x-2 … sm:left-1/2`.
+- **A `fixed` panel opened from the side menu must be a portal.** `position:
+  fixed` is relative to the nearest transformed ancestor, and the side menu
+  carries a transform so it can slide. Without the portal the panel is laid out
+  inside a 288-pixel column and hangs off the edge of the window.
+- **Whether the model is configured is asked once, by the workspace.** Three
   panels each asking `/api/ai` on mount is three requests for one answer that
   cannot change while the tab is open.
 - **Folds are one store, not one per component.** `lib/folds.ts`, and the
   snapshot is the raw string for the same reason the theme's is: a freshly
   parsed Set is a new object every time, which `useSyncExternalStore` reads as
   a change and turns into an infinite render loop.
-- **Nothing scans a document for tasks any more.** `lib/tasks.ts` is kept and
-  still tested, and nothing calls it: a strip appearing over the page mid-
-  sentence to ask about a line you have just typed is an interruption, and
-  whether "speak to Sam about the lease" is a job or a report of one is not
-  decidable from the sentence anyway.
+- **Nothing scans a document as it is typed.** A strip appearing over the page
+  mid-sentence to ask about a line you have just written is an interruption.
+  `lib/tasks.ts` is still the scanner, and it now runs only when the action
+  button is pressed — which is the same rule from the other direction: the
+  reading happens because somebody asked for it.
 - **An optional field on the document has to reach the row, or it does not
-  sync.** Favourites, Brain's rules and goals were all on the document and all
-  silently dropped by `toRow`, so a star set on a laptop was not a star on the
-  phone. `0004_doc_settings.sql` is the columns; the lesson is that "it is one
-  field on the document, so it travels with everything else" is only true once
-  `toRow` and `toDoc` know about it.
+  sync.** Favourites were on the document and silently dropped by `toRow`, so a
+  star set on a laptop was not a star on the phone. `0004_doc_settings.sql` is
+  the column; the lesson is that "it is one field on the document, so it
+  travels with everything else" is only true once `toRow` and `toDoc` know.
 - **A suggested task is offered, never created.** Whether "speak to Sam about
   the lease" is a task or a description of something that already happened is
   not decidable from the sentence, so `lib/tasks.ts` returns candidates and
@@ -458,7 +448,7 @@ to work, it is the wrong shape for this app.
 
 ## Checking work
 
-`npm test` covers the formula engine, the highlighter and the slash ranking.
+`npm test` covers the formula engine, the highlighter and the plan.
 `npm run e2e` drives a real browser through every feature and is the one that
 catches what the others cannot — caret behaviour, saving, and whether a
 document survives a reload. Run both before claiming something works.

@@ -21,23 +21,25 @@ server so your other devices catch up. Nothing waits for it.
 | Block | What it is | How to get one |
 | --- | --- | --- |
 | Text, headings, quotes | Ordinary writing | Just type, or `#` + space for a heading |
-| Task | A checkbox you can tick | `[]` + space, or `/task` |
-| Spreadsheet | A grid with real formulas | `/sheet` |
-| Code | Syntax highlighted, in 12 languages | `/code` |
-| Form | Questions, answers and responses | `/form` |
-| File | Attach anything, download it back | `/file`, or drop a file in |
+| Task | A checkbox you can tick | `[]` + space |
+| Spreadsheet | A grid with real formulas | **⋯** → Insert spreadsheet |
+| Code | Syntax highlighted, in 12 languages | **⋯** → Insert code |
+| Form | Questions, answers and responses | **⋯** → Insert form |
+| File | Attach anything, download it back | **⋯** → Insert file, or drop one in |
 | Bullet, divider | List item, horizontal line | `-` + space, or `---` |
 
-Type `/` anywhere to see all of them, or use **Insert** in the toolbar.
+There is no `/` menu and no mode to switch into. Typing is a word processor
+throughout — `/` is a slash, so "and/or" and a date stay what you typed — and
+everything that is not a paragraph is under **Insert** in the **⋯**.
 
 **The toolbar.** Along the top of the page, always visible, always in the same
-order: **undo** and **redo**, the paragraph style, the marks, lists,
-**Insert**, a **⋯** for the rest, and **Ask**. The style button opens a menu where each style is set in its own
-type, so Heading 1 looks like a heading rather than reading as words. Alignment,
-indent and the size of the text live behind the **⋯**, which keeps the row to
-one line even on a phone. There are no handles in the margin that appear when
-you hover a paragraph — the controls are in one place you can learn, which is
-the point of a toolbar.
+order: **undo**, **redo**, a **⋯** for everything else, and **Actions**. The
+**⋯** holds the paragraph style, the marks, lists, alignment, indent, the size
+of the text and Insert, which keeps the row to one line even on a phone. The
+style button inside it opens a menu where each style is set in its own
+type, so Heading 1 looks like a heading rather than reading as words. There are
+no handles in the margin that appear when you hover a paragraph — the controls
+are in one place you can learn, which is the point of a toolbar.
 
 **Formatting.** Select any text and a small bar appears over it as well: bold,
 italic, underline, strikethrough, inline code. Or use `Ctrl+B`, `Ctrl+I`,
@@ -52,28 +54,9 @@ one.
 toolbar. It moves the whole typographic scale — headings, lists, the title —
 not just the paragraphs, and it is remembered.
 
-**Document or blocks.** In the side menu under *Writing*, or under the
-toolbar's **⋯**. **Document** is the default
-and is what most people mean by writing: Enter makes a paragraph, the markdown
-shortcuts still work, and typing `/` types a slash — so "and/or" and a date
-stay what you typed. **Blocks** turns the `/` menu back on for anyone who came
-here from an editor that has one.
-
 **Headings stay put.** Scroll into a section and its heading sticks under the
 toolbar until the next one takes its place, so you always know which part of a
 long document you are reading.
-
-**Brain: rules for one document.** In the side menu under *Writing*, and in
-the toolbar's **⋯**. A rule
-is a sentence — *every line starting with “AI:” becomes a task*, *every bullet
-becomes a task*, *every line ending with “?” becomes a quote* — and it applies
-as you type, in that document and nowhere else. Three are offered ready-made;
-the builder makes any other. They are entirely optional: a document with no
-rules behaves exactly as before and costs one small button. A new document is
-offered rules once and never asks again. Everything a rule does is undoable
-like any other edit, and the whole set can be paused with **Ignore these rules
-for now** without deleting any of them. It all runs on your device: no key, no
-network, nothing sent anywhere.
 
 **Typing does the obvious things for you.** The first letter of a line, and
 the first after a full stop, are capitalised — but not after "e.g.", "Dr." or
@@ -117,26 +100,37 @@ Under that: what else is in its folder, and then everything about the document
 itself, in one column, from where it is filed through to what you can bring
 into it.
 
-*Writing* holds the typing mode, **Brain** and **Ask**. *Goals* is what this
-document is trying to do. *This file* is sharing, saving as PDF, downloading as
-Markdown, plain text or Word, importing a Word document or a PDF, and deleting.
-Every section folds with the chevron beside its name and stays folded next
-time.
+**What to do next** sits under that — the one action button, described below.
+Then *This file*, which folds: sharing, saving as PDF, downloading as Markdown,
+plain text or Word, importing a Word document or a PDF, and deleting.
 
 There is deliberately no Recent and no Favourites in here. Those answer "what
 was I doing", which is a question you ask on the way in — so they are on the
 home screen, where the whole collection is.
 
-**Goals, and what to do next.** Under *Goals* in the side menu, say what the
-document is for in your own words: *persuade the landlord to fix the boiler*,
-*under 400 words*, *no jargon*. Up to five, on that document only. Once there
-are goals and something written, the assistant reads the draft against them and
-offers a few short things to do next — *say what the boiler does now*, *cut the
-second paragraph, it repeats the first*. They are suggestions and nothing else:
-pressing one does not apply it, because there is nothing to apply. It reads the
-draft once when you set a goal and otherwise waits for the arrow beside
-*What to do next*, so it is not a meter running in the corner of your screen.
-Needs an API key; without one the goals stay and the suggestions are absent.
+**Actions: type what you want, get a plan.** Write your notes normally — what
+happened in the meeting, what you want to happen, whatever is in your head —
+and press **Actions** on the toolbar, or **What to do next** in the side menu.
+It reads the page back and lists the next steps in two groups:
+
+- **Yours to do** — ring the plumber, sign the form, decide. Only you can do
+  these. Each one can be ticked off while the panel is open.
+- **Pad could do these** — draft the email, lay out the document, put a dated
+  step in a calendar. The half a writing app could take on.
+
+A date you wrote is kept in your own words — *by Friday*, not a timestamp,
+because "Friday" means a different day depending on when you wrote it.
+
+Two things to be clear about. Nothing in the list is done: the second group is
+what this *could* do, and it is not connected to anything yet — actually
+drafting through the API, and syncing dated steps to a calendar, are the next
+two pieces of work. And nothing happens unless you press the button. It does
+not watch what you type, it does not interrupt, and reading a plan never
+changes a word of your document.
+
+It works with no API key at all: the plan is worked out on your device from the
+words on the page, and shown either way. With a key it is sorted into the two
+groups and written more tightly.
 
 **The home screen** is the house button in the header, or **Home** in the side
 menu. It fills the window and has two tabs. **Carry on** shows the document you
@@ -181,19 +175,6 @@ result shows the sentence it matched with the word picked out, exactly as the
 main search does. Search results are a flat ranked list rather than a grouped
 one, because when you are searching the best match should be at the top, not
 under a heading.
-
-**Writing help.** Press **Ask** in the toolbar or in the side menu, or
-`Ctrl+J`, or type `++` — and
-if you have text selected, **Ask** is on the end of the little bar that appears
-over the selection. A small box opens next to the line you are writing; on a
-phone it is a sheet along the bottom, above the keyboard. Type what you want
-— "expand this", "make it less annoyed", "turn this into an email to the
-landlord" — or press one of Expand, Continue writing, Tidy up, Bullet points,
-Shorten, Summarise. It can work on what you have selected, on the paragraph you
-are in, or on the whole document, and it says which. **It never changes
-anything on its own** — you read the result and choose Insert below, Replace,
-Again, or Discard. Needs an API key (see below); without one it is simply
-absent.
 
 **Deleting is undoable.** *Delete this document* at the foot of *This file* in
 the side menu, or **Delete** on a selection in the Library. Either way it goes
@@ -261,10 +242,12 @@ accounts, no keys. Everything works.
 To put it online, deploy to [Vercel](https://vercel.com); it needs no
 configuration beyond pointing it at this repository.
 
-## Turning on writing help (optional)
+## Turning on the model (optional)
 
-Writing help — **Ask**, the Library's titling, and the suggestions under
-*Goals* — uses **GPT-4o**. Get a key from
+Three things use it, and nothing else: **Actions**, the question you can ask of
+your own notes from the search panel, and the titles the Library gives imported
+files. All three work without it — worked out on your device, more roughly. It
+is **GPT-4o**. Get a key from
 [platform.openai.com](https://platform.openai.com/api-keys), then put it in
 `.env.local`:
 
@@ -290,8 +273,7 @@ device, and the corner shows "On this device" instead of a sign-in button.
 2. In its SQL editor, paste and run the files in `supabase/migrations/` in
    order: `0001_docs.sql`, then `0002_shared_docs.sql` (which makes **Share a
    link** work), then `0003_projects.sql` (which syncs projects between
-   devices), then `0004_doc_settings.sql` (which syncs favourites, a document's
-   Brain rules and its goals).
+   devices), then `0004_doc_settings.sql` (which syncs favourites).
 3. Copy `.env.example` to `.env.local` and fill in the two values from
    Supabase's Settings → API page:
 
@@ -334,17 +316,15 @@ src/lib/blocks.ts       making blocks, and the markdown shortcuts
 src/lib/formula.ts      the spreadsheet engine
 src/lib/highlight.ts    the syntax highlighter
 src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
-src/lib/slash-items.ts  what "/" offers, and how a query is ranked
 src/lib/store.ts        saving to the device (IndexedDB), documents and files
 src/lib/sync.ts         optional sync to Supabase
 src/lib/projects.ts     grouping documents, and searching within a group
-src/lib/tasks.ts        finding the things somebody has agreed to do (unused)
-src/lib/goals.ts        what a document is for, and reading suggestions back
+src/lib/tasks.ts        finding the things somebody has agreed to do
+src/lib/plan.ts         notes in, a plan out — and reading a reply back
 src/lib/folds.ts        which sections are folded away, per device
 src/lib/when.ts         "3 minutes ago", "yesterday"
 src/lib/history.ts      undo and redo, over whole documents
 src/lib/doc-icon.ts     which icon a document gets, and why
-src/lib/rules.ts        Brain: a document's own rules, and applying them
 src/lib/smart-typing.ts capitalisation, list and formatting rules
 src/lib/paste.ts        turning pasted content into blocks
 src/lib/trash.ts        the seven-day retention rules
@@ -353,7 +333,7 @@ src/lib/export.ts       turning a document into markdown or plain text
 src/lib/pdf.ts          reading text out of a PDF (loaded on demand)
 src/lib/zip.ts          reading and writing ZIP archives, with no dependency
 src/lib/docx.ts         Word documents in and out, built on zip.ts
-src/app/api/ai/         the one server route: writing help
+src/app/api/ai/         the one server route: plans, questions, titles
 src/lib/ui-prefs.ts     theme, sidebar, width, text size and typing mode
 src/components/         the editor, the toolbar, and one file per block type
 src/app/s/[id]/         the public page a shared link opens
@@ -365,7 +345,7 @@ scripts/e2e.mjs         drives a real browser through every feature
 ## Checking it works
 
 ```bash
-npm test        # the formula engine, highlighter and slash ranking
+npm test        # the formula engine, highlighter, plan and the rest
 npm run lint
 npm run typecheck
 
@@ -394,32 +374,23 @@ These are real and worth knowing before you rely on them:
 - **A shared link is read-only, and a shared form cannot be answered.**
   Collecting responses from other people needs the answers to go to the server
   rather than into the document, which is the next step for forms.
-- **Writing help was not tested against the real service.** There is no API
-  key in this repository, so every failure path is tested, and the interface
-  around it is tested against a stubbed route, but the real rewrite is not.
-  Try it once before relying on it.
-- **A rule matches a line, not a meaning.** Brain compares strings: starts
-  with, ends with, contains a whole word, or is a kind of block. It will not
-  work out that "chase the invoice" and "follow up on the invoice" are the same
-  instruction. That is deliberate — it is what makes rules instant, free and
-  the same every time — but it means a rule is something you write for a shape
-  you already know you write.
-- **Nothing scans your writing for tasks.** Pad used to offer to turn lines
-  like "call the landlord by Friday" into tasks as you typed, and it now does
-  not: whether a sentence is a job to do or a description of something already
-  done is not decidable from the sentence, and a strip appearing over the page
-  to ask was an interruption in the middle of writing. The scanner is still in
-  the code and still tested; nothing calls it. Tasks are a block type you
-  insert yourself, and a calendar is not connected.
-- **Suggestions under Goals cost a model call.** One when you first set a goal
-  on a document with something written in it, and one each time you press the
-  arrow. Nothing else on this screen costs anything — the icons, the rules, the
-  titles in the Library and the search are all worked out on your device.
-- **The detector is a set of rules, not a model.** It reads lines beginning
-  with an action verb, lines saying you need to do something, and anything
-  under a "next steps" heading. It will miss an oddly worded one and will
-  occasionally offer a sentence that was not a task — which is why it never
-  applied one on its own, and why nothing calls it now.
+- **The model was not tested against the real service.** There is no API key
+  in this repository, so every failure path is tested, and the interface around
+  it is tested against a stubbed route, but a real plan from a real model is
+  not. Try it once before relying on it.
+- **Nothing in Actions is carried out.** The steps marked as Pad's are a
+  statement of what this could take on, not a queue. Drafting through the API
+  and putting dated steps into a calendar are the next two pieces of work, and
+  until they exist the panel says so rather than showing a button that would
+  lie.
+- **Pressing Actions costs a model call**, and it is the only thing in the
+  editor that does. The icons, the titles in the Library, the search and the
+  offline half of the plan are all worked out on your device.
+- **The detector behind the offline plan is a set of rules, not a model.** It
+  reads lines beginning with an action verb, lines saying you need to do
+  something, and anything under a "next steps" heading. It will miss an oddly
+  worded one and will occasionally list a sentence that was not a task — which
+  is why a plan is something to read, never something that is acted on.
 - **A Word table becomes a list, not a spreadsheet, on import.** Merged cells
   and nested tables have nowhere to go in a grid. Going the other way, a
   spreadsheet becomes a real Word table.

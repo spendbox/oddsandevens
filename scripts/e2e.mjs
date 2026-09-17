@@ -1,9 +1,9 @@
 /**
  * End-to-end check: drives a real browser through everything Pad claims to do.
  *
- * The unit tests cover the formula engine, the highlighter and the slash
+ * The unit tests cover the formula engine, the highlighter and the plan
  * ranking. This covers the parts that only exist once a browser is involved —
- * the caret, the slash menu, saving, and whether a document is still there
+ * the caret, inserting blocks, saving, and whether a document is still there
  * after a reload. Between them, "it builds" and "it works" stop being the
  * same claim.
  *
@@ -86,9 +86,9 @@ const folderName = async () => {
 /**
  * Opens the toolbar's one menu.
  *
- * The bar itself is down to undo, redo, Brain and Ask; everything that used to
- * be on it — the style, the marks, the lists, alignment, insert and the typing
- * mode — is one press inside here.
+ * The bar itself is down to undo, redo, ⋯ and the action button; everything
+ * that used to be on it — the style, the marks, the lists, alignment and
+ * insert — is one press inside here.
  */
 const openMore = async () => {
   await page.locator('[aria-label="Formatting and insert"]').first().click()
@@ -112,20 +112,15 @@ const pressTool = async (label) => {
   await closeMore()
 }
 /**
- * Switches between typing like a document and typing with blocks.
+ * Inserts a block that is not a paragraph.
  *
- * Document is the default now, and in it "/" is a slash rather than a menu —
- * so anything that drives the slash menu has to ask for blocks first.
+ * Through the toolbar's ⋯ menu, which is the only route now: there is no
+ * slash menu and no block-typing mode any more, so "/" is always a slash.
  */
-const setMode = async (mode) => {
+const insertBlock = async (label) => {
   await openMore()
-  await page
-    .locator(
-      `[role="menu"] [aria-label="${mode === 'blocks' ? 'Type with blocks and the slash menu' : 'Type like a word processor'}"]`,
-    )
-    .click()
-  await page.waitForTimeout(400)
-  await closeMore()
+  await page.locator(`[role="menu"] button:has-text("Insert ${label}")`).first().click()
+  await page.waitForTimeout(500)
 }
 
 /**
@@ -202,27 +197,21 @@ const hasHeading = await page.evaluate(() =>
 )
 log('markdown "# " makes a heading', hasHeading)
 
-// The slash menu, which belongs to block mode. Document mode is the default,
-// and there "/" is a slash — which is checked on its own further down.
-await setMode('blocks')
+// Blocks are inserted from the toolbar. There is no slash menu any more, and
+// no mode to switch into: "/" is always a slash, which is checked further down.
 await firstBlock.click()
 await page.keyboard.press('End')
 await page.keyboard.press('Enter')
-await page.keyboard.type('/')
-await page.waitForTimeout(300)
-const menuVisible = await page.locator('[role="listbox"]').isVisible().catch(() => false)
-log('slash menu opens', menuVisible)
-await page.screenshot({ path: `${SHOTS}/03-slash-menu.png` })
-
-// Filter it, then insert a spreadsheet.
-await page.keyboard.type('sheet')
-await page.waitForTimeout(250)
-await page.screenshot({ path: `${SHOTS}/04-slash-filtered.png` })
-const filteredToTable = await page.locator('[role="option"]').first().innerText().catch(() => '')
-log('slash menu filters ("sheet" finds Spreadsheet)', filteredToTable.includes('Spreadsheet'), filteredToTable.replace(/\n/g, ' / '))
-
-await page.keyboard.press('Enter')
-await page.waitForTimeout(400)
+await openMore()
+await page.screenshot({ path: `${SHOTS}/03-insert-menu.png` })
+log(
+  'the toolbar menu offers every block type',
+  ['Spreadsheet', 'Code', 'Form', 'File attachment', 'Horizontal line'].every((label) =>
+    page.locator(`[role="menu"] button:has-text("Insert ${label}")`),
+  ),
+)
+await page.locator('[role="menu"] button:has-text("Insert spreadsheet")').first().click()
+await page.waitForTimeout(500)
 const tableExists = await page.locator('table').count()
 log('spreadsheet block inserted', tableExists > 0)
 
@@ -268,13 +257,10 @@ if (await checkbox.count()) {
   log('task can be ticked', await checkbox.first().isChecked())
 }
 
-// Code block via slash.
+// Code block, from the same menu.
 await page.locator('[aria-label="Continue writing"]').click()
 await page.waitForTimeout(150)
-await page.keyboard.type('/code')
-await page.waitForTimeout(300)
-await page.keyboard.press('Enter')
-await page.waitForTimeout(400)
+await insertBlock('code')
 const codeArea = page.locator('textarea[aria-label="Code"]')
 log('code block inserted', (await codeArea.count()) > 0)
 if (await codeArea.count()) {
@@ -295,10 +281,7 @@ await page.screenshot({ path: `${SHOTS}/06-tasks-and-code.png` })
 // Form block.
 await page.locator('[aria-label="Continue writing"]').click()
 await page.waitForTimeout(150)
-await page.keyboard.type('/form')
-await page.waitForTimeout(300)
-await page.keyboard.press('Enter')
-await page.waitForTimeout(400)
+await insertBlock('form')
 log('form block inserted', (await page.locator('[aria-label="Form title"]').count()) > 0)
 await page.locator('[aria-label="Form title"]').first().fill('Signup')
 await page.locator('[aria-label="Question 1"]').first().fill('Your name')
@@ -638,28 +621,32 @@ log('sidebar can be reopened', await page.locator('aside').isVisible())
   log('text does not shift when the gutter appears', Math.abs(bodyX - hoverX) < 1)
 }
 
-// --- The virtual-keyboard regression ---------------------------------------
+// --- A typed character is read from the input event ------------------------
 // Phones deliver a typed character as an input event with keydown reporting
-// 'Unidentified'/229. This reproduces that exactly: no keydown at all, just
-// the text change a virtual keyboard produces. The old keydown-based slash
-// detection failed here, which is why "/" did nothing on mobile.
+// 'Unidentified'/229, which is why nothing here may read `event.key` to find
+// out what was typed. The markdown shortcuts are what still does this, so
+// they are what proves it: a bullet typed with no keydown at all.
 await page.locator('[aria-label="Continue writing"]').click()
 await page.waitForTimeout(250)
-const opened = await page.evaluate(() => {
+const dispatched = await page.evaluate(() => {
   const el = document.activeElement
   if (!el || !el.isContentEditable) return 'no focused block'
-  el.textContent = '/'
-  el.dispatchEvent(new InputEvent('input', { bubbles: true, data: '/', inputType: 'insertText' }))
+  el.textContent = '- '
+  el.dispatchEvent(new InputEvent('input', { bubbles: true, data: ' ', inputType: 'insertText' }))
   return 'dispatched'
 })
-await page.waitForTimeout(400)
-log(
-  'slash menu opens from an input event alone (virtual keyboard)',
-  await page.locator('[role="listbox"]').isVisible().catch(() => false),
-  opened,
+await page.waitForTimeout(500)
+/*
+  The shortcut fired if it consumed the "- ": the block is a bullet now and the
+  dashes are gone from the text. Reading `event.key` instead would have found
+  'Unidentified' and done nothing at all, which is the bug this pins.
+*/
+const consumed = await page.evaluate(() =>
+  [...document.querySelectorAll('[data-block-id] [contenteditable]')].every(
+    (el) => !(el.textContent ?? '').startsWith('- '),
+  ),
 )
-await page.keyboard.press('Escape')
-await page.waitForTimeout(200)
+log('a markdown shortcut fires from an input event alone (virtual keyboard)', consumed, dispatched)
 
 // --- Moving a paragraph, the way a word processor does it ------------------
 {
@@ -877,10 +864,7 @@ await page.waitForTimeout(200)
   await page.waitForTimeout(400)
   await page.keyboard.type('Attachments')
   await page.keyboard.press('Enter')
-  await page.keyboard.type('/file')
-  await page.waitForTimeout(400)
-  await page.keyboard.press('Enter')
-  await page.waitForTimeout(500)
+  await insertBlock('file attachment')
   log('file block inserted', (await page.locator('input[aria-label="Choose a file"]').count()) > 0)
 
   await page.locator('input[aria-label="Choose a file"]').setInputFiles(notes)
@@ -1826,11 +1810,69 @@ await page.waitForTimeout(200)
   await page.screenshot({ path: `${SHOTS}/24-no-task-strip.png` })
 }
 
-// --- Writing help, at the caret ---------------------------------------------
+/*
+  The action button: notes in, a plan out.
+
+  The model is stubbed, because the real route needs a key and this is about
+  the panel around it — what it shows, where the steps are split, and that it
+  changes nothing in the document either way.
+*/
 {
-  // Stubbed, because the real route needs a key and this is about the
-  // interface around it: where it opens, what it says, and that it changes
-  // nothing until it is told to.
+  /*
+    A clean slate first. The Library's section above stubs `/api/ai` and leaves
+    the stub installed, which would make this page think a key is configured —
+    so the no-key path has to unroute and reload before it means anything.
+  */
+  await page.unroute('**/api/ai')
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1000)
+
+  // With no key at all the plan still has to appear, read off the words on the
+  // device. This is the path most people are on.
+  await page.locator('button:has-text("New")').first().click()
+  await page.waitForTimeout(600)
+  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.keyboard.type('Met the agent this morning and we went through the whole flat.')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('I need to call the landlord about the boiler by Friday')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Send the signed inventory to Ada')
+  await page.waitForTimeout(700)
+
+  const plan = page.locator('[role="dialog"][aria-label="What to do next"]')
+  log('nothing has appeared on its own', (await plan.count()) === 0)
+
+  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="What to do next"]').click()
+  await page.waitForTimeout(900)
+  log('the action button opens a plan', await plan.isVisible())
+  const offline = await plan.innerText()
+  log(
+    'and it works with no key, off the words alone',
+    /call the landlord/i.test(offline),
+    offline.replace(/\n+/g, ' / ').slice(0, 160),
+  )
+  log('a date is kept in the words it was written in', /by Friday/i.test(offline))
+  log('it says nothing was sent anywhere', /no key is set up/i.test(offline))
+  log('and every step is the writer\u2019s own to do', /yours to do/i.test(offline))
+  await page.screenshot({ path: `${SHOTS}/25-plan-local.png` })
+
+  const beforePlan = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+      .map((e) => e.textContent)
+      .join(' | '),
+  )
+  await plan.locator('[aria-label="Close"]').first().click()
+  await page.waitForTimeout(400)
+  log(
+    'reading a plan changes nothing in the document',
+    (await page.evaluate(() =>
+      [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+        .map((e) => e.textContent)
+        .join(' | '),
+    )) === beforePlan,
+  )
+
+  // Now with the route stubbed, which is what splits the steps in two.
   await page.route('**/api/ai', async (route) => {
     const request = route.request()
     if (request.method() === 'GET') {
@@ -1841,81 +1883,78 @@ await page.waitForTimeout(200)
       })
     }
     const body = request.postDataJSON()
-    if (body.action === 'file') return route.fallback()
+    if (body.action !== 'plan') return route.fallback()
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ text: `Expanded: ${String(body.text).slice(0, 40)}` }),
+      body: JSON.stringify({
+        text:
+          'you: Call the landlord about the boiler by Friday\n' +
+          'app: Draft the email to Ada with the inventory\n' +
+          'you: Sign the inventory',
+      }),
     })
   })
   await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(1000)
+  await page.waitForTimeout(1100)
 
-  await page.locator('button:has-text("New")').first().click()
-  await page.waitForTimeout(600)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
-  await page.keyboard.type('The boiler is old and the landlord keeps putting it off.')
+  let planPosts = 0
+  const countPlans = (request) => {
+    if (request.method() === 'POST' && /\/api\/ai/.test(request.url())) planPosts++
+  }
+  page.on('request', countPlans)
+  await page.waitForTimeout(1200)
+  log('it still costs nothing until it is pressed', planPosts === 0, `${planPosts} posts`)
+
+  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="What to do next"]').click()
+  await page.waitForTimeout(1200)
+  const answered = await plan.innerText()
+  log('the plan is split by who has to do it', /yours to do/i.test(answered) && /pad could do these/i.test(answered))
+  /*
+    Compared in one case. The group headings are uppercased by CSS, and
+    `innerText` returns what is painted — so a case-sensitive search for "Pad
+    could do these" finds nothing and every position comparison against it is
+    quietly true or quietly false.
+  */
+  const lower = answered.toLowerCase()
+  log(
+    'the steps only a person can take are listed as theirs',
+    lower.indexOf('call the landlord') < lower.indexOf('pad could do these'),
+  )
+  log(
+    'and what is not connected yet says so rather than pretending',
+    /not connected yet/i.test(answered),
+  )
+  log('pressing it is what costs a call', planPosts === 1, `${planPosts} posts`)
+  await page.screenshot({ path: `${SHOTS}/25-plan.png` })
+
+  // A step can be ticked off while the panel is open, and that is all it does.
+  const before = await page.evaluate(() => document.querySelectorAll('[data-block-id]').length)
+  await plan.locator('button[aria-pressed="false"]').first().click()
   await page.waitForTimeout(400)
-
+  log('a step can be ticked off', (await plan.locator('button[aria-pressed="true"]').count()) === 1)
   log(
-    'the floating sparkle button is gone',
-    (await page.locator('button[aria-label="Writing help"].fixed').count()) === 0,
+    'and ticking one writes nothing into the document',
+    (await page.evaluate(() => document.querySelectorAll('[data-block-id]').length)) === before,
   )
 
-  await page.keyboard.press('Control+j')
-  await page.waitForTimeout(600)
-  const popup = page.locator('[role="dialog"][aria-label="Writing help"]')
-  log('Ctrl+J opens writing help at the caret', await popup.isVisible())
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+  log('Escape closes the plan', (await plan.count()) === 0)
+  page.off('request', countPlans)
 
-  const box = await popup.boundingBox()
-  const caretBlock = await page
-    .locator('[data-block-id] [contenteditable]', { hasText: 'boiler is old' })
-    .first()
-    .boundingBox()
-  log(
-    'it opens next to the line being written, not in a corner',
-    !!box && !!caretBlock && Math.abs(box.y - caretBlock.y) < 400,
-  )
-  log('it says what it will act on', /paragraph|Selection/i.test(await popup.innerText()))
-  log('expanding is the first thing it offers', (await popup.locator('button:has-text("Expand")').count()) > 0)
-  await page.screenshot({ path: `${SHOTS}/25-writing-help.png` })
-
-  await popup.locator('button:has-text("Expand")').first().click()
-  await page.waitForTimeout(900)
-  log('a result is shown before anything changes', /Nothing has changed yet/.test(await popup.innerText()))
-  const blocksNow = () =>
-    page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')]
-        .map((e) => e.textContent)
-        .join(' '),
-    )
-  log('and the document is untouched until it is applied', !(await blocksNow()).includes('Expanded:'))
-
-  await popup.locator('button:has-text("Insert below")').click()
-  await page.waitForTimeout(900)
-  log(
-    'inserting puts it in the document',
-    (await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')]
-        .map((e) => e.textContent)
-        .join(' '),
-    )).includes('Expanded:'),
-  )
-
-  // On a phone there is no Ctrl+J, so it has to be a button — on the toolbar,
-  // and on the bar that appears over a selection.
+  // It is on the phone toolbar too, and one tap is enough — no long press.
   {
-    // A context with touch, so `tap()` sends the real pointer sequence a
-    // finger does. The bug this guards was invisible to a synthetic click.
-    const touchCtx = await browser.newContext({
+    const touch = await browser.newContext({
       viewport: { width: 390, height: 844 },
       hasTouch: true,
       isMobile: true,
+      acceptDownloads: true,
     })
-    const touch = await touchCtx.newPage()
-    // Routes are per page, so the stub has to be installed on this one too.
-    await touch.route('**/api/ai', async (route) => {
-      if (route.request().method() === 'GET') {
+    const phone = await touch.newPage()
+    await phone.route('**/api/ai', async (route) => {
+      const request = route.request()
+      if (request.method() === 'GET') {
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1925,61 +1964,30 @@ await page.waitForTimeout(200)
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ text: 'Expanded on a phone.' }),
+        body: JSON.stringify({ text: 'you: Ring the plumber' }),
       })
     })
-    await touch.goto(URL, { waitUntil: 'networkidle' })
-    await touch.waitForTimeout(1000)
+    await phone.goto(URL, { waitUntil: 'networkidle' })
+    await phone.waitForTimeout(1000)
+    const bar = phone.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="What to do next"]')
+    log('the action button is on the toolbar at phone width', await bar.isVisible())
+    await bar.tap()
+    await phone.waitForTimeout(1000)
+    const sheetUp = phone.locator('[role="dialog"][aria-label="What to do next"]')
+    log('one tap opens it — no long press', await sheetUp.isVisible())
+    const sheet = await sheetUp.boundingBox()
     log(
-      'Ask is on the toolbar at phone width',
-      await touch.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Writing help"]').isVisible(),
+      'and it is a sheet across the phone, not a strip',
+      !!sheet && sheet.width > 340,
+      sheet ? `${Math.round(sheet.width)}x${Math.round(sheet.height)}` : 'missing',
     )
-    /*
-      A single tap, not a long press.
-
-      Acting on pointerdown meant the popup's backdrop arrived under a finger
-      that was still down, so the tap that opened it also closed it — and only
-      a press held long enough to lose the click appeared to work.
-    */
-    await touch.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Writing help"]').tap()
-    await touch.waitForTimeout(800)
-    log(
-      'one tap opens writing help — no long press',
-      await touch.locator('[role="dialog"][aria-label="Writing help"]').isVisible(),
-    )
-    const sheet = await touch.locator('[role="dialog"][aria-label="Writing help"]').boundingBox()
-    log(
-      'which sits as a sheet along the bottom, above the keyboard',
-      !!sheet && sheet.width >= 370 && sheet.y > 100,
-      sheet ? `${Math.round(sheet.width)}x${Math.round(sheet.height)} at y=${Math.round(sheet.y)}` : 'missing',
-    )
-    await touch.screenshot({ path: `${SHOTS}/26-mobile-ask.png` })
-    // The other menus open the same way, and were the same shape of bug.
-    await touch.locator('[role="dialog"][aria-label="Writing help"] [aria-label="Close"]').tap()
-    await touch.waitForTimeout(400)
-    await touch.locator('[aria-label="Formatting and insert"]').tap()
-    await touch.waitForTimeout(500)
-    log('and one tap opens the toolbar menus', await touch.locator('[role="menu"]').first().isVisible())
+    await phone.screenshot({ path: `${SHOTS}/26-mobile-plan.png` })
     await touch.close()
-    await touchCtx.close()
   }
 
-  // "++" is the same door, for people who never learn a shortcut.
-  await page.locator('button:has-text("New")').first().click()
-  await page.waitForTimeout(600)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
-  await page.keyboard.type('A short note++')
-  await page.waitForTimeout(700)
-  log('typing ++ opens it too', await popup.isVisible())
-  const leftBehind = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
-      .map((e) => e.textContent)
-      .join(' '),
-  )
-  log('and the ++ is consumed rather than left in the text', !leftBehind.includes('++'), leftBehind)
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(400)
   await page.unroute('**/api/ai')
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
 }
 
 // --- Undo and redo ----------------------------------------------------------
@@ -2245,9 +2253,8 @@ await page.waitForTimeout(200)
   await closeFolderMenu()
 }
 
-// --- Typing like a document, or like blocks ---------------------------------
+// --- Typing is always a word processor now ----------------------------------
 {
-  await setMode('word')
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(600)
   await page.locator('[data-block-id] [contenteditable]').first().click()
@@ -2255,21 +2262,20 @@ await page.waitForTimeout(200)
   await page.waitForTimeout(500)
 
   log(
-    'in document mode a slash is a slash, with no menu',
+    'a slash is a slash, with no menu and no mode to be in',
     (await page.locator('[role="listbox"]').count()) === 0,
   )
   const typed = await page.locator('[data-block-id] [contenteditable]').first().innerText()
   // Case-insensitive: the first letter of a line is capitalised as you type,
-  // which is smart typing doing its job rather than anything to do with modes.
+  // which is smart typing doing its job.
   log('and the slash stays in the text', /and\/or/i.test(typed), JSON.stringify(typed))
 
-  // The markdown shortcuts still work — those are what a word processor does
-  // too, and they are not the slash menu.
+  // The markdown shortcuts are what a word processor does, and they stay.
   await page.keyboard.press('Enter')
   await page.keyboard.type('# A heading typed with a hash')
   await page.waitForTimeout(500)
   log(
-    'markdown shortcuts still work in document mode',
+    'markdown shortcuts still work',
     await page.evaluate(() =>
       [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
         /pad-h1/.test(e.className),
@@ -2277,15 +2283,11 @@ await page.waitForTimeout(200)
     ),
   )
 
-  await setMode('blocks')
-  await page.locator('[aria-label="Continue writing"]').click()
-  await page.waitForTimeout(300)
-  await page.keyboard.type('/')
-  await page.waitForTimeout(500)
-  log('in block mode it opens the menu again', await page.locator('[role="listbox"]').isVisible())
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(300)
-  await setMode('word')
+  // And the switch that used to be in the toolbar and the side menu is gone.
+  await openMore()
+  const moreText = await page.locator('[role="menu"]').first().innerText()
+  await closeMore()
+  log('there is no Document/Blocks switch left to find', !/blocks/i.test(moreText), moreText.replace(/\n+/g, ' / ').slice(0, 120))
 }
 
 // --- Headings stay put while their section is on screen ---------------------
@@ -2343,94 +2345,26 @@ await page.waitForTimeout(200)
   await page.screenshot({ path: `${SHOTS}/31-sticky-heading.png` })
 }
 
-// --- Brain: a document's own rules ------------------------------------------
+// --- Nothing rewrites the page on its own -----------------------------------
 {
+  /*
+    Brain applied a document's own rules to lines as they were typed, and Ask
+    rewrote the sentence somebody was in the middle of. Both are gone, and this
+    checks that nothing has taken their place: a bullet stays a bullet, and the
+    only thing in the app that reads the page is a button somebody presses.
+  */
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(700)
-
-  log(
-    'a brand new document is offered rules, once',
-    /set rules for this document/i.test(await page.evaluate(() => document.body.innerText)),
-  )
-
-  await page.locator('button:has-text("Set rules")').click()
-  await page.waitForTimeout(600)
-  const brain = page.locator('[role="dialog"][aria-label="Brain"]')
-  /** Brain, from the side menu, which is where the document's settings live. */
-  const openBrain = async () => {
-    await openSide('Writing')
-    await page.locator('aside button:has-text("Brain")').first().click()
-    await page.waitForTimeout(600)
-  }
-  log('Brain opens', await brain.isVisible())
-  log(
-    'and says the rules are this document only',
-    /this document only/i.test(await brain.innerText()),
-  )
-  await page.screenshot({ path: `${SHOTS}/32-brain.png` })
-
-  await brain.locator('button:has-text("Every bullet becomes a task")').click()
-  await page.waitForTimeout(500)
-  log('a suggested rule can be taken in one press', /Every bullet becomes a task/.test(await brain.innerText()))
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(400)
-
-  await openSide('Writing')
-  log(
-    'the side menu says how many rules this document has',
-    /1 rule on this document/i.test(await page.locator('aside').innerText()),
-    (await page.locator('aside').innerText()).replace(/\n+/g, ' / ').slice(0, 120),
-  )
-  log(
-    'and offers the typing mode and Ask beside it',
-    /typing/i.test(await page.locator('aside').innerText()),
-  )
-
-  // Now write a bullet and watch the rule do its work.
   await page.locator('[data-block-id] [contenteditable]').first().click()
   await page.keyboard.type('- ring the bank')
-  await page.waitForTimeout(2200)
+  await page.waitForTimeout(2400)
   log(
-    'a bullet becomes a task, because this document says so',
-    (await page.locator('[data-block-id] input[type="checkbox"]').count()) > 0,
+    'a bullet is still a bullet a moment later',
+    (await page.locator('[data-block-id] input[type="checkbox"]').count()) === 0,
   )
-  const ruled = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
-      .map((e) => e.textContent)
-      .join(' | '),
-  )
-  log('and the words are kept', /ring the bank/i.test(ruled), ruled)
-
-  // Undo reaches it, like any other change.
-  await page.locator('[role="toolbar"][aria-label="Formatting"] [aria-label="Undo"]').click()
-  await page.waitForTimeout(700)
-  log('and it is undoable like anything else', true)
-
-  // Pausing the rules stops them without throwing them away.
-  await openBrain()
-  await brain.locator('[aria-label="Ignore the rules in this document"]').check()
-  await page.waitForTimeout(400)
-  log('the rules can be paused rather than deleted', await brain.locator('[aria-label="Ignore the rules in this document"]').isChecked())
-  log('and they are still written down', /Every bullet becomes a task/.test(await brain.innerText()))
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(400)
-
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(1100)
-  await openBrain()
-  log('rules survive a reload', /Every bullet becomes a task/.test(await brain.innerText()))
-  log('and belong to this document alone', /this document only/i.test(await brain.innerText()))
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(400)
-
-  // A different document has none of them.
-  await page.locator('button:has-text("New")').first().click()
-  await page.waitForTimeout(700)
-  await openSide('Writing')
-  log(
-    'a different document starts with no rules',
-    !/\d+ rules? on this document/i.test(await page.locator('aside').innerText()),
-  )
+  const settled = await page.evaluate(() => document.body.innerText)
+  log('and a fresh document offers no rules to set', !/set rules for this document/i.test(settled))
+  log('the words are left exactly as they were typed', /ring the bank/i.test(settled))
 }
 
 // --- The side menu: folding, and dragging in the Library to make a folder ---
@@ -2495,64 +2429,28 @@ await page.waitForTimeout(200)
   await closeHome()
 }
 
-// --- Goals: what a document is for ------------------------------------------
+// --- What the side menu holds now -------------------------------------------
 {
   await page.locator('button:has-text("New")').first().click()
-  await page.waitForTimeout(600)
-  await page.locator('[aria-label="Document title"]').click()
-  await page.keyboard.type('Letter to the landlord')
-  await page.waitForTimeout(600)
-
-  await openSide('Goals')
-  const box = page.locator('aside input[aria-label="Add a goal for this document"]')
-  log('the side menu asks what the document is for', await box.isVisible())
-  await box.fill('Persuade the landlord to fix the boiler')
-  await page.keyboard.press('Enter')
-  await page.waitForTimeout(800)
+  await page.waitForTimeout(700)
+  const side = await page.locator('aside').innerText()
   log(
-    'a goal is kept on the document',
-    /persuade the landlord/i.test(await page.locator('aside').innerText()),
+    'the side menu offers the action button',
+    /what to do next/i.test(side),
+    side.replace(/\n+/g, ' / ').slice(0, 140),
   )
+  log('and Brain, Ask and Goals are gone from it', !/(brain|goals)/i.test(side) && !/\bAsk\b/.test(side))
+  log('as is the typing switch', !/\bblocks\b/i.test(side))
 
-  // A blank one, and the same one twice, both do nothing.
-  await box.fill('   ')
-  await page.keyboard.press('Enter')
-  await page.waitForTimeout(400)
-  await box.fill('persuade the landlord to fix the boiler')
-  await page.keyboard.press('Enter')
-  await page.waitForTimeout(600)
-  log(
-    'a blank or duplicate goal is not added twice',
-    (await page.locator('aside li:has-text("Persuade the landlord")').count()) === 1,
-  )
-
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(1200)
-  await openSide('Goals')
-  log(
-    'goals survive a reload',
-    /persuade the landlord/i.test(await page.locator('aside').innerText()),
-  )
-  await page.screenshot({ path: `${SHOTS}/36-goals.png` })
-
-  await page.locator('aside [aria-label^="Remove goal"]').first().click()
+  await page.locator('aside button:has-text("What to do next")').first().click()
   await page.waitForTimeout(900)
   log(
-    'and a goal can be taken off again',
-    (await page.locator('aside [aria-label^="Remove goal"]').count()) === 0,
+    'and pressing it opens the same plan the toolbar does',
+    await page.locator('[role="dialog"][aria-label="What to do next"]').isVisible(),
   )
-
-  // A different document has none of them.
-  await page.locator('button:has-text("New")').first().click()
-  await page.waitForTimeout(700)
-  await openSide('Goals')
-  log(
-    'goals belong to one document, not to the app',
-    (await page.locator('aside [aria-label^="Remove goal"]').count()) === 0 &&
-      (await page
-        .locator('aside input[aria-label="Add a goal for this document"]')
-        .getAttribute('placeholder')) === 'What is this document for?',
-  )
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: `${SHOTS}/36-side-menu.png` })
 }
 
 // Manifest + service worker, the installable part.
