@@ -89,6 +89,14 @@ const MARKERS: Array<{
     match: /^\[([ xX]?)\]\s*(.*)$/,
     shape: (m) => ({ type: 'todo', done: /[xX]/.test(m[1]), rest: m[2] }),
   },
+  /*
+    "- [ ] thing": markdown's own task list. Before the bullet rule, or the
+    dash wins and the line becomes a bullet with two brackets in front of it.
+  */
+  {
+    match: /^(?:[-*•–]|\d{1,3}[.)])\s+\[([ xX]?)\]\s*(.*)$/,
+    shape: (m) => ({ type: 'todo', done: /[xX]/.test(m[1]), rest: m[2] }),
+  },
   // "TODO:", "Action:", "Task:" — the way it is written when there is no
   // checkbox to hand.
   {

@@ -21,7 +21,7 @@ import { MAX_INDENT } from './smart-typing.ts'
  */
 
 export interface PastedBlock {
-  type: 'text' | 'heading' | 'bullet' | 'quote' | 'code' | 'todo'
+  type: 'text' | 'heading' | 'bullet' | 'quote' | 'todo'
   text: string
   /** Inline formatting, when the content had any worth keeping. */
   html?: string
@@ -96,7 +96,9 @@ export function parsePastedHtml(html: string): PastedBlock[] {
     } else if (tag === 'blockquote') {
       type = 'quote'
     } else if (tag === 'pre') {
-      type = 'code'
+      // A <pre> is still a paragraph: there is no code block to put it in,
+      // and losing the words would be worse than losing the monospace.
+      type = 'text'
     }
   }
 
@@ -150,6 +152,21 @@ export function parsePastedText(text: string): PastedBlock[] {
       if (heading) {
         const n = heading[1].length
         out.push({ type: 'heading', level: n <= 1 ? 1 : n === 2 ? 2 : 3, text: heading[2] })
+        continue
+      }
+      /*
+        "- [ ] thing" — markdown's own task list, and what a model returns
+        when asked for something to tick. Read before the bullet rule, or it
+        comes out as a bullet with two brackets at the front of it.
+      */
+      const listed = /^(?:[-*•‣▪]|\d+[.)])\s+\[([ xX]?)\]\s+(.*)$/.exec(body)
+      if (listed) {
+        out.push({
+          type: 'todo',
+          text: listed[2],
+          done: listed[1].toLowerCase() === 'x',
+          ...(indent ? { indent } : {}),
+        })
         continue
       }
       const bullet = /^([-*•‣▪]|\d+[.)])\s+(.*)$/.exec(body)

@@ -75,10 +75,3 @@ export function trashedDocs(docs: Doc[]): Doc[] {
   return docs.filter(isInTrash).sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0))
 }
 
-/** Every attachment reference a document holds, so a purge can free the bytes. */
-export function attachmentRefs(doc: Doc): string[] {
-  return doc.blocks
-    .filter((block): block is Extract<typeof block, { type: 'file' }> => block.type === 'file')
-    .map((block) => block.ref)
-    .filter(Boolean)
-}

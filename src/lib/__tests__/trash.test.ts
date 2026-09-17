@@ -4,7 +4,6 @@ import { makeBlock } from '../blocks.ts'
 import {
   TRASH_DAYS,
   TRASH_MS,
-  attachmentRefs,
   daysLeft,
   expiryLabel,
   isInTrash,
@@ -63,7 +62,7 @@ test('the sweep only takes documents past the retention', () => {
 
 test('purging empties the document but keeps the row', () => {
   const full = doc({ deletedAt: NOW - 8 * DAY, title: 'Secrets', projectId: 'p1' })
-  full.blocks = [makeBlock('text'), makeBlock('table')]
+  full.blocks = [makeBlock('text'), makeBlock('divider')]
   const gone = purge(full, NOW)
   assert.equal(gone.id, full.id, 'the id must survive, or sync resurrects it')
   assert.equal(gone.title, '')
@@ -91,15 +90,3 @@ test('the trash lists the most recently deleted first, and nothing else', () => 
   assert.deepEqual(trashedDocs(docs).map((d) => d.id), ['new', 'old'])
 })
 
-test('attachment references are collected so a purge can free the bytes', () => {
-  const withFiles = doc()
-  const a = makeBlock('file')
-  const b = makeBlock('file')
-  const empty = makeBlock('file')
-  if (a.type === 'file') a.ref = 'ref-a'
-  if (b.type === 'file') b.ref = 'ref-b'
-  withFiles.blocks = [makeBlock('text'), a, b, empty]
-  // The never-filled block has an empty ref and must not be collected.
-  assert.deepEqual(attachmentRefs(withFiles), ['ref-a', 'ref-b'])
-  assert.deepEqual(attachmentRefs(doc()), [])
-})

@@ -9,10 +9,6 @@ import { applyShape, editableInPlain, reconcile, type Line } from '@/lib/plain-d
 import { blockHtml, escapeHtml, sanitizeInline } from '@/lib/rich-text'
 import { colonStartsList, looksLikeTitle, MAX_INDENT, nextIndent } from '@/lib/smart-typing'
 import { blockText, isTextish, type Block, type Doc, type TextishBlock } from '@/lib/types'
-import CodeBlock from './code-block'
-import FileBlock from './file-block'
-import FormBlock from './form-block'
-import TableBlock from './table-block'
 import { bindSmartTyping } from './typing'
 
 /**
@@ -75,7 +71,6 @@ export interface PlainEditorProps {
    * React cannot see change.
    */
   onCaret: (id: string | null) => void
-  onExtractPdf?: (file: Blob, name: string) => void
 }
 
 /** One run of consecutive paragraphs, or one block that is not text. */
@@ -120,7 +115,6 @@ export default function PlainEditor({
   onChange,
   revision,
   onCaret,
-  onExtractPdf,
 }: PlainEditorProps) {
   /**
    * The newest document, readable from a handler made earlier.
@@ -155,29 +149,6 @@ export default function PlainEditor({
         // are the same keystroke, and a second change reading `latest` would
         // read the note as it was before the first.
         title: title && !current.title.trim() ? title : current.title,
-        blocks: blocks.length ? blocks : [makeBlock('text')],
-        updatedAt: Date.now(),
-      })
-    },
-    [onChange],
-  )
-
-  const replaceOne = useCallback(
-    (at: number, next: Block) => {
-      const current = latest.current
-      const blocks = [...current.blocks]
-      blocks[at] = next
-      onChange({ ...current, blocks, updatedAt: Date.now() })
-    },
-    [onChange],
-  )
-
-  const removeOne = useCallback(
-    (at: number) => {
-      const current = latest.current
-      const blocks = current.blocks.filter((_, i) => i !== at)
-      onChange({
-        ...current,
         blocks: blocks.length ? blocks : [makeBlock('text')],
         updatedAt: Date.now(),
       })
@@ -240,12 +211,7 @@ export default function PlainEditor({
           />
         ) : (
           <div key={entry.key} data-block-id={entry.block.id} className="my-3">
-            <Island
-              block={entry.block}
-              onChange={(next) => replaceOne(entry.at, next)}
-              onRemove={() => removeOne(entry.at)}
-              onExtractPdf={onExtractPdf}
-            />
+            <Island block={entry.block} />
           </div>
         ),
       )}
@@ -813,51 +779,18 @@ function TextRun({
 /* -------------------------------------------------------------- the islands */
 
 /**
- * A block that is not writing, sitting between two runs.
+ * The one thing on the page that is not a line of writing: a rule.
  *
- * It keeps its own copy while it is on screen, because the runs around it do
- * not repaint while somebody is typing and a spreadsheet that only redrew on
- * a repaint would be a spreadsheet you could not see yourself filling in. The
- * copy is seeded again whenever the document is rewritten from outside, which
- * is what an undo does.
+ * It used to be four — a spreadsheet, a code editor, a form and an attachment
+ * — each an island of React between two runs of editable text. They are gone,
+ * and what is left is a horizontal line, which cannot be typed in and so still
+ * cannot live inside the editable element. The machinery for putting something
+ * between two runs stays because this uses it, and because it is the seam any
+ * future non-text thing would come back through.
  */
-function Island({
-  block,
-  onChange,
-  onRemove,
-  onExtractPdf,
-}: {
-  block: Block
-  onChange: (next: Block) => void
-  onRemove: () => void
-  onExtractPdf?: (file: Blob, name: string) => void
-}) {
-  const [mine, setMine] = useState(block)
-  const [seen, setSeen] = useState(block)
-  if (block !== seen) {
-    setSeen(block)
-    // Only when it was changed somewhere else: our own edit comes back as the
-    // same value and re-seeding from it would fight the cell being typed in.
-    if (block !== mine) setMine(block)
-  }
-
-  const change = (next: Block) => {
-    setMine(next)
-    onChange(next)
-  }
-
-  if (mine.type === 'divider') {
-    return <hr className="my-6 border-0 border-t border-[var(--color-line)]" />
-  }
-  if (mine.type === 'table') return <TableBlock block={mine} onChange={change} />
-  if (mine.type === 'code') return <CodeBlock block={mine} onChange={change} />
-  if (mine.type === 'form') return <FormBlock block={mine} onChange={change} />
-  if (mine.type === 'file') {
-    return (
-      <FileBlock block={mine} onChange={change} onRemove={onRemove} onExtractPdf={onExtractPdf} />
-    )
-  }
-  return null
+function Island({ block }: { block: Block }) {
+  if (block.type !== 'divider') return null
+  return <hr className="my-6 border-0 border-t border-[var(--color-line)]" />
 }
 
 /* --------------------------------------------------------------- painting */

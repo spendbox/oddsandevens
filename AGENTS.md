@@ -1,16 +1,15 @@
 # Pad
 
-A universal note editor. Notes, spreadsheets, tasks, code and forms are five
-block types inside one note, not five applications.
+A note-taking app for people who take notes for a living. Two screens: the
+notes, and a note.
 
 **Everything the reader sees is called a note.** Not a document, not a file.
-Two lines or twenty pages, the same word for both — that is the whole point of
-the rename: the app has to feel worth opening for a thought you will have
-forgotten in ten minutes, and "document" is a word people put a coat on for.
+Two lines or twenty pages, the same word for both.
 
-Two buttons in it talk to a model. One reads the page back and says what
-happens next; one listens and writes down what was said. Nothing else does,
-and nothing runs without being pressed.
+Three things in it talk to a model, all of them on purpose and all of them
+optional: the box that writes a note up, the recorder that writes down what was
+said, and the question you can ask of your own notes. Nothing else does, and
+nothing runs without being pressed.
 
 There is one writing surface and it is a page. Lines finish themselves as the
 caret leaves them, with no model involved.
@@ -31,11 +30,17 @@ Read `README.md` before changing anything structural.
 
 ## The one rule
 
-**A note is a list of blocks, and every tool is a block type.** Adding a
-sixth tool means adding to `BlockType` in `src/lib/types.ts`, a case in
-`makeBlock`, an entry in the toolbar's Insert list and a component — never a
-second editor, a second save path, or a mode to switch into. If a feature needs
-its own screen to work, it is the wrong shape for this app.
+**A note is a list of blocks, and a block is a line of writing.** A paragraph,
+a heading, a bullet, a box to tick, a quote, a rule across the page. That is
+the whole of `BlockType` and it is meant to stay that size.
+
+It used to be bigger: every tool was a block type, so there was a spreadsheet
+with a formula engine, a code editor with a syntax highlighter, a form builder
+and file attachments, all inside the same note. Each was well made and each was
+the wrong app — somebody taking notes in a meeting wants to write, and every
+one of those was weight in the first download and a control on a bar they had
+to read past to reach their own words. Adding one back means being able to say
+why a note-taking app needs it more than it needs to stay this small.
 
 The person typing never meets a block. That is the other half of the rule and
 the harder half: the model is underneath, where it belongs, and the surface is
@@ -52,34 +57,24 @@ a page.
   import so its ~100KB stays out of the first download for the many visitors
   who never sign in. A missing environment variable makes the sign-in button
   disappear; it never makes a page fail.
-- **React must not own text while the user is typing.** `Editable` is
-  uncontrolled: it seeds the DOM on mount and only writes back when the value
-  changed elsewhere *and* the element does not have focus. Making it controlled
-  puts the caret back at the start on every keystroke. Blocks store plain text,
-  never HTML — an offset stays an offset, and nothing from the server can carry
-  markup into the page.
+- **React must not own text while somebody is typing.** A run paints its lines
+  once and then leaves the browser alone; a keystroke that goes to state and
+  comes back as a re-render rebuilds the text nodes and throws the caret to the
+  start. Blocks store plain text, with the painting in a separate field — an
+  offset stays an offset, and nothing from a server can carry markup into the
+  page.
 - **Do not call setState in an effect body.** The lint rule is on and it is
   right. Use lazy initial state, the render-phase "adjust state when a prop
-  changes" pattern (see `folder-picker.tsx`), or `useSyncExternalStore` for values
-  that live outside React (see `use-theme.ts`).
+  changes" pattern (see `compose-note.tsx`), or `useSyncExternalStore` for
+  values that live outside React (see `ui-prefs.ts`).
 - **The theme is applied by an inline script before first paint.** That is what
   stops a dark-mode user seeing a white flash, and why the theme is read
   through `useSyncExternalStore` rather than an effect.
-- **There is no slash menu.** "/" is a slash, which is what somebody writing
-  "and/or" or a date meant by it. Every block type is in the toolbar's ⋯ under
-  Insert.
 - **One surface, and the browser does as much of it as possible.** A run of
   paragraphs is one `contenteditable`, so Enter makes a line, Ctrl+A takes the
   page, a selection runs past the end of a paragraph and a copy comes out as
   one piece — none of it reimplemented. The app that owned every paragraph
   separately had to hand-write all four and got each of them slightly wrong.
-- **A block that is not text sits between runs, not inside one.** A spreadsheet
-  is not something a caret belongs in the middle of. Documents that are only
-  writing are therefore one editable element and behave perfectly; one with a
-  spreadsheet in the middle is two, and all that costs is a selection that
-  stops at it. That is also why Ctrl+A is caught on the page — and why it is
-  never caught inside a cell, a code block or a form field, where it means
-  "select what I am typing in".
 - **React owns the structure; each run owns its own text.** React must not own
   text while somebody is typing: a keystroke that goes to state and comes back
   as a re-render rebuilds the text nodes and throws the caret to the start. So
@@ -118,16 +113,6 @@ a page.
   copy carries into the clipboard, and a node that has to be stripped out again
   on every read-back. A counter is also right at every moment by construction,
   where stamped numbers have to be corrected every time an item is added.
-- **The formula engine matches Excel where they disagree with maths.** `^` is
-  left-associative, so `2^3^2` is 64. Blank cells are skipped by `AVERAGE`
-  rather than counted as zero. A cycle returns `#CYCLE` instead of recursing
-  until the tab dies.
-- **Cells are a sparse map keyed `"A1"`, and an emptied cell is deleted** rather
-  than stored as `""`, so the map does not fill with blanks.
-- **The code block's two layers must agree on every text metric.** The `<pre>`
-  and the `<textarea>` share one CSS class for font, size, line height,
-  padding and wrapping. Change it in one place or the caret drifts from the
-  text, further on every line.
 - **No web fonts, no editor library, no highlighting library.** Those are the
   three things that make an app like this heavy. The system font stack is
   already in memory; the highlighter and formula engine are a few hundred lines
@@ -150,64 +135,12 @@ a page.
   `sanitizeInline` — including stored HTML, because a value that has been to a
   server and back is not ours. The sanitiser allows a few inert tags and **no
   attributes at all**; do not add an attribute allowlist.
-- **Structural rewrites bump `revision`.** Editable never repaints a focused
+- **Structural rewrites bump `revision`.** A run never repaints a focused
   element, which is what stops the caret jumping while typing — and which also
   blocks the repaint a split needs. Splitting, merging and converting bump the
   revision to override it; typing must never bump it.
 - **The editable surface is `white-space: pre-wrap`.** HTML collapses a leading
   space, and splitting a line at one produced blocks that silently lost it.
-- **The controls live in one toolbar, not in the margin.** The gutter grip and
-  "+" that appeared on hover were the thing that made this read as a block
-  editor rather than a word processor: you could not see what the app did
-  without waving the pointer over the page, and the controls moved as the
-  pointer moved. `ribbon.tsx` is fixed above the page and always in the same
-  order. Reordering a paragraph is Alt+Up/Down, which is what a word processor
-  has always used. Do not put per-block chrome back into the margin.
-- **Looking like a toolbar is not the same as looking like Word 2003.** Three
-  things date one: a native `<select>` wearing the operating system's chrome, a
-  vertical rule between every group, and twenty icons of equal weight. The
-  style control is therefore a plain button opening a menu that sets each
-  option in its own type; groups are separated by space; buttons have no border
-  until the pointer is over them.
-- **The side menu is about the open note, not about the collection.**
-  Three ways out (Notes, Library, search), one way onward (New), then Carry on —
-  the note you are in — the rest of its folder, everything the note has (where
-  it is filed, the action button, and every way of getting it out or bringing
-  something in), and, at the foot, the account. Recent and favourites are not
-  here: they answer "what was I doing", which is a question asked on the way in,
-  so they are on the notes screen where the whole collection is. A list of other
-  notes beside the one being written is the thing this surface has been cut
-  down from twice.
-- **"Carry on" exists because the menu covers the page on a phone.** At 390px
-  the side menu is the whole screen, so the way back has to be a visible thing
-  the size of a card, not a cross in a corner.
-- **"Move this to a folder" is one button and a picker, never an inline list.**
-  Four menus each printing every folder is a menu you scroll past to reach
-  Delete, and it is a different length for everybody. `folder-picker.tsx` is
-  shared by the side menu, the folder dropdown and every row in the Library, so
-  none of them can quietly stop offering "Take it out of its folder". A document
-  in no folder says so at the top of its settings rather than showing nothing —
-  an absent row reads as "there is no such thing as a folder here", and the
-  loose document is precisely the one somebody wants to file.
-- **The home screen has two tabs and will go on having two.** Notes and
-  Library. A tab bar that can grow is a navigation system, and this screen
-  exists because the app had one too many of those.
-- **Unfiled documents are the first shelf in the Library, not the last.** They
-  are the ones whose answer to "where is it" is "nowhere", which is the question
-  that screen is for.
-- **Dragging to make a folder lives in the Library now.** It is the one place
-  every document is listed, so it is the only place there is anything to drag
-  between. Selecting several and pressing Move is the same tidying with a thumb,
-  and the only one of the two that moves nine documents at once.
-- **There is one bar, and it is the note's.** Back to the notes, a word saying
-  the note is saved, the action button, ⋯. It had twenty controls, then four,
-  and the application's own header sat above it — two bars stacked, which on a
-  390px screen is a third of the display gone before a word of the note. The
-  header's contents went into the side menu (the account) and the ⋯ (the way
-  into that menu); the folding-on-scroll machinery went with it, because the
-  way to stop two bars stacking is to have one bar. The line to hold is
-  unchanged: a quieter bar is worth a press and is not worth a feature, so
-  nothing may become unreachable when something leaves the row.
 - **"Saved" is a word, not a button.** There is no save button and an app with
   no save button has to say so. It says "Saving…" between the keystroke and the
   disk, so it is demonstrably live rather than a label printed on the bar — and
@@ -215,22 +148,14 @@ a page.
   clears it.
 - **A bar the page scrolls under is opaque, never 95% with a blur.** The words
   showed through, which on a bar that never moves reads as a rendering fault.
-- **A toolbar button that applies a command acts on `pointerdown` with
-  `preventDefault`; one that opens something acts on `click`.** The first half
-  is because a click blurs the block, leaving the command no selection to act
-  on. The second half is because acting on pointerdown puts a panel — or its
-  backdrop — under a finger that is still down, and the click completing the
-  tap then lands on it: on a phone the action button appeared to work only if
-  you held it. Keep the `preventDefault` on pointerdown either way, which is what
-  saves the selection; only move where the action runs.
-- **Undo is over whole documents, and takes Ctrl+Z from the browser.** The
+- **Undo is over whole notes, and takes Ctrl+Z from the browser.** The
   browser keeps a stack per contenteditable, which here is per paragraph, so
   its undo knew nothing about a split, a delete, a conversion or a rewrite
   applied to the page. `lib/history.ts` keeps snapshots — cheap, because every
   edit already produces a whole new `Doc` immutably — coalesces edits closer
-  together than 600ms, and is thrown away when a different document is opened.
-  Restoring one bumps a revision the editor adds to its own, because Editable
-  will not repaint a focused element otherwise.
+  together than 600ms, and is thrown away when a different note is opened.
+  Restoring one bumps a revision the editor adds to its own, because a run will
+  not repaint a focused element otherwise.
 - **An icon never costs a model call.** `lib/doc-icon.ts` is a table of words
   matched against the title first and the opening lines second. Paying for a
   decoration on every document forever is a bad trade, and it would mean no
@@ -239,12 +164,6 @@ a page.
   and a word earns its place only if it almost always means the same thing:
   "call", "numbers", "draft", "book" and "release" were all in there once and
   are all deliberately gone.
-- **A bar must never clip a menu opened from inside it.** The application's
-  header used to fold away by animating its height with the overflow hidden,
-  which cropped every menu opened from it — the note's own ⋯ came out cut off
-  at the height of the bar, which reads as the menu being behind the page. The
-  header is gone; the rule survives it, and `npm run e2e` still measures that
-  the ⋯ hangs below the bar rather than inside it.
 - **Nothing between a sticky element and the scroller may clip its overflow.**
   `overflow-hidden` on an ancestor makes that ancestor the scrollport, and a
   box that does not scroll cannot make anything stick. It was on the sheet, for
@@ -266,56 +185,15 @@ a page.
   a gap wider than the header to settle. Anything that moves because the page
   moved will find its way back to that bug; there is one bar now and it stays
   where it is.
-- **The sidebar is the whole screen on a phone**, not a 16rem drawer over the
-  document. A strip with the page showing down one side reads as something
-  half-open, and it costs every row the width that made the names readable.
 - **Weigh every dependency against the first load, and load the big ones
   lazily.** The sign-in client (~100KB) and the PDF reader (~500KB) are both
   dynamic imports, fetched the first time they are actually needed. `npm run
   e2e` asserts that pdf.js is absent from the first load; keep it that way.
-- **PDF export is the browser's print pipeline plus a print stylesheet**, not a
-  PDF writer. Anything that is a control rather than content gets
-  `print:hidden`.
-- **Attachment bytes never go on the block.** They live in the `files` store in
-  IndexedDB under a `ref`; only the description travels in the document, which
-  is what keeps a document small enough to sync on every change.
 - **Sharing publishes a snapshot into its own table.** Never widen the `docs`
   policy to make a document public — one mistake there exposes every private
   document. `shared_docs` has its own public-read policy and only holds what
   was deliberately published.
 
-- **The Library is a way in, not a place.** Dropped files become ordinary
-  documents in the ordinary sidebar — searchable, answerable, syncable like
-  everything else. It reuses the readers that already exist (`pdf.ts`,
-  `docx.ts`, the clipboard parser), which is why a library needs no editor, no
-  store and no document shape of its own. Give it one and it becomes a second
-  application inside the first.
-- **Titles come from the contents first, the filename second.** A heading at
-  the top wins, because a document that has one has already said what it is;
-  then the filename, but only when it says anything — `scan_0012`,
-  `IMG_20240211` and `Document (3)` are exactly the files that need a title,
-  and taking their names would title a tenancy agreement "Scan 0012".
-  `isUninformativeName` is the test, and it is the thing to fix when a title
-  comes out wrong.
-- **The model improves the filing; it is not what makes it exist.** Every title
-  and summary is produced locally first and shown either way, so no key, no
-  network and a refusal all cost quality rather than the import. The reply is
-  parsed forgivingly for the same reason: one malformed entry must not lose a
-  batch of forty documents.
-- **Nothing is filed until it has been seen.** Titles are editable in the
-  review list and the batch can be thrown away whole. A project is offered only
-  where at least two documents share a subject — a project of one is a folder
-  with a single file in it.
-- **A project is the axis above a document, not a block type.** The "one rule"
-  covers the tools inside a document; grouping documents is a different thing
-  and correctly lives outside it. Keep a project thin — the moment it carries
-  content of its own it becomes a second kind of document and the model forks.
-- **Membership lives on the document (`doc.projectId`), never as a list on the
-  project.** One home for the fact, so moving a document is one field on one
-  row and there is no second list that can disagree — which is exactly how two
-  devices end up showing different contents for the same project. A document
-  naming a project that does not exist is shown as ungrouped, never hidden: a
-  dangling id is recoverable, a vanished document looks like data loss.
 - **A pull fetches what changed, not everything.** Each table keeps a cursor —
   the newest `updatedAt` this device has accepted — in the `meta` store beside
   the documents, and asks only for rows past it. Asking for every row every
@@ -325,10 +203,6 @@ a page.
   device made the edit and clocks disagree, and every half hour it is ignored
   for a full reconcile. A cursor moves only to a timestamp actually seen, never
   to "now", and is written only after every row it covers has been stored.
-- **Projects push before documents in sync**, so a document naming a new
-  project never lands on a device that has not heard of it. Project sync never
-  fails the run: an un-migrated database should cost the user their grouping,
-  not their documents.
 - **Do not mutate a ref inside a memoised callback.** The React Compiler
   forbids it. `workspace.tsx` keeps `latest` in step with `doc` in a single
   effect rather than assigning it from each action — which is also one place to
@@ -344,16 +218,10 @@ a page.
   undo stack intact; rewriting afterwards destroys it. Every automatic change
   must also be reversible with one Backspace — see `autocorrected` in
   `editable.tsx`. An editor that cannot be told "no" is one people switch off.
-- **After `insertHTML`, step out of what was inserted twice over.** The caret
-  is left inside the new element *and* the browser's typing style is set to
-  it, so the next word joins the span. Collapse to the parent after the
-  element, then clear the style: `queryCommandState` + a toggle for bold and
-  italic, and for `code` — which has no command — a zero-width perch, stripped
-  by `stripInvisible` from everything that is stored, searched or exported.
-- **The debounced save captures the document it was scheduled for.** Reading
-  "whichever document is current" when the timer fires loses every keystroke
-  made in the 400ms before switching documents, because by then that is a
-  different document. Anything that reads the store back calls `flushSave()`
+- **The debounced save captures the note it was scheduled for.** Reading
+  "whichever note is current" when the timer fires loses every keystroke made
+  in the 400ms before leaving a note, because by then that is a different
+  note. Anything that reads the store back calls `flushSave()`
   first.
 - **Never `setPointerCapture` on pointerdown.** It retargets the whole gesture,
   including the following `click`, to the capturing element — which silently
@@ -364,19 +232,13 @@ a page.
   inside a list, a hard-wrapped email) are unit tested. Collapsing a paste to
   one line is the most destructive thing this editor can do to content nobody
   here wrote.
-- **A purge empties a document but keeps its row.** Removing the row lets
+- **A purge empties a note but keeps its row.** Removing the row lets
   another device push its copy back on the next sync. Free the attachment
   bytes at the same time — they are the part that occupies space.
 
-- **A .docx is a ZIP of XML, and the browser can already unzip it.**
-  `src/lib/zip.ts` is a hand-written container reader/writer over
-  `DecompressionStream('deflate-raw')`; `docx.ts` is the format translation on
-  top. mammoth alone is 2.1MB unpacked. Read the ZIP central directory, never
-  the local headers — a local header may carry zero sizes with the truth in a
-  trailing data descriptor.
 - **An optional property that was never set is absent from the object.**
   `'html' in block` is false on a freshly made block, which silently dropped
-  the formatting from every imported document. Narrow by block type instead.
+  the formatting from every imported note. Narrow by block type instead.
 - **The API key lives only on the server.** `src/app/api/ai/route.ts` is the
   one server route in this app, and the only reason it exists. A key in client
   code is a key anyone can read out of the bundle and spend.
@@ -448,97 +310,29 @@ a page.
   recogniser makes rewrites the page under the caret. The sign shows the live
   words instead, which answers the question somebody actually has while
   recording — not "is it on" but "is it hearing me".
-- **One button reads the page, and it only ever reads it.** Ask rewrote the
-  sentence somebody was in the middle of; Brain applied a document's rules to
-  lines as they were typed; Goals watched a draft against what it was for. All
-  three acted on the writing, which is the part nobody wants help with. What
-  replaced them is `action-plan.tsx`: pressed on purpose, it says what happens
-  next and changes nothing. If something in this app ever edits a document
-  without being told to, that is the rule being broken.
-- **Say what a thing is, not what shape it is.** The plan's second group said
-  "Not connected yet — this is the shape of it", and the person who asked for
-  it had to ask what it meant. It says "Not built yet. Listed so you can see
-  what is coming." A line of interface copy that needs explaining has already
-  failed, however true it is.
-- **A plan says who, and is honest about which half is not wired up.** Every
-  step is `you` or `app`, because "ring the plumber" and "draft the email" are
-  different kinds of sentence and only one of them is ever software's to take
-  on. Nothing marked `app` is done — drafting through the API and putting dated
-  steps in a calendar are the two that come next — and the panel says so in as
-  many words rather than showing a button that would lie.
-- **The plan works with no key.** `lib/plan.ts` builds one on the device from
-  `findTasks`, and it is shown either way; the model sorts and shortens it. The
-  same bargain as the icons, the Library's titles and the search: a refusal, a
-  missing key or a dead network costs the quality of the answer, never the
-  answer. `lib/plan.ts` has no JSX and no fetch, so every awkward reply is a
-  unit test.
-- **A date in a step is the writer's own words.** `whenIn` reads it off the
-  step's own wording rather than the model being asked for it, so there is one
-  rule about dates instead of two that can disagree — and "Friday" is never
-  turned into a timestamp, because a reminder on the wrong day is worse than a
-  reminder with no day.
-- **Nothing is reachable only by a keyboard shortcut.** The action button is on
-  the toolbar at every width, and in the side menu. The same test applies to
-  anything added later: if the only route to it is a chord, half the people
-  using this will never find it. For the same reason a placeholder never
+- **Nothing is reachable only by a keyboard shortcut.** Search has Ctrl+K and a
+  field across the top of the notes that says what it searches. The same test
+  applies to anything added later: if the only route to it is a chord, half the
+  people using this will never find it. For the same reason a placeholder never
   promises a shortcut — a hint that is wrong on half the devices is worse than
   no hint.
-- **An inline style always beats a class, so never write one a narrow layout
-  needs to win.** A panel anchored on a desktop and a sheet on a phone cannot
-  have its desktop `left` written inline: `inset-x-2` cannot override it, and
-  the sheet collapses to the width of its own text. The same trap in Tailwind's
-  own output is why `folder-picker.tsx` and `action-plan.tsx` are centred by a
-  flex container rather than by `inset-x-2 … sm:left-1/2`.
-- **A `fixed` panel opened from the side menu must be a portal.** `position:
-  fixed` is relative to the nearest transformed ancestor, and the side menu
-  carries a transform so it can slide. Without the portal the panel is laid out
-  inside a 288-pixel column and hangs off the edge of the window.
-- **Whether the model is configured is asked once, by the workspace.** Three
-  panels each asking `/api/ai` on mount is three requests for one answer that
-  cannot change while the tab is open.
+- **Whether the model is configured is asked once, by the workspace.** The box,
+  the recorder and the search panel each asking `/api/ai` on mount is three
+  requests for one answer that cannot change while the tab is open.
 - **Folds are one store, not one per component.** `lib/folds.ts`, and the
   snapshot is the raw string for the same reason the theme's is: a freshly
   parsed Set is a new object every time, which `useSyncExternalStore` reads as
   a change and turns into an infinite render loop.
-- **Nothing scans a document as it is typed.** A strip appearing over the page
-  mid-sentence to ask about a line you have just written is an interruption.
-  `lib/tasks.ts` is still the scanner, and it now runs only when the action
-  button is pressed — which is the same rule from the other direction: the
-  reading happens because somebody asked for it.
-- **An optional field on the document has to reach the row, or it does not
-  sync.** Favourites were on the document and silently dropped by `toRow`, so a
-  star set on a laptop was not a star on the phone. `0004_doc_settings.sql` is
-  the column; the lesson is that "it is one field on the document, so it
-  travels with everything else" is only true once `toRow` and `toDoc` know.
-- **A suggested task is offered, never created.** Whether "speak to Sam about
-  the lease" is a task or a description of something that already happened is
-  not decidable from the sentence, so `lib/tasks.ts` returns candidates and
-  every one is confirmed on its own. It is a pure string scan with no model
-  call: it runs with no key, no network and no cost, and every awkward case is
-  a unit test rather than something to reproduce by typing.
-- **A date in a task is kept as the writer wrote it**, never parsed into a
-  timestamp. "Friday" means a different day depending on when it was written,
-  and a reminder on the wrong day is worse than a reminder with no day. The
-  wording is what a calendar's own parser will want when one is connected.
-- **A folder is a line under the bar, not a control above the page.** It was a
-  scrolling row of the folder's other notes, then a header button that opened a
-  menu of them (`folder-bar.tsx`, now deleted). Both put a list of things that
-  were not this note at the top of it. The folder is now three words on the
-  same green line as the kind and the time; navigating the folder is the side
-  menu, which already lists its other notes, and moving out of it is the
-  picker, which is already the one way to move anything.
-- **"Put this note in…" is written once.** `folder-picker.tsx`, used by the
-  side menu, every row in the Library and the note's own settings. Four copies
-  is four places for one of them to quietly stop offering "Take it out".
-- **Browsing is grouped by folder; searching is not.** The Library lists
-  documents under their folders because browsing is a question about where
-  things are. Search results are a flat ranked list, because a folder heading
-  between the matches only pushes the best one further down.
-- **A document appears in exactly one section.** Not only tidiness: a row
-  carries a menu, and the same document rendered twice opened two menus on top
-  of each other, so nothing in either could be pressed.
-- **A favourite is one optional field on the document** (`favoritedAt`), like
-  its project. One home for the fact, so it syncs with everything else and
+- **An optional field on the note has to reach the row, or it does not sync.**
+  Favourites were on the note and silently dropped by `toRow`, so a star set on
+  a laptop was not a star on the phone. `0004_doc_settings.sql` is the column;
+  the lesson is that "it is one field on the note, so it travels with
+  everything else" is only true once `toRow` and `toDoc` know.
+- **A note appears in exactly one list.** Notes and Favourites are two lists,
+  not a list with a shelf on top of it: a favourite used to sit at the top of
+  the same column and push everything else down while answering a question
+  nobody was asking.
+- **A favourite is one optional field on the note** (`favoritedAt`). One home for the fact, so it syncs with everything else and
   there is no second list to disagree with it.
 - **The notes screen is the way back, not the way in.** Opening straight into a
   note with the caret already in it is this app's oldest promise; a screen in
@@ -611,10 +405,49 @@ a page.
   doing something other than what it looks like. The editor is told when it is
   covered.
 
+- **The box is how a note is made, and it must never be a gate.** Type, save,
+  done — and what happens next is the model's. Everything about it is written
+  so a refusal, a missing key, a timeout or being offline costs the tidying and
+  never the note: the local answer is worked out *before* the request, and
+  every failure path saves it. A box that can lose what somebody typed is worse
+  than no box.
+- **Nobody is ever made to name a note.** The name comes from the writing — the
+  model's when there is one, the opening line otherwise — and stays an ordinary
+  editable field, because a name that cannot be corrected is worse than no
+  name. The line the name was taken from is then taken out of the writing, or a
+  one-line note is shown twice on its own page.
+- **The model writes a note up; it does not write a note.** Expanding "mtg" to
+  "meeting" and breaking a run-on into bullets is writing up. A decision nobody
+  took, a date nobody gave or a name nobody wrote is making something up, and
+  one invented line in a note about a lease outweighs every minute this saves.
+  That rule is the top line of the prompt, and it is the same rule the
+  dictation prompts are written against.
+- **A reply from the model is parsed forgivingly, and in a file with no DOM.**
+  `lib/compose.ts` reads a title line, a heading, a code fence or nothing at
+  all, and the whole reply is the note if nothing can be recognised. Every
+  awkward reply is a unit test. Rejecting a malformed reply would mean losing
+  somebody's note to a stray "Sure, here you go".
+- **The list is the front page, and a note is what you go into.** Opening
+  straight into the last note touched was this app's oldest habit, and it was
+  opening a filing cabinet at whichever drawer was left out. The first screen
+  is what you have written; writing is one press from it.
+- **Signing in lives on the first screen.** It was a button in a header above a
+  note, then a row at the foot of a side menu: both are places somebody looking
+  for their account would never think to look.
+- **A note read back from storage may hold blocks this app no longer has.**
+  `readBlocks` turns any of them into a paragraph of whatever text it carried.
+  Dropping them silently would be losing somebody's work, and rendering them is
+  exactly the weight that was taken out. Every read goes through it.
+- **The picture on a row is the icon, not the kind.** Six kinds is a useful
+  thing to say and a poor thing to draw — forty notes wearing six pictures
+  between them is a column where the pictures say nothing. `doc-icon.ts` has a
+  few hundred words behind it; the kind is a word on the line above a note's
+  title, where a word is the right shape for it.
+
 ## Checking work
 
-`npm test` covers the formula engine, the highlighter, the plan, the transcript
-handling, the line beautifier and the page's read-back.
+`npm test` covers the line beautifier, the compose parsing, the search index,
+the transcript handling and the page's read-back.
 `npm run e2e` drives a real browser through every feature and is the one that
 catches what the others cannot — caret behaviour, saving, and whether a note
 survives a reload. Run both before claiming something works.

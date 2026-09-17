@@ -1,5 +1,3 @@
-import { cellKey, colName, computeGrid } from '@/lib/formula'
-import { highlight } from '@/lib/highlight'
 import { blockHtml } from '@/lib/rich-text'
 import type { Block } from '@/lib/types'
 
@@ -12,15 +10,6 @@ import type { Block } from '@/lib/types'
  * or the sync client is sent to them, because none of it does anything on a
  * page you cannot edit.
  */
-const CODE_COLOURS: Record<string, string> = {
-  comment: 'text-[var(--color-faint)] italic',
-  string: 'text-[var(--color-good)]',
-  number: 'text-[var(--color-accent)]',
-  keyword: 'text-[var(--color-accent)] font-medium',
-  tag: 'text-[var(--color-accent)]',
-  punct: '',
-  plain: '',
-}
 
 export default function ReadOnlyDoc({ title, blocks }: { title: string; blocks: Block[] }) {
   return (
@@ -95,94 +84,6 @@ function ReadOnlyBlock({ block }: { block: Block }) {
             dangerouslySetInnerHTML={{ __html: blockHtml(block) }}
           />
         </div>
-      )
-
-    case 'table': {
-      // Formulas are computed here, on the server, so the reader sees answers
-      // without downloading an engine to work them out.
-      const computed = computeGrid(block.cells)
-      return (
-        <div className="my-3 overflow-x-auto rounded-lg border border-[var(--color-line)]">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr>
-                <th className="w-9 border-r border-b border-[var(--color-line)] bg-[var(--color-hover)]" />
-                {Array.from({ length: block.cols }, (_, c) => (
-                  <th
-                    key={c}
-                    className="border-r border-b border-[var(--color-line)] bg-[var(--color-hover)] px-2 py-1 text-[11px] font-medium text-[var(--color-muted)] last:border-r-0"
-                  >
-                    {colName(c)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: block.rows }, (_, r) => (
-                <tr key={r}>
-                  <th className="border-r border-b border-[var(--color-line)] bg-[var(--color-hover)] text-center text-[11px] font-normal text-[var(--color-faint)]">
-                    {r + 1}
-                  </th>
-                  {Array.from({ length: block.cols }, (_, c) => {
-                    const result = computed[cellKey(c, r)]
-                    return (
-                      <td
-                        key={c}
-                        className={`border-r border-b border-[var(--color-line)] px-2 py-1.5 tabular-nums last:border-r-0 ${
-                          result?.error
-                            ? 'text-[var(--color-danger)]'
-                            : result?.numeric
-                              ? 'text-right'
-                              : ''
-                        }`}
-                      >
-                        {result?.text ?? ''}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )
-    }
-
-    case 'code':
-      return (
-        <pre className="my-3 overflow-x-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-hover)] p-3 font-mono text-[13px] leading-[1.6]">
-          {highlight(block.code, block.lang).map((token, i) => (
-            <span key={i} className={CODE_COLOURS[token.kind] ?? ''}>
-              {token.text}
-            </span>
-          ))}
-        </pre>
-      )
-
-    case 'form':
-      return (
-        <div className="my-3 rounded-lg border border-[var(--color-line)] p-3">
-          <p className="text-sm font-medium">{block.title || 'Form'}</p>
-          <ul className="mt-2 space-y-1">
-            {block.fields.map((field) => (
-              <li key={field.id} className="text-xs text-[var(--color-muted)]">
-                {field.label || 'Untitled question'}
-                {field.required && <span className="text-[var(--color-danger)]"> *</span>}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[11px] text-[var(--color-faint)]">
-            Answering a shared form is not possible yet.
-          </p>
-        </div>
-      )
-
-    case 'file':
-      return (
-        <p className="my-2 rounded-lg border border-dashed border-[var(--color-line)] px-3 py-2 text-xs text-[var(--color-faint)]">
-          {block.name || 'Attachment'} — attachments stay on the device they were
-          added to, so this one is not part of the shared copy.
-        </p>
       )
 
     default:

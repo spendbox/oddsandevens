@@ -49,26 +49,22 @@ test('accented and non-Latin text survives tokenizing', () => {
   assert.deepEqual(tokenize('café naïve 日本語'), ['café', 'naïve', '日本語'])
 })
 
-test('every block type contributes its words to the searchable text', () => {
-  const table = makeBlock('table')
-  if (table.type === 'table') {
-    table.rows = 1
-    table.cols = 2
-    table.cells = { A1: 'Design', B1: '420' }
-  }
-  const code = makeBlock('code')
-  if (code.type === 'code') code.code = 'const budget = 1'
+test('every kind of line contributes its words to the searchable text', () => {
+  const heading = makeBlock('heading')
+  Object.assign(heading, { text: 'Design budget' })
+  const quote = makeBlock('quote')
+  Object.assign(quote, { text: 'forty two thousand' })
   const todo = makeBlock('todo')
   Object.assign(todo, { text: 'call the printer' })
 
   const text = searchableText({
     id: 'x',
     title: 'Everything',
-    blocks: [table, code, todo],
+    blocks: [heading, quote, todo],
     createdAt: 0,
     updatedAt: 0,
   })
-  for (const word of ['Design', '420', 'budget', 'printer']) {
+  for (const word of ['Design', 'budget', 'thousand', 'printer']) {
     assert.ok(text.includes(word), `${word} is missing from the searchable text`)
   }
 })

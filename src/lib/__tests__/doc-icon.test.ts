@@ -57,55 +57,6 @@ test('punctuation and case do not hide a word', () => {
   assert.equal(iconForText('Invoice—March'), 'money')
 })
 
-test('a document made mostly of one kind of block says so', () => {
-  const sheet = doc('Numbers', [
-    { id: 'a', type: 'table', rows: 3, cols: 3, cells: {} },
-    { id: 'b', type: 'table', rows: 3, cols: 3, cells: {} },
-    text('and a note'),
-  ])
-  assert.equal(iconFor(sheet), 'table')
-
-  const listing = doc('Bits and pieces', [
-    { id: 'c', type: 'todo', text: 'one', done: false },
-    { id: 'd', type: 'todo', text: 'two', done: false },
-  ])
-  assert.equal(iconFor(listing), 'tasks')
-})
-
-test('the words beat what the document is made of', () => {
-  // A budget IS a spreadsheet, and "budget" is the more useful thing to say.
-  const budget = doc('March budget', [
-    { id: 'e', type: 'table', rows: 3, cols: 3, cells: {} },
-    { id: 'f', type: 'table', rows: 3, cols: 3, cells: {} },
-  ])
-  assert.equal(iconFor(budget), 'money')
-})
-
-test('a document that is one attached file is that file', () => {
-  const picture = doc('Scan 0012', [
-    { id: 'g', type: 'file', name: 'scan.png', mime: 'image/png', size: 10, ref: 'r' },
-  ])
-  assert.equal(iconFor(picture), 'image')
-
-  const pdf = doc('Scan 0013', [
-    { id: 'h', type: 'file', name: 'scan.pdf', mime: 'application/pdf', size: 10, ref: 'r' },
-  ])
-  assert.equal(iconFor(pdf), 'file')
-
-  const other = doc('Archive', [
-    { id: 'i', type: 'file', name: 'stuff.zip', mime: 'application/zip', size: 10, ref: 'r' },
-  ])
-  assert.equal(iconFor(other), 'attachment')
-})
-
-test('an attachment inside a real document does not take it over', () => {
-  const note = doc('Notes from the call', [
-    text('We went through the numbers.'),
-    { id: 'j', type: 'file', name: 'stuff.zip', mime: 'application/zip', size: 10, ref: 'r' },
-  ])
-  assert.equal(iconFor(note), 'file')
-})
-
 test('only the opening of an untitled document is read', () => {
   // A word thirty paragraphs down is what the document mentions, not what it
   // is about — otherwise every long note ends up wearing somebody else's icon.
