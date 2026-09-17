@@ -1,6 +1,6 @@
 'use client'
 
-import { House, Menu, PanelLeft, Search } from 'lucide-react'
+import { Menu, PanelLeft, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { blocksFromLines, makeBlock } from '@/lib/blocks'
 import { newId } from '@/lib/id'
@@ -895,19 +895,6 @@ export default function Workspace() {
                 <PanelLeft size={18} />
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                void flushSave()
-                setHomeTab('carry')
-                setHome(true)
-              }}
-              aria-label="Home"
-              title="Home"
-              className="shrink-0 rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
-            >
-              <House size={18} />
-            </button>
             {ready && doc && openProject && (
               <FolderBar
                 project={openProject}

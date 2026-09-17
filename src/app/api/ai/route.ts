@@ -140,6 +140,101 @@ async function plan(title: string, text: string) {
   return NextResponse.json({ text: result })
 }
 
+const DICTATION_SYSTEM =
+  'Somebody spoke a paragraph or two into a document and a speech recogniser wrote it down. You ' +
+  'turn that into what they would have typed.\n\n' +
+  'Return ONLY the text, as markdown. No preamble, no heading, no explanation, no closing ' +
+  'remark — whatever you return is put straight into their document.\n\n' +
+  'Rules, in order of importance:\n' +
+  '1. Change no meaning and add no content. Every fact, name, number and opinion in what you ' +
+  'return must be in what you were given. You are punctuating, not writing.\n' +
+  '2. Take out only what speech has and writing does not: "um", "uh", "like", "you know", "I ' +
+  'mean", false starts, and a word repeated because they stumbled. Leave everything else in ' +
+  'their own words, including their vocabulary and their level of formality.\n' +
+  '3. Put in the punctuation, the capitals and the paragraph breaks. Break where the subject ' +
+  'changes.\n' +
+  '4. A run of things spoken as a list becomes a markdown list; otherwise keep it as prose. Do ' +
+  'not invent structure a speaker did not use.\n' +
+  '5. Where a word is plainly mis-heard and the right one is obvious from the sentence, fix it. ' +
+  'Where it is not obvious, leave it exactly as it came — a confident wrong guess is worse than ' +
+  'an obvious mis-hearing.\n' +
+  '6. Keep the language it was spoken in.'
+
+const MEETING_SYSTEM =
+  'This is a speech recogniser\u2019s transcript of a meeting or a long spoken note. You turn it ' +
+  'into notes somebody can read afterwards and find things in.\n\n' +
+  'Return ONLY the notes, as markdown. No preamble, no title, no explanation, no closing ' +
+  'remark — whatever you return is put straight into their document.\n\n' +
+  'Shape:\n' +
+  '- Short "## " headings for the subjects that were actually discussed, in the order they came ' +
+  'up. Use the words the speakers used for things.\n' +
+  '- Under each, bullets: what was said and what was decided. One point per bullet.\n' +
+  '- Where something was agreed, say so plainly and name who agreed to it if the transcript ' +
+  'says.\n' +
+  '- End with "## Actions" and one bullet per thing somebody committed to, each starting with ' +
+  'the person if the transcript names one. Keep any day or date in the words they said it in — ' +
+  'do not turn "Friday" into a date.\n' +
+  '- Leave the Actions heading out entirely if nobody committed to anything.\n\n' +
+  'Rules:\n' +
+  '1. Every line must come from the transcript. Invent no decision, no name, no figure, no date ' +
+  'and no action. A meeting note that contains something nobody said is worse than no note.\n' +
+  '2. Names, numbers, sums of money and dates are copied exactly. Where a name is plainly ' +
+  'mis-heard, keep it as it came rather than guessing at the real one.\n' +
+  '3. Cut the greetings, the small talk and the repetition; keep the substance.\n' +
+  '4. Say nothing about the meeting itself — no "the team discussed", no "in summary", no ' +
+  'assessment of how it went.\n' +
+  '5. Keep the language it was spoken in.'
+
+/**
+ * A transcript in, something worth keeping out.
+ *
+ * Two jobs behind one action, because a paragraph spoken into a note and an
+ * hour of conversation want opposite things: the first wants to read as though
+ * it had been typed, and the second wants headings you can find your way
+ * around. The caller decides which from the length — see `looksLikeMeeting` in
+ * lib/dictation.ts — and both are told, in as many words, to add nothing.
+ *
+ * Long recordings arrive in parts, because an hour of speech is tens of
+ * thousands of characters and one request for all of it is a timeout. Each
+ * part is told where it sits so it does not open by repeating itself.
+ */
+async function notes(
+  transcript: string,
+  meeting: boolean,
+  part: number,
+  parts: number,
+  title: string,
+) {
+  const where =
+    parts > 1
+      ? `This is part ${part} of ${parts} of one recording. Carry straight on: do not open by ` +
+        'recapping what came before, and do not close by summarising.\n\n'
+      : ''
+  const result = await complete({
+    system: meeting ? MEETING_SYSTEM : DICTATION_SYSTEM,
+    user:
+      (title.trim() ? `The document is titled "${title.trim()}".\n\n` : '') +
+      where +
+      `The transcript:\n\n${transcript}`,
+    /*
+      Generous, because the answer is the length of the input rather than a
+      summary of it — a tidied paragraph is about as long as the paragraph.
+    */
+    maxTokens: 6000,
+    /*
+      Meetings get the reasoning, dictation does not. Deciding what was
+      actually agreed in forty minutes of half-finished sentences is a
+      judgement; putting full stops into two spoken paragraphs is not, and is
+      the one of the two somebody is waiting on.
+    */
+    effort: meeting ? 'high' : 'low',
+  })
+  if (!result) {
+    return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
+  }
+  return NextResponse.json({ text: result })
+}
+
 /** A model declined to answer. Reported as a refusal rather than a fault. */
 class Refused extends Error {}
 
@@ -337,6 +432,11 @@ export async function POST(request: Request) {
     question?: string
     sources?: Source[]
     items?: Intake[]
+    /** Whether a transcript was a meeting rather than a dictated paragraph. */
+    meeting?: boolean
+    /** Which piece of a long recording this is, and how many there are. */
+    part?: number
+    parts?: number
   }
   try {
     body = await request.json()
@@ -396,6 +496,34 @@ export async function POST(request: Request) {
     the same reason everything else does: the key is the thing worth keeping
     on a server.
   */
+  /*
+    A transcript in, writing out. The recogniser in the browser does the
+    listening; this is only ever handed the words it produced.
+  */
+  if (body.action === 'notes') {
+    const transcript = (body.text ?? '').trim()
+    if (!transcript) {
+      return NextResponse.json({ error: 'Nothing was said.' }, { status: 400 })
+    }
+    if (transcript.length > MAX_INPUT_CHARS) {
+      return NextResponse.json(
+        { error: 'That piece of the recording is too long. Send it in smaller parts.' },
+        { status: 413 },
+      )
+    }
+    try {
+      return await notes(
+        transcript,
+        !!body.meeting,
+        Number(body.part) || 1,
+        Number(body.parts) || 1,
+        body.title ?? '',
+      )
+    } catch (error) {
+      return failure(error)
+    }
+  }
+
   /*
     A page of notes in, a plan out. The last thing in here that reads a whole
     document, and the only one anybody presses a button for.
