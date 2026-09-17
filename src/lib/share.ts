@@ -2,7 +2,7 @@
 
 import { newId } from './id.ts'
 import { getSupabase } from './supabase.ts'
-import type { Block, Doc } from './types'
+import type { Doc } from './types'
 
 /**
  * Publishing a document to a public link.
@@ -17,19 +17,6 @@ export interface ShareResult {
   url?: string
   /** A sentence to show the person, when something stopped it. */
   problem?: string
-}
-
-/**
- * Attachments are stripped before publishing.
- *
- * Their bytes only exist in the owner's browser, so a visitor could never
- * download them. Publishing the block anyway would show a reader a file they
- * cannot open and cannot be told why.
- */
-function forSharing(blocks: Block[]): Block[] {
-  return blocks.map((block) =>
-    block.type === 'file' ? { ...block, ref: '', size: 0, mime: '' } : block,
-  )
 }
 
 export async function publishDoc(doc: Doc, ownerId: string): Promise<ShareResult> {
@@ -58,7 +45,7 @@ export async function publishDoc(doc: Doc, ownerId: string): Promise<ShareResult
         doc_id: doc.id,
         owner: ownerId,
         title: doc.title,
-        blocks: forSharing(doc.blocks),
+        blocks: doc.blocks,
         created_at: now,
         updated_at: now,
       },

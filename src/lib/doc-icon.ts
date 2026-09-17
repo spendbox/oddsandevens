@@ -21,12 +21,10 @@ import { blockText, type Block, type Doc } from './types.ts'
  *
  * ## The order, which is the whole design
  *
- * 1. A document that is one attached file is that file — an image is a
- *    picture, a PDF is a document. Nothing about the words matters.
- * 2. The title, because a document with a title has already said what it is.
- * 3. The opening lines, for the many notes that never get a title.
- * 4. What the document is *made of*: mostly a spreadsheet, mostly code, mostly
- *    ticked boxes. A weaker signal than a word, which is why it is last.
+ * 1. The title, because a note with a title has already said what it is.
+ * 2. The opening lines, for the many notes that never get a title.
+ * 3. What the note is *made of*: mostly ticked boxes is a list of things to
+ *    do. A weaker signal than a word, which is why it is last.
  *
  * Only whole words count. Substring matching made every document containing
  * "planning" a plane ticket.
@@ -41,8 +39,6 @@ import { blockText, type Block, type Doc } from './types.ts'
  */
 export type DocIcon =
   | 'file'
-  | 'image'
-  | 'attachment'
   | 'money'
   | 'receipt'
   | 'calendar'
@@ -55,8 +51,6 @@ export type DocIcon =
   | 'health'
   | 'study'
   | 'work'
-  | 'code'
-  | 'table'
   | 'tasks'
   | 'idea'
   | 'journal'
@@ -67,7 +61,6 @@ export type DocIcon =
   | 'celebration'
   | 'music'
   | 'fitness'
-  | 'form'
 
 /**
  * Words that mean a kind of document, most specific first.
@@ -92,7 +85,7 @@ const WORDS: Array<{ icon: DocIcon; words: string[] }> = [
   { icon: 'study', words: ['lecture', 'lectures', 'course', 'exam', 'exams', 'revision', 'homework', 'essay', 'thesis', 'syllabus', 'semester', 'coursework'] },
   { icon: 'work', words: ['cv', 'resume', 'application', 'job', 'career', 'promotion', 'appraisal', 'proposal', 'pitch', 'client'] },
   // "release" is absent: a press release is not a deployment.
-  { icon: 'code', words: ['code', 'api', 'bug', 'bugs', 'deploy', 'deployment', 'repo', 'repository', 'schema', 'migration', 'endpoint', 'refactor', 'changelog'] },
+  { icon: 'work', words: ['code', 'api', 'bug', 'bugs', 'deploy', 'deployment', 'repo', 'repository', 'schema', 'migration', 'endpoint', 'refactor', 'changelog'] },
   { icon: 'idea', words: ['idea', 'ideas', 'brainstorm', 'concepts', 'thoughts', 'sketch'] },
   // "book" is absent: you book a room far more often than you read one.
   { icon: 'journal', words: ['journal', 'reading', 'books', 'chapter', 'reflections', 'gratitude'] },
@@ -139,49 +132,27 @@ const MAJORITY = 0.5
 /** How far into a document to read when it has no title worth matching. */
 const OPENING_CHARS = 400
 
-/** What the document is made of, when the words did not settle it. */
+/** What the note is made of, when the words did not settle it. */
 function iconForShape(blocks: Block[]): DocIcon | null {
   const real = blocks.filter((block) => block.type !== 'divider')
   if (!real.length) return null
-
-  // One attachment and nothing else: the document *is* the file.
-  const files = real.filter((block) => block.type === 'file')
-  if (files.length === 1 && real.length === 1) {
-    const only = files[0]
-    if (only.type === 'file') {
-      if (only.mime.startsWith('image/')) return 'image'
-      return only.mime.includes('pdf') ? 'file' : 'attachment'
-    }
-  }
-
-  const share = (type: Block['type']) =>
-    real.filter((block) => block.type === type).length / real.length
-  if (share('table') >= MAJORITY) return 'table'
-  if (share('code') >= MAJORITY) return 'code'
-  if (share('todo') >= MAJORITY) return 'tasks'
-  if (share('form') >= MAJORITY) return 'form'
-  return null
+  const todos = real.filter((block) => block.type === 'todo').length
+  return todos / real.length >= MAJORITY ? 'tasks' : null
 }
 
 /**
- * The icon for a document.
+ * The icon for a note.
  *
- * Never throws and never returns nothing: an unrecognised document is a sheet
- * of paper, which is what it was before any of this.
+ * Never throws and never returns nothing: an unrecognised note is a sheet of
+ * paper, which is what it was before any of this.
  */
 export function iconFor(doc: Doc): DocIcon {
-  // A document that is one file is that file, whatever it is called.
-  const single = doc.blocks.filter((block) => block.type !== 'divider')
-  if (single.length === 1 && single[0].type === 'file') {
-    return iconForShape(doc.blocks) ?? 'attachment'
-  }
-
   const fromTitle = iconForText(docLabel(doc))
   if (fromTitle) return fromTitle
 
   // The many notes that never get a title are read from the top instead. Only
-  // the opening: a word thirty paragraphs down is what the document mentions,
-  // not what it is about.
+  // the opening: a word thirty paragraphs down is what the note mentions, not
+  // what it is about.
   const opening = doc.blocks
     .map(blockText)
     .filter(Boolean)

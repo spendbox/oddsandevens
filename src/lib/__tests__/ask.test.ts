@@ -145,18 +145,6 @@ test('a source carries when it was written, so dates can be reasoned about', () 
   assert.equal(gatherSources(docs, 'budget')[0].updatedAt, 1_700_000_000_000)
 })
 
-test('every block type can be a source, not only paragraphs', () => {
-  const table = makeBlock('table')
-  if (table.type === 'table') {
-    table.rows = 1
-    table.cols = 2
-    table.cells = { A1: 'Printing', B1: '42000' }
-  }
-  const doc: Doc = { id: 'x', title: 'Costs', blocks: [table], createdAt: 0, updatedAt: 0 }
-  const sources = gatherSources([doc], 'printing')
-  assert.ok(sources[0].text.includes('42000'), sources[0]?.text)
-})
-
 /* -------------------------------------------------------------- citations */
 
 const sources: Source[] = [

@@ -82,15 +82,15 @@ test('deleting everything still leaves somewhere to type', () => {
   assert.equal((after[0] as { text: string }).text, '')
 })
 
-test('a spreadsheet is carried across untouched, whatever came back for it', () => {
-  const table = makeBlock('table')
-  const before = [text('above'), table, text('below')]
+test('a block the surface cannot type in is carried across untouched', () => {
+  const rule = makeBlock('divider')
+  const before = [text('above'), rule, text('below')]
   const after = reconcile(before, [
     { id: before[0].id, text: 'above' },
-    { id: table.id, text: 'whatever the browser read out of a grid' },
+    { id: rule.id, text: 'whatever the browser read out of it' },
     { id: before[2].id, text: 'below' },
   ])
-  assert.equal(after[1], table)
+  assert.equal(after[1], rule)
 })
 
 test('formatting is kept, and dropped when it stops being formatting', () => {
@@ -104,9 +104,9 @@ test('formatting is kept, and dropped when it stops being formatting', () => {
 test('what the plain surface can and cannot type into', () => {
   assert.equal(editableInPlain(text('x')), true)
   assert.equal(editableInPlain(makeBlock('todo')), true)
-  assert.equal(editableInPlain(makeBlock('table')), false)
+  assert.equal(editableInPlain(makeBlock('divider')), false)
   assert.equal(hasRichBlocks([text('x')]), false)
-  assert.equal(hasRichBlocks([text('x'), makeBlock('code')]), true)
+  assert.equal(hasRichBlocks([text('x'), makeBlock('divider')]), true)
 })
 
 test('a split inside a bullet makes another bullet', () => {

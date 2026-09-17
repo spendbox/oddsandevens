@@ -4,7 +4,7 @@ import { docLabel, docOpening, docPreview, makeBlock, shortcutFor } from '../blo
 import { blockText, isTextish, type Doc } from '../types.ts'
 
 test('every block type can be made and is well formed', () => {
-  const types = ['text', 'heading', 'bullet', 'quote', 'todo', 'table', 'code', 'form', 'divider'] as const
+  const types = ['text', 'heading', 'bullet', 'quote', 'todo', 'divider'] as const
   for (const type of types) {
     const block = makeBlock(type)
     assert.equal(block.type, type)
@@ -17,17 +17,6 @@ test('every block type can be made and is well formed', () => {
 test('two blocks never share an id', () => {
   const ids = new Set(Array.from({ length: 200 }, () => makeBlock('text').id))
   assert.equal(ids.size, 200)
-})
-
-test('a fresh table is a usable grid', () => {
-  const block = makeBlock('table')
-  assert.equal(block.type === 'table' && block.rows >= 2, true)
-  assert.equal(block.type === 'table' && block.cols >= 2, true)
-})
-
-test('a fresh form starts with one question', () => {
-  const block = makeBlock('form')
-  assert.equal(block.type === 'form' && block.fields.length, 1)
 })
 
 test('heading level is carried through, and defaults', () => {
@@ -45,7 +34,6 @@ test('markdown shortcuts map to the right block', () => {
   assert.equal(shortcutFor('[] ')?.type, 'todo')
   assert.equal(shortcutFor('[ ] ')?.type, 'todo')
   assert.equal(shortcutFor('> ')?.type, 'quote')
-  assert.equal(shortcutFor('```')?.type, 'code')
   assert.equal(shortcutFor('---')?.type, 'divider')
 })
 
@@ -64,7 +52,7 @@ test('ordinary text is never mistaken for a shortcut', () => {
 test('isTextish agrees with what blockText can read', () => {
   assert.equal(isTextish(makeBlock('text')), true)
   assert.equal(isTextish(makeBlock('heading')), true)
-  assert.equal(isTextish(makeBlock('table')), false)
+  assert.equal(isTextish(makeBlock('divider')), false)
   assert.equal(isTextish(makeBlock('divider')), false)
 })
 
@@ -75,7 +63,6 @@ test('the sidebar preview picks the first real text', () => {
   if (text.type === 'text') text.text = 'the actual content'
   assert.equal(docPreview([heading, text]), 'the actual content')
   assert.equal(docPreview([]), 'Empty')
-  assert.equal(docPreview([makeBlock('table')]), 'Spreadsheet')
 })
 
 test('a document with a title is called by it', () => {
@@ -106,8 +93,7 @@ test('an empty document is Untitled rather than blank', () => {
 test('a document that begins with a heading is called by it', () => {
   const heading = makeBlock('heading', 1)
   Object.assign(heading, { text: 'Budget' })
-  const table = makeBlock('table')
-  const doc = { id: 'a', title: '', blocks: [heading, table], createdAt: 0, updatedAt: 0 }
+  const doc = { id: 'a', title: '', blocks: [heading], createdAt: 0, updatedAt: 0 }
   assert.equal(docLabel(doc), 'Budget')
 })
 
@@ -140,4 +126,22 @@ test('a long opening is cut, with something to show it was', () => {
   const opening = docOpening(doc, 60)
   assert.ok(opening.length <= 61, opening)
   assert.ok(opening.endsWith('…'))
+})
+
+test('a note whose name was cut out of its first line does not print it twice', () => {
+  const line =
+    'Meeting with Sam about the lease on Friday at three, and the service charge figures'
+  const doc: Doc = {
+    id: 'd',
+    title: docLabel({ id: 'd', title: '', blocks: [], createdAt: 0, updatedAt: 0 }),
+    blocks: [{ id: '1', type: 'text', text: line }, { id: '2', type: 'text', text: 'Check the break clause.' }],
+    createdAt: 0,
+    updatedAt: 0,
+  }
+  // The name is the opening line, cut short. The two lines under it in a list
+  // must be the *rest* of the note, not the same sentence again.
+  const named = { ...doc, title: '' }
+  const opening = docOpening(named)
+  assert.match(opening, /break clause/)
+  assert.ok(!opening.startsWith('Meeting with Sam'), opening)
 })

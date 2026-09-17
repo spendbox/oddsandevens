@@ -3,35 +3,16 @@ import type { PastedBlock } from './paste.ts'
 import { blockText, isTextish, type Block, type BlockType, type Doc } from './types.ts'
 
 /**
- * Makes an empty block of a given type. One factory, so a block created by
- * the slash menu, by a markdown shortcut and by pressing Enter are always
- * the same shape — a mismatch there shows up much later as a crash while
+ * Makes an empty block of a given type. One factory, so a block made by a
+ * markdown shortcut, by the beautifier and by pressing Return are always the
+ * same shape — a mismatch there shows up much later as a crash while
  * rendering something that came back from storage.
  */
 export function makeBlock(type: BlockType, level?: 1 | 2 | 3): Block {
   const id = newId()
   switch (type) {
-    case 'table':
-      // Three by three is enough to look like a grid and be obviously
-      // extendable, without a wall of empty cells on a phone.
-      return { id, type: 'table', rows: 3, cols: 3, cells: {} }
-    case 'code':
-      return { id, type: 'code', code: '', lang: 'javascript' }
-    case 'form':
-      return {
-        id,
-        type: 'form',
-        title: '',
-        // One question, so the block is never an empty box with nothing to do.
-        fields: [{ id: newId(), type: 'short', label: '', required: false }],
-        responses: [],
-      }
     case 'todo':
       return { id, type: 'todo', text: '', done: false }
-    case 'file':
-      // An empty ref means "nothing attached yet", which is what makes the
-      // block render as a drop zone rather than as a broken download.
-      return { id, type: 'file', name: '', mime: '', size: 0, ref: '' }
     case 'divider':
       return { id, type: 'divider' }
     case 'heading':
@@ -46,10 +27,9 @@ export function makeBlock(type: BlockType, level?: 1 | 2 | 3): Block {
 }
 
 /**
- * Markdown prefixes that turn one block into another as you type. These are
- * the shortcuts people already have in their fingers from every other editor,
- * and supporting them means the slash menu is a discovery aid rather than the
- * only way through.
+ * Markdown prefixes that turn one line into another kind of line. These are
+ * what people already have in their fingers from every other editor, and they
+ * are the only way a line changes shape now that there is no toolbar.
  */
 const SHORTCUTS: Array<{ match: RegExp; type: BlockType; level?: 1 | 2 | 3; ordered?: boolean }> = [
   // "1. ", "1) " and any other starting number: a numbered list.
@@ -61,7 +41,6 @@ const SHORTCUTS: Array<{ match: RegExp; type: BlockType; level?: 1 | 2 | 3; orde
   { match: /^\[\]\s$/, type: 'todo' },
   { match: /^\[\s\]\s$/, type: 'todo' },
   { match: /^>\s$/, type: 'quote' },
-  { match: /^```$/, type: 'code' },
   { match: /^---$/, type: 'divider' },
 ]
 
@@ -111,17 +90,13 @@ export function blocksFromLines(lines: string[]): Block[] {
   return blocks.length ? blocks : [makeBlock('text')]
 }
 
-/** A one-line summary of a document, for the sidebar. */
+/** A one-line summary of a note, for the list. */
 export function docPreview(blocks: Block[]): string {
   for (const block of blocks) {
     if (block.type === 'text' || block.type === 'bullet' || block.type === 'quote') {
       if (block.text.trim()) return block.text.trim()
     }
     if (block.type === 'todo' && block.text.trim()) return block.text.trim()
-    if (block.type === 'table') return 'Spreadsheet'
-    if (block.type === 'code') return 'Code'
-    if (block.type === 'form') return block.title.trim() || 'Form'
-    if (block.type === 'file') return block.name || 'File'
   }
   return 'Empty'
 }
@@ -161,13 +136,21 @@ export function docLabel(doc: Doc): string {
  * thing and spent two lines doing it.
  */
 export function docOpening(doc: Doc, chars = 200): string {
-  const label = docLabel(doc)
+  const label = docLabel(doc).replace(/…$/, '').trim()
   const parts: string[] = []
   for (const block of doc.blocks) {
-    const text = blockText(block).trim()
+    let text = blockText(block).trim()
     if (!text) continue
-    // The line the name came from, whether that was the title or a heading.
-    if (!parts.length && (text === label || label.startsWith(text.slice(0, 60)))) continue
+    /*
+      Whatever is already being shown as the name is taken off the front,
+      rather than the whole line being dropped: a name is often the *start* of
+      the first line, cut short, and dropping the line would throw away the
+      rest of the sentence it was cut out of.
+    */
+    if (!parts.length && label && text.startsWith(label)) {
+      text = text.slice(label.length).replace(/^[\s—–-]+/, '').trim()
+      if (!text) continue
+    }
     parts.push(text)
     if (parts.join(' ').length >= chars) break
   }
@@ -193,7 +176,6 @@ export function blocksFromPasted(pasted: PastedBlock[]): Block[] {
       made.indent = item.indent
     }
     if (made.type === 'todo' && item.done) made.done = true
-    if (made.type === 'code') made.code = item.text
     return made
   })
 }

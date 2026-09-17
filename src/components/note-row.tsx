@@ -2,7 +2,7 @@
 
 import { Star } from 'lucide-react'
 import { docLabel, docOpening } from '@/lib/blocks'
-import type { Doc } from '@/lib/types'
+import { blockText, type Doc } from '@/lib/types'
 import { stamp } from '@/lib/when'
 import { KindTile } from './note-kind'
 
@@ -45,6 +45,7 @@ export default function NoteRow({
   const starred = !!doc.favoritedAt
   const label = docLabel(doc)
   const opening = docOpening(doc)
+  const empty = doc.blocks.every((block) => !blockText(block).trim())
   const mark = highlight ?? ((text: string) => text)
 
   return (
@@ -70,9 +71,20 @@ export default function NoteRow({
               {stamp(doc.updatedAt, now)}
             </span>
           </span>
-          <span className="pad-serif mt-0.5 line-clamp-2 block pr-7 text-[14px] leading-snug text-[var(--color-muted)]">
-            {opening ? mark(opening) : 'Nothing written yet.'}
-          </span>
+          {/*
+            The rest of the note, under its name.
+
+            A one-line note *is* its name, so there is nothing left to show and
+            the row is a single line — which is correct, and much better than
+            printing the same sentence twice or saying "nothing written yet"
+            about a note that plainly has something written in it. That phrase
+            is kept for the note that genuinely has nothing in it.
+          */}
+          {(opening || empty) && (
+            <span className="pad-serif mt-0.5 line-clamp-2 block pr-7 text-[14px] leading-snug text-[var(--color-muted)]">
+              {opening ? mark(opening) : 'Nothing written yet.'}
+            </span>
+          )}
         </span>
       </button>
       {onFavorite && (

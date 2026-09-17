@@ -3,7 +3,6 @@
 import {
   CornerDownLeft,
   FileText,
-  Folder,
   LoaderCircle,
   Search,
   Sparkles,
@@ -13,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { citedSources, gatherSources, splitCitations, type Source } from '@/lib/ask'
 import { docLabel } from '@/lib/blocks'
 import { buildIndex, excerpt, looksLikeQuestion, search, type SearchHit } from '@/lib/search'
-import type { Doc, Project } from '@/lib/types'
+import type { Doc } from '@/lib/types'
 import { KindTile } from './note-kind'
 import Snippet from './snippet'
 
@@ -34,7 +33,6 @@ import Snippet from './snippet'
 export interface SearchPanelProps {
   open: boolean
   docs: Doc[]
-  projects: Project[]
   onClose: () => void
   onOpen: (id: string) => void
 }
@@ -48,7 +46,7 @@ interface Answer {
   sources: Source[]
 }
 
-export default function SearchPanel({ open, docs, projects, onClose, onOpen }: SearchPanelProps) {
+export default function SearchPanel({ open, docs, onClose, onOpen }: SearchPanelProps) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [answer, setAnswer] = useState<Answer | null>(null)
@@ -204,9 +202,6 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
     }
   }
 
-  const projectName = (doc: Doc) =>
-    doc.projectId ? (projects.find((p) => p.id === doc.projectId)?.name ?? null) : null
-
   const askRow = (
     <button
       type="button"
@@ -320,7 +315,6 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
 
           {rows.map((doc, i) => {
             const hit = query.trim() ? hits[i] : null
-            const project = projectName(doc)
             const at = rowIndex(i)
             return (
               <button
@@ -349,11 +343,6 @@ export default function SearchPanel({ open, docs, projects, onClose, onOpen }: S
                         docLabel(doc)
                       )}
                     </span>
-                    {project && (
-                      <span className="inline-flex shrink-0 items-center gap-0.5 text-[12px] text-[var(--color-faint)]">
-                        <Folder size={11} /> {project}
-                      </span>
-                    )}
                   </span>
                   {hit && (
                     <span className="pad-serif mt-0.5 block text-[13px] leading-snug text-[var(--color-muted)]">

@@ -166,3 +166,11 @@ test('a list carries on, and a heading does not', () => {
   assert.deepEqual(continues('quote'), { type: 'text' })
   assert.deepEqual(continues('text'), { type: 'text' })
 })
+
+test('markdown’s own task list is a box to tick, not a bullet with brackets', () => {
+  const shaped = beautify({ type: 'text', text: '- [ ] Ring the landlord' })
+  assert.equal(shaped?.type, 'todo')
+  assert.equal(shaped?.text, 'Ring the landlord')
+  assert.equal(shaped?.done, false)
+  assert.equal(beautify({ type: 'text', text: '1. [x] Posted' })?.done, true)
+})

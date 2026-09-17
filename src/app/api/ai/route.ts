@@ -95,51 +95,6 @@ export async function GET() {
   return NextResponse.json({ configured: configured() })
 }
 
-const PLAN_SYSTEM =
-  'Somebody has written a page of notes. You read it back and say what happens next.\n\n' +
-  'Return ONLY a plain list, one step per line, each line beginning with "you:" or "app:" and ' +
-  'nothing else. No preamble, no heading, no numbering, no closing remark.\n\n' +
-  'Which prefix:\n' +
-  '- "you:" is a step only the person can take — ringing somebody, signing something, paying, ' +
-  'deciding, turning up, asking another person for a thing.\n' +
-  '- "app:" is a step a writing app could take from what is already on the page — drafting a ' +
-  'message or a document, laying something out, summarising, putting a dated step in a ' +
-  'calendar. Nothing else. It cannot browse, buy, send, or talk to a service.\n\n' +
-  'Rules:\n' +
-  '- At most eight steps, and fewer is better. Three that matter beat eight that pad.\n' +
-  '- Each is one short imperative sentence, under about fifteen words.\n' +
-  '- Work only from these notes. Add no step the notes do not imply, and invent no names, ' +
-  'figures, dates or addresses.\n' +
-  '- Where the notes give a date or a day, keep the writer\u2019s own words for it in the step.\n' +
-  '- Order them the way they would actually be done.\n' +
-  '- If the notes contain nothing to act on, return nothing at all.'
-
-/**
- * Turns a page of notes into a plan.
- *
- * Suggestions only. Nothing this returns is carried out, and the panel that
- * shows it says so — the point is to read the notes back, not to act on them.
- */
-async function plan(title: string, text: string) {
-  const result = await complete({
-    system: PLAN_SYSTEM,
-    user:
-      (title.trim() ? `The notes are titled "${title.trim()}".\n\n` : '') +
-      `Today is ${new Date().toISOString().slice(0, 10)}.\n\n` +
-      `The notes:\n\n${text}`,
-    maxTokens: 800,
-    // Deciding what somebody has actually committed to, and which half of that
-    // a piece of software could take on, is a judgement rather than a reading
-    // task — and a plan full of steps that were never in the notes is the
-    // failure to write against.
-    effort: 'high',
-  })
-  if (!result) {
-    return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
-  }
-  return NextResponse.json({ text: result })
-}
-
 const DICTATION_SYSTEM =
   'Somebody spoke a paragraph or two into a document and a speech recogniser wrote it down. You ' +
   'turn that into what they would have typed.\n\n' +
@@ -342,48 +297,62 @@ function sourceBlock(sources: Source[]): string {
     .join('\n\n')
 }
 
-/** One document waiting to be filed: what it was called, and how it starts. */
-interface Intake {
-  n: number
-  name: string
-  excerpt: string
-}
+/**
+ * A note typed into the box, written up properly.
+ *
+ * ## What this is for
+ *
+ * People write notes at the speed they think: "mtg sam re lease fri — need
+ * the service charge figures, check break clause, he wants an answer by the
+ * 20th". That is a perfectly good note and a terrible thing to read three
+ * weeks later. This turns it into what they would have written if they had
+ * had five minutes: a name, full sentences, and the things to do as a list.
+ *
+ * ## The line it must not cross
+ *
+ * Every fact has to already be in what they typed. Expanding "mtg" to
+ * "meeting" and breaking a run-on into bullets is writing it up; adding a
+ * decision nobody took, a date nobody gave or a name nobody wrote is making
+ * something up, and one invented line in a note about a lease is worth more
+ * damage than every minute this saves.
+ */
+const COMPOSE_SYSTEM =
+  'Somebody has typed a note quickly, in shorthand, and pressed save. You write it up as the ' +
+  'note they would have written with five more minutes.\n\n' +
+  'Return ONLY this, exactly:\n' +
+  'TITLE: <a short name for the note, at most eight words, no full stop>\n' +
+  '<blank line>\n' +
+  '<the note itself, as markdown>\n\n' +
+  'The note:\n' +
+  '- Full sentences, in their own voice and their own vocabulary. Expand the obvious ' +
+  'shorthand ("mtg" to "meeting", "re" to "about") and fix the spelling and punctuation.\n' +
+  '- Use "## " headings only where there is genuinely more than one subject, and "- " bullets ' +
+  'for lists of things. A three-line note stays three lines: do not pad it out with headings ' +
+  'it does not need.\n' +
+  '- Anything they plainly have to do becomes "- [ ] " so it is a box to tick.\n' +
+  '- Keep any day or date in the words they used — do not turn "Friday" into a date.\n\n' +
+  'Rules, in order of importance:\n' +
+  '1. Add no fact. Every name, number, sum, date, decision and action you return must be in ' +
+  'what they typed. If the note is three words, return three words tidied up.\n' +
+  '2. Take nothing out. Every point they made has to survive.\n' +
+  '3. No preamble, no commentary, no "here is your note", no closing remark.\n' +
+  '4. Keep the language it was written in.'
 
-const FILE_SYSTEM =
-  'You are filing documents somebody has just dropped into a personal library. For each one ' +
-  'you are given the filename it arrived with and the opening of its contents.\n\n' +
-  'Return ONLY a JSON array, no prose and no code fence, of objects with exactly these keys:\n' +
-  '  n       the number you were given for that document, unchanged\n' +
-  '  title   what the document should be called: what it IS, in at most eight words\n' +
-  '  summary one plain sentence saying what it covers\n' +
-  '  topic   one or two words for the subject, reused across documents of the same subject\n\n' +
-  'Rules:\n' +
-  '- The filename is a hint, not an answer. Many of these are called scan_0012 or Document (3); ' +
-  'when the contents disagree with the filename, the contents win.\n' +
-  '- Describe, never invent. If the opening is too little to tell, title it from what is ' +
-  'actually there rather than guessing at what the rest might be.\n' +
-  '- Use the language the document is written in.\n' +
-  '- Give the same topic to documents that belong together, and a distinct one to a document ' +
-  'that belongs with nothing else. Topics are how these get grouped, so being consistent ' +
-  'matters more than being clever.\n' +
-  '- Return one entry for every document, in the order given.'
-
-/** Titles and summarises a batch of freshly imported documents. */
-async function file(items: Intake[]) {
-  const text = await complete({
-    system: FILE_SYSTEM,
-    user: items
-      .map((item) => `[${item.n}] filename: ${item.name}\nopening:\n${item.excerpt}`)
-      .join('\n\n'),
-    maxTokens: 4000,
-    // Naming a thing from its first page is a reading task, not a reasoning
-    // one, and this runs over a whole batch at once.
+/** A quickly typed note in; a name and a written-up note out. */
+async function compose(text: string) {
+  const result = await complete({
+    system: COMPOSE_SYSTEM,
+    user: text,
+    // The answer is about as long as the input rather than a summary of it.
+    maxTokens: 3000,
+    // Tidying somebody's own words is a reading task, and it is the one thing
+    // in this app a person is actually waiting on with the box still open.
     effort: 'low',
   })
-  if (!text) {
+  if (!result) {
     return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
   }
-  return NextResponse.json({ text })
+  return NextResponse.json({ text: result })
 }
 
 /** Answers a question from extracts of the reader's own notes. */
@@ -431,7 +400,6 @@ export async function POST(request: Request) {
     title?: string
     question?: string
     sources?: Source[]
-    items?: Intake[]
     /** Whether a transcript was a meeting rather than a dictated paragraph. */
     meeting?: boolean
     /** Which piece of a long recording this is, and how many there are. */
@@ -475,27 +443,28 @@ export async function POST(request: Request) {
     Filing a batch of freshly imported documents. Only the opening of each one
     is sent — enough to say what a thing is, which is all a title needs.
   */
-  if (body.action === 'file') {
-    const items = Array.isArray(body.items) ? body.items.slice(0, 25) : []
-    if (!items.length) {
-      return NextResponse.json({ error: 'There is nothing to file.' }, { status: 400 })
+  /*
+    A note typed into the box, written up. The one action here that makes a
+    note rather than reading one back.
+  */
+  if (body.action === 'compose') {
+    const typed = (body.text ?? '').trim()
+    if (!typed) {
+      return NextResponse.json({ error: 'There is nothing to write up.' }, { status: 400 })
     }
-    const size = items.reduce((total, item) => total + (item.excerpt?.length ?? 0), 0)
-    if (size > MAX_INPUT_CHARS) {
-      return NextResponse.json({ error: 'Too much at once. Add them in smaller batches.' }, { status: 413 })
+    if (typed.length > MAX_INPUT_CHARS) {
+      return NextResponse.json(
+        { error: 'That note is too long to write up in one go.' },
+        { status: 413 },
+      )
     }
     try {
-      return await file(items)
+      return await compose(typed)
     } catch (error) {
       return failure(error)
     }
   }
 
-  /*
-    What to do next, given what this document is for. It shares this route for
-    the same reason everything else does: the key is the thing worth keeping
-    on a server.
-  */
   /*
     A transcript in, writing out. The recogniser in the browser does the
     listening; this is only ever handed the words it produced.
@@ -519,33 +488,6 @@ export async function POST(request: Request) {
         Number(body.parts) || 1,
         body.title ?? '',
       )
-    } catch (error) {
-      return failure(error)
-    }
-  }
-
-  /*
-    A page of notes in, a plan out. The last thing in here that reads a whole
-    document, and the only one anybody presses a button for.
-  */
-  if (body.action === 'plan') {
-    const notes = (body.text ?? '').trim()
-    if (!notes) {
-      return NextResponse.json(
-        { error: 'There is nothing written here yet.' },
-        { status: 400 },
-      )
-    }
-    if (notes.length > MAX_INPUT_CHARS) {
-      return NextResponse.json(
-        {
-          error: `That is ${Math.round(notes.length / 1000)}k characters. The limit is ${MAX_INPUT_CHARS / 1000}k.`,
-        },
-        { status: 413 },
-      )
-    }
-    try {
-      return await plan(body.title ?? '', notes)
     } catch (error) {
       return failure(error)
     }

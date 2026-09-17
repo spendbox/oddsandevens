@@ -4,6 +4,7 @@ import { CircleCheck, FileSearch, Lightbulb, StickyNote, User, Users } from 'luc
 import { KIND_LABELS, kindOf, type NoteKind } from '@/lib/kind'
 import type { Doc } from '@/lib/types'
 import { longStamp } from '@/lib/when'
+import DocIcon from './doc-icon'
 
 /**
  * The picture and the word for a note's kind.
@@ -26,25 +27,32 @@ const GLYPHS: Record<NoteKind, React.ComponentType<{ size?: number; className?: 
 /**
  * The small green tile beside a note in a list.
  *
- * A tile rather than a bare icon because a row of bare icons on a cream page
- * has nothing to line up against, and forty of them read as speckle. The
- * colour is the app's one green, so a list of notes has exactly one accent in
- * it however many kinds are on screen.
+ * ## Why the picture is not the kind
+ *
+ * Six kinds is a useful thing to *say* — "Meeting", "Research" — and a poor
+ * thing to draw: a column of forty notes wearing six pictures between them is
+ * a column where the pictures tell you nothing. So the tile carries the icon
+ * from `doc-icon.ts`, which has a few hundred words behind it and will put a
+ * banknote on a budget, a scroll on a tenancy agreement and cutlery on a
+ * recipe. The kind is still there in words, on the line above a note's title,
+ * where a word is the right shape for it.
+ *
+ * A tile rather than a bare icon because a row of bare icons has nothing to
+ * line up against, and forty of them read as speckle. The colour is the app's
+ * one green.
  */
 export function KindTile({ doc, size = 34 }: { doc: Doc; size?: number }) {
-  const kind = kindOf(doc)
-  const Glyph = GLYPHS[kind]
   return (
     <span
-      // The label is read out, so the tile is not a picture a screen reader
-      // has to skip — it carries the same word the sighted reader gets from
-      // the line under the title.
+      // The kind is read out, so the tile is not a picture a screen reader has
+      // to skip — it carries the same word a sighted reader gets from the line
+      // above the note's title.
       role="img"
-      aria-label={KIND_LABELS[kind]}
+      aria-label={KIND_LABELS[kindOf(doc)]}
       className="flex shrink-0 items-center justify-center rounded-[10px] bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
       style={{ width: size, height: size }}
     >
-      <Glyph size={Math.round(size * 0.5)} />
+      <DocIcon doc={doc} size={Math.round(size * 0.5)} />
     </span>
   )
 }

@@ -33,9 +33,14 @@ test('a nested list keeps its depth', () => {
   assert.equal(blocks.find((b) => b.text === 'top')?.indent, undefined)
 })
 
-test('quotes and code are recognised', () => {
+test('a quote is recognised, and a code block keeps its words', () => {
   assert.equal(parsePastedHtml('<blockquote>said so</blockquote>')[0].type, 'quote')
-  assert.equal(parsePastedHtml('<pre>const x = 1</pre>')[0].type, 'code')
+  // There is no code block to paste into any more, so a <pre> becomes a
+  // paragraph. Losing the monospace is a small thing; losing the words would
+  // be the most destructive thing this parser could do.
+  const pre = parsePastedHtml('<pre>const x = 1</pre>')[0]
+  assert.equal(pre.type, 'text')
+  assert.equal(pre.text, 'const x = 1')
 })
 
 test('inline formatting comes through, sanitised', () => {
@@ -129,4 +134,11 @@ test('a realistic web page paste keeps its shape', () => {
     'text',
   ])
   assert.match(blocks[1].html ?? '', /<em>paragraph<\/em>/)
+})
+
+test('a markdown task list pastes as boxes to tick', () => {
+  const blocks = parsePastedText('- [ ] ring the landlord\n- [x] posted the forms')
+  assert.deepEqual(blocks.map((b) => b.type), ['todo', 'todo'])
+  assert.equal(blocks[0].text, 'ring the landlord')
+  assert.equal(blocks[1].done, true)
 })

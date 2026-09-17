@@ -1,8 +1,9 @@
 'use client'
 
-import { Check, CloudOff, LoaderCircle, LogOut, RefreshCw } from 'lucide-react'
+import { Check, CloudOff, LoaderCircle, LogOut, Moon, RefreshCw, Sun } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
+import { THEME, usePref } from '@/lib/ui-prefs'
 import type { SyncState } from '@/lib/sync'
 
 /**
@@ -59,14 +60,24 @@ export default function AccountButton({
 
   // Sync being unconfigured is a normal state, not a broken one, so it gets a
   // plain explanation rather than an error.
+  /*
+    No sync configured on this deployment: there is nothing to sign into, so
+    this says so rather than offering a form that cannot work. The theme
+    switch still has to be here — it is the only menu on this screen, and a
+    control that exists only where a server happens to be set up is a control
+    half the people running this would never find.
+  */
   if (!isSyncConfigured()) {
     return (
-      <div
-        className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] text-[var(--color-faint)]"
-        title="Everything is saved in this browser. Sync is not set up on this deployment."
-      >
-        <CloudOff size={13} />
-        <span className="hidden sm:inline">On this device</span>
+      <div className="flex items-center gap-1">
+        <ThemeButton />
+        <span
+          className="flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[11px] text-[var(--color-faint)]"
+          title="Everything is saved in this browser. Sync is not set up on this deployment."
+        >
+          <CloudOff size={13} />
+          <span className="hidden sm:inline">On this device</span>
+        </span>
       </div>
     )
   }
@@ -141,6 +152,7 @@ export default function AccountButton({
                     : 'Synced to your account'}
               </p>
             </div>
+            <ThemeItem />
             <MenuItem
               icon={<RefreshCw size={13} />}
               label="Sync now"
@@ -243,6 +255,10 @@ export default function AccountButton({
           >
             {mode === 'in' ? 'No account? Create one' : 'Already have an account? Sign in'}
           </button>
+
+          <div className="mt-2 border-t border-[var(--color-line)] pt-1">
+            <ThemeItem />
+          </div>
         </div>
       )}
     </div>
@@ -255,6 +271,43 @@ function SyncDot({ state }: { state: SyncState }) {
   }
   if (state === 'error') return <CloudOff size={11} className="text-[var(--color-faint)]" />
   return <Check size={11} className="text-[var(--color-good)]" />
+}
+
+/**
+ * Light or dark, in the one menu this app has left that is about the app
+ * rather than about a note.
+ *
+ * It was at the foot of a side menu that no longer exists. Following the
+ * system and offering nothing would have been defensible — but somebody who
+ * writes at night with a light desktop is a real person, and the switch is
+ * two lines.
+ */
+function ThemeButton() {
+  const { value, set } = usePref(THEME)
+  const dark = value === 'dark'
+  return (
+    <button
+      type="button"
+      aria-label={dark ? 'Light' : 'Dark'}
+      title={dark ? 'Light' : 'Dark'}
+      onClick={() => set(dark ? 'light' : 'dark')}
+      className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+    >
+      {dark ? <Sun size={15} /> : <Moon size={15} />}
+    </button>
+  )
+}
+
+function ThemeItem() {
+  const { value, set } = usePref(THEME)
+  const dark = value === 'dark'
+  return (
+    <MenuItem
+      icon={dark ? <Sun size={13} /> : <Moon size={13} />}
+      label={dark ? 'Light' : 'Dark'}
+      onClick={() => set(dark ? 'light' : 'dark')}
+    />
+  )
 }
 
 function MenuItem({

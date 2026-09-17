@@ -1,28 +1,21 @@
 /**
- * One idea holds this app together: a document is a list of blocks, and every
- * tool the user asked for is a block type. Notes are text blocks, the task
- * manager is todo blocks, the spreadsheet is a table block, code is a code
- * block, a form is a form block. There is no "spreadsheet mode" to switch into
- * and no separate app to open — a table and a paragraph sit in the same
- * document, so a meeting note can carry its own budget and its own actions.
+ * A note is a list of blocks, and every block is a line of writing.
+ *
+ * There used to be five kinds of tool in here — a spreadsheet, a code editor
+ * with a syntax highlighter, a form builder, file attachments — each a block
+ * type sitting inside the same note. It was a good idea and it was the wrong
+ * app: somebody taking notes in a meeting wants to write, and every one of
+ * those was weight in the first download and a control on a bar they had to
+ * read past to get to their own words. What is left is what writing is made
+ * of: paragraphs, headings, bullets, boxes to tick, quotes and a line across
+ * the page.
  *
  * Everything downstream follows from that: one editor, one save path, one
- * sync path, one undo stack. Adding a sixth tool means adding a block type,
- * not a second application.
+ * sync path, one undo stack.
  */
 
 
-export type BlockType =
-  | 'text'
-  | 'heading'
-  | 'bullet'
-  | 'quote'
-  | 'todo'
-  | 'table'
-  | 'code'
-  | 'form'
-  | 'file'
-  | 'divider'
+export type BlockType = 'text' | 'heading' | 'bullet' | 'quote' | 'todo' | 'divider'
 
 /** Blocks that are a single run of editable text. They share one component. */
 export interface TextishBlock {
@@ -85,88 +78,12 @@ export interface TodoBlock {
   done: boolean
 }
 
-/**
- * Cells are a sparse map keyed "A1", "B3" rather than a dense array. A
- * spreadsheet is mostly empty, and a map means adding a row is a number
- * change rather than a thousand allocations.
- */
-export interface TableBlock {
-  id: string
-  type: 'table'
-  rows: number
-  cols: number
-  cells: Record<string, string>
-  /** Column widths in px, keyed by column letter. Absent means the default. */
-  widths?: Record<string, number>
-}
-
-export interface CodeBlock {
-  id: string
-  type: 'code'
-  code: string
-  lang: string
-}
-
-export type FormFieldType = 'short' | 'long' | 'choice' | 'checkbox' | 'number' | 'email' | 'date'
-
-export interface FormField {
-  id: string
-  type: FormFieldType
-  label: string
-  required: boolean
-  /** Options for 'choice'. Ignored by every other field type. */
-  options?: string[]
-}
-
-export interface FormBlock {
-  id: string
-  type: 'form'
-  title: string
-  fields: FormField[]
-  /**
-   * Filled-in answers, newest last. Kept on the block so a form works with no
-   * account and no server — the same rule as every other block.
-   */
-  responses: Array<{ id: string; at: number; values: Record<string, string> }>
-}
-
-/**
- * An attached file.
- *
- * The bytes are NOT stored on the block. They live in their own IndexedDB
- * store under `ref`, and only the description travels in the document. A
- * document is sent to the server as JSON on every sync; a 10MB attachment
- * base64'd into that JSON would be a 13MB row rewritten on every keystroke of
- * every other block in the page.
- *
- * The honest consequence, which is stated on screen: attachments stay on the
- * device that added them. Syncing them needs file storage on the server, which
- * is a separate piece of work.
- */
-export interface FileBlock {
-  id: string
-  type: 'file'
-  /** The name it was uploaded with, and the name it downloads as. */
-  name: string
-  mime: string
-  size: number
-  /** Key into the attachments store. */
-  ref: string
-}
-
 export interface DividerBlock {
   id: string
   type: 'divider'
 }
 
-export type Block =
-  | TextishBlock
-  | TodoBlock
-  | TableBlock
-  | CodeBlock
-  | FormBlock
-  | FileBlock
-  | DividerBlock
+export type Block = TextishBlock | TodoBlock | DividerBlock
 
 export interface Doc {
   id: string
@@ -237,13 +154,60 @@ export function isTextish(block: Block): block is TextishBlock {
   )
 }
 
-/** The plain text of a block, for search and for the document list preview. */
+/** The plain text of a block, for search and for the list preview. */
 export function blockText(block: Block): string {
   if (isTextish(block)) return block.text
   if (block.type === 'todo') return block.text
-  if (block.type === 'code') return block.code
-  if (block.type === 'form') return [block.title, ...block.fields.map((f) => f.label)].join(' ')
-  if (block.type === 'table') return Object.values(block.cells).join(' ')
-  if (block.type === 'file') return block.name
   return ''
+}
+
+/**
+ * Anything read back from storage, made into blocks this app still has.
+ *
+ * Notes written before the spreadsheet, the code block, the form and the
+ * attachment were taken out still have those blocks in them on the device and
+ * on the server. Dropping them silently would be losing somebody's work, and
+ * rendering them is exactly the weight that was removed — so each one becomes
+ * a paragraph of whatever text it carried, which is the part a note was ever
+ * going to be read for.
+ *
+ * Every read goes through this: the store, sync, an import, a shared copy.
+ */
+export function readBlocks(blocks: unknown): Block[] {
+  if (!Array.isArray(blocks)) return []
+  const out: Block[] = []
+  for (const raw of blocks) {
+    if (!raw || typeof raw !== 'object') continue
+    const block = raw as Record<string, unknown>
+    const id = typeof block.id === 'string' ? block.id : ''
+    if (!id) continue
+    const type = block.type
+    if (
+      type === 'text' ||
+      type === 'heading' ||
+      type === 'bullet' ||
+      type === 'quote' ||
+      type === 'todo' ||
+      type === 'divider'
+    ) {
+      out.push(raw as Block)
+      continue
+    }
+    const text = legacyText(block)
+    if (text) out.push({ id, type: 'text', text })
+  }
+  return out
+}
+
+/** The words inside a block type this app no longer has. */
+function legacyText(block: Record<string, unknown>): string {
+  if (typeof block.code === 'string') return block.code
+  if (typeof block.name === 'string') return block.name
+  if (typeof block.title === 'string') return block.title
+  if (block.cells && typeof block.cells === 'object') {
+    return Object.values(block.cells as Record<string, string>)
+      .filter((cell) => typeof cell === 'string' && cell.trim())
+      .join('  ')
+  }
+  return typeof block.text === 'string' ? block.text : ''
 }
