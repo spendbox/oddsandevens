@@ -243,7 +243,7 @@ export default function ActionPlan({ open, onClose, doc, aiReady }: ActionPlanPr
 
           <p className="shrink-0 border-t border-[var(--color-line)] px-3 py-2 text-[12px] leading-snug text-[var(--color-faint)]">
             {fromModel
-              ? 'This is a list to read. Nothing has been done, and your document is unchanged.'
+              ? 'This is a list to read. Nothing has been done, and your note is unchanged.'
               : aiReady
                 ? 'Read off the words on this device. Nothing has been done.'
                 : 'Read off the words on this device — no key is set up, so nothing was sent anywhere.'}

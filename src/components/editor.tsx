@@ -1,5 +1,6 @@
 'use client'
 
+import { FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { makeBlock } from '@/lib/blocks'
 import { applyShape } from '@/lib/plain-doc'
@@ -9,6 +10,7 @@ import { blockText, isTextish } from '@/lib/types'
 import { TEXT, usePref } from '@/lib/ui-prefs'
 import ActionPlan from './action-plan'
 import DictationButton from './dictation-button'
+import { KindLine } from './note-kind'
 import FormatToolbar from './format-toolbar'
 import PlainEditor from './plain-editor'
 import Ribbon, { type RibbonTarget } from './ribbon'
@@ -51,6 +53,11 @@ export default function Editor({
   aiReady,
   command = null,
   onPlanDone,
+  onBack,
+  onMenu,
+  saving,
+  folder,
+  covered = false,
 }: {
   doc: Doc
   onChange: (next: Doc) => void
@@ -87,6 +94,23 @@ export default function Editor({
   command?: { kind: 'plan'; n: number } | null
   /** Told when a plan has been read, so anything outside can react. */
   onPlanDone?: () => void
+  /** Back to the notes. */
+  onBack: () => void
+  /** Opens the menu holding this note's settings. */
+  onMenu: () => void
+  /** True while the last keystrokes are still on their way to the disk. */
+  saving: boolean
+  /** The folder this note is filed in, when it is in one. */
+  folder?: string
+  /**
+   * True when something is open over this note — the notes screen, or search.
+   *
+   * The recorder is a portal pinned to the corner of the window, so it goes on
+   * floating over whatever covers the note. The notes screen has a recorder of
+   * its own, and two identical microphone buttons in one corner is one of them
+   * doing something other than what it looks like.
+   */
+  covered?: boolean
 }) {
   /**
    * Incremented whenever this editor rewrites the page itself rather than the
@@ -248,6 +272,9 @@ export default function Editor({
     <div ref={container} className="relative">
       <Ribbon
         target={ribbonTarget}
+        onBack={onBack}
+        onMenu={onMenu}
+        saving={saving}
         onStyle={styleCurrent}
         onAlign={alignCurrent}
         onIndent={indentCurrent}
@@ -264,6 +291,29 @@ export default function Editor({
       <div className="px-4 pt-5 pb-32 sm:px-12 sm:pt-8">
         <FormatToolbar scope={container} />
 
+        {/*
+          What this note is, and when it was last written in.
+
+          Above the title rather than beside it, because it is the sentence you
+          read first — "a meeting, from this afternoon" — and because the line
+          the eye lands on next should be the note's own name. The folder is on
+          the same line when there is one: it is the third fact of the same
+          kind, and a bar of its own across the top was a row of things that
+          were not the note.
+        */}
+        <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <KindLine doc={doc} />
+          {folder && (
+            <p
+              aria-label="Folder"
+              className="flex items-center gap-1 text-[13px] text-[var(--color-muted)]"
+            >
+              <FolderOpen size={13} />
+              {folder}
+            </p>
+          )}
+        </div>
+
         <input
           value={doc.title}
           onChange={(e) => onChange({ ...doc, title: e.target.value, updatedAt: Date.now() })}
@@ -275,7 +325,7 @@ export default function Editor({
             }
           }}
           placeholder="Untitled"
-          aria-label="Document title"
+          aria-label="Note title"
           className="pad-doc-title mb-3 w-full bg-transparent font-semibold tracking-tight outline-none placeholder:text-[var(--color-faint)]"
         />
 
@@ -289,35 +339,37 @@ export default function Editor({
       </div>
 
       {/*
-        Speech into the document. It writes where the caret is, or at the end
-        when there is no caret — which is where somebody who has just pressed
-        record and talked for ten minutes expects their meeting to appear.
+        Speech into the note. It writes where the caret is, or at the end when
+        there is no caret — which is where somebody who has just pressed record
+        and talked for ten minutes expects their meeting to appear.
       */}
-      <DictationButton
-        title={doc.title}
-        aiReady={aiReady}
-        onWrite={(pasted) => {
-          if (!pasted.length) return
-          const created = pasted.map((item) => {
-            const made = makeBlock(item.type, item.level)
-            if (isTextish(made) || made.type === 'todo') {
-              made.text = item.text
-              made.html = item.html
-              made.indent = item.indent
-            }
-            if (made.type === 'code') made.code = item.text
-            return made
-          })
-          const at = currentId ? doc.blocks.findIndex((b) => b.id === currentId) : -1
-          const next = [...doc.blocks]
-          const host = at === -1 ? null : next[at]
-          const intoEmpty = host && (isTextish(host) || host.type === 'todo') && !host.text.trim()
-          if (at === -1) next.push(...created)
-          else next.splice(intoEmpty ? at : at + 1, intoEmpty ? 1 : 0, ...created)
-          setBlocks(next)
-          bumpRevision()
-        }}
-      />
+      {!covered && (
+        <DictationButton
+          title={doc.title}
+          aiReady={aiReady}
+          onWrite={(pasted) => {
+            if (!pasted.length) return
+            const created = pasted.map((item) => {
+              const made = makeBlock(item.type, item.level)
+              if (isTextish(made) || made.type === 'todo') {
+                made.text = item.text
+                made.html = item.html
+                made.indent = item.indent
+              }
+              if (made.type === 'code') made.code = item.text
+              return made
+            })
+            const at = currentId ? doc.blocks.findIndex((b) => b.id === currentId) : -1
+            const next = [...doc.blocks]
+            const host = at === -1 ? null : next[at]
+            const intoEmpty = host && (isTextish(host) || host.type === 'todo') && !host.text.trim()
+            if (at === -1) next.push(...created)
+            else next.splice(intoEmpty ? at : at + 1, intoEmpty ? 1 : 0, ...created)
+            setBlocks(next)
+            bumpRevision()
+          }}
+        />
+      )}
 
       <ActionPlan
         open={planning}

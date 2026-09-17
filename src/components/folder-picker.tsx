@@ -170,7 +170,7 @@ export default function FolderPicker({
           )}
           <Row
             icon={<FolderPlus size={16} />}
-            label="New folder from this document"
+            label="New folder from this note"
             onClick={() => {
               onNewFolder()
               onClose()

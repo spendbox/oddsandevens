@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { docLabel, docPreview, makeBlock, shortcutFor } from '../blocks.ts'
-import { blockText, isTextish } from '../types.ts'
+import { docLabel, docOpening, docPreview, makeBlock, shortcutFor } from '../blocks.ts'
+import { blockText, isTextish, type Doc } from '../types.ts'
 
 test('every block type can be made and is well formed', () => {
   const types = ['text', 'heading', 'bullet', 'quote', 'todo', 'table', 'code', 'form', 'divider'] as const
@@ -109,4 +109,35 @@ test('a document that begins with a heading is called by it', () => {
   const table = makeBlock('table')
   const doc = { id: 'a', title: '', blocks: [heading, table], createdAt: 0, updatedAt: 0 }
   assert.equal(docLabel(doc), 'Budget')
+})
+
+test('the opening of a note skips the line its name came from', () => {
+  const doc: Doc = {
+    id: 'd',
+    title: '',
+    blocks: [
+      { id: '1', type: 'heading', level: 1, text: 'Lease renewal' },
+      { id: '2', type: 'text', text: 'The landlord wants an answer by Friday.' },
+      { id: '3', type: 'text', text: 'Ask about the boiler.' },
+    ],
+    createdAt: 0,
+    updatedAt: 0,
+  }
+  const opening = docOpening(doc)
+  assert.ok(!opening.startsWith('Lease renewal'))
+  assert.match(opening, /landlord/)
+  assert.match(opening, /boiler/)
+})
+
+test('a long opening is cut, with something to show it was', () => {
+  const doc: Doc = {
+    id: 'd',
+    title: 'Notes',
+    blocks: [{ id: '1', type: 'text', text: 'word '.repeat(200) }],
+    createdAt: 0,
+    updatedAt: 0,
+  }
+  const opening = docOpening(doc, 60)
+  assert.ok(opening.length <= 61, opening)
+  assert.ok(opening.endsWith('…'))
 })

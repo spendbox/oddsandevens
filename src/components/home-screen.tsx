@@ -1,49 +1,44 @@
 'use client'
 
-import { ArrowRight, Clock, FolderOpen, Library, Plus, Search, Star, X } from 'lucide-react'
-import { docLabel, docPreview } from '@/lib/blocks'
+import { FolderOpen, Library, Pencil, Search, Star, X } from 'lucide-react'
 import type { Grouping } from '@/lib/library'
-import { blockText, type Doc, type Project } from '@/lib/types'
-import { when } from '@/lib/when'
-import DocIcon from './doc-icon'
+import type { PastedBlock } from '@/lib/paste'
+import type { Doc, Project } from '@/lib/types'
+import DictationButton from './dictation-button'
 import LibraryView, { type Incoming } from './library-view'
+import NoteRow from './note-row'
 import TrashSection from './trash-section'
 
 /**
- * The home screen: the way back, in two tabs.
+ * The notes screen: everything written, newest first, in two tabs.
  *
- * ## Carry on
+ * ## Notes
  *
- * The document being written, large. The others in its folder, small. What has
- * been starred, and what was open recently. That is the list, and the
- * discipline is in what is not on it — no tree, no tag cloud, no activity feed,
- * no counts of anything. A place you pass through on the way back to writing
- * should be readable in one look, and a screen with nine sections on it is read
- * in none.
+ * One column of notes. Each row is a kind, a name, two lines of the note and
+ * the time — see note-row.tsx for why it is a row and not a card. The
+ * discipline is in what is not on it: no tree, no tag cloud, no activity feed,
+ * no counts of anything, and no hero card of the note you were last in. That
+ * card was here for a year and it was always the first row of the list printed
+ * six times larger, because the note you were last in is by definition the one
+ * edited most recently.
  *
  * ## Library
  *
- * The whole collection, and the way new documents come in. It used to be a
- * dialog reached from a button at the top of this screen, which made it a
- * third place stacked on top of two others; it is a tab, because "what was I
- * doing" and "what do I have" are two questions about the same collection and
- * they deserve to be two tabs rather than two screens.
+ * The whole collection by folder, and the way new notes come in. Two tabs, and
+ * there will go on being two: a tab bar that can grow is a navigation system,
+ * and this screen exists because the app had one too many of those.
  *
- * It is not what the app opens into. Opening straight into a document, with
- * the caret already in it, is the oldest promise this app makes, and a home
- * screen in front of that would be one press between somebody and their first
- * sentence.
+ * ## Writing from here
  *
- * ## On a phone
+ * The bar at the bottom is the only thing on this screen that makes something
+ * rather than finding it: a line to start writing, and a recorder for when
+ * talking is faster than typing. It is at the bottom because that is where a
+ * thumb is, and it is the same pair of controls on a monitor because two
+ * layouts for one bar is two things to keep right.
  *
- * This fills a 390-pixel screen as readily as a monitor, which took some
- * doing: one column, a header of three icon buttons that cannot wrap, a
- * smaller hero card showing three lines instead of six, tabs that are two
- * halves of the width rather than a scrolling strip, and every target at least
- * a thumb high. The cross that gets you back to writing is the largest control
- * on the screen, because on a phone this covers the document completely and
- * being unable to find the way out of a full-screen view is the worst thing a
- * full-screen view can do.
+ * This is not what the app opens into. Opening straight into a note, with the
+ * caret already in it, is the oldest promise this app makes, and a screen in
+ * front of that would be one press between somebody and their first sentence.
  */
 export type HomeTab = 'carry' | 'library'
 
@@ -55,7 +50,7 @@ export interface HomeScreenProps {
   docs: Doc[]
   projects: Project[]
   current: Doc | null
-  /** The folder the open document is in, if any. */
+  /** The folder the open note is in, if any. */
   currentProject: Project | null
   trashed: Doc[]
   onOpen: (id: string) => void
@@ -65,6 +60,8 @@ export interface HomeScreenProps {
   onRestore: (id: string) => void
   onPurge: (id: string) => void
   onEmptyTrash: () => void
+  /** A note dictated from this screen, rather than typed into an open one. */
+  onRecord: (blocks: PastedBlock[]) => void
   /* The Library tab's own handles. */
   onMove: (docId: string, projectId: string | null) => void
   onNewFolder: (docId: string) => void
@@ -72,27 +69,19 @@ export interface HomeScreenProps {
   onMerge: (draggedId: string, targetId: string) => void
   onDelete: (docId: string) => void
   onAdd: (items: Incoming[], groups: Grouping[], withSummaries: boolean) => void
-  /** Whether the model can improve imported titles. */
+  /** Whether the model can improve imported titles and write up a recording. */
   aiReady: boolean
 }
 
-/** Lines of the document shown on the large card. Enough to recognise it by. */
-const PREVIEW_LINES = 6
-/** How many of those a phone shows, where six would fill the screen. */
-const PREVIEW_LINES_SMALL = 3
-/** How many recent documents to show. Past this, the answer is the Library. */
-const RECENT = 12
-
-/** The opening of a document, as lines, for the large card. */
-function opening(doc: Doc): string[] {
-  const lines: string[] = []
-  for (const block of doc.blocks) {
-    const text = blockText(block).trim()
-    if (text) lines.push(text)
-    if (lines.length >= PREVIEW_LINES) break
-  }
-  return lines
-}
+/**
+ * How many notes this screen lists before pointing at the Library.
+ *
+ * Not a page size — there is no second page. Past this many, the question has
+ * stopped being "which of these was I writing" and become "where is the one
+ * about the lease", and that question is answered by search or by the Library,
+ * both of which are one press from here.
+ */
+const LISTED = 25
 
 export default function HomeScreen({
   open,
@@ -111,6 +100,7 @@ export default function HomeScreen({
   onRestore,
   onPurge,
   onEmptyTrash,
+  onRecord,
   onMove,
   onNewFolder,
   onGroup,
@@ -122,63 +112,35 @@ export default function HomeScreen({
   if (!open) return null
 
   const live = docs.filter((doc) => !doc.deletedAt)
-  const folder = currentProject
-    ? live.filter((doc) => doc.projectId === currentProject.id && doc.id !== current?.id)
-    : []
   const favorites = live
-    .filter((doc) => doc.favoritedAt && !folder.some((f) => f.id === doc.id))
+    .filter((doc) => doc.favoritedAt)
     .sort((a, b) => (b.favoritedAt ?? 0) - (a.favoritedAt ?? 0))
-  // Each document appears once, in the highest shelf it qualifies for: the
-  // same four cards repeated under three headings is a longer screen saying
-  // less, which is the thing this screen exists to stop.
-  const above = new Set([current?.id, ...folder.map((d) => d.id), ...favorites.map((d) => d.id)])
-  const recent = live.filter((doc) => !above.has(doc.id)).slice(0, RECENT)
+  // A note appears in exactly one section. The same note under two headings is
+  // a longer screen saying less — and it is two menus opening on top of each
+  // other the moment a row carries one.
+  const starred = new Set(favorites.map((doc) => doc.id))
+  const rest = live.filter((doc) => !starred.has(doc.id)).slice(0, LISTED)
 
   return (
     <div
       role="dialog"
-      aria-label="Home"
+      aria-label="Notes"
       aria-modal="true"
-      className="pad-desk fixed inset-0 z-50 overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-[var(--color-paper)]"
     >
-      {/* The bottom padding clears a phone's home indicator and toolbar. */}
-      <div className="mx-auto w-full max-w-5xl px-3 pt-4 pb-20 sm:px-8 sm:py-8">
-        <header className="mb-3 flex items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent)] text-[13px] font-bold text-white">
-            P
-          </span>
-          <h1 className="text-[17px] font-semibold">Pad</h1>
-          {/*
-            No wrapping. A header that becomes two rows on a narrow screen
-            pushes everything below it down and reads as a mistake, so there
-            are three controls and the labels go on the two that can spare
-            them.
-          */}
+      {/* The bottom padding clears the bar, and a phone's home indicator. */}
+      <div className="mx-auto w-full max-w-3xl px-4 pt-5 pb-32 sm:px-8 sm:py-8 sm:pb-32">
+        <header className="mb-4 flex items-center gap-2">
+          <h1 className="pad-serif text-[30px] font-semibold tracking-tight sm:text-[34px]">
+            Notes
+          </h1>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <button
               type="button"
-              onClick={onSearch}
-              aria-label="Search"
-              title="Search (Ctrl+K)"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
-            >
-              <Search size={17} />
-            </button>
-            <button
-              type="button"
-              onClick={onNew}
-              aria-label="New document"
-              className="flex h-9 items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-2.5 text-[14px] font-medium text-white hover:opacity-90 sm:px-3"
-            >
-              <Plus size={16} />
-              <span className="hidden sm:inline">New</span>
-            </button>
-            <button
-              type="button"
               onClick={onClose}
-              aria-label="Back to the document"
-              title="Back to the document"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+              aria-label="Back to the note"
+              title="Back to the note"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
             >
               <X size={20} />
             </button>
@@ -186,147 +148,94 @@ export default function HomeScreen({
         </header>
 
         {/*
-          Two halves of the width, not a scrolling strip of tabs. There are two
-          of them and there will go on being two: a tab bar that can grow is a
-          navigation system, and this screen exists because the app had one too
-          many of those already.
+          A field rather than a magnifying glass in a corner.
+
+          It does not type here — pressing it opens the search panel, which
+          reads inside every note rather than filtering their names. Showing
+          what it searches is the point: "every word in every note" is the
+          thing people do not expect a notes app to do, and a 24-pixel icon
+          says none of it.
         */}
+        <button
+          type="button"
+          onClick={onSearch}
+          className="mb-5 flex w-full items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
+        >
+          <Search size={17} />
+          Search every word in every note
+        </button>
+
         <div
           role="tablist"
-          aria-label="Home"
-          className="mb-5 flex items-stretch gap-1 rounded-lg bg-[var(--color-hover)] p-1 sm:mb-6 sm:w-fit"
+          aria-label="Notes"
+          className="mb-2 flex items-stretch gap-1 border-b border-[var(--color-line)]"
         >
-          <Tab
-            id="carry"
-            current={tab}
-            onTab={onTab}
-            icon={<Clock size={15} />}
-            label="Carry on"
-          />
+          <Tab id="carry" current={tab} onTab={onTab} icon={<Pencil size={14} />} label="Notes" />
           <Tab
             id="library"
             current={tab}
             onTab={onTab}
-            icon={<Library size={15} />}
+            icon={<Library size={14} />}
             label="Library"
           />
         </div>
 
         {tab === 'library' ? (
-          <LibraryView
-            docs={docs}
-            projects={projects}
-            onOpen={onOpen}
-            onMove={onMove}
-            onNewFolder={onNewFolder}
-            onGroup={onGroup}
-            onMerge={onMerge}
-            onFavorite={onFavorite}
-            onDelete={onDelete}
-            onAdd={onAdd}
-            aiReady={aiReady}
-          />
+          <div className="pt-4">
+            <LibraryView
+              docs={docs}
+              projects={projects}
+              onOpen={onOpen}
+              onMove={onMove}
+              onNewFolder={onNewFolder}
+              onGroup={onGroup}
+              onMerge={onMerge}
+              onFavorite={onFavorite}
+              onDelete={onDelete}
+              onAdd={onAdd}
+              aiReady={aiReady}
+            />
+          </div>
         ) : (
           <>
-            {/*
-              The document being worked on, at the size its importance
-              deserves. Everything else on this tab is a thumbnail; this is the
-              thing you came back for, so it gets to be a page rather than a
-              row.
-            */}
-            {current && (
-              <section className="mb-7 sm:mb-8">
-                <p className="mb-1.5 text-[13px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
-                  Carry on with
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onOpen(current.id)}
-                  className="pad-page group block w-full p-4 text-left transition-shadow hover:shadow-lg sm:p-7"
-                >
-                  <span className="flex items-start gap-3">
-                    <DocIcon
-                      doc={current}
-                      size={22}
-                      className="mt-0.5 shrink-0 text-[var(--color-faint)] sm:mt-1"
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[19px] font-semibold tracking-tight sm:text-[26px]">
-                        {docLabel(current)}
-                      </span>
-                      <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[13px] text-[var(--color-faint)]">
-                        <Clock size={12} /> Edited {when(current.updatedAt)}
-                        {currentProject && (
-                          <>
-                            <span aria-hidden>·</span>
-                            <FolderOpen size={12} />
-                            <span className="min-w-0 truncate">{currentProject.name}</span>
-                          </>
-                        )}
-                      </span>
-                    </span>
-                    <span className="mt-1 shrink-0 text-[var(--color-faint)] transition-colors group-hover:text-[var(--color-accent)]">
-                      <ArrowRight size={20} />
-                    </span>
-                  </span>
-                  <span className="mt-3 block space-y-1 border-t border-[var(--color-line)] pt-3 sm:mt-4 sm:pt-4">
-                    {opening(current).length ? (
-                      opening(current).map((line, i) => (
-                        <span
-                          key={i}
-                          // Three lines on a phone, six on a desktop. A card
-                          // that takes the whole screen is not a preview.
-                          className={`truncate text-[15px] leading-relaxed text-[var(--color-muted)] ${
-                            i < PREVIEW_LINES_SMALL ? 'block' : 'hidden sm:block'
-                          }`}
-                        >
-                          {line}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="block text-[15px] text-[var(--color-faint)]">
-                        Nothing written yet — the caret is waiting.
-                      </span>
-                    )}
-                  </span>
-                </button>
-              </section>
-            )}
-
-            {folder.length > 0 && currentProject && (
-              <Shelf
-                icon={<FolderOpen size={14} />}
-                label={`Also in ${currentProject.name}`}
-                docs={folder}
-                onOpen={onOpen}
-                onFavorite={onFavorite}
-              />
-            )}
-
             {favorites.length > 0 && (
-              <Shelf
-                icon={<Star size={14} />}
-                label="Favourites"
-                docs={favorites}
-                onOpen={onOpen}
-                onFavorite={onFavorite}
-              />
+              <Shelf icon={<Star size={13} />} label="Favourites">
+                {favorites.map((doc) => (
+                  <NoteRow key={doc.id} doc={doc} onOpen={onOpen} onFavorite={onFavorite} />
+                ))}
+              </Shelf>
             )}
 
-            <Shelf
-              icon={<Clock size={14} />}
-              label="Recent"
-              docs={recent}
-              onOpen={onOpen}
-              onFavorite={onFavorite}
-              empty="Everything you write shows up here."
-            />
+            {currentProject && current && (
+              <p className="mt-4 flex items-center gap-1.5 text-[13px] text-[var(--color-faint)]">
+                <FolderOpen size={13} />
+                The note you were in is filed under {currentProject.name}.
+              </p>
+            )}
+
+            {rest.length === 0 && favorites.length === 0 ? (
+              <p className="py-10 text-center text-[15px] text-[var(--color-faint)]">
+                Everything you write shows up here.
+              </p>
+            ) : (
+              <ul className="mt-1">
+                {rest.map((doc) => (
+                  <NoteRow key={doc.id} doc={doc} onOpen={onOpen} onFavorite={onFavorite} />
+                ))}
+              </ul>
+            )}
+
+            {live.length > rest.length + favorites.length && (
+              <p className="mt-6 text-[13px] text-[var(--color-faint)]">
+                Every note you have, including the ones not shown here, is in the Library tab.
+              </p>
+            )}
 
             {/*
-              The trash lives here rather than pinned to the bottom of the side
-              menu, where "delete for good" sat one row below the document
-              somebody was working in. Same component, same behaviour,
-              somewhere you go on purpose.
+              The bin lives here rather than pinned to the bottom of the side
+              menu, where "delete for good" sat one row below the note somebody
+              was working in. Same component, same behaviour, somewhere you go
+              on purpose.
             */}
             {trashed.length > 0 && (
               <section className="mt-8 border-t border-[var(--color-line)] pt-3">
@@ -338,15 +247,39 @@ export default function HomeScreen({
                 />
               </section>
             )}
-
-            {live.length > RECENT && (
-              <p className="mt-8 text-[13px] text-[var(--color-faint)]">
-                Every document you have, including the ones not shown here, is in the Library tab.
-              </p>
-            )}
           </>
         )}
       </div>
+
+      {/*
+        The bar that writes a note, over the list rather than at the end of it.
+
+        Fixed, because the thing you came to this screen to do is as likely
+        after scrolling as before it, and a "new note" button that scrolls away
+        is a button that is missing exactly when the list is long enough to
+        make you want one.
+      */}
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[var(--color-line)] bg-[var(--color-paper)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 pr-16">
+          <button
+            type="button"
+            onClick={onNew}
+            className="flex flex-1 items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
+          >
+            <Pencil size={16} />
+            Write a note…
+          </button>
+        </div>
+      </div>
+
+      {/*
+        The recorder, in the corner it is in everywhere else in this app. On
+        this screen what it says becomes a new note rather than going into an
+        open one — which is the difference between "take this down" and "write
+        this in here", and they are two different intentions half a second
+        apart.
+      */}
+      <DictationButton title="" aiReady={aiReady} onWrite={onRecord} overDialog />
     </div>
   )
 }
@@ -371,10 +304,10 @@ function Tab({
       role="tab"
       aria-selected={on}
       onClick={() => onTab(id)}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[14px] sm:flex-none sm:px-5 ${
+      className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[14px] ${
         on
-          ? 'bg-[var(--color-paper)] font-medium shadow-sm'
-          : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+          ? 'border-[var(--color-accent)] font-medium text-[var(--color-ink)]'
+          : 'border-transparent text-[var(--color-muted)] hover:text-[var(--color-ink)]'
       }`}
     >
       {icon}
@@ -383,76 +316,23 @@ function Tab({
   )
 }
 
-/** A row of small cards: one shelf per thing this screen is allowed to show. */
+/** A named run of rows. One heading, then the notes under it. */
 function Shelf({
   icon,
   label,
-  docs,
-  onOpen,
-  onFavorite,
-  empty,
+  children,
 }: {
   icon: React.ReactNode
   label: string
-  docs: Doc[]
-  onOpen: (id: string) => void
-  onFavorite: (id: string, favorite: boolean) => void
-  empty?: string
+  children: React.ReactNode
 }) {
   return (
-    <section className="mb-6 sm:mb-7">
-      <p className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
+    <section className="mt-3">
+      <p className="mb-0.5 flex items-center gap-1.5 text-[12px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
         {icon}
         {label}
       </p>
-      {docs.length === 0 ? (
-        <p className="text-[14px] text-[var(--color-faint)]">{empty}</p>
-      ) : (
-        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {docs.map((doc) => {
-            const starred = !!doc.favoritedAt
-            return (
-              <li key={doc.id} className="group/card relative">
-                <button
-                  type="button"
-                  onClick={() => onOpen(doc.id)}
-                  className="pad-page block h-full w-full p-3.5 text-left transition-shadow hover:shadow-md"
-                >
-                  <span className="flex items-center gap-2 pr-6">
-                    <DocIcon doc={doc} size={16} className="shrink-0 text-[var(--color-faint)]" />
-                    <span className="min-w-0 truncate text-[15px] font-medium">
-                      {docLabel(doc)}
-                    </span>
-                  </span>
-                  <span className="mt-0.5 block truncate text-[13px] text-[var(--color-muted)]">
-                    {docPreview(doc.blocks)}
-                  </span>
-                  <span className="mt-1.5 block text-[12px] text-[var(--color-faint)]">
-                    {when(doc.updatedAt)}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={
-                    starred
-                      ? `Remove ${docLabel(doc)} from favourites`
-                      : `Add ${docLabel(doc)} to favourites`
-                  }
-                  aria-pressed={starred}
-                  onClick={() => onFavorite(doc.id, !starred)}
-                  className={`absolute top-2 right-2 rounded-md p-2 transition-opacity ${
-                    starred
-                      ? 'text-[var(--color-accent)]'
-                      : 'text-[var(--color-faint)] opacity-0 group-hover/card:opacity-100 focus:opacity-100'
-                  }`}
-                >
-                  <Star size={13} fill={starred ? 'currentColor' : 'none'} />
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+      <ul>{children}</ul>
     </section>
   )
 }

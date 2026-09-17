@@ -1,7 +1,12 @@
 # Pad
 
-A universal document editor. Notes, spreadsheets, tasks, code and forms are
-five block types inside one document, not five applications.
+A universal note editor. Notes, spreadsheets, tasks, code and forms are five
+block types inside one note, not five applications.
+
+**Everything the reader sees is called a note.** Not a document, not a file.
+Two lines or twenty pages, the same word for both — that is the whole point of
+the rename: the app has to feel worth opening for a thought you will have
+forgotten in ten minutes, and "document" is a word people put a coat on for.
 
 Two buttons in it talk to a model. One reads the page back and says what
 happens next; one listens and writes down what was said. Nothing else does,
@@ -26,7 +31,7 @@ Read `README.md` before changing anything structural.
 
 ## The one rule
 
-**A document is a list of blocks, and every tool is a block type.** Adding a
+**A note is a list of blocks, and every tool is a block type.** Adding a
 sixth tool means adding to `BlockType` in `src/lib/types.ts`, a case in
 `makeBlock`, an entry in the toolbar's Insert list and a component — never a
 second editor, a second save path, or a mode to switch into. If a feature needs
@@ -164,14 +169,14 @@ a page.
   style control is therefore a plain button opening a menu that sets each
   option in its own type; groups are separated by space; buttons have no border
   until the pointer is over them.
-- **The side menu is about the open document, not about the collection.**
-  Three ways out (home, Library, search), one way onward (New), then Carry on —
-  the document you are in — the rest of its folder, and everything the document
-  has: where it is filed, the action button, and every way of getting it out or
-  bringing something in. Recent and favourites are not
+- **The side menu is about the open note, not about the collection.**
+  Three ways out (Notes, Library, search), one way onward (New), then Carry on —
+  the note you are in — the rest of its folder, everything the note has (where
+  it is filed, the action button, and every way of getting it out or bringing
+  something in), and, at the foot, the account. Recent and favourites are not
   here: they answer "what was I doing", which is a question asked on the way in,
-  so they are on the home screen where the whole collection is. A list of other
-  documents beside the one being written is the thing this surface has been cut
+  so they are on the notes screen where the whole collection is. A list of other
+  notes beside the one being written is the thing this surface has been cut
   down from twice.
 - **"Carry on" exists because the menu covers the page on a phone.** At 390px
   the side menu is the whole screen, so the way back has to be a visible thing
@@ -184,7 +189,7 @@ a page.
   in no folder says so at the top of its settings rather than showing nothing —
   an absent row reads as "there is no such thing as a folder here", and the
   loose document is precisely the one somebody wants to file.
-- **The home screen has two tabs and will go on having two.** Carry on and
+- **The home screen has two tabs and will go on having two.** Notes and
   Library. A tab bar that can grow is a navigation system, and this screen
   exists because the app had one too many of those.
 - **Unfiled documents are the first shelf in the Library, not the last.** They
@@ -194,12 +199,20 @@ a page.
   every document is listed, so it is the only place there is anything to drag
   between. Selecting several and pressing Move is the same tidying with a thumb,
   and the only one of the two that moves nine documents at once.
-- **The toolbar is four controls: undo, redo, ⋯ and the action button.** It had twenty, all
-  correct and collectively a band of grey furniture across the top of every
-  page somebody opened to write on. Everything else is one press inside the ⋯,
-  and the marks are also on the bar that appears over a selection. The line to
-  hold: a quieter toolbar is worth a press and is not worth a feature, so
+- **There is one bar, and it is the note's.** Back to the notes, a word saying
+  the note is saved, the action button, ⋯. It had twenty controls, then four,
+  and the application's own header sat above it — two bars stacked, which on a
+  390px screen is a third of the display gone before a word of the note. The
+  header's contents went into the side menu (the account) and the ⋯ (the way
+  into that menu); the folding-on-scroll machinery went with it, because the
+  way to stop two bars stacking is to have one bar. The line to hold is
+  unchanged: a quieter bar is worth a press and is not worth a feature, so
   nothing may become unreachable when something leaves the row.
+- **"Saved" is a word, not a button.** There is no save button and an app with
+  no save button has to say so. It says "Saving…" between the keystroke and the
+  disk, so it is demonstrably live rather than a label printed on the bar — and
+  that means the state has to be true: `update` sets it, the debounced write
+  clears it.
 - **A bar the page scrolls under is opaque, never 95% with a blur.** The words
   showed through, which on a bar that never moves reads as a rendering fault.
 - **A toolbar button that applies a command acts on `pointerdown` with
@@ -226,10 +239,12 @@ a page.
   and a word earns its place only if it almost always means the same thing:
   "call", "numbers", "draft", "book" and "release" were all in there once and
   are all deliberately gone.
-- **The header folds by not being rendered, never by a height of zero with the
-  overflow hidden.** The clipping version animated nicely and cropped every
-  menu opened from inside the header — the document's own ⋯ menu came out cut
-  off at the height of the bar, which reads as the menu being behind the page.
+- **A bar must never clip a menu opened from inside it.** The application's
+  header used to fold away by animating its height with the overflow hidden,
+  which cropped every menu opened from it — the note's own ⋯ came out cut off
+  at the height of the bar, which reads as the menu being behind the page. The
+  header is gone; the rule survives it, and `npm run e2e` still measures that
+  the ⋯ hangs below the bar rather than inside it.
 - **Nothing between a sticky element and the scroller may clip its overflow.**
   `overflow-hidden` on an ancestor makes that ancestor the scrollport, and a
   box that does not scroll cannot make anything stick. It was on the sheet, for
@@ -244,11 +259,13 @@ a page.
   load. `useSyncExternalStore` with a constant server snapshot is the tool, as
   it is for the theme — and the snapshot must be the raw string, because a
   freshly parsed Set is a new object every time and that is a render loop.
-- **The header folds from the scroll position, never from its direction.**
-  Folding it makes the scroller taller, that relayout fires another scroll
-  event, and a direction-based version reads the change it caused itself as a
-  scroll the other way and unfolds — then folds — forever. Two thresholds, with
-  a gap wider than the header is tall, cannot oscillate.
+- **Nothing in this app folds itself on scroll any more, and that is a rule.**
+  The header did: folding it made the scroller taller, that relayout fired
+  another scroll event, and the first version read the change it had caused
+  itself as a fresh scroll and oscillated forever. It took two thresholds with
+  a gap wider than the header to settle. Anything that moves because the page
+  moved will find its way back to that bug; there is one bar now and it stays
+  where it is.
 - **The sidebar is the whole screen on a phone**, not a 16rem drawer over the
   document. A strip with the page showing down one side reads as something
   half-open, and it costs every row the width that made the names readable.
@@ -392,7 +409,7 @@ a page.
   the cost of a question does not grow with how much has been written, and
   every claim comes back carrying the note it came from. An answer that cannot
   show its source has to be either trusted completely or checked completely.
-- **A document with no title is called by its first line.** The caret starts in
+- **A note with no title is called by its first line.** The caret starts in
   the body, so plenty of notes never get a title; three rows reading "Untitled"
   tell the reader nothing. `docLabel` is the one place that decides.
 - **The recorder is the one thing allowed to be a floating button.** Every
@@ -503,17 +520,16 @@ a page.
   timestamp. "Friday" means a different day depending on when it was written,
   and a reminder on the wrong day is worse than a reminder with no day. The
   wording is what a calendar's own parser will want when one is connected.
-- **A folder is one button, not a strip of its contents.** The folder's other
-  documents used to sit above the open one as a scrolling row of chips: the
-  first thing on the page was a list of things that were not the page, and the
-  strip was a different width with every folder. `folder-bar.tsx` is a single
-  header button that opens to hold the whole folder, searchable, with no
-  reflow. Navigating a folder and moving the document out of it are in that one
-  menu, because they are the same thought half a second apart.
-- **"Put this document in…" is written once.** `folder-choices.tsx`, used by
-  the sidebar row menu, the folder button, the document's ⋯ menu and the
-  Library row. Four copies is four places for one of them to quietly stop
-  offering "Take it out".
+- **A folder is a line under the bar, not a control above the page.** It was a
+  scrolling row of the folder's other notes, then a header button that opened a
+  menu of them (`folder-bar.tsx`, now deleted). Both put a list of things that
+  were not this note at the top of it. The folder is now three words on the
+  same green line as the kind and the time; navigating the folder is the side
+  menu, which already lists its other notes, and moving out of it is the
+  picker, which is already the one way to move anything.
+- **"Put this note in…" is written once.** `folder-picker.tsx`, used by the
+  side menu, every row in the Library and the note's own settings. Four copies
+  is four places for one of them to quietly stop offering "Take it out".
 - **Browsing is grouped by folder; searching is not.** The Library lists
   documents under their folders because browsing is a question about where
   things are. Search results are a flat ranked list, because a folder heading
@@ -524,10 +540,9 @@ a page.
 - **A favourite is one optional field on the document** (`favoritedAt`), like
   its project. One home for the fact, so it syncs with everything else and
   there is no second list to disagree with it.
-- **The home screen is the way back, not the way in.** Opening straight into a
-  document with the caret already in it is this app's oldest promise; a home
-  screen in front of that is one press between somebody and their first
-  sentence.
+- **The notes screen is the way back, not the way in.** Opening straight into a
+  note with the caret already in it is this app's oldest promise; a screen in
+  front of that is one press between somebody and their first sentence.
 - **Alignment is a property of the paragraph, so it is a class on the block**
   and never markup inside `html`. That is what lets the sanitiser go on
   allowing no attributes at all, which is the rule that makes formatting safe
@@ -542,10 +557,64 @@ a page.
   not rely on stopPropagation. Relying on propagation closed the row menu on
   pointerdown and unmounted the button before its click could fire.
 
+- **Return is read from the input event, never from the key.** A laptop's
+  Return arrives as a keydown saying "Enter"; a phone's does not — virtual
+  keyboards report keydown as `Unidentified`, and the only reliable account of
+  what happened is `inputType`, which says `insertParagraph` on every keyboard
+  there is. Reading the key meant that on a phone none of the Return rules ran:
+  a numbered list could not be got out of, because "Return on an empty item
+  leaves the list" lives in `enter` and `enter` was never called, so every
+  press added another number. It is the same rule as the one about typed
+  characters, and it is the second time this bug has been paid for.
+- **The opening line of an untitled note becomes its name, not a heading.** It
+  was a heading, which left the note wearing its name twice — an empty title
+  box the size of a headline, and the same words again as the first line under
+  it. The line and the name are written in one change (`publish(blocks, title)`
+  down to one `onChange`), because two changes in one keystroke means the
+  second reads a note that does not have the first. A line carrying emphasis is
+  never taken: a title is plain text, and promoting one would throw the bold
+  away.
+- **A note's kind is a table of words, never a model call.** `lib/kind.ts`, six
+  kinds and the sixth is "Note". Same bargain as the icons: instant, offline,
+  free, identical every time, and a unit test rather than something to notice
+  by eye. It reads the icons table for the kinds that table already implies
+  rather than keeping a second list of the same words, because two lists of
+  words about the same thing is one of them quietly disagreeing.
+- **Green says what kind of note it is, and nothing else may use it.** Yellow
+  marks a searched word, and nothing else may use that. Two colours with one
+  job each are learnt in a day; a palette where everything is coloured says
+  nothing at all. The recorder is black for the same reason: a microphone
+  button is black on every phone ever made, and a recorder is not a kind of
+  note.
+- **The writing is a serif; the app around it is not.** A note set in the same
+  font as the buttons reads as a field in a form. It is the system serif, for
+  exactly the reason there is no web font anywhere in here.
+- **`when` and `stamp` answer different questions.** "3 minutes ago" is what
+  somebody wants in a sentence about one note; in a column beside forty of them
+  every row saying "ago" is noise, and the eye is scanning for *today* against
+  *not today*. So a list gets a clock time, "Yesterday", or a date — which is
+  what every mail client settled on.
+- **A count shown to the reader must be the honest one.** The search index
+  deliberately counts a note's title several times over so a word in the name
+  outranks the same word in the body. That is right for ranking and a lie to
+  print, and "6 mentions" is printed — so `SearchHit.mentions` comes from a
+  second, unweighted count. Any number this app shows has to be countable by
+  the person reading it.
+- **A note is a row in a list, not a card in a grid.** Cards make the eye
+  travel in two directions and give every note the same weight; a row lets the
+  kind, the name, two lines of the note and the time line up in columns that
+  can be read down separately. Two lines of the note, not one: one is a label,
+  and most notes never get a title at all.
+- **Only one recorder may be on screen.** It is a portal pinned to the corner
+  of the window, so the note's own goes on floating over whatever covers the
+  note — and two identical microphone buttons in one corner is one of them
+  doing something other than what it looks like. The editor is told when it is
+  covered.
+
 ## Checking work
 
 `npm test` covers the formula engine, the highlighter, the plan, the transcript
 handling, the line beautifier and the page's read-back.
 `npm run e2e` drives a real browser through every feature and is the one that
-catches what the others cannot — caret behaviour, saving, and whether a
-document survives a reload. Run both before claiming something works.
+catches what the others cannot — caret behaviour, saving, and whether a note
+survives a reload. Run both before claiming something works.
