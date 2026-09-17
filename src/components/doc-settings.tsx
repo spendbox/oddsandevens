@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  Brain,
   Check,
   ChevronDown,
   Copy,
@@ -13,20 +12,18 @@ import {
   FolderOpen,
   Link2,
   Link2Off,
+  ListChecks,
   LoaderCircle,
   Printer,
-  Sparkles,
   Trash2,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { docToMarkdown, docToText, blocksToText, safeFilename } from '@/lib/export'
+import { docToMarkdown, docToText, safeFilename } from '@/lib/export'
 import { useFolds } from '@/lib/folds'
 import { existingShare, publishDoc, unpublishDoc } from '@/lib/share'
 import { isSyncConfigured } from '@/lib/supabase'
 import type { Doc, Project } from '@/lib/types'
-import { MODE, usePref } from '@/lib/ui-prefs'
 import FolderPicker from './folder-picker'
-import GoalsSection from './goals-section'
 
 /**
  * Everything about the open document, in the side menu.
@@ -67,11 +64,8 @@ export interface DocSettingsProps {
   importing: boolean
   /** Null when nobody is signed in, which is what sharing requires. */
   accountId: string | null
-  /** Opens Brain — the document's rules — over the editor. */
-  onBrain: () => void
-  /** Opens writing help. Absent when no key is configured. */
-  onAsk?: () => void
-  onGoals: (goals: string[]) => void
+  /** Reads the document back and shows what to do next. */
+  onPlan: () => void
 }
 
 export default function DocSettings({
@@ -85,9 +79,7 @@ export default function DocSettings({
   onImportWord,
   importing,
   accountId,
-  onBrain,
-  onAsk,
-  onGoals,
+  onPlan,
 }: DocSettingsProps) {
   const [moving, setMoving] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -101,8 +93,6 @@ export default function DocSettings({
   const picker = useRef<HTMLInputElement>(null)
   const wordPicker = useRef<HTMLInputElement>(null)
   const { folded, toggle } = useFolds()
-  const { value: modePref, set: setMode } = usePref(MODE)
-  const mode = modePref ?? 'word'
 
   /*
     A different document has a different link, and has not been asked about
@@ -144,8 +134,6 @@ export default function DocSettings({
     setTimeout(() => setSaved(null), 1600)
   }
 
-  const rules = doc.ignoreRules ? 0 : (doc.rules?.filter((rule) => !rule.off).length ?? 0)
-
   return (
     <div className="px-2">
       {/*
@@ -176,75 +164,25 @@ export default function DocSettings({
         </span>
       </button>
 
-      <Section
-        id="doc-writing"
-        label="Writing"
-        folded={folded('doc-writing')}
-        onToggle={toggle}
+      {/*
+        The one action in here, and the only thing in this app that reads the
+        document back. It is a button rather than something that watches what
+        is typed: a plan that appears while somebody is still writing is an
+        interruption, and one that appears without being asked for is a bill.
+      */}
+      <button
+        type="button"
+        onClick={onPlan}
+        className="mt-1 flex w-full items-center gap-2 rounded-lg bg-[var(--color-accent-soft)] px-2.5 py-2.5 text-left text-[var(--color-accent)] hover:opacity-85"
       >
-        {/*
-          Typing behaviour, as two words rather than a switch labelled with
-          one. "Document" and "Blocks" both say what they do; a toggle called
-          "Block mode" only says what it is when it is on.
-        */}
-        <div className="flex items-center gap-1.5 px-1 py-1">
-          <span className="min-w-0 flex-1 text-[13px] text-[var(--color-muted)]">Typing</span>
-          <div className="flex shrink-0 rounded-md bg-[var(--color-hover)] p-0.5">
-            {(['word', 'blocks'] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                aria-pressed={mode === option}
-                onClick={() => setMode(option)}
-                className={`rounded px-2 py-1 text-[12px] ${
-                  mode === option
-                    ? 'bg-[var(--color-paper)] font-medium shadow-sm'
-                    : 'text-[var(--color-muted)]'
-                }`}
-              >
-                {option === 'word' ? 'Document' : 'Blocks'}
-              </button>
-            ))}
-          </div>
-        </div>
-        <p className="px-1 pb-1.5 text-[12px] leading-snug text-[var(--color-faint)]">
-          {mode === 'word'
-            ? 'Enter makes a paragraph and “/” types a slash.'
-            : '“/” opens the menu of block types.'}
-        </p>
-
-        <Row
-          icon={<Brain size={14} />}
-          label="Brain"
-          hint={
-            doc.ignoreRules
-              ? 'Paused for this document'
-              : rules
-                ? `${rules} rule${rules === 1 ? '' : 's'} on this document`
-                : 'Rules this document keeps about itself'
-          }
-          onClick={onBrain}
-        />
-        {onAsk && (
-          <Row
-            icon={<Sparkles size={14} />}
-            label="Ask"
-            hint="Expand, tidy, or say what you want"
-            onClick={onAsk}
-          />
-        )}
-      </Section>
-
-      <Section id="doc-goals" label="Goals" folded={folded('doc-goals')} onToggle={toggle}>
-        <GoalsSection
-          docId={doc.id}
-          goals={doc.goals ?? []}
-          onGoals={onGoals}
-          title={doc.title}
-          text={blocksToText(doc.blocks)}
-          aiReady={!!onAsk}
-        />
-      </Section>
+        <ListChecks size={16} className="shrink-0" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium">What to do next</span>
+          <span className="block text-[12px] opacity-80">
+            Reads these notes and lists the actions
+          </span>
+        </span>
+      </button>
 
       <Section id="doc-file" label="This file" folded={folded('doc-file')} onToggle={toggle}>
         {share.url ? (

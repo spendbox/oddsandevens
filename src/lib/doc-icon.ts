@@ -36,7 +36,7 @@ import { blockText, type Block, type Doc } from './types.ts'
  * The icons this can choose from.
  *
  * Deliberately a short list of names rather than components, so this file has
- * no JSX and can be tested directly — the same reason `slash-items.ts` names
+ * no JSX and can be tested directly — the same reason `plan.ts` names
  * its icons instead of importing them. `doc-icon.tsx` does the resolving.
  */
 export type DocIcon =

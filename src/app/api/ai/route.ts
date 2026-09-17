@@ -3,15 +3,24 @@ import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
 
 /**
- * Writing help, served from the server so the API key never reaches a browser.
+ * The one server route, so the API key never reaches a browser.
  *
  * A key in client code is a key anyone can read out of the bundle and spend.
  * That is the whole reason this is a route rather than a direct call from the
  * editor, and why the key is read from the environment here and nowhere else.
  *
- * Like every other optional piece of this app, it degrades rather than breaks:
- * with no key configured the GET below reports `configured: false` and the
- * interface says so plainly instead of offering a button that fails.
+ * Three things go through it, and nothing else: turning a page of notes into a
+ * plan, answering a question from extracts of somebody's own notes, and giving
+ * a batch of imported files better titles. It used to rewrite prose as well —
+ * expand this, tidy that — and that whole vocabulary is gone: an editor that
+ * rewrites the sentence you are in the middle of is one people switch off, and
+ * what a page of notes is actually for is reading it back and deciding what
+ * happens next.
+ *
+ * Like every other optional piece of this app, it degrades rather than breaks.
+ * With no key the GET below reports `configured: false`, and every caller has
+ * an answer it can produce on the device: local titles in the Library, and a
+ * plan read off the words with `lib/plan.ts`.
  *
  * ## Which model
  *
@@ -31,107 +40,6 @@ const FALLBACK_MODEL = 'claude-opus-5'
 export const runtime = 'nodejs'
 /** Never cached: every request is different and none should be stored. */
 export const dynamic = 'force-dynamic'
-
-/**
- * What the writer asked for. Each maps to one instruction below.
- *
- * Expanding is the one this exists for, so it gets the longest instruction and
- * the most guardrails. "Expand" is where an assistant most easily goes wrong:
- * the failure is not too few words, it is a paragraph of filler that says
- * nothing the note did not already say, in a voice the author would not use.
- * The instruction below is written against that failure specifically.
- */
-const ACTIONS = {
-  expand: {
-    label: 'Expand',
-    instruction:
-      'Expand this into fuller prose. This is the most important thing you do, so do it ' +
-      'properly:\n' +
-      '- Develop the author’s own point. Draw out the reasoning that is already implied, ' +
-      'name the consequence they are gesturing at, give the concrete case behind the ' +
-      'abstraction. Every sentence you add must carry information the original did not.\n' +
-      '- Write in their voice. Match their vocabulary, sentence length, contractions, ' +
-      'spelling convention and level of formality. If they write in short blunt sentences, ' +
-      'do not hand back long balanced ones.\n' +
-      '- Do not pad. No "it is important to note", no "in today\u2019s fast-paced world", no ' +
-      'restating the input as an opening sentence, no summarising it as a closing one.\n' +
-      '- Do not invent facts, figures, dates, names, quotations or citations. Where a ' +
-      'specific is needed and you do not have it, write the sentence so the gap is obvious ' +
-      'and fillable rather than filling it with something plausible.\n' +
-      '- Keep roughly to two or three times the length of what you were given, unless the ' +
-      'input is a single fragment, in which case a solid paragraph is right.',
-  },
-  continue: {
-    label: 'Continue writing',
-    instruction:
-      'Carry on from where this stops, as the same person, mid-thought. Return ONLY the ' +
-      'continuation — do not repeat, restate or summarise any part of what you were given, ' +
-      'because it is already on the page directly above what you write.\n' +
-      '- Pick up the sentence if it was left unfinished; otherwise start the next one.\n' +
-      '- Match the voice exactly, and keep going in the same direction rather than ' +
-      'introducing a new topic or winding the piece up.\n' +
-      '- Two or three sentences, or one short paragraph. Stop while it is still going ' +
-      'somewhere; the author is going to keep typing.\n' +
-      '- Invent no facts, figures, names or quotations.',
-  },
-  tidy: {
-    label: 'Tidy up',
-    instruction:
-      'Fix the punctuation, grammar, spelling and capitalisation. Break walls of text into ' +
-      'paragraphs where the subject changes. Keep the author’s voice, vocabulary and meaning ' +
-      'exactly as they are — this is a clean-up, not a rewrite. Do not add ideas, do not ' +
-      'remove content, and do not change the register from informal to formal or the reverse.',
-  },
-  shorten: {
-    label: 'Make it shorter',
-    instruction:
-      'Say the same thing in fewer words. Cut padding, repetition and throat-clearing. Keep ' +
-      'every distinct point the author made — losing one is a failure, not a saving.',
-  },
-  bullets: {
-    label: 'As bullet points',
-    instruction:
-      'Turn this into a markdown bulleted list, one point per line, using "- ". Each bullet ' +
-      'is one idea in the author’s own words, shortened but not rewritten. Do not add points ' +
-      'that were not there and do not merge two distinct ones into a single bullet.',
-  },
-  structure: {
-    label: 'Add structure',
-    instruction:
-      'Organise this into sections with markdown headings, and turn any run of parallel items ' +
-      'into a bulleted or numbered list. Keep the wording as close to the original as the new ' +
-      'structure allows.',
-  },
-  summarise: {
-    label: 'Summarise',
-    instruction:
-      'Summarise this in a few sentences, or a short markdown list where it covers several ' +
-      'separate things. Report what it says; add no judgement, no recommendation and no ' +
-      'closing remark. Use the author’s own terms for things rather than translating them ' +
-      'into more general ones.',
-  },
-  draft: {
-    label: 'Write a draft',
-    instruction:
-      'Write a first draft on the topic given. Use markdown headings and lists where they help. ' +
-      'Be concrete and specific; prefer plain words. Do not invent statistics, quotations, ' +
-      'citations or names — if a figure is needed, describe what should go there instead.',
-  },
-  /*
-    Whatever the writer typed into the box.
-
-    It is an instruction from the person whose document this is, applied to
-    their own text, which is why it is carried through as an instruction. It
-    still lands inside the same system prompt as everything else, so it cannot
-    change what this route is: text goes in, replacement text comes out.
-  */
-  custom: {
-    label: 'Your instruction',
-    instruction: '',
-  },
-} as const
-
-export type AiAction = keyof typeof ACTIONS
 
 /**
  * A crude per-address limit.
@@ -185,6 +93,51 @@ function configured(): boolean {
 /** Lets the interface know whether to offer this at all. */
 export async function GET() {
   return NextResponse.json({ configured: configured() })
+}
+
+const PLAN_SYSTEM =
+  'Somebody has written a page of notes. You read it back and say what happens next.\n\n' +
+  'Return ONLY a plain list, one step per line, each line beginning with "you:" or "app:" and ' +
+  'nothing else. No preamble, no heading, no numbering, no closing remark.\n\n' +
+  'Which prefix:\n' +
+  '- "you:" is a step only the person can take — ringing somebody, signing something, paying, ' +
+  'deciding, turning up, asking another person for a thing.\n' +
+  '- "app:" is a step a writing app could take from what is already on the page — drafting a ' +
+  'message or a document, laying something out, summarising, putting a dated step in a ' +
+  'calendar. Nothing else. It cannot browse, buy, send, or talk to a service.\n\n' +
+  'Rules:\n' +
+  '- At most eight steps, and fewer is better. Three that matter beat eight that pad.\n' +
+  '- Each is one short imperative sentence, under about fifteen words.\n' +
+  '- Work only from these notes. Add no step the notes do not imply, and invent no names, ' +
+  'figures, dates or addresses.\n' +
+  '- Where the notes give a date or a day, keep the writer\u2019s own words for it in the step.\n' +
+  '- Order them the way they would actually be done.\n' +
+  '- If the notes contain nothing to act on, return nothing at all.'
+
+/**
+ * Turns a page of notes into a plan.
+ *
+ * Suggestions only. Nothing this returns is carried out, and the panel that
+ * shows it says so — the point is to read the notes back, not to act on them.
+ */
+async function plan(title: string, text: string) {
+  const result = await complete({
+    system: PLAN_SYSTEM,
+    user:
+      (title.trim() ? `The notes are titled "${title.trim()}".\n\n` : '') +
+      `Today is ${new Date().toISOString().slice(0, 10)}.\n\n` +
+      `The notes:\n\n${text}`,
+    maxTokens: 800,
+    // Deciding what somebody has actually committed to, and which half of that
+    // a piece of software could take on, is a judgement rather than a reading
+    // task — and a plan full of steps that were never in the notes is the
+    // failure to write against.
+    effort: 'high',
+  })
+  if (!result) {
+    return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
+  }
+  return NextResponse.json({ text: result })
 }
 
 /** A model declined to answer. Reported as a refusal rather than a fault. */
@@ -338,47 +291,6 @@ async function file(items: Intake[]) {
   return NextResponse.json({ text })
 }
 
-const SUGGEST_SYSTEM =
-  'Somebody is part-way through writing a document and has written down what they want it to ' +
-  'do. You read the draft against those goals and say what to do next.\n\n' +
-  'Return ONLY a plain list, one suggestion per line, each starting with "- ". No preamble, no ' +
-  'heading, no closing remark, no explanation of your reasoning.\n\n' +
-  'Rules:\n' +
-  '- At most four suggestions, and fewer is better. Three obvious ones are worth less than one ' +
-  'that names the actual problem.\n' +
-  '- Each is one short imperative sentence, under about fifteen words, and describes something ' +
-  'the writer could do in the next minute: "Say what the boiler does now", "Cut the second ' +
-  'paragraph, it repeats the first".\n' +
-  '- Work from THIS draft against THESE goals. Never give writing advice that would be true of ' +
-  'any document; if a goal is already met, say nothing about it rather than praising it.\n' +
-  '- Do not rewrite anything, do not quote the draft back, and do not invent facts the draft ' +
-  'does not contain.\n' +
-  '- If the draft is too empty to judge, return a single line saying what to write first.'
-
-/**
- * What to do next, read off the draft and what it is for.
- *
- * Suggestions only — nothing here can touch the document, which is the rule
- * every piece of writing help in this app keeps. See AGENTS.md.
- */
-async function suggest(goals: string[], title: string, text: string) {
-  const result = await complete({
-    system: SUGGEST_SYSTEM,
-    user:
-      (title.trim() ? `The document is titled "${title.trim()}".\n\n` : '') +
-      `What it is meant to do:\n${goals.map((goal) => `- ${goal}`).join('\n')}\n\n` +
-      `The draft so far:\n\n${text}`,
-    maxTokens: 600,
-    // Reading a draft against a stated aim is a judgement, and a suggestion
-    // that would fit any document at all is the failure to write against.
-    effort: 'high',
-  })
-  if (!result) {
-    return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
-  }
-  return NextResponse.json({ text: result })
-}
-
 /** Answers a question from extracts of the reader's own notes. */
 async function ask(question: string, sources: Source[]) {
   const text = await complete({
@@ -419,23 +331,12 @@ export async function POST(request: Request) {
 
   let body: {
     action?: string
+    /** The whole document, when the action is 'plan'. */
     text?: string
     title?: string
-    /** What the writer typed into the box, when the action is 'custom'. */
-    instruction?: string
-    /**
-     * The document around the passage being worked on.
-     *
-     * Sent separately from `text` and never rewritten: expanding one paragraph
-     * well means knowing what the paragraph before it already said, or the
-     * expansion opens by explaining something the reader read ten seconds ago.
-     */
-    context?: string
     question?: string
     sources?: Source[]
     items?: Intake[]
-    /** What the document is for, when the action is 'suggest'. */
-    goals?: string[]
   }
   try {
     body = await request.json()
@@ -495,91 +396,34 @@ export async function POST(request: Request) {
     the same reason everything else does: the key is the thing worth keeping
     on a server.
   */
-  if (body.action === 'suggest') {
-    const goals = (Array.isArray(body.goals) ? body.goals : [])
-      .filter((goal): goal is string => typeof goal === 'string' && !!goal.trim())
-      .slice(0, 8)
-      .map((goal) => goal.trim().slice(0, 200))
-    const draft = (body.text ?? '').trim()
-    if (!goals.length) {
+  /*
+    A page of notes in, a plan out. The last thing in here that reads a whole
+    document, and the only one anybody presses a button for.
+  */
+  if (body.action === 'plan') {
+    const notes = (body.text ?? '').trim()
+    if (!notes) {
       return NextResponse.json(
-        { error: 'Say what this document is for first.' },
+        { error: 'There is nothing written here yet.' },
         { status: 400 },
       )
     }
-    if (draft.length > MAX_INPUT_CHARS) {
-      return NextResponse.json({ error: 'That document is too long to read at once.' }, { status: 413 })
+    if (notes.length > MAX_INPUT_CHARS) {
+      return NextResponse.json(
+        {
+          error: `That is ${Math.round(notes.length / 1000)}k characters. The limit is ${MAX_INPUT_CHARS / 1000}k.`,
+        },
+        { status: 413 },
+      )
     }
     try {
-      return await suggest(goals, body.title ?? '', draft)
+      return await plan(body.title ?? '', notes)
     } catch (error) {
       return failure(error)
     }
   }
 
-  const action = body.action as AiAction
-  if (!action || !(action in ACTIONS)) {
-    return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
-  }
-
-  const asked = (body.instruction ?? '').trim().slice(0, 600)
-  if (action === 'custom' && !asked) {
-    return NextResponse.json({ error: 'Say what you would like done.' }, { status: 400 })
-  }
-
-  const text = (body.text ?? '').trim()
-  if (!text) {
-    return NextResponse.json({ error: 'There is nothing to work on yet.' }, { status: 400 })
-  }
-  if (text.length > MAX_INPUT_CHARS) {
-    return NextResponse.json(
-      {
-        error: `That is ${Math.round(text.length / 1000)}k characters. Select a smaller part — the limit is ${MAX_INPUT_CHARS / 1000}k.`,
-      },
-      { status: 413 },
-    )
-  }
-
-  try {
-    const result = await complete({
-      system:
-        'You improve writing inside a document editor. Return ONLY the revised text, with no ' +
-        'preamble, no explanation, no apology and no closing remark — whatever you return is ' +
-        'inserted directly into the document.\n\n' +
-        'Use markdown for structure: # for headings, - for bullets, 1. for numbered lists, blank ' +
-        'lines between paragraphs. Do not wrap the whole answer in a code fence.\n\n' +
-        'Match the language, spelling convention and tone of the input. If the input is in ' +
-        'British English, stay in British English.\n\n' +
-        'You may be shown the surrounding document for context. It is there so your answer ' +
-        'fits what is already written; never rewrite it, repeat it or refer to it.',
-      user:
-        `${ACTIONS[action].instruction || asked}\n\n` +
-        (action !== 'custom' && asked ? `Also: ${asked}\n\n` : '') +
-        (body.title?.trim() ? `The document is titled "${body.title.trim()}".\n\n` : '') +
-        (body.context?.trim()
-          ? `For context, the document around it reads:\n\n${body.context.trim().slice(0, 6000)}\n\n`
-          : '') +
-        `Here is the text:\n\n${text}`,
-      maxTokens: 8000,
-      /*
-        Tidying prose is a latency-sensitive edit, not a reasoning problem;
-        medium keeps it quick without making it careless. Expanding is the
-        exception: it is the one action where the work is deciding what the
-        author meant and what is worth adding, and a thin expansion is exactly
-        the failure that makes people stop pressing the button. Only the
-        Anthropic fallback has this knob; GPT-4o ignores it.
-      */
-      effort: action === 'expand' ? 'high' : 'medium',
-    })
-
-    if (!result) {
-      return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
-    }
-
-    return NextResponse.json({ text: result })
-  } catch (error) {
-    return failure(error)
-  }
+  return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
 }
 
 /** Turns whatever went wrong into something a reader can act on. */

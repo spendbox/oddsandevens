@@ -12,19 +12,16 @@ import {
   nextIndent,
   orderedNumber,
 } from '@/lib/smart-typing'
-import { applyRules, type Rule } from '@/lib/rules'
-import type { Align, Block, Doc, TextishBlock } from '@/lib/types'
-import { blockText, isTextish } from '@/lib/types'
-import { MODE, TEXT, usePref } from '@/lib/ui-prefs'
+import type { Align, Block, BlockType, Doc, TextishBlock } from '@/lib/types'
+import { isTextish } from '@/lib/types'
+import { TEXT, usePref } from '@/lib/ui-prefs'
+import ActionPlan from './action-plan'
 import CodeBlock from './code-block'
 import Editable, { placeCaret } from './editable'
-import AssistPopup, { type AssistScope } from './assist-popup'
-import BrainPanel, { BrainOffer } from './brain-panel'
 import FormatToolbar from './format-toolbar'
 import FileBlock from './file-block'
 import FormBlock from './form-block'
 import Ribbon, { type RibbonTarget } from './ribbon'
-import SlashMenu, { type SlashChoice } from './slash-menu'
 import TableBlock from './table-block'
 
 /**
@@ -63,8 +60,7 @@ export default function Editor({
   externalRevision = 0,
   aiReady,
   command = null,
-  onRules,
-  onIgnoreRules,
+  onPlanDone,
 }: {
   doc: Doc
   onChange: (next: Doc) => void
@@ -94,15 +90,14 @@ export default function Editor({
   /**
    * A press in the side menu that has to land in here.
    *
-   * Brain and Ask are offered beside the document's other settings, but both
-   * are painted over the editing surface, which is what knows where the caret
-   * is. A counter rather than a flag, so pressing Ask twice opens it twice and
-   * there is nothing for the sender to clear afterwards.
+   * The action button is offered beside the document's other settings as well
+   * as on the toolbar, but the plan is painted over the editing surface. A
+   * counter rather than a flag, so pressing it twice opens it twice and there
+   * is nothing for the sender to clear afterwards.
    */
-  command?: { kind: 'brain' | 'ask'; n: number } | null
-  /** Writes this document's rules. See lib/rules.ts. */
-  onRules: (rules: Rule[]) => void
-  onIgnoreRules: (ignored: boolean) => void
+  command?: { kind: 'plan'; n: number } | null
+  /** Told when a plan has been read, so anything outside can react. */
+  onPlanDone?: () => void
 }) {
   /**
    * Which block to put the caret in after the next render, and where.
@@ -120,8 +115,6 @@ export default function Editor({
       return isBlank && only ? { id: only.id, caret: 'start' as const } : null
     },
   )
-  /** Open slash menu: which block it belongs to and where the "/" sits. */
-  const [slash, setSlash] = useState<{ id: string; at: number; query: string } | null>(null)
   /**
    * Incremented whenever the editor rewrites a block's content itself rather
    * than the user typing it — a split, a merge, a conversion. Editable watches
@@ -153,18 +146,8 @@ export default function Editor({
    * make every button a no-op.
    */
   const [currentId, setCurrentId] = useState<string | null>(null)
-  const [assist, setAssist] = useState<{
-    anchor: { top: number; bottom: number; left: number } | null
-  } | null>(null)
-  const [brain, setBrain] = useState(false)
-  /**
-   * Whether the offer of rules on a brand-new document has been turned down.
-   *
-   * Session state rather than a field on the document: a document somebody
-   * declined rules for should not carry a tombstone about it forever, and the
-   * offer is only ever shown while the document is still empty anyway.
-   */
-  const [offerDeclined, setOfferDeclined] = useState(false)
+  /** Whether the plan is on screen. Never opened by anything but a press. */
+  const [planning, setPlanning] = useState(false)
   /*
     A press in the side menu, acted on as it arrives.
 
@@ -172,16 +155,11 @@ export default function Editor({
     uses for "a prop changed, so this state is stale" — because in an effect
     the drawer has already closed and the page has painted once without the
     panel, which reads as the press having done nothing.
-
-    Ask opens with no anchor, which the popup already handles by centring
-    itself: there is no caret to sit beside when the press came from a menu
-    covering the document.
   */
   const [seenCommand, setSeenCommand] = useState(command?.n ?? 0)
   if (command && command.n !== seenCommand) {
     setSeenCommand(command.n)
-    if (command.kind === 'brain') setBrain(true)
-    else setAssist({ anchor: null })
+    setPlanning(true)
   }
 
   const container = useRef<HTMLDivElement>(null)
@@ -316,15 +294,6 @@ export default function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockSel, doc.blocks])
 
-  /** Inserts after `id` and puts the caret in the new block. */
-  const insertAfter = (id: string, block: Block) => {
-    const index = indexOf(id)
-    const next = [...doc.blocks]
-    next.splice(index + 1, 0, block)
-    setBlocks(next)
-    setFocus({ id: block.id, caret: 'start' })
-  }
-
   /**
    * Moves a block one place up or down.
    *
@@ -360,7 +329,7 @@ export default function Editor({
   /** Replaces a block with a new one of another type, carrying text across. */
   const convert = (
     id: string,
-    choice: SlashChoice & { ordered?: boolean },
+    choice: { type: BlockType; level?: 1 | 2 | 3; ordered?: boolean },
     keepText: string,
     keepHtml?: string,
   ) => {
@@ -382,26 +351,6 @@ export default function Editor({
     setBlocks(doc.blocks.map((b) => (b.id === id ? created : b)))
     bumpRevision()
     setFocus({ id: created.id, caret: 'end' })
-  }
-
-  const pickFromSlash = (choice: SlashChoice) => {
-    if (!slash) return
-    const block = doc.blocks.find((b) => b.id === slash.id)
-    setSlash(null)
-    if (!block) return
-
-    const text = isTextish(block) || block.type === 'todo' ? block.text : ''
-    // Strip the "/query" the user typed to summon the menu.
-    const cleaned = text.slice(0, slash.at) + text.slice(slash.at + 1 + slash.query.length)
-
-    if (cleaned.trim() === '') {
-      convert(block.id, choice, '')
-    } else {
-      // There was real text here, so keep it and put the new block below.
-      updateBlock(block.id, { ...block, text: cleaned } as Block)
-      bumpRevision()
-      insertAfter(block.id, makeBlock(choice.type, choice.level))
-    }
   }
 
   /* ------------------------------------------------------------- the toolbar */
@@ -501,37 +450,6 @@ export default function Editor({
     setFocus({ id: created.id, caret: 'start' })
   }
 
-  /* ------------------------------------------------------------ writing help */
-
-  /**
-   * Where the caret is on screen, so the popup can open next to it.
-   *
-   * Read once, at the moment of opening. A collapsed caret's rectangle has no
-   * width but does have a position; when even that is missing — which happens
-   * in a freshly emptied block — the focused element's own box is close enough
-   * and is never wrong by more than a line.
-   */
-  const caretBox = (): { top: number; bottom: number; left: number } | null => {
-    const selection = window.getSelection()
-    if (selection && selection.rangeCount > 0) {
-      const rect = selection.getRangeAt(0).getBoundingClientRect()
-      if (rect.top || rect.bottom) {
-        return { top: rect.top, bottom: rect.bottom, left: rect.left }
-      }
-    }
-    const el = container.current?.querySelector<HTMLElement>(
-      `[data-block-id="${currentId}"] [contenteditable]`,
-    )
-    if (!el) return null
-    const rect = el.getBoundingClientRect()
-    return { top: rect.top, bottom: rect.bottom, left: rect.left }
-  }
-
-  const openAssist = useCallback(() => {
-    setAssist({ anchor: caretBox() })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentId])
-
   /*
     Undo and redo, taken over from the browser.
 
@@ -561,139 +479,7 @@ export default function Editor({
     return () => document.removeEventListener('keydown', onKey)
   }, [onUndo, onRedo])
 
-  // Ctrl+J, the shortcut, bound at the document so it works from anywhere on
-  // the page rather than only from inside a block.
-  useEffect(() => {
-    if (!aiReady) return
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j') {
-        event.preventDefault()
-        openAssist()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [aiReady, openAssist])
-
-  /**
-   * What the assistant can be pointed at, best guess first.
-   *
-   * A selection if there is one, because selecting text and asking for help is
-   * unambiguous; otherwise the paragraph the caret is in, because that is what
-   * somebody means by "expand this" while typing. The whole document is always
-   * offered as well — it is the only one of the three that can be wrong in a
-   * way you would not notice until after you pressed Replace.
-   */
-  const assistScopes = (): AssistScope[] => {
-    const scopes: AssistScope[] = []
-    const chosen = selectedBlocks()
-    if (chosen.length) {
-      scopes.push({
-        id: 'selection',
-        label: `${chosen.length} selected`,
-        text: blocksToText(chosen),
-      })
-    } else {
-      const inline = window.getSelection()?.toString().trim() ?? ''
-      if (inline.length > 1) scopes.push({ id: 'selection', label: 'Selection', text: inline })
-    }
-    if (currentBlock && (isTextish(currentBlock) || currentBlock.type === 'todo')) {
-      scopes.push({
-        id: 'line',
-        label: 'This paragraph',
-        text: currentBlock.text,
-      })
-    }
-    scopes.push({ id: 'doc', label: 'Whole document', text: blocksToText(doc.blocks) })
-    return scopes
-  }
-
-  /** The paragraphs on either side, so an expansion knows what has been said. */
-  const assistContext = (): string => {
-    const at = currentId ? indexOf(currentId) : doc.blocks.length - 1
-    if (at === -1) return ''
-    return blocksToText(doc.blocks.slice(Math.max(0, at - 4), at + 3))
-  }
-
-  /**
-   * Puts a result into the document.
-   *
-   * 'replace' swaps out whatever the action was pointed at; 'after' leaves it
-   * alone and follows it. Both act on the scope the popup was showing, which
-   * is why the scope travels back with the result rather than being guessed
-   * again here — by then the selection may well have gone.
-   */
-  const applyAssist = (pasted: PastedBlock[], scope: AssistScope, mode: 'replace' | 'after') => {
-    if (!pasted.length) return
-    const created = blocksFromPasted(pasted)
-
-    if (scope.id === 'doc') {
-      setBlocks(mode === 'replace' ? created : [...doc.blocks, ...created])
-    } else {
-      const range = selectedRange()
-      const at = currentId ? indexOf(currentId) : doc.blocks.length - 1
-      const [from, to] = range ?? [at, at]
-      if (from === -1) return
-      setBlocks(
-        mode === 'replace'
-          ? [...doc.blocks.slice(0, from), ...created, ...doc.blocks.slice(to + 1)]
-          : [...doc.blocks.slice(0, to + 1), ...created, ...doc.blocks.slice(to + 1)],
-      )
-    }
-    setBlockSel(null)
-    bumpRevision()
-    const last = created[created.length - 1]
-    if (last) setFocus({ id: last.id, caret: 'end' })
-  }
-
-  /* ----------------------------------------------------------- settling down */
-
-  useEffect(() => {
-    const blocks = doc.blocks
-    const rules = doc.rules
-    const ignored = doc.ignoreRules
-    if (ignored || !rules?.length) return
-    /*
-      Brain, applied when typing settles rather than on every keystroke — a
-      line that converts itself while it is still being typed is the
-      application arguing with the writer. Setting the state from the timer's
-      callback rather than from the effect body is what keeps this out of a
-      cascading render.
-    */
-    const timer = setTimeout(() => {
-      // `applyRules` returns the identical array when nothing matched, which
-      // is the common case by a very long way, so this usually does nothing at
-      // all — and running it on its own output is a no-op, so it cannot loop.
-      const ruled = applyRules(blocks, rules)
-      if (ruled !== blocks) {
-        setBlocks(ruled)
-        bumpRevision()
-      }
-    }, SETTLE_MS)
-    return () => clearTimeout(timer)
-    // `setBlocks` is rebuilt whenever `doc` changes, and re-arming the timer
-    // for that would mean it never fired while somebody was typing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc.blocks, doc.rules, doc.ignoreRules])
-
   /* ---------------------------------------------------------------- typing */
-
-  /**
-   * Where a "/" was just typed, or null if this change was anything else.
-   *
-   * The slash menu used to open from a keydown handler testing `event.key`.
-   * That works on a physical keyboard and fails on most phones: virtual
-   * keyboards and IMEs report keydown as `Unidentified` with keyCode 229 and
-   * only reveal the real character in the input event that follows. Detecting
-   * the inserted character instead works on every keyboard, including
-   * autocorrect, swipe typing, dictation and paste.
-   */
-  const insertedSlashAt = (before: string, after: string): number | null => {
-    if (after.length !== before.length + 1) return null
-    let i = 0
-    while (i < before.length && before[i] === after[i]) i++
-    return after[i] === '/' ? i : null
-  }
 
   /**
    * Turns a multi-block paste into blocks after the current one.
@@ -742,47 +528,7 @@ export default function Editor({
       return
     }
 
-    /*
-      "++" asks for help, the way "/" asks for a block.
-
-      Detected from the text the input event produced, never from keydown, for
-      exactly the reason the slash menu is: a phone keyboard reports keydown as
-      `Unidentified` and only reveals the character afterwards. The two plus
-      signs are removed as they are consumed, so the shortcut leaves nothing
-      behind if the popup is then dismissed.
-    */
-    if (aiReady && value.endsWith('++') && !block.text.endsWith('++')) {
-      updateBlock(block.id, { ...block, text: value.slice(0, -2), html: undefined } as Block)
-      bumpRevision()
-      setCurrentId(block.id)
-      setAssist({ anchor: caretBox() })
-      return
-    }
-
     updateBlock(block.id, { ...block, text: value, html } as Block)
-
-    /*
-      The slash menu only exists in block mode.
-
-      In document mode "/" is a slash: somebody writing "and/or" or a date
-      should not have a menu open over the word they are typing. Everything the
-      menu offers is in the toolbar's ⋯ menu, so nothing is lost by it — the
-      two modes differ in what typing does, not in what the app can do.
-    */
-    if (mode !== 'blocks') return
-
-    if (!slash) {
-      const at = insertedSlashAt(block.text, value)
-      if (at !== null) setSlash({ id: block.id, at, query: '' })
-      return
-    }
-
-    // Track the menu's query as the user keeps typing.
-    if (slash.id === block.id) {
-      const after = value.slice(slash.at)
-      if (!after.startsWith('/')) setSlash(null)
-      else setSlash({ ...slash, query: after.slice(1) })
-    }
   }
 
   const onTextKeyDown = (
@@ -799,12 +545,6 @@ export default function Editor({
       }
     },
   ) => {
-    // While the menu is open it owns these keys; it listens at the document
-    // level and will have called preventDefault already.
-    if (slash && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) {
-      if (event.defaultPrevented) return
-    }
-
     /*
       Ctrl+A selects the paragraph, then the document.
 
@@ -1043,14 +783,6 @@ export default function Editor({
   */
   const { value: textPref, set: setTextPref } = usePref(TEXT)
   const textSize = textPref ?? 'medium'
-  /*
-    How typing behaves. Unset means `word`, which is what most people mean by
-    a document: Enter makes a paragraph and "/" types a slash. See MODE in
-    lib/ui-prefs.ts.
-  */
-  const { value: modePref, set: setModePref } = usePref(MODE)
-  const mode = modePref ?? 'word'
-
   return (
     <div ref={container} className="relative">
       <Ribbon
@@ -1059,17 +791,13 @@ export default function Editor({
         onAlign={alignCurrent}
         onIndent={indentCurrent}
         onInsert={insertFromToolbar}
-        onAssist={aiReady ? openAssist : undefined}
+        onPlan={() => setPlanning(true)}
         textSize={textSize}
         onTextSize={setTextPref}
         onUndo={onUndo}
         onRedo={onRedo}
         canUndo={canUndo}
         canRedo={canRedo}
-        mode={mode}
-        onMode={setModePref}
-        onBrain={() => setBrain(true)}
-        ruleCount={doc.ignoreRules ? 0 : (doc.rules?.filter((rule) => !rule.off).length ?? 0)}
       />
 
       <div
@@ -1101,22 +829,7 @@ export default function Editor({
           dragAnchor.current = null
         }}
       >
-        <FormatToolbar scope={container} onAssist={aiReady ? openAssist : undefined} />
-
-        {/*
-          Rules are offered once, on a document that is still empty. The moment
-          somebody knows what shape a document will take is the moment before
-          they start it, and there is no second good moment to ask.
-        */}
-        {!offerDeclined &&
-          !brain &&
-          !doc.rules?.length &&
-          !doc.title.trim() &&
-          doc.blocks.length <= 1 &&
-          doc.blocks.every((block) => !blockText(block).trim()) && (
-            <BrainOffer onOpen={() => setBrain(true)} onDismiss={() => setOfferDeclined(true)} />
-          )}
-
+        <FormatToolbar scope={container} />
 
         <input
           value={doc.title}
@@ -1168,20 +881,12 @@ export default function Editor({
                   onTextChange={onTextChange}
                   onTextKeyDown={onTextKeyDown}
                   onTextFocus={() => setCurrentId(block.id)}
-                  slashOpen={slash?.id === block.id}
                   revision={paintRevision}
                   onRemove={() => removeBlock(block.id)}
                   number={orderedNumber(doc.blocks, blockIndex)}
                   onPasteBlocks={insertPasted}
                   onExtractPdf={onExtractPdf}
                 />
-                {slash?.id === block.id && (
-                  <SlashMenu
-                    query={slash.query}
-                    onPick={pickFromSlash}
-                    onClose={() => setSlash(null)}
-                  />
-                )}
               </div>
             </div>
           ))}
@@ -1209,31 +914,18 @@ export default function Editor({
         />
       </div>
 
-      <BrainPanel
-        open={brain}
-        onClose={() => setBrain(false)}
-        rules={doc.rules ?? []}
-        ignored={!!doc.ignoreRules}
-        onChange={onRules}
-        onIgnoredChange={onIgnoreRules}
-      />
-
-      <AssistPopup
-        open={assist !== null}
-        onClose={() => setAssist(null)}
-        anchor={assist?.anchor ?? null}
-        scopes={assist ? assistScopes() : []}
-        title={doc.title}
-        context={assist ? assistContext() : ''}
-        onReplace={(blocks, scope) => applyAssist(blocks, scope, 'replace')}
-        onInsert={(blocks, scope) => applyAssist(blocks, scope, 'after')}
+      <ActionPlan
+        open={planning}
+        onClose={() => {
+          setPlanning(false)
+          onPlanDone?.()
+        }}
+        doc={doc}
+        aiReady={aiReady}
       />
     </div>
   )
 }
-
-/** How long typing has to stop before the document is read again. */
-const SETTLE_MS = 1_200
 
 function BlockBody({
   block,
@@ -1241,7 +933,6 @@ function BlockBody({
   onTextChange,
   onTextKeyDown,
   onTextFocus,
-  slashOpen,
   revision,
   onRemove,
   onPasteBlocks,
@@ -1266,7 +957,6 @@ function BlockBody({
     },
   ) => void
   onTextFocus: () => void
-  slashOpen: boolean
   revision: number
   onRemove: () => void
   onPasteBlocks: (id: string, blocks: PastedBlock[]) => boolean
@@ -1326,7 +1016,7 @@ function BlockBody({
           html={block.html}
           revision={revision}
           onPasteBlocks={(blocks) => onPasteBlocks(block.id, blocks)}
-          placeholder={slashOpen ? '' : 'To-do'}
+          placeholder="To-do"
           ariaLabel="Task"
           onChange={(value, html) => onTextChange(block as never, value, html)}
           onKeyDown={(event, api) => onTextKeyDown(block, event, api)}
@@ -1360,18 +1050,16 @@ function BlockBody({
       ? headingStyles[block.level ?? 1]
       : (styles[block.type] ?? styles.text)) + aligned
 
-  const placeholder = slashOpen
-    ? ''
-    : block.type === 'heading'
+  const placeholder =
+    block.type === 'heading'
       ? 'Heading'
       : block.type === 'quote'
         ? 'Quote'
         : block.type === 'bullet'
           ? 'List item'
-          : // No shortcut is promised here. Ctrl+J does not exist on a phone,
-            // and a hint that is wrong on half the devices is worse than none —
-            // Ask is on the toolbar at every width instead.
-            'Write, or press / to insert'
+          : // No shortcut is promised here: a hint that is wrong on half the
+            // devices is worse than no hint at all.
+            'Write something'
 
   const editable = (
     <Editable

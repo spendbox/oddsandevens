@@ -11,7 +11,6 @@
  * not a second application.
  */
 
-import type { Rule } from './rules.ts'
 
 export type BlockType =
   | 'text'
@@ -185,31 +184,6 @@ export interface Doc {
    * two devices show different contents for the same project.
    */
   projectId?: string
-  /**
-   * The rules this document keeps about itself — Brain. See lib/rules.ts.
-   *
-   * On the document rather than in a setting, because the shapes in a meeting
-   * note are not the shapes in a recipe: a rule that applied everywhere would
-   * be wrong somewhere inside a day. Absent on every document that has never
-   * been given one, which is most of them.
-   */
-  rules?: Rule[]
-  /**
-   * Whether this document's rules are paused.
-   *
-   * Separate from deleting them, because "not while I am drafting this" is a
-   * different thought from "I was wrong about that rule", and one of them is
-   * reversible by a switch rather than by retyping.
-   */
-  ignoreRules?: boolean
-  /**
-   * What this document is trying to do, in the writer's own words.
-   *
-   * On the document rather than in a setting, for the same reason its rules
-   * are: what a tenancy complaint is for is not what a recipe is for. Absent
-   * on every document nobody has told, which is most of them. See lib/goals.ts.
-   */
-  goals?: string[]
   /**
    * When it was starred, or absent when it never was.
    *

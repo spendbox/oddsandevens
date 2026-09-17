@@ -1,6 +1,6 @@
 'use client'
 
-import { Bold, Code, Italic, Sparkles, Strikethrough, Underline } from 'lucide-react'
+import { Bold, Code, Italic, Strikethrough, Underline } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 /**
@@ -12,17 +12,12 @@ import { useCallback, useEffect, useState } from 'react'
  *
  * It matters most on a phone. A keyboard has Ctrl+B; a thumb has nothing, and
  * the operating system's own selection menu offers copy and paste but never
- * bold. Without this, formatting would be a desktop-only feature — and the
- * same goes for writing help, which is why Ask is on the end of this bar as
- * well as in the toolbar. Ctrl+J is not a thing a phone has.
+ * bold. Without this, formatting would be a desktop-only feature.
  */
 export default function FormatToolbar({
   scope,
-  onAssist,
 }: {
   scope: React.RefObject<HTMLElement | null>
-  /** Offered on the end of the bar. Absent when no key is configured. */
-  onAssist?: () => void
 }) {
   const [box, setBox] = useState<{ top: number; left: number } | null>(null)
   const [marks, setMarks] = useState({
@@ -100,29 +95,6 @@ export default function FormatToolbar({
       <Mark label="Inline code" active={marks.code} onRun={() => applyFormat('code')}>
         <Code size={14} />
       </Mark>
-      {onAssist && (
-        <>
-          <span aria-hidden className="mx-0.5 h-5 w-px bg-[var(--color-line)]" />
-          <button
-            type="button"
-            aria-label="Writing help"
-            title="Writing help"
-            /*
-              preventDefault on pointerdown keeps the selection; the action
-              runs on click. Running it on pointerdown put the assistant's
-              backdrop under the finger that was still down, so the click
-              completing the tap closed it again — which on a phone looked like
-              a button that only worked if you held it. See ribbon.tsx.
-            */
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={onAssist}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2 text-[14px] font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]"
-          >
-            <Sparkles size={14} />
-            Ask
-          </button>
-        </>
-      )}
     </div>
   )
 }
