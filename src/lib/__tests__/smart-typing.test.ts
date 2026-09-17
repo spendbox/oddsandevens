@@ -2,12 +2,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   MAX_INDENT,
-  bulletFor,
   colonStartsList,
-  inlineFormatAt,
   looksLikeTitle,
   nextIndent,
-  orderedNumber,
   shouldCapitalise,
 } from '../smart-typing.ts'
 
@@ -68,25 +65,6 @@ test('a colon that is not an announcement is ignored', () => {
   assert.equal(colonStartsList('https:'), false, 'a URL scheme')
 })
 
-test('bold, italic and code autoformat when the span closes', () => {
-  assert.deepEqual(inlineFormatAt('make this **bold**'), { length: 8, text: 'bold', tag: 'b' })
-  assert.deepEqual(inlineFormatAt('make this *slanted*'), { length: 9, text: 'slanted', tag: 'i' })
-  assert.deepEqual(inlineFormatAt('run `npm test`'), { length: 10, text: 'npm test', tag: 'code' })
-})
-
-test('bold wins over italic, so "**x**" does not leave stray asterisks', () => {
-  assert.equal(inlineFormatAt('**x**')?.tag, 'b')
-})
-
-test('an unclosed or empty span is left as typed', () => {
-  assert.equal(inlineFormatAt('half open *'), null)
-  assert.equal(inlineFormatAt('nothing here'), null)
-  assert.equal(inlineFormatAt('a ** b'), null)
-  assert.equal(inlineFormatAt('****'), null, 'no content between the markers')
-  assert.equal(inlineFormatAt('* '), null, 'a list marker, not italics')
-  assert.equal(inlineFormatAt('2 * 3 * 4'), null, 'multiplication')
-})
-
 test('a title is short, unpunctuated and few words', () => {
   assert.equal(looksLikeTitle('Quarterly review'), true)
   assert.equal(looksLikeTitle('Lagos trip'), true)
@@ -109,45 +87,3 @@ test('indent is clamped at both ends', () => {
   assert.equal(nextIndent(2, -1), 1)
 })
 
-test('bullet glyphs cycle with depth, the way a word processor does', () => {
-  assert.equal(bulletFor(0), 'disc')
-  assert.equal(bulletFor(1), 'circle')
-  assert.equal(bulletFor(2), 'square')
-  assert.equal(bulletFor(3), 'disc')
-  assert.equal(bulletFor(undefined), 'disc')
-})
-
-test('ordered list numbers are counted from the run above', () => {
-  const list = [
-    { type: 'bullet', ordered: true },
-    { type: 'bullet', ordered: true },
-    { type: 'bullet', ordered: true },
-  ]
-  assert.deepEqual(list.map((_, i) => orderedNumber(list, i)), [1, 2, 3])
-})
-
-test('a paragraph between lists restarts the numbering', () => {
-  const list = [
-    { type: 'bullet', ordered: true },
-    { type: 'text' },
-    { type: 'bullet', ordered: true },
-  ]
-  assert.deepEqual(list.map((_, i) => orderedNumber(list, i)), [1, 1, 1])
-})
-
-test('a nested sub-list does not break the run', () => {
-  // 1. first / (a nested item) / 2. second — the sub-list belongs to item 1.
-  const list = [
-    { type: 'bullet', ordered: true, indent: 0 },
-    { type: 'bullet', ordered: true, indent: 1 },
-    { type: 'bullet', ordered: true, indent: 0 },
-  ]
-  assert.equal(orderedNumber(list, 2), 2)
-  assert.equal(orderedNumber(list, 1), 1, 'the nested item starts its own sequence')
-})
-
-test('unordered bullets are not numbered', () => {
-  const list = [{ type: 'bullet' }, { type: 'bullet', ordered: true }]
-  assert.equal(orderedNumber(list, 0), 1)
-  assert.equal(orderedNumber(list, 1), 1, 'a plain bullet above does not contribute')
-})

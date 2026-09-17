@@ -23,7 +23,6 @@ import { useFolds } from '@/lib/folds'
 import { existingShare, publishDoc, unpublishDoc } from '@/lib/share'
 import { isSyncConfigured } from '@/lib/supabase'
 import type { Doc, Project } from '@/lib/types'
-import { MODE, usePref } from '@/lib/ui-prefs'
 import FolderPicker from './folder-picker'
 
 /**
@@ -94,8 +93,6 @@ export default function DocSettings({
   const picker = useRef<HTMLInputElement>(null)
   const wordPicker = useRef<HTMLInputElement>(null)
   const { folded, toggle } = useFolds()
-  const { value: modePref, set: setMode } = usePref(MODE)
-  const mode = modePref === 'plain' ? 'plain' : 'blocks'
 
   /*
     A different document has a different link, and has not been asked about
@@ -166,40 +163,6 @@ export default function DocSettings({
           {project ? 'Move' : 'File it'}
         </span>
       </button>
-
-      {/*
-        Which writing surface. Two words rather than a switch labelled with
-        one: "Document" and "Blocks" both say what they do, where a toggle
-        called "Plain mode" only says what it is when it is on.
-      */}
-      <div className="mt-1 flex items-center gap-1.5 px-1 py-1">
-        <span className="min-w-0 flex-1 text-[13px] text-[var(--color-muted)]">Typing</span>
-        <div className="flex shrink-0 rounded-md bg-[var(--color-hover)] p-0.5">
-          {(['plain', 'blocks'] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={mode === option}
-              aria-label={
-                option === 'plain' ? 'Type like a word document' : 'Type with blocks'
-              }
-              onClick={() => setMode(option)}
-              className={`rounded px-2 py-1 text-[12px] ${
-                mode === option
-                  ? 'bg-[var(--color-paper)] font-medium shadow-sm'
-                  : 'text-[var(--color-muted)]'
-              }`}
-            >
-              {option === 'plain' ? 'Document' : 'Blocks'}
-            </button>
-          ))}
-        </div>
-      </div>
-      <p className="px-1 pb-1.5 text-[12px] leading-snug text-[var(--color-faint)]">
-        {mode === 'plain'
-          ? 'One page you type into. Enter makes a line, Ctrl+A selects all of it, and there are no blocks to move.'
-          : 'A paragraph at a time, so a spreadsheet or a form can sit between two sentences.'}
-      </p>
 
       {/*
         The one action in here, and the only thing in this app that reads the

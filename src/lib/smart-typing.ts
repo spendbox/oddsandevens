@@ -66,44 +66,6 @@ export function colonStartsList(text: string): boolean {
   return true
 }
 
-export interface InlineFormat {
-  /** How many characters before the caret the match began. */
-  length: number
-  /** The text that should remain, without the markers. */
-  text: string
-  /** The tag to wrap it in. */
-  tag: 'b' | 'i' | 'code'
-}
-
-/**
- * Detects a completed markdown-style inline span just before the caret.
- *
- * Called when the closing character is typed, with `before` being everything
- * up to and including it. Returns null unless the whole span is present, so a
- * lone asterisk or a footnote marker is left alone.
- */
-export function inlineFormatAt(before: string): InlineFormat | null {
-  // Bold first: "**x**" also ends with a single "*", so the single-asterisk
-  // rule would claim it and leave a stray pair behind.
-  const patterns: Array<{ re: RegExp; tag: InlineFormat['tag'] }> = [
-    { re: /\*\*([^*\s][^*]*?)\*\*$/, tag: 'b' },
-    { re: /(?<![*\w])\*([^*\s][^*]*?)\*$/, tag: 'i' },
-    { re: /(?<!`)`([^`\s][^`]*?)`$/, tag: 'code' },
-  ]
-
-  for (const { re, tag } of patterns) {
-    const match = re.exec(before)
-    if (match && match.index !== undefined) {
-      const whole = match[0]
-      const inner = match[1]
-      // A span has to contain something other than markers.
-      if (!inner.trim()) continue
-      return { length: whole.length, text: inner, tag }
-    }
-  }
-  return null
-}
-
 /**
  * Whether a document's opening line reads like its title.
  *
@@ -122,48 +84,10 @@ export function looksLikeTitle(text: string): boolean {
   return true
 }
 
-/**
- * The number to print beside an ordered list item.
- *
- * Counted from the run of items above it rather than stored, so Enter
- * continues the sequence and removing an item renumbers what follows without
- * anything having to be rewritten.
- *
- * Deeper items do not break the run: a sub-list between "2." and "3." is part
- * of item 2, not the end of the numbering.
- */
-export function orderedNumber(
-  blocks: Array<{ type: string; ordered?: boolean; indent?: number }>,
-  index: number,
-): number {
-  const self = blocks[index]
-  if (!self || self.type !== 'bullet' || !self.ordered) return 1
-  const depth = self.indent ?? 0
-
-  let count = 1
-  for (let i = index - 1; i >= 0; i--) {
-    const above = blocks[i]
-    const aboveDepth = above.indent ?? 0
-    if (aboveDepth > depth) continue // a nested sub-list, still inside this run
-    if (above.type === 'bullet' && above.ordered && aboveDepth === depth) {
-      count++
-      continue
-    }
-    break
-  }
-  return count
-}
-
 /** Indent levels a block can reach. Deeper than this is unreadable. */
 export const MAX_INDENT = 5
 
 export function nextIndent(current: number | undefined, direction: 1 | -1): number {
   const at = current ?? 0
   return Math.max(0, Math.min(MAX_INDENT, at + direction))
-}
-
-/** The bullet glyph for a nesting depth, cycling the way word processors do. */
-export function bulletFor(indent: number | undefined): 'disc' | 'circle' | 'square' {
-  const level = (indent ?? 0) % 3
-  return level === 0 ? 'disc' : level === 1 ? 'circle' : 'square'
 }

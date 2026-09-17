@@ -45,27 +45,10 @@ export const TEXT = {
   values: ['medium', 'large', 'huge'],
 } as const
 /**
- * Which writing surface the editor uses.
- *
- * `blocks` is the default and is this app's own shape: one editable element per
- * paragraph, so a spreadsheet can sit between two sentences and every block is
- * individually addressable. `plain` is one editable element for the whole
- * document — Enter makes a line because the browser makes a line, Ctrl+A takes
- * everything, and a selection runs from the first word to the last without
- * anything being reimplemented. See lib/plain-doc.ts.
- *
- * A preference rather than a field on the document, because it is about the
- * hands doing the typing: opening a note somebody else wrote should not change
- * how your keyboard behaves. The document is the same list of blocks either
- * way, so switching is a repaint and never a conversion.
- */
-export const MODE = { key: 'pad-mode', attr: 'mode', values: ['plain', 'blocks'] } as const
-
-/**
  * The script that applies the saved preferences before anything is painted.
  * Kept here, next to the keys it reads, so the two cannot drift apart.
  */
-export const PREFS_SCRIPT = `(function(){try{var p=[['pad-theme','theme'],['pad-sidebar','sidebar'],['pad-width','width'],['pad-text','text'],['pad-mode','mode']];for(var i=0;i<p.length;i++){var v=localStorage.getItem(p[i][0]);if(v){document.documentElement.setAttribute('data-'+p[i][1],v)}}}catch(e){}})()`
+export const PREFS_SCRIPT = `(function(){try{var p=[['pad-theme','theme'],['pad-sidebar','sidebar'],['pad-width','width'],['pad-text','text']];for(var i=0;i<p.length;i++){var v=localStorage.getItem(p[i][0]);if(v){document.documentElement.setAttribute('data-'+p[i][1],v)}}}catch(e){}})()`
 
 const listeners = new Set<() => void>()
 

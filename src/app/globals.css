@@ -180,7 +180,12 @@ body {
  */
 .pad-sticky-heading {
   position: sticky;
-  top: 2.6rem;
+  /*
+    Just below the toolbar, which is 45px tall and sticky at zero in the same
+    scroller. Two things stuck to the same line sit on top of each other, and a
+    heading that covers the undo button is worse than one that scrolls away.
+  */
+  top: 2.9rem;
   z-index: 10;
   background: var(--color-paper);
   /* A hair of padding, so descenders are not clipped by the line above. */
@@ -192,6 +197,103 @@ body {
   .pad-sticky-heading {
     position: static;
   }
+}
+
+/*
+ * List markers on the writing page.
+ *
+ * Drawn with `::before` rather than as elements, because a marker that is a
+ * real node is a node the caret can be put inside, a node a selection carries
+ * into the clipboard, and a node that has to be stripped out again every time
+ * the line is read back. Generated content is none of those things: it is
+ * painted, it is not in `textContent`, and it cannot be typed into.
+ *
+ * The numbering is a CSS counter for the same reason. Stamping numbers into
+ * the DOM means renumbering the rest of the list every time an item is added
+ * or deleted, and being wrong for a frame whenever that is missed; a counter
+ * is right at every moment by construction. It resets on any line that is not
+ * a numbered item, so a second list after a paragraph starts again at one.
+ */
+.pad-plain {
+  counter-reset: pad-ol 0;
+}
+
+.pad-plain > :not(.pad-ol) {
+  counter-reset: pad-ol 0;
+}
+
+.pad-plain > .pad-ol {
+  counter-increment: pad-ol;
+}
+
+.pad-plain > .pad-ul,
+.pad-plain > .pad-ol {
+  /* Room for the marker, which is painted in the margin this leaves. */
+  padding-left: 1.7em;
+  position: relative;
+}
+
+.pad-plain > .pad-ul::before,
+.pad-plain > .pad-ol::before {
+  position: absolute;
+  left: 0;
+  width: 1.4em;
+  color: var(--color-muted);
+  /* Never part of a selection, so copying a list copies its words. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/*
+ * A bullet hangs from the left margin; a number is pushed against the text.
+ *
+ * It is what every word processor does and it is not arbitrary: bullets are
+ * all the same width so they line up either way, and numbers are not — "9."
+ * and "10." only line up if they are right-aligned against the text they
+ * belong to.
+ */
+.pad-plain > .pad-ul::before {
+  content: '\2022';
+  text-align: left;
+}
+
+.pad-plain > .pad-ol::before {
+  content: counter(pad-ol) '.';
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Indentation is padding on the line, not nested markup.
+ *
+ * The document stays a flat run of lines, so pulling one out of a sub-list is
+ * the same operation as any other edit — and a line's depth is one number on
+ * the block rather than a tree that has to be kept in step with the page.
+ */
+.pad-indent-1 {
+  padding-left: 1.75rem;
+}
+
+.pad-indent-2 {
+  padding-left: 3.5rem;
+}
+
+.pad-indent-3 {
+  padding-left: 5.25rem;
+}
+
+.pad-indent-4 {
+  padding-left: 7rem;
+}
+
+.pad-plain > .pad-ul.pad-indent-1,
+.pad-plain > .pad-ol.pad-indent-1 {
+  padding-left: 3.45rem;
+}
+
+.pad-plain > .pad-ul.pad-indent-2,
+.pad-plain > .pad-ol.pad-indent-2 {
+  padding-left: 5.2rem;
 }
 
 /*

@@ -1,6 +1,7 @@
+import { continues, type Shape } from './beautify.ts'
 import { makeBlock } from './blocks.ts'
 import { hasFormatting } from './rich-text.ts'
-import { isTextish, type Block } from './types.ts'
+import { isTextish, type Block, type TextishBlock } from './types.ts'
 
 /**
  * The plain writing surface, as a pure function.
@@ -42,6 +43,8 @@ export interface Line {
   id?: string
   text: string
   html?: string
+  /** Whether the checkbox on this line is ticked, when it has one. */
+  done?: boolean
 }
 
 /**
@@ -84,25 +87,41 @@ export function reconcile(existing: Block[], lines: Line[]): Block[] {
 
     const text = line.text
     const html = line.html && hasFormatting(line.html, text) ? line.html : undefined
+    const done = line.done
 
     if (found && (isTextish(found) || found.type === 'todo')) {
       used.add(found.id)
-      if (found.text === text && found.html === html) {
+      const ticked = found.type === 'todo' && done !== undefined ? done : undefined
+      const sameTick = ticked === undefined || (found as { done?: boolean }).done === ticked
+      if (found.text === text && found.html === html && sameTick) {
         out.push(found)
       } else {
         const next = { ...found, text } as Block
         if (html) (next as { html?: string }).html = html
         else delete (next as { html?: string }).html
+        if (ticked !== undefined) (next as { done?: boolean }).done = ticked
         out.push(next)
       }
       continue
     }
 
-    const fresh = makeBlock('text')
-    if (fresh.type === 'text') {
+    /*
+      A line the browser made. It carries on a list and starts a paragraph
+      after anything else — which is what every editor has done since lists
+      existed, and is why pressing Enter in a list does not drop you out of it.
+
+      `line.id` is the id it was cloned from, so the kind is read off that
+      block even though this is a new one.
+    */
+    const cloned = line.id ? byId.get(line.id) : undefined
+    const carry = cloned ? continues(cloned.type, (cloned as { ordered?: boolean }).ordered) : null
+    const fresh = makeBlock(carry?.type ?? 'text')
+    if (isTextish(fresh) || fresh.type === 'todo') {
       fresh.text = text
       if (html) fresh.html = html
     }
+    if (carry?.ordered && fresh.type === 'bullet') fresh.ordered = true
+    if (fresh.type === 'todo') fresh.done = !!done
     out.push(fresh)
   }
 
@@ -115,6 +134,30 @@ function same(before: Block[], after: Block[]): boolean {
   if (before.length !== after.length) return false
   for (let i = 0; i < before.length; i++) if (before[i] !== after[i]) return false
   return true
+}
+
+/**
+ * Gives a block the shape a line was plainly aiming at. See lib/beautify.ts.
+ *
+ * The id, the indent and the alignment survive, because none of those is
+ * something the notation was about: turning "- milk" into a bullet must not
+ * pull the line back to the left margin or make it a different block as far as
+ * anything else in the app is concerned.
+ */
+export function applyShape(block: Block, shape: Shape): Block {
+  const next = makeBlock(shape.type, shape.level)
+  next.id = block.id
+  const before = block as TextishBlock
+  const after = next as TextishBlock & { ordered?: boolean; done?: boolean }
+  if (before.indent) after.indent = before.indent
+  if (shape.align ?? before.align) after.align = shape.align ?? before.align
+  if (isTextish(next) || next.type === 'todo') {
+    after.text = shape.text
+    if (shape.html) after.html = shape.html
+  }
+  if (shape.ordered) after.ordered = true
+  if (next.type === 'todo') after.done = !!shape.done
+  return next
 }
 
 /**

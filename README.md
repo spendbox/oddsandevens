@@ -7,10 +7,13 @@ five kinds of block inside one document, so a meeting note can carry its own
 budget, its own list of actions and the form you are about to send out —
 without leaving the page or picking a file type first.
 
-It types like a word processor, not like a stack of components. There is a
-toolbar above the page, the page is a sheet of paper, and Enter, Tab, Ctrl+B
-and Alt+Up do what they have done in every editor for thirty years. The block
-model is underneath, where it belongs.
+It types like a word processor, not like a stack of components. One page, one
+toolbar, and Enter, Tab and Ctrl+B do what they have done in every editor for
+thirty years. `Ctrl+A` selects the whole document in one press and a selection
+runs straight across paragraphs, because the page is one editable element and
+the browser is doing it rather than the app imitating it. There is no block
+furniture at all: no handles, no menus hanging off paragraphs, nothing to drag
+and no `/` menu. The block model is underneath, where it belongs.
 
 Everything is saved on your device as you type. Signing in is optional and
 lives in one small button in the top right corner; it adds a copy on the
@@ -30,6 +33,37 @@ server so your other devices catch up. Nothing waits for it.
 
 There is no `/` menu: `/` is a slash, so "and/or" and a date stay what you
 typed, and everything that is not a paragraph is under **Insert** in the **⋯**.
+
+**Lines finish themselves.** Write the way you already write notes and each
+line is tidied the moment you move to the next one:
+
+| You type | You get |
+| --- | --- |
+| `- milk` | a bullet, dash gone |
+| `1. Book the venue` | a numbered item |
+| `[] ring the bank` | a checkbox — `[x]` for one already done |
+| `TODO: chase the invoice` | a checkbox too |
+| `# Title`, `## Section` | a heading |
+| `> as they put it` | a quote |
+| `---` | a line across the page |
+| `the **whole** point` | **the whole point** |
+| `a *slanted* word`, `` `code` `` | *a slanted word*, `code` |
+| `NEXT STEPS` | a heading |
+| `Next steps:` | **Next steps:** — a bold lead-in, and Enter starts a list |
+
+Two things make this worth having rather than annoying. It happens when you
+**leave** the line, never while you are typing it — `#` is a character people
+write and a dash halfway through a thought is a dash. And **not a word is ever
+changed**: the markers come off because they were notation, emphasis is painted
+rather than retyped, and nothing is invented, reordered or reworded. Every one
+of these is one `Ctrl+Z` away.
+
+None of it involves a model. They are string comparisons: instant, free,
+offline, and the same every time.
+
+Pressing Enter in a list carries the list on, and pressing it on an empty item
+leaves the list. Backspace at the start of a bullet, a checkbox, a heading or a
+quote takes that off and leaves the words.
 
 **The toolbar.** Along the top of the page, always visible, always in the same
 order: **undo**, **redo**, a **⋯** for everything else, and **Actions**. The
@@ -87,31 +121,9 @@ a document that mostly is one. It is worked out on your device from the title
 and the opening lines. It costs nothing, needs no key and no network, and it
 never sends a word of your document anywhere.
 
-**Moving things.** Hold `Alt` and press the up and down arrows to move the
-paragraph you are in. `Ctrl+A` selects the paragraph, and again selects the
-whole document; holding `Shift` with the up and down arrows extends a selection
-across paragraphs.
-
-**Two ways to type.** Under *Typing* in the side menu:
-
-- **Blocks** (the default) is a paragraph at a time. It is what lets a
-  spreadsheet, a form or some code sit between two sentences, and what makes
-  `Alt+Up` move a paragraph.
-- **Document** is one page you type into, like Word or Pages. Enter makes a
-  line. `Ctrl+A` selects the whole document in one press. Dragging selects
-  straight across paragraphs, and copies as one piece. There is no block
-  furniture at all — nothing to move, no handles, no menus hanging off
-  paragraphs.
-
-The reason Document mode feels different is that it *is* different: it is one
-editable page, so the browser does the selecting and the line breaking itself
-rather than the app imitating it. Headings, bold, lists and the markdown
-shortcuts all still work, and the toolbar still sets the paragraph style.
-
-It is the same document either way — switching is just a repaint, nothing is
-converted, and nothing is lost. If a document contains a spreadsheet, a form or
-some code, Document mode shows it as a marked box you cannot type into and
-leaves it completely alone; switch back to Blocks to edit it.
+**Selecting.** `Ctrl+A` takes the whole document in one press, and dragging
+runs straight across paragraphs — the page is one editable element, so this is
+the browser's own selection rather than something the app imitates.
 
 **The side menu** is about the document you are in. Three ways out along the
 top — **Home**, **Library**, **Search** — then **New document**, then
@@ -369,7 +381,8 @@ src/lib/projects.ts     grouping documents, and searching within a group
 src/lib/tasks.ts        finding the things somebody has agreed to do
 src/lib/plan.ts         notes in, a plan out — and reading a reply back
 src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
-src/lib/plain-doc.ts    the plain page read back into blocks
+src/lib/plain-doc.ts    the page read back into blocks
+src/lib/beautify.ts     what a line was trying to be, with no model in it
 src/lib/folds.ts        which sections are folded away, per device
 src/lib/when.ts         "3 minutes ago", "yesterday"
 src/lib/history.ts      undo and redo, over whole documents
@@ -394,7 +407,7 @@ scripts/e2e.mjs         drives a real browser through every feature
 ## Checking it works
 
 ```bash
-npm test        # formulas, highlighting, plans, transcripts, the plain page
+npm test        # formulas, highlighting, plans, transcripts, lines, the page
 npm run lint
 npm run typecheck
 
@@ -427,9 +440,16 @@ These are real and worth knowing before you rely on them:
   in this repository, so every failure path is tested, and the interface around
   it is tested against a stubbed route, but a real plan from a real model is
   not. Try it once before relying on it.
-- **Document mode cannot edit a spreadsheet, a form, code or a file.** Those
-  are shown as a marked box and left exactly as they are; Blocks mode edits
-  them. A mode that quietly ate what it could not show would be much worse.
+- **A spreadsheet, a form or a code block splits the page in two.** They are
+  not text, so they sit between two editable runs rather than inside one, and a
+  selection stops when it reaches one. `Ctrl+A` still takes everything. For a
+  document that is only writing — nearly all of them — the page is one element
+  and none of this applies.
+- **The line rules are rules, not understanding.** They read notation and two
+  narrow shapes, so a line that meant to be a list and did not say so stays a
+  paragraph. That is deliberate: a guess that is right nine times in ten is a
+  guess that is wrong in your document, and undoing a surprise costs more than
+  typing "- ".
 - **Nothing in Actions is carried out.** The steps marked as Pad's are a
   statement of what this could take on, not a queue. Drafting through the API
   and putting dated steps into a calendar are the next two pieces of work, and
