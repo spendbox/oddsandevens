@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { editableInPlain, hasRichBlocks, reconcile } from '../plain-doc.ts'
+import { applyShape, editableInPlain, hasRichBlocks, reconcile } from '../plain-doc.ts'
 import { makeBlock } from '../blocks.ts'
 import type { Block } from '../types.ts'
 
@@ -107,4 +107,56 @@ test('what the plain surface can and cannot type into', () => {
   assert.equal(editableInPlain(makeBlock('table')), false)
   assert.equal(hasRichBlocks([text('x')]), false)
   assert.equal(hasRichBlocks([text('x'), makeBlock('code')]), true)
+})
+
+test('a split inside a bullet makes another bullet', () => {
+  const bullet = makeBlock('bullet')
+  if (bullet.type === 'bullet') bullet.text = 'milk and eggs'
+  const after = reconcile([bullet], [
+    { id: bullet.id, text: 'milk' },
+    { id: bullet.id, text: 'eggs' },
+  ])
+  assert.equal(after[1].type, 'bullet')
+  assert.notEqual(after[1].id, after[0].id)
+})
+
+test('a numbered item carries its numbering across the split', () => {
+  const item = makeBlock('bullet')
+  if (item.type === 'bullet') {
+    item.ordered = true
+    item.text = 'one'
+  }
+  const after = reconcile([item], [{ id: item.id, text: 'one' }, { id: item.id, text: '' }])
+  assert.equal((after[1] as { ordered?: boolean }).ordered, true)
+})
+
+test('a split inside a heading makes a paragraph, not a second heading', () => {
+  const head = heading('Title of it')
+  const after = reconcile([head], [{ id: head.id, text: 'Title' }, { id: head.id, text: 'of it' }])
+  assert.equal(after[0].type, 'heading')
+  assert.equal(after[1].type, 'text')
+})
+
+test('a checkbox ticked in the page is ticked on the block', () => {
+  const task = makeBlock('todo')
+  if (task.type === 'todo') task.text = 'ring the bank'
+  const after = reconcile([task], [{ id: task.id, text: 'ring the bank', done: true }])
+  assert.equal((after[0] as { done?: boolean }).done, true)
+  // And a read-back that says nothing about the tick changes nothing.
+  assert.equal(reconcile(after, [{ id: after[0].id, text: 'ring the bank' }]), after)
+})
+
+test('a shape is applied without losing the id or the indent', () => {
+  const block = text('- milk')
+  ;(block as { indent?: number }).indent = 1
+  const shaped = applyShape(block, { type: 'bullet', text: 'milk' })
+  assert.equal(shaped.id, block.id)
+  assert.equal(shaped.type, 'bullet')
+  assert.equal((shaped as { text: string }).text, 'milk')
+  assert.equal((shaped as { indent?: number }).indent, 1)
+})
+
+test('a shape that makes a checkbox carries whether it is ticked', () => {
+  const shaped = applyShape(text('[x] paid'), { type: 'todo', text: 'paid', done: true })
+  assert.equal((shaped as { done?: boolean }).done, true)
 })

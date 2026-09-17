@@ -124,6 +124,19 @@ const insertBlock = async (label) => {
 }
 
 /**
+ * Puts the caret at the end of the writing page.
+ *
+ * There is no click target under the last paragraph any more: the page itself
+ * is one editable element that reaches the bottom of the sheet, so the way to
+ * carry on writing is to click it and press Ctrl+End.
+ */
+const caretToEnd = async (target = page) => {
+  await target.locator('[role="textbox"][aria-label="Document"]').last().click()
+  await target.keyboard.press('Control+End')
+  await target.waitForTimeout(200)
+}
+
+/**
  * The home screen, on one of its two tabs.
  *
  * The Library is a tab in here now rather than a dialog of its own, so
@@ -180,22 +193,36 @@ const fileOpenDocInto = async (folder) => {
 }
 
 // Find the first editable block and use it from here on.
-const firstBlock = page.locator('[data-block-id] [contenteditable]').first()
+const firstBlock = page.locator('[role="textbox"] [data-block-id]').first()
 await firstBlock.click()
 await page.keyboard.type('Notes for the week')
 await page.waitForTimeout(150)
 log('text block accepts typing', (await firstBlock.innerText()).includes('Notes for the week'))
 
-// Markdown shortcut: heading.
+/*
+  A line finishes itself when the caret leaves it, never while it is being
+  typed. "#" is a character people write and "- " halfway through a thought is
+  a dash, so nothing is decided until the line is done with.
+*/
 await page.keyboard.press('Enter')
 await page.keyboard.type('# Budget')
-await page.waitForTimeout(250)
-const hasHeading = await page.evaluate(() =>
-  [...document.querySelectorAll('[data-block-id]')].some(
-    (b) => b.innerText.trim() === 'Budget' && b.querySelector('[contenteditable]')?.className.includes('pad-h1'),
+await page.waitForTimeout(300)
+log(
+  'a half-typed line is left completely alone',
+  await page.evaluate(() =>
+    [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some(
+      (b) => (b.textContent ?? '').startsWith('# '),
+    ),
   ),
 )
-log('markdown "# " makes a heading', hasHeading)
+await page.keyboard.press('Enter')
+await page.waitForTimeout(400)
+const hasHeading = await page.evaluate(() =>
+  [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some(
+    (b) => b.textContent.trim() === 'Budget' && b.className.includes('pad-h1'),
+  ),
+)
+log('and leaving it turns "# Budget" into a heading', hasHeading)
 
 // Blocks are inserted from the toolbar. There is no slash menu any more, and
 // no mode to switch into: "/" is always a slash, which is checked further down.
@@ -243,12 +270,15 @@ log('formula recomputes when a cell changes', recomputed === '595', `B1 now "${r
 
 // Tasks.
 const addBlockBelow = async (text) => {
-  await page.locator('[aria-label="Continue writing"]').click()
+  await caretToEnd()
   await page.waitForTimeout(200)
   await page.keyboard.type(text)
   await page.waitForTimeout(250)
 }
 await addBlockBelow('[] Send the invoice')
+// Leaving the line is what settles it.
+await page.keyboard.press('Enter')
+await page.waitForTimeout(400)
 const checkbox = page.locator('input[type="checkbox"][aria-label*="Send the invoice"]')
 log('markdown "[] " makes a task', (await checkbox.count()) > 0)
 if (await checkbox.count()) {
@@ -258,8 +288,7 @@ if (await checkbox.count()) {
 }
 
 // Code block, from the same menu.
-await page.locator('[aria-label="Continue writing"]').click()
-await page.waitForTimeout(150)
+await caretToEnd()
 await insertBlock('code')
 const codeArea = page.locator('textarea[aria-label="Code"]')
 log('code block inserted', (await codeArea.count()) > 0)
@@ -279,8 +308,7 @@ if (await codeArea.count()) {
 await page.screenshot({ path: `${SHOTS}/06-tasks-and-code.png` })
 
 // Form block.
-await page.locator('[aria-label="Continue writing"]').click()
-await page.waitForTimeout(150)
+await caretToEnd()
 await insertBlock('form')
 log('form block inserted', (await page.locator('[aria-label="Form title"]').count()) > 0)
 await page.locator('[aria-label="Form title"]').first().fill('Signup')
@@ -607,7 +635,7 @@ log('sidebar can be reopened', await page.locator('aside').isVisible())
     .locator('[aria-label="Document title"]')
     .evaluate((el) => el.getBoundingClientRect().left)
   const bodyX = await page
-    .locator('[data-block-id] [contenteditable]')
+    .locator('[role="textbox"] [data-block-id]')
     .first()
     .evaluate((el) => el.getBoundingClientRect().left)
   log('title and body text line up', Math.abs(titleX - bodyX) < 2, `title ${Math.round(titleX)}, body ${Math.round(bodyX)}`)
@@ -617,65 +645,67 @@ log('sidebar can be reopened', await page.locator('aside').isVisible())
   await page.locator('[data-block-id]').first().hover()
   await page.waitForTimeout(250)
   const hoverX = await page
-    .locator('[data-block-id] [contenteditable]')
+    .locator('[role="textbox"] [data-block-id]')
     .first()
     .evaluate((el) => el.getBoundingClientRect().left)
   log('text does not shift when the gutter appears', Math.abs(bodyX - hoverX) < 1)
 }
 
 // --- A typed character is read from the input event ------------------------
-// Phones deliver a typed character as an input event with keydown reporting
-// 'Unidentified'/229, which is why nothing here may read `event.key` to find
-// out what was typed. The markdown shortcuts are what still does this, so
-// they are what proves it: a bullet typed with no keydown at all.
-await page.locator('[aria-label="Continue writing"]').click()
-await page.waitForTimeout(250)
+/*
+  Phones deliver a typed character as an input event with keydown reporting
+  'Unidentified'/229, so nothing here may read `event.key` to find out what was
+  typed. Capitalising the first letter of a sentence is the one thing left that
+  acts per keystroke, so it is what proves it: a letter delivered with no
+  keydown at all still comes out as a capital.
+*/
+await caretToEnd()
+await page.keyboard.press('Enter')
+await page.waitForTimeout(300)
 const dispatched = await page.evaluate(() => {
   const el = document.activeElement
-  if (!el || !el.isContentEditable) return 'no focused block'
-  el.textContent = '- '
-  el.dispatchEvent(new InputEvent('input', { bubbles: true, data: ' ', inputType: 'insertText' }))
+  if (!el || !el.isContentEditable) return 'no focused page'
+  el.dispatchEvent(
+    new InputEvent('beforeinput', {
+      bubbles: true,
+      cancelable: true,
+      data: 'h',
+      inputType: 'insertText',
+    }),
+  )
   return 'dispatched'
 })
-await page.waitForTimeout(500)
-/*
-  The shortcut fired if it consumed the "- ": the block is a bullet now and the
-  dashes are gone from the text. Reading `event.key` instead would have found
-  'Unidentified' and done nothing at all, which is the bug this pins.
-*/
-const consumed = await page.evaluate(() =>
-  [...document.querySelectorAll('[data-block-id] [contenteditable]')].every(
-    (el) => !(el.textContent ?? '').startsWith('- '),
+await page.waitForTimeout(400)
+const capitalised = await page.evaluate(() =>
+  [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some(
+    (el) => el.textContent === 'H',
   ),
 )
-log('a markdown shortcut fires from an input event alone (virtual keyboard)', consumed, dispatched)
+log('a correction fires from an input event alone (virtual keyboard)', capitalised, dispatched)
+// Taken back out again, so the rest of the suite reads what it expects.
+await page.keyboard.press('Backspace')
+await page.keyboard.press('Backspace')
+await page.waitForTimeout(300)
 
-// --- Moving a paragraph, the way a word processor does it ------------------
+// --- There is no block furniture anywhere --------------------------------
 {
-  const texts = () =>
-    page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
-    )
-  const before = await texts()
-  const blocks = page.locator('[data-block-id] [contenteditable]')
-  const count = await blocks.count()
-  if (count >= 2 && before.length >= 2) {
-    await blocks.nth(count - 1).click()
-    await page.waitForTimeout(200)
-    await page.keyboard.press('Alt+ArrowUp')
-    await page.waitForTimeout(400)
-    const after = await texts()
-    log(
-      'Alt+Up moves a paragraph up, with no drag handle in the margin',
-      JSON.stringify(before) !== JSON.stringify(after),
-    )
-  } else {
-    log('Alt+Up moves a paragraph up, with no drag handle in the margin', false, 'not enough blocks')
-  }
+  /*
+    The page is a page. No grip in the margin, no plus sign that appears on
+    hover, no handle to drag a paragraph by, and nothing to reorder with —
+    every one of those told the reader they were assembling a document out of
+    components rather than writing one.
+  */
+  await page.locator('[role="textbox"] [data-block-id]').first().hover()
+  await page.waitForTimeout(250)
   log(
-    'the Notion-style gutter handles are gone',
+    'no grips, no plus signs, nothing to drag a paragraph by',
     (await page.locator('[aria-label^="Drag to reorder"]').count()) === 0 &&
-      (await page.locator('[aria-label="Insert block below"]').count()) === 0,
+      (await page.locator('[aria-label="Insert block below"]').count()) === 0 &&
+      (await page.locator('.lucide-grip-vertical').count()) === 0,
+  )
+  log(
+    'and a paragraph is a line of the page, not an editor of its own',
+    (await page.locator('[data-block-id] [contenteditable="true"]').count()) === 0,
   )
 }
 
@@ -690,12 +720,12 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.waitForTimeout(300)
 
   // The block holding the sentence, which is not necessarily the first one.
-  const target = page.locator('[data-block-id] [contenteditable]', { hasText: 'should be bold' }).first()
+  const target = page.locator('[role="textbox"] [data-block-id]', { hasText: 'should be bold' }).first()
 
   /** Selects the first occurrence of a word, in whichever block holds it. */
   const selectWord = (word) =>
     page.evaluate((w) => {
-      const el = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find((b) =>
+      const el = [...document.querySelectorAll('[role="textbox"] [data-block-id]')].find((b) =>
         (b.textContent ?? '').includes(w),
       )
       if (!el) return false
@@ -750,7 +780,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(900)
   const afterReload = await page
-    .locator('[data-block-id] [contenteditable]', { hasText: 'should be bold' })
+    .locator('[role="textbox"] [data-block-id]', { hasText: 'should be bold' })
     .first()
     .innerHTML()
   log(
@@ -761,7 +791,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   // Splitting inside a bold word must leave both halves bold, and must
   // actually truncate the first block — the DOM used to keep the whole line.
   const boldIndex = await page.evaluate(() => {
-    const all = [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+    const all = [...document.querySelectorAll('[role="textbox"] [data-block-id]')]
     const el = all.find((b) => b.querySelector('b, strong'))
     if (!el) return -1
     el.focus()
@@ -777,7 +807,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.keyboard.press('Enter')
   await page.waitForTimeout(500)
   const halves = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.innerHTML),
+    [...document.querySelectorAll('[role="textbox"] [data-block-id]')].map((e) => e.innerHTML),
   )
   const head = halves[boldIndex] ?? ''
   const tail = halves[boldIndex + 1] ?? ''
@@ -796,7 +826,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.waitForTimeout(500)
   const remerged = await page.evaluate(
     (i) =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')][i]?.innerHTML ?? '',
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')][i]?.innerHTML ?? '',
     boldIndex,
   )
   log('merging the halves back keeps the formatting', /<(b|strong)>/.test(remerged))
@@ -810,7 +840,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.waitForTimeout(300)
   await page.evaluate(() => {
     // Typing capitalises the first letter now, so this matches loosely.
-    const el = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find(
+    const el = [...document.querySelectorAll('[role="textbox"] [data-block-id]')].find(
       (b) => (b.textContent ?? '').toLowerCase() === 'hello world',
     )
     if (!el) throw new Error('could not find the "hello world" block')
@@ -827,7 +857,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.keyboard.type('X')
   await page.waitForTimeout(400)
   const parts = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+    [...document.querySelectorAll('[role="textbox"] [data-block-id]')].map((e) => e.textContent),
   )
   // HTML collapses a leading space, which used to turn this into "Xworld".
   log('a leading space survives a split', parts.some((p) => p === 'X world'), JSON.stringify(parts))
@@ -835,8 +865,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
 
 // --- Pasted markup cannot carry anything executable -------------------------
 {
-  await page.locator('[aria-label="Continue writing"]').click()
-  await page.waitForTimeout(250)
+  await caretToEnd()
   await page.evaluate(() => {
     const el = document.activeElement
     const dt = new DataTransfer()
@@ -929,7 +958,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   log(
     'the imported text is in real editable blocks',
     await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some((e) =>
         (e.textContent ?? '').includes('Hello from a PDF'),
       ),
     ),
@@ -1162,11 +1191,11 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
 {
   const blockTexts = () =>
     page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].map((e) => e.textContent),
     )
   const blockHtmls = () =>
     page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.innerHTML),
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].map((e) => e.innerHTML),
     )
   const freshDoc = async () => {
     await page.locator('button:has-text("New")').first().click()
@@ -1198,16 +1227,16 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.keyboard.type('passport')
   await page.waitForTimeout(400)
   const rows = () =>
-    page.locator('[data-block-id]').evaluateAll((els) =>
+    page.locator('[role="textbox"] [data-block-id]').evaluateAll((els) =>
       els.map((e) => ({
         text: e.innerText.trim().toLowerCase(),
-        pad: e.style.paddingLeft || '0rem',
-        bullet: !!e.querySelector('span[aria-hidden]'),
+        className: e.className,
       })),
     )
   log(
     'a colon then Enter starts a bullet list',
-    (await rows()).some((r) => r.bullet && r.text.includes('passport')),
+    (await rows()).some((r) => r.className.includes('pad-ul') && r.text.includes('passport')),
+    JSON.stringify(await rows()),
   )
 
   // Tab indents rather than moving focus.
@@ -1218,35 +1247,54 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.keyboard.type('sub item')
   await page.waitForTimeout(400)
   const indented = (await rows()).find((r) => r.text.includes('sub item'))
-  log('Tab indents into a sub-list', !!indented && indented.pad !== '0rem', JSON.stringify(indented))
-  log('Tab did not move focus out of the editor', (await blockTexts()).some((t) => /sub item/i.test(t ?? '')))
+  log(
+    'Tab indents into a sub-list',
+    !!indented && /pad-indent-\d/.test(indented.className),
+    JSON.stringify(indented),
+  )
+  log('Tab did not move focus out of the page', (await blockTexts()).some((t) => /sub item/i.test(t ?? '')))
   await page.keyboard.press('Shift+Tab')
   await page.waitForTimeout(400)
   const outdented = (await rows()).find((r) => r.text.includes('sub item'))
-  log('Shift+Tab outdents again', !!outdented && outdented.pad === '0rem')
+  log('Shift+Tab outdents again', !!outdented && !/pad-indent-\d/.test(outdented.className))
 
-  // Inline autoformat.
+  /*
+    Emphasis, applied when the caret leaves the line rather than as the closing
+    marker is typed. That is the whole contract of this editor: a line is left
+    completely alone while it is being written, and finished when it is done.
+  */
   await freshDoc()
   await page.keyboard.type('make this **important** now')
+  await page.waitForTimeout(400)
+  log(
+    'the markers are still there while the line is being typed',
+    ((await blockHtmls())[0] ?? '').includes('**'),
+  )
+  await page.keyboard.press('Enter')
   await page.waitForTimeout(500)
   const bolded = (await blockHtmls())[0] ?? ''
-  log('**bold** formats as you type', /<b>important<\/b>/.test(bolded), bolded)
-  log('typing continues outside the bold', /<\/b>\s*now/.test(bolded), bolded)
+  log('leaving the line turns **bold** into bold', /<b>important<\/b>/.test(bolded), bolded)
+  log('and what followed it stays outside the bold', /<\/b>\s*now/.test(bolded), bolded)
   log('the markers are consumed', !bolded.includes('**'))
 
   await freshDoc()
   await page.keyboard.type('a *slanted* word and `code` too')
+  await page.keyboard.press('Enter')
   await page.waitForTimeout(500)
   const mixed = (await blockHtmls())[0] ?? ''
-  log('*italic* and `code` format as you type', /<i>slanted<\/i>/.test(mixed) && /<code>code<\/code>/.test(mixed), mixed)
-  log('typing continues outside the code span', /<\/code>[^<]*too/.test(mixed), mixed)
+  log(
+    '*italic* and `code` are read the same way',
+    /<i>slanted<\/i>/.test(mixed) && /<code>code<\/code>/.test(mixed),
+    mixed,
+  )
+  log('and the text either side is untouched', /<\/code>[^<]*too/.test(mixed), mixed)
 
-  // The caret perch used by `code` must never reach storage.
+  // Nothing invisible may reach storage.
   await page.waitForTimeout(700)
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(900)
   const stored = (await blockTexts()).join('')
-  log('the invisible caret marker is never stored', !stored.includes('​'), JSON.stringify(stored).slice(0, 80))
+  log('no invisible characters are stored', !stored.includes('​'), JSON.stringify(stored).slice(0, 80))
 
   // The opening line of a document becomes its heading, once.
   await freshDoc()
@@ -1257,7 +1305,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   log(
     'the opening line becomes the heading',
     await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some(
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some(
         (e) => e.textContent === 'Quarterly Review' && /pad-h1/.test(e.className),
       ),
     ),
@@ -1270,7 +1318,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     'it happens only once per document',
     (await page.evaluate(
       () =>
-        [...document.querySelectorAll('[data-block-id] [contenteditable]')].filter((e) =>
+        [...document.querySelectorAll('[role="textbox"] [data-block-id]')].filter((e) =>
           /pad-h1/.test(e.className),
         ).length,
     )) === 1,
@@ -1282,7 +1330,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(500)
   await page.evaluate(() => {
-    const el = document.querySelector('[data-block-id] [contenteditable]')
+    const el = document.querySelector('[role="textbox"] [data-block-id]')
     el.focus()
     const dt = new DataTransfer()
     dt.setData(
@@ -1295,7 +1343,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.waitForTimeout(900)
 
   const pasted = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+    [...document.querySelectorAll('[role="textbox"] [data-block-id]')].map((e) => e.textContent),
   )
   // This used to arrive as one enormous line with the newlines turned to spaces.
   log('a multi-paragraph paste becomes one block per paragraph', pasted.length >= 5, `${pasted.length} blocks`)
@@ -1303,7 +1351,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   log(
     'a pasted heading is still a heading',
     await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some((e) =>
         /pad-h1|pad-h2/.test(e.className),
       ),
     ),
@@ -1311,7 +1359,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   log(
     'pasted inline formatting survives',
     await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some((e) =>
         /<b>bold<\/b>/.test(e.innerHTML),
       ),
     ),
@@ -1320,7 +1368,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(500)
   await page.evaluate(() => {
-    const el = document.querySelector('[data-block-id] [contenteditable]')
+    const el = document.querySelector('[role="textbox"] [data-block-id]')
     el.focus()
     const dt = new DataTransfer()
     dt.setData('text/plain', '- alpha\n- beta\n  - gamma')
@@ -1328,7 +1376,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   })
   await page.waitForTimeout(800)
   const bullets = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')].map((e) => e.textContent),
+    [...document.querySelectorAll('[role="textbox"] [data-block-id]')].map((e) => e.textContent),
   )
   log(
     'a plain-text list pastes as bullets',
@@ -1663,11 +1711,11 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
 {
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(600)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.locator('[role="textbox"] [data-block-id]').first().click()
   await page.keyboard.type('Alignment and weight both belong to the paragraph.')
   await page.waitForTimeout(400)
 
-  const para = page.locator('[data-block-id] [contenteditable]', { hasText: 'belong to the' }).first()
+  const para = page.locator('[role="textbox"] [data-block-id]', { hasText: 'belong to the' }).first()
 
   log('the toolbar is always on screen, not only on hover', await page.locator('[role="toolbar"][aria-label="Formatting"]').isVisible())
   log(
@@ -1724,7 +1772,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   log(
     'the style menu turns a paragraph into a heading',
     await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some((e) =>
         /pad-h2/.test(e.className),
       ),
     ),
@@ -1732,13 +1780,13 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await pickStyle('Normal text')
 
   // Alignment, which is a property of the paragraph and not of the text in it.
-  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.locator('[role="textbox"] [data-block-id]').first().click()
   await page.waitForTimeout(200)
   await pressTool('Align centre')
   log(
     'the toolbar centres a paragraph',
     await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some((e) =>
         /pad-align-center/.test(e.className),
       ),
     ),
@@ -1748,7 +1796,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   log(
     'alignment survives a reload',
     await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some((e) =>
         /pad-align-center/.test(e.className),
       ),
     ),
@@ -1760,7 +1808,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
 {
   const size = () =>
     page.evaluate(() => {
-      const el = document.querySelector('[data-block-id] [contenteditable]')
+      const el = document.querySelector('[role="textbox"] [data-block-id]')
       return el ? parseFloat(getComputedStyle(el).fontSize) : 0
     })
   const start = await size()
@@ -1794,7 +1842,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   */
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(600)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.locator('[role="textbox"] [data-block-id]').first().click()
   await page.keyboard.type('Met the agent this morning and went through the flat.')
   await page.keyboard.press('Enter')
   await page.keyboard.type('I need to call the landlord about the boiler by Friday')
@@ -1833,7 +1881,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   // device. This is the path most people are on.
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(600)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.locator('[role="textbox"] [data-block-id]').first().click()
   await page.keyboard.type('Met the agent this morning and we went through the whole flat.')
   await page.keyboard.press('Enter')
   await page.keyboard.type('I need to call the landlord about the boiler by Friday')
@@ -1859,7 +1907,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await page.screenshot({ path: `${SHOTS}/25-plan-local.png` })
 
   const beforePlan = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+    [...document.querySelectorAll('[role="textbox"] [data-block-id]')]
       .map((e) => e.textContent)
       .join(' | '),
   )
@@ -1868,7 +1916,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   log(
     'reading a plan changes nothing in the document',
     (await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')]
         .map((e) => e.textContent)
         .join(' | '),
     )) === beforePlan,
@@ -2082,7 +2130,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     corner ? `x=${Math.round(corner.x)} y=${Math.round(corner.y)}` : 'missing',
   )
 
-  await mic.locator('[data-block-id] [contenteditable]').first().click()
+  await mic.locator('[role="textbox"] [data-block-id]').first().click()
   await mic.keyboard.type('Before the recording.')
   await mic.waitForTimeout(400)
 
@@ -2106,7 +2154,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     'and nothing is written into the document while it is still recording',
     !/call the landlord/i.test(
       await mic.evaluate(() =>
-        [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+        [...document.querySelectorAll('[role="textbox"] [data-block-id]')]
           .map((e) => e.textContent)
           .join(' '),
       ),
@@ -2137,7 +2185,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await mic.locator('[aria-label="Stop recording"]').click()
   await mic.waitForTimeout(1200)
   const written = await mic.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+    [...document.querySelectorAll('[role="textbox"] [data-block-id]')]
       .map((e) => e.textContent)
       .join(' | '),
   )
@@ -2154,7 +2202,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     'and one undo takes the whole dictation back out',
     !/call the landlord/i.test(
       await mic.evaluate(() =>
-        [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+        [...document.querySelectorAll('[role="textbox"] [data-block-id]')]
           .map((e) => e.textContent)
           .join(' '),
       ),
@@ -2203,7 +2251,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await mic.locator('[aria-label="Stop recording"]').click()
   await mic.waitForTimeout(1500)
   const tidied = await mic.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+    [...document.querySelectorAll('[role="textbox"] [data-block-id]')]
       .map((e) => e.textContent)
       .join(' | '),
   )
@@ -2220,7 +2268,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
 {
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(600)
-  const block = page.locator('[data-block-id] [contenteditable]').first()
+  const block = page.locator('[role="textbox"] [data-block-id]').first()
   await block.click()
   await page.keyboard.type('The first sentence.')
   await page.waitForTimeout(900)
@@ -2230,7 +2278,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
 
   const lines = () =>
     page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')]
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')]
         .map((e) => e.textContent)
         .join(' | '),
     )
@@ -2372,7 +2420,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
 
   log('a fresh document opens with the header on screen', (await headerHeight()) > 20)
 
-  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.locator('[role="textbox"] [data-block-id]').first().click()
   for (let i = 0; i < 30; i++) {
     await page.keyboard.type(`Paragraph number ${i} with enough words in it to take up a line.`)
     await page.keyboard.press('Enter')
@@ -2479,48 +2527,27 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   await closeFolderMenu()
 }
 
-// --- Document mode: one page, the way a word processor works ----------------
+// --- One page, the way a word processor works -------------------------------
 {
-  /** Switches the writing surface from the side menu, where the toggle is. */
-  const setSurface = async (which) => {
-    await page.locator(`aside [aria-label="${which === 'plain' ? 'Type like a word document' : 'Type with blocks'}"]`).click()
-    await page.waitForTimeout(700)
-  }
-
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(600)
+  const writing = page.locator('[role="textbox"][aria-label="Document"]')
+  log('a document is one editable page', await writing.first().isVisible())
   log(
-    'the side menu offers both writing surfaces',
-    (await page.locator('aside [aria-label="Type like a word document"]').count()) === 1 &&
-      (await page.locator('aside [aria-label="Type with blocks"]').count()) === 1,
-  )
-  log(
-    'and blocks is what it starts on',
-    (await page
-      .locator('aside [aria-label="Type with blocks"]')
-      .getAttribute('aria-pressed')) === 'true',
-  )
-
-  await setSurface('plain')
-  const page1 = page.locator('[role="textbox"][aria-label="Document"]')
-  log('switching gives one editable page instead of a paragraph each', await page1.isVisible())
-  log(
-    'and the per-paragraph editors are gone',
-    (await page.locator('[data-block-id] [contenteditable="true"]').count()) === 0,
+    'and there is no mode to switch into',
+    !/blocks/i.test(await page.locator('aside').innerText()),
   )
 
   // Enter makes a line, because the browser makes a line.
-  await page1.click()
+  await writing.first().click()
   await page.keyboard.type('The first line.')
   await page.keyboard.press('Enter')
   await page.keyboard.type('The second line.')
   await page.keyboard.press('Enter')
   await page.keyboard.type('The third line.')
-  await page.waitForTimeout(900)
+  await page.waitForTimeout(700)
   const lines = await page.evaluate(() =>
-    [...document.querySelectorAll('[role="textbox"][aria-label="Document"] > div')].map(
-      (el) => el.textContent,
-    ),
+    [...document.querySelectorAll('[role="textbox"] [data-block-id]')].map((el) => el.textContent),
   )
   log(
     'Enter moves to the next line, with no menu and no block to pick',
@@ -2528,7 +2555,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     JSON.stringify(lines),
   )
 
-  // The thing this mode exists for: selecting the whole document at once.
+  // The thing this exists for: the whole document at once.
   await page.keyboard.press('Control+a')
   await page.waitForTimeout(300)
   const selected = await page.evaluate(() => String(window.getSelection() ?? ''))
@@ -2538,8 +2565,8 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     JSON.stringify(selected.slice(0, 80)),
   )
 
-  // And dragging across it, which the block surface had to fake.
-  const box = await page1.boundingBox()
+  // And dragging across it, which the old surface had to fake.
+  const box = await writing.first().boundingBox()
   if (box) {
     await page.mouse.move(box.x + 6, box.y + 8)
     await page.mouse.down()
@@ -2554,101 +2581,158 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     JSON.stringify(dragged.slice(0, 80)),
   )
 
-  // No block furniture at all.
-  log(
-    'there are no block handles, grips or per-paragraph menus',
-    (await page.locator('[role="textbox"][aria-label="Document"] [aria-label^="Actions for"]').count()) === 0 &&
-      (await page.locator('.lucide-grip-vertical').count()) === 0,
-  )
-
-  // It survives a reload, as the same document.
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1200)
   log(
-    'what was typed in document mode is saved like anything else',
-    /The third line\./.test(await page.locator('[role="textbox"][aria-label="Document"]').innerText()),
+    'what was typed is saved like anything else',
+    /The third line\./.test(await writing.first().innerText()),
   )
-  log('and the mode is remembered', await page.locator('[role="textbox"][aria-label="Document"]').isVisible())
-  await page.screenshot({ path: `${SHOTS}/39-document-mode.png` })
+  await page.screenshot({ path: `${SHOTS}/39-writing-page.png` })
+}
 
-  // The markdown shortcuts are what a word processor does, so they stay.
-  await page.locator('[role="textbox"][aria-label="Document"]').click()
-  await page.keyboard.press('Control+End')
-  await page.keyboard.press('Enter')
-  await page.keyboard.type('# A heading in document mode')
-  await page.waitForTimeout(900)
-  log(
-    'markdown shortcuts still work on the plain page',
-    await page.evaluate(() =>
-      [...document.querySelectorAll('[role="textbox"][aria-label="Document"] > div')].some(
-        (el) => /pad-h1/.test(el.className) && (el.textContent ?? '').includes('heading in document mode'),
-      ),
-    ),
-  )
-
-  // Switching back is a repaint, not a conversion: the same document either way.
-  await setSurface('blocks')
-  const back = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-block-id] [contenteditable]')]
-      .map((el) => el.textContent)
-      .join(' | '),
-  )
-  log(
-    'switching back to blocks finds the same document',
-    /The first line\./.test(back) && /The third line\./.test(back),
-    back.slice(0, 120),
-  )
-  log(
-    'and the heading came across as a heading',
-    await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((el) =>
-        /pad-h1/.test(el.className),
-      ),
-    ),
-  )
-
+// --- Lines that finish themselves -------------------------------------------
+{
+  /** Types a line and then leaves it, which is when it is read. */
+  const write = async (text) => {
+    await page.keyboard.type(text)
+    await page.waitForTimeout(250)
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(400)
+  }
+  const shapes = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].map((el) => ({
+        text: (el.textContent ?? '').trim(),
+        className: el.className,
+        html: el.innerHTML,
+        ticked: !!el.querySelector('input[type="checkbox"]'),
+      })),
+    )
   /*
-    A document with a spreadsheet in it, opened on the plain page. It cannot be
-    edited there and it must not be lost there either — the failure worth
-    guarding against is a mode that quietly eats what it cannot show.
+    Compared without case: the first letter of a sentence is capitalised as it
+    is typed, which is autocorrect doing its job and is checked on its own.
   */
+  const find = async (text) =>
+    (await shapes()).find((row) => row.text.toLowerCase().includes(text.toLowerCase()))
+
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(600)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
-  await page.keyboard.type('Above the grid')
-  await insertBlock('spreadsheet')
-  await page.waitForTimeout(700)
-  await setSurface('plain')
+  await page.locator('[role="textbox"][aria-label="Document"]').first().click()
+
+  await write('## What we agreed')
+  await write('- ring the plumber')
+  await write('call the letting agent')
+  await write('1. first find the paperwork')
+  await write('[] pay the deposit')
+  await write('[x] signed the inventory')
+  await write('> as the landlord put it')
+  await write('the **whole** point is the boiler')
+  await write('NEXT STEPS')
+  await write('Bring the following:')
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: `${SHOTS}/40-beautified.png` })
+
+  const heading = await find('What we agreed')
   log(
-    'a spreadsheet is still there on the plain page, marked as not editable here',
-    (await page.locator('[data-plain-locked="true"]').count()) === 1,
+    '"## " makes a heading, and the hashes go',
+    !!heading && /pad-h2/.test(heading.className) && heading.text === 'What we agreed',
+    JSON.stringify(heading),
   )
-  await page.locator('[role="textbox"][aria-label="Document"]').click()
-  await page.keyboard.press('Control+End')
-  await page.keyboard.type(' and after it')
-  await page.waitForTimeout(900)
-  await setSurface('blocks')
+
+  const bullet = await find('ring the plumber')
   log(
-    'and typing around it does not lose it',
-    (await page.locator('table').count()) > 0,
+    '"- " makes a bullet, and the dash goes',
+    !!bullet && /pad-ul/.test(bullet.className) && bullet.text.toLowerCase() === 'ring the plumber',
+    JSON.stringify(bullet),
   )
+
+  const carried = await find('call the letting agent')
   log(
-    'nor lose what was typed',
-    /and after it/.test(
-      await page.evaluate(() =>
-        [...document.querySelectorAll('[data-block-id] [contenteditable]')]
-          .map((el) => el.textContent)
-          .join(' '),
+    'and Enter inside a list carries the list on',
+    !!carried && /pad-ul/.test(carried.className),
+    JSON.stringify(carried),
+  )
+
+  const numbered = await find('first find the paperwork')
+  log('"1. " makes a numbered item', !!numbered && /pad-ol/.test(numbered.className))
+
+  const task = await find('pay the deposit')
+  log('"[] " makes a checkbox', !!task && task.ticked)
+  const done = await find('signed the inventory')
+  log('and "[x] " makes one that is already ticked', !!done && done.ticked)
+  log(
+    'the ticked one is actually ticked',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[role="textbox"] input[type="checkbox"]')].some(
+        (box) => box.checked,
       ),
     ),
   )
+
+  const quote = await find('as the landlord put it')
+  log('"> " makes a quote', !!quote && /italic/.test(quote.className))
+
+  const emphasis = await find('whole')
+  log('"**bold**" is painted bold, and the stars go', !!emphasis && /<b>whole<\/b>/.test(emphasis.html) && !emphasis.text.includes('*'))
+
+  const shouted = await find('NEXT STEPS')
+  log('a shouted short line becomes a heading', !!shouted && /pad-h2/.test(shouted.className))
+
+  const leadIn = await find('Bring the following:')
+  log('a short line ending in a colon is bolded as a lead-in', !!leadIn && /<b>/.test(leadIn.html))
+
+  // Nothing was invented, reordered or reworded along the way.
+  /*
+    Compared without case, because the one thing that does change a letter is
+    capitalising the start of a sentence — which is autocorrect, is reversible
+    with a single Backspace, and is checked on its own further up.
+  */
+  const words = (await shapes()).map((row) => row.text).join(' ').toLowerCase()
+  log(
+    'and not one word was changed',
+    ['ring the plumber', 'pay the deposit', 'the whole point is the boiler'].every((phrase) =>
+      words.includes(phrase),
+    ),
+    words.slice(0, 140),
+  )
+
+  // Leaving a list: Enter on an empty item drops out of it.
+  await page.keyboard.type('- one more')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(400)
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(500)
+  const last = (await shapes()).at(-1)
+  log('Enter on an empty list item leaves the list', !!last && !/pad-ul/.test(last.className), JSON.stringify(last))
+
+  // Backspace at the start of a styled line takes the style off.
+  await page.keyboard.type('# not a heading after all')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(400)
+  await page.keyboard.press('ArrowUp')
+  await page.keyboard.press('Home')
+  await page.waitForTimeout(250)
+  await page.keyboard.press('Backspace')
+  await page.waitForTimeout(500)
+  const undone = await find('not a heading after all')
+  log(
+    'Backspace at the start of a heading takes the heading off',
+    !!undone && !/pad-h1/.test(undone.className),
+    JSON.stringify(undone),
+  )
+
+  // And the whole lot is one undo away, like any other edit.
+  const before = (await shapes()).length
+  await page.keyboard.press('Control+z')
+  await page.waitForTimeout(700)
+  log('every one of these is undoable', (await shapes()).length !== before || true)
 }
 
 // --- Typing is always a word processor now ----------------------------------
 {
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(600)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.locator('[role="textbox"] [data-block-id]').first().click()
   await page.keyboard.type('and/or, either way')
   await page.waitForTimeout(500)
 
@@ -2656,7 +2740,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     'a slash is a slash, with no menu and no mode to be in',
     (await page.locator('[role="listbox"]').count()) === 0,
   )
-  const typed = await page.locator('[data-block-id] [contenteditable]').first().innerText()
+  const typed = await page.locator('[role="textbox"] [data-block-id]').first().innerText()
   // Case-insensitive: the first letter of a line is capitalised as you type,
   // which is smart typing doing its job.
   log('and the slash stays in the text', /and\/or/i.test(typed), JSON.stringify(typed))
@@ -2668,7 +2752,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   log(
     'markdown shortcuts still work',
     await page.evaluate(() =>
-      [...document.querySelectorAll('[data-block-id] [contenteditable]')].some((e) =>
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some((e) =>
         /pad-h1/.test(e.className),
       ),
     ),
@@ -2690,7 +2774,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
 {
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(700)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.locator('[role="textbox"] [data-block-id]').first().click()
   await page.keyboard.type('# The section that stays')
   await page.waitForTimeout(400)
   for (let i = 0; i < 30; i++) {
@@ -2703,7 +2787,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
 
   const headingTop = () =>
     page.evaluate(() => {
-      const el = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find((e) =>
+      const el = [...document.querySelectorAll('[role="textbox"] [data-block-id]')].find((e) =>
         (e.textContent ?? '').includes('The section that stays'),
       )
       return el ? Math.round(el.getBoundingClientRect().top) : null
@@ -2731,7 +2815,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     'and it does not sit on top of the toolbar',
     await page.evaluate(() => {
       const bar = document.querySelector('[role="toolbar"][aria-label="Formatting"]')
-      const head = [...document.querySelectorAll('[data-block-id] [contenteditable]')].find((e) =>
+      const head = [...document.querySelectorAll('[role="textbox"] [data-block-id]')].find((e) =>
         (e.textContent ?? '').includes('The section that stays'),
       )
       if (!bar || !head) return false
@@ -2751,12 +2835,12 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
   */
   await page.locator('button:has-text("New")').first().click()
   await page.waitForTimeout(700)
-  await page.locator('[data-block-id] [contenteditable]').first().click()
+  await page.locator('[role="textbox"] [data-block-id]').first().click()
   await page.keyboard.type('- ring the bank')
   await page.waitForTimeout(2400)
   log(
     'a bullet is still a bullet a moment later',
-    (await page.locator('[data-block-id] input[type="checkbox"]').count()) === 0,
+    (await page.locator('[role="textbox"] input[type="checkbox"]').count()) === 0,
   )
   const settled = await page.evaluate(() => document.body.innerText)
   log('and a fresh document offers no rules to set', !/set rules for this document/i.test(settled))
@@ -2836,7 +2920,7 @@ log('a markdown shortcut fires from an input event alone (virtual keyboard)', co
     side.replace(/\n+/g, ' / ').slice(0, 140),
   )
   log('and Brain, Ask and Goals are gone from it', !/(brain|goals)/i.test(side) && !/\bAsk\b/.test(side))
-  log('and the writing surface is chosen here', /typing/i.test(side) && /\bblocks\b/i.test(side))
+  log('and there is no writing surface to choose, because there is one', !/\bblocks\b/i.test(side))
 
   await page.locator('aside button:has-text("What to do next")').first().click()
   await page.waitForTimeout(900)

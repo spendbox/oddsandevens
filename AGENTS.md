@@ -7,8 +7,8 @@ Two buttons in it talk to a model. One reads the page back and says what
 happens next; one listens and writes down what was said. Nothing else does,
 and nothing runs without being pressed.
 
-It has two writing surfaces — a block at a time, or one page like a word
-processor — and they are the same document underneath.
+There is one writing surface and it is a page. Lines finish themselves as the
+caret leaves them, with no model involved.
 
 Read `README.md` before changing anything structural.
 
@@ -28,9 +28,13 @@ Read `README.md` before changing anything structural.
 
 **A document is a list of blocks, and every tool is a block type.** Adding a
 sixth tool means adding to `BlockType` in `src/lib/types.ts`, a case in
-`makeBlock`, an entry in `SLASH_ITEMS` and a component — never a second editor,
-a second save path, or a mode to switch into. If a feature needs its own screen
-to work, it is the wrong shape for this app.
+`makeBlock`, an entry in the toolbar's Insert list and a component — never a
+second editor, a second save path, or a mode to switch into. If a feature needs
+its own screen to work, it is the wrong shape for this app.
+
+The person typing never meets a block. That is the other half of the rule and
+the harder half: the model is underneath, where it belongs, and the surface is
+a page.
 
 ## Conventions that bite
 
@@ -59,30 +63,56 @@ to work, it is the wrong shape for this app.
 - **There is no slash menu.** "/" is a slash, which is what somebody writing
   "and/or" or a date meant by it. Every block type is in the toolbar's ⋯ under
   Insert.
-- **There are two writing surfaces and they are the same document.** `blocks`
-  is one `contenteditable` per paragraph — this app's own shape, and what lets
-  a spreadsheet sit between two sentences. `plain` is one `contenteditable` for
-  the whole page, where Enter makes a line, Ctrl+A takes everything and a
-  selection runs past the end of a paragraph *because the browser does all
-  three*, rather than because three hundred lines reimplement them. The block
-  list underneath is identical either way, so switching is a repaint and never
-  a conversion, and nothing that reads a document — search, export, sync, the
-  plan — knows there are two. This is the one exception to "if a feature needs
-  its own screen it is the wrong shape": it is not a feature, it is the same
-  document with the browser doing more of the work.
-- **The plain surface paints blocks out and reads lines back, and the rules for
-  the reading back live in `lib/plain-doc.ts`.** No DOM in that file, so a
-  paragraph deleted, a paragraph split and a spreadsheet the caret ran over are
-  unit tests rather than something to reproduce by typing.
-- **Pressing Enter on the plain surface clones the element, `data-block-id` and
-  all.** Two lines then wear one id, and every question of the form "which line
-  is the caret on" answers with the line above — which is why the new ids are
-  stamped back onto the children after every read-back, before anything asks.
-  It is an attribute write, never a text-node write, so the caret does not feel
-  it.
-- **A block the plain surface cannot edit is painted `contenteditable="false"`
-  and carried across untouched.** A mode that quietly eats the spreadsheet it
-  cannot show is the worst thing a second surface can do.
+- **One surface, and the browser does as much of it as possible.** A run of
+  paragraphs is one `contenteditable`, so Enter makes a line, Ctrl+A takes the
+  page, a selection runs past the end of a paragraph and a copy comes out as
+  one piece — none of it reimplemented. The app that owned every paragraph
+  separately had to hand-write all four and got each of them slightly wrong.
+- **A block that is not text sits between runs, not inside one.** A spreadsheet
+  is not something a caret belongs in the middle of. Documents that are only
+  writing are therefore one editable element and behave perfectly; one with a
+  spreadsheet in the middle is two, and all that costs is a selection that
+  stops at it. That is also why Ctrl+A is caught on the page — and why it is
+  never caught inside a cell, a code block or a form field, where it means
+  "select what I am typing in".
+- **React owns the structure; each run owns its own text.** React must not own
+  text while somebody is typing: a keystroke that goes to state and comes back
+  as a re-render rebuilds the text nodes and throws the caret to the start. So
+  React renders which runs exist and what sits between them, and a run paints
+  its own lines once and then leaves the browser alone — repainting only when
+  the revision says so, or when the document changed elsewhere and nobody is
+  typing in it.
+- **The rules for reading the page back live in `lib/plain-doc.ts`**, with no
+  DOM in the file, so a paragraph deleted, a paragraph split, a list carried
+  on and a spreadsheet the caret ran over are unit tests rather than something
+  to reproduce by typing.
+- **Pressing Enter clones the element, `data-block-id` and all.** Two lines
+  then wear one id, and every question of the form "which line is the caret
+  on" answers with the line above — which is why the new ids are stamped back
+  onto the children after every read-back, before anything asks. It is an
+  attribute write, never a text-node write, so the caret does not feel it.
+- **Lines finish when the caret leaves them, never while they are being
+  typed.** `lib/beautify.ts` reads "- ", "1.", "[]", "#", ">", "**bold**" and
+  gives the line the shape it was plainly aiming at. Nothing is predicted and
+  no model is asked: they are string comparisons, they are free and offline
+  and identical every time, and every one is a unit test. On leaving the line
+  because "#" is a character people write and "- " halfway through a thought
+  is a dash.
+- **Nothing rewrites a word.** Markers come off because they were notation;
+  emphasis is painted rather than retyped. The two rules that guess rather than
+  read — a shouted short line is a heading, a short line ending in a colon is a
+  lead-in — are kept narrow for the same reason, and neither touches a line
+  that is already something. An editor that rewrites your sentences is one
+  people stop trusting the first time it is wrong.
+- **Every automatic change is one undo away**, and the capital that arrives as
+  you type is one Backspace away, because it replaced the keystroke rather than
+  rewriting the text after it. An editor that cannot be told "no" is one people
+  switch off.
+- **List markers and numbering are drawn with CSS**, not put into the DOM. A
+  marker that is a real node is a node the caret can be put inside, a node a
+  copy carries into the clipboard, and a node that has to be stripped out again
+  on every read-back. A counter is also right at every moment by construction,
+  where stamped numbers have to be corrected every time an item is added.
 - **The formula engine matches Excel where they disagree with maths.** `^` is
   left-associative, so `2^3^2` is 64. Blank cells are skipped by `AVERAGE`
   rather than counted as zero. A cycle returns `#CYCLE` instead of recursing
@@ -515,7 +545,7 @@ to work, it is the wrong shape for this app.
 ## Checking work
 
 `npm test` covers the formula engine, the highlighter, the plan, the transcript
-handling and the plain surface's read-back.
+handling, the line beautifier and the page's read-back.
 `npm run e2e` drives a real browser through every feature and is the one that
 catches what the others cannot — caret behaviour, saving, and whether a
 document survives a reload. Run both before claiming something works.
