@@ -19,26 +19,41 @@ import { useSyncExternalStore } from 'react'
  * about that side, and somebody who never presses the switch never meets a
  * team at all.
  *
- * ## Where it is kept
+ * ## It lasts for a visit, not forever
  *
- * On the device, beside the theme, because it is about this screen rather
- * than about the account: the same person may want their notes on a laptop
- * and the team board on a phone. Read through `useSyncExternalStore` with a
- * constant server snapshot for the reason the theme is — the notes screen is
- * server-rendered, and a value read from localStorage during the first
- * client render is a hydration error on every load.
+ * In `sessionStorage`, deliberately. Kept in localStorage it was sticky in
+ * the worst way: press Team once and every future opening of the app landed
+ * on a team screen, which is not what this app is — the notes are, and they
+ * are what should be there when somebody opens it in the morning. A session
+ * is long enough to survive the one navigation that matters (a team's link,
+ * which opens the sign-in page and then the app) and short enough that the
+ * app always opens on your own notes.
+ *
+ * Read through `useSyncExternalStore` with a constant server snapshot for
+ * the reason the theme is — the notes screen is server-rendered, and a
+ * value read from storage during the first client render is a hydration
+ * error on every load.
  */
 
 const KEY = 'pad-mode'
 
-/**
- * `mine` on the wire, "Me" on the screen.
- *
- * The stored value is left alone deliberately: renaming what is written in
- * localStorage would put everybody who had chosen Team back on the notes
- * for no reason anybody could see.
- */
+/** `mine` on the wire, "Me" on the screen. */
 export type Mode = 'mine' | 'team'
+
+/**
+ * Opens in Team for this visit only.
+ *
+ * Used by a team's own link, which is a page somebody arrives at *wanting*
+ * the team — and by nothing else, because every other way in should land
+ * on the notes.
+ */
+export function askForTeam(): void {
+  try {
+    sessionStorage.setItem(KEY, 'team')
+  } catch {
+    // The app opens on the notes instead, and the switch is at the top.
+  }
+}
 
 const listeners = new Set<() => void>()
 
@@ -56,9 +71,9 @@ function subscribe(listener: () => void): () => void {
 
 function read(): Mode {
   try {
-    return localStorage.getItem(KEY) === 'team' ? 'team' : 'mine'
+    return sessionStorage.getItem(KEY) === 'team' ? 'team' : 'mine'
   } catch {
-    // Blocked site data, or a private window. Mine is the default and the
+    // Blocked site data, or a private window. Me is the default and the
     // safe answer: it is the half of the app that needs nothing at all.
     return 'mine'
   }
@@ -70,8 +85,8 @@ export function useMode(): { mode: Mode; set: (mode: Mode) => void } {
   const mode = useSyncExternalStore(subscribe, read, onServer)
   const set = (next: Mode) => {
     try {
-      if (next === 'team') localStorage.setItem(KEY, 'team')
-      else localStorage.removeItem(KEY)
+      if (next === 'team') sessionStorage.setItem(KEY, 'team')
+      else sessionStorage.removeItem(KEY)
     } catch {
       // It costs the memory of the choice, not the choice itself.
     }
@@ -104,7 +119,7 @@ export function takePendingTeam(): string | null {
 /** Puts the app back on the notes. Used when an account goes away. */
 export function backToMine(): void {
   try {
-    localStorage.removeItem(KEY)
+    sessionStorage.removeItem(KEY)
   } catch {
     // Nothing was kept.
   }

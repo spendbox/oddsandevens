@@ -8,12 +8,11 @@ import {
   Copy,
   CornerUpLeft,
   ListChecks,
-  LoaderCircle,
   MessageSquare,
   Pencil,
   Plus,
-  Send,
   Settings2,
+  Star,
   Trash2,
   UserPlus,
   Users,
@@ -22,6 +21,8 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import {
   keepOnlyReal,
+  matchMembers,
+  mentionAt,
   mergeTasks,
   readTasks,
   type DraftTask,
@@ -54,6 +55,7 @@ import {
   type TeamTask,
 } from '@/lib/teams'
 import { stamp } from '@/lib/when'
+import ComposeSheet from './compose-sheet'
 import { useDismiss } from './dismiss'
 import MentionField from './mention-field'
 import Sheet from './sheet'
@@ -240,7 +242,16 @@ export default function TeamsPanel({
         the one thing you always need is a way back out of it — and because
         the tabs below are how you get from the talking to the work.
       */}
-      <div className="sticky top-0 z-20 -mx-4 bg-[var(--color-paper)] px-4 pt-2 sm:-mx-8 sm:px-8">
+      <div
+        /*
+          Underneath the app's own bar rather than on top of it. The offset
+          is measured by the notes screen and written to `--pad-header`, so
+          it stays right when a long name wraps the greeting onto two
+          lines; the fallback is for the one render before it is measured.
+        */
+        style={{ top: 'var(--pad-header, 0px)' }}
+        className="sticky z-10 -mx-4 bg-[var(--color-paper)] px-4 pt-2 sm:-mx-8 sm:px-8"
+      >
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -586,7 +597,11 @@ function AllMembers({
                 </span>
               </span>
               {member.admin && (
-                <span className="shrink-0 text-[11px] text-[var(--color-muted)]">Admin</span>
+                <Star
+                  size={13}
+                  aria-label="An admin"
+                  className="shrink-0 text-[var(--color-faint)]"
+                />
               )}
             </button>
           </li>
@@ -640,9 +655,10 @@ function OneMember({
   return (
     <div>
       <p className="text-[13px] text-[var(--color-muted)]">{member.email}</p>
-      <p className="mt-0.5 text-[12px] text-[var(--color-faint)]">
+      <p className="mt-0.5 flex items-center gap-1 text-[12px] text-[var(--color-faint)]">
+        {(member.admin || isOwner) && <Star size={11} />}
         {isOwner
-          ? 'Made this team. Cannot be removed.'
+          ? 'Made this team. An admin, and cannot be removed.'
           : member.admin
             ? 'An admin: can add and remove people.'
             : 'A member.'}
@@ -968,6 +984,8 @@ function Chat({
   const [problem, setProblem] = useState<string | undefined>()
   /** What is being answered, and what is being corrected. One at a time. */
   const [replying, setReplying] = useState<TeamMessage | null>(null)
+  /** Whether the box is open. The bar below is what opens it. */
+  const [writing, setWriting] = useState(false)
   const [editing, setEditing] = useState<TeamMessage | null>(null)
   const [draft, setDraft] = useState('')
   const foot = useRef<HTMLDivElement>(null)
@@ -1007,6 +1025,7 @@ function Chat({
     }
     setText('')
     setReplying(null)
+    setWriting(false)
     onChanged()
 
     /*
@@ -1084,9 +1103,16 @@ function Chat({
             key={member.email}
             type="button"
             onClick={() => onWho(member)}
-            className="rounded-full bg-[var(--color-hover)] px-2 py-1 hover:text-[var(--color-ink)]"
+            className="flex items-center gap-1 rounded-full bg-[var(--color-hover)] px-2 py-1 hover:text-[var(--color-ink)]"
           >
             {member.name}
+            {/*
+              A star, and nothing louder. Who can remove people is worth
+              knowing at a glance and is not worth a badge, a colour or a
+              word — it is the sort of thing you notice when you go looking
+              for it and never otherwise.
+            */}
+            {member.admin && <Star size={10} aria-label="An admin" />}
             {!member.userId && ' ·'}
           </button>
         ))}
@@ -1228,14 +1254,15 @@ function Chat({
       {problem && <p className="mt-2 text-[13px] text-[var(--color-danger)]">{problem}</p>}
 
       {/*
-        The box.
+        The bar that opens the box.
 
-        Sticky rather than fixed, which is the fix for it ending up under
-        the bottom of the screen: a fixed element is positioned against the
-        window and has to be told about the keyboard, the safe area and
-        every browser's idea of where the bottom is. A sticky one is in the
-        page, so it sits at the bottom of what is on screen and the browser
-        does the arithmetic.
+        The same shape as "Write a note…" on the other side of the switch,
+        and for the same reason: saying something to a team and jotting a
+        note are the same act — a few lines, typed quickly, and then you
+        are done. It was an inline box welded to the bottom of this screen,
+        with its own idea of where the keyboard was and its own way of
+        closing, and it was awkward in all the ways the note box had
+        already stopped being.
       */}
       <div className="sticky bottom-0 -mx-4 mt-3 border-t border-[var(--color-line)] bg-[var(--color-paper)] px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:-mx-8 sm:px-8">
         {replying && (
@@ -1254,28 +1281,64 @@ function Chat({
             </button>
           </p>
         )}
-        <div className="flex items-end gap-2">
-          <MentionField
-            value={text}
-            onChange={setText}
-            members={members}
-            multiline
-            onSubmit={() => void send()}
-            label="Say what needs doing"
-            placeholder="What needs doing? Use @ to give it to somebody."
-            className="pad-serif max-h-32 min-h-[2.75rem] w-full resize-none rounded-2xl border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-2.5 text-[15px] outline-none placeholder:text-[var(--color-faint)]"
-          />
-          <button
-            type="button"
-            onClick={() => void send()}
-            disabled={!text.trim() || busy}
-            aria-label="Send"
-            className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--color-accent)] text-white disabled:opacity-40"
-          >
-            {busy ? <LoaderCircle size={18} className="animate-spin" /> : <Send size={18} />}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setWriting(true)}
+          className="flex w-full items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
+        >
+          <MessageSquare size={16} />
+          {text.trim()
+            ? `Carry on: ${text.trim().slice(0, 40)}${text.trim().length > 40 ? '…' : ''}`
+            : replying
+              ? `Answer ${replying.authorName}…`
+              : 'Say what needs doing…'}
+        </button>
       </div>
+
+      {/*
+        And the box itself: the same pop-up as the one that makes a note,
+        with the people in this team offered under the @ — see
+        compose-sheet.tsx and mention-field.tsx.
+      */}
+      {writing && (
+        <ComposeSheet
+          title={replying ? `Answering ${replying.authorName}` : 'Say something'}
+          value={text}
+          onChange={setText}
+          /* Closing keeps what was typed, in the bar, where it is plainly
+             still there. Nothing is lost to a press that landed outside. */
+          onClose={(kept) => {
+            setText(kept)
+            setWriting(false)
+          }}
+          onSave={() => void send()}
+          saveLabel={busy ? 'Sending…' : 'Send'}
+          busy={busy}
+          label="Say what needs doing"
+          placeholder="What needs doing? Use @ to give it to somebody."
+          beside={
+            <span className="text-[12px] text-[var(--color-faint)]">
+              Anything you ask for here turns into work on the board.
+            </span>
+          }
+        >
+          {replying && (
+            <p className="mb-1 flex items-center gap-1.5 text-[12px] text-[var(--color-faint)]">
+              <CornerUpLeft size={12} />
+              <span className="min-w-0 flex-1 truncate">
+                {replying.authorName}: {replying.body}
+              </span>
+            </p>
+          )}
+          {/*
+            The people, offered as soon as an @ is typed. It is the field
+            component's list, hoisted above the box: the box is the
+            pop-up's own textarea, and two textareas in one sheet is one of
+            them being typed into by mistake.
+          */}
+          <Mentions text={text} members={members} onPick={setText} />
+        </ComposeSheet>
+      )}
     </div>
   )
 }
@@ -1511,5 +1574,60 @@ function Tab({
         <span className="text-[12px] text-[var(--color-faint)]">{count}</span>
       )}
     </button>
+  )
+}
+
+/**
+ * The people to choose from, while an "@" is being typed in the pop-up.
+ *
+ * `mention-field.tsx` owns its own textarea, and the pop-up owns one too —
+ * two in one sheet is one of them being typed into by mistake. So this is
+ * the same rules with the field left out: it reads what is in the box,
+ * offers whoever matches, and hands back the text with the name put in.
+ *
+ * The caret is not moved afterwards. In the pop-up the box is focused and
+ * the name is inserted where the "@" was, which for the overwhelmingly
+ * common case — typing "@" at the end of what you are writing — is exactly
+ * where the caret already is.
+ */
+function Mentions({
+  text,
+  members,
+  onPick,
+}: {
+  text: string
+  members: Member[]
+  onPick: (text: string) => void
+}) {
+  // The caret is not tracked here, so the "@" being typed is the last one:
+  // true whenever somebody is in the middle of typing a name, which is the
+  // only moment this is on screen.
+  const picking = mentionAt(text, text.length)
+  if (!picking) return null
+  const offered = matchMembers(members, picking.query)
+  if (!offered.length) return null
+
+  return (
+    <div className="mb-1 flex flex-wrap gap-1">
+      {offered.map((member) => (
+        <button
+          key={member.email}
+          type="button"
+          // The keyboard stays up: every button steals the focus, and a
+          // phone takes the keys down with it.
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            const handle = member.name.trim().split(/\s+/)[0]
+            const before = text.slice(0, picking.at)
+            const after = text.slice(picking.at + 1 + picking.query.length)
+            onPick(`${before}@${handle} ${after.replace(/^\s+/, '')}`)
+          }}
+          className="flex items-center gap-1 rounded-full border border-[var(--color-line)] px-2.5 py-1 text-[13px] hover:border-[var(--color-faint)]"
+        >
+          {member.name}
+          {member.admin && <Star size={10} className="text-[var(--color-faint)]" />}
+        </button>
+      ))}
+    </div>
   )
 }

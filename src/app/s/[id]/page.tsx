@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { APP_NAME } from '@/lib/app'
 import ReadOnlyDoc from '@/components/read-only-doc'
 import { publicSupabase } from '@/lib/supabase-server'
 import type { Block } from '@/lib/types'
@@ -80,7 +81,7 @@ export async function generateMetadata(
   const title = shared?.title?.trim() || 'Shared note'
   return {
     title,
-    description: 'Shared from Pad.',
+    description: `Shared from ${APP_NAME}.`,
     /*
       A link share should not end up in search results: whoever published it
       chose to send it to particular people, not to the whole web. A note
@@ -102,7 +103,7 @@ export default async function SharedPage(props: PageProps<'/s/[id]'>) {
           <span className="flex h-5 w-5 items-center justify-center rounded bg-[var(--color-accent)] text-[10px] font-bold text-white">
             I
           </span>
-          <span className="text-xs font-semibold">Pad</span>
+          <span className="text-xs font-semibold">{APP_NAME}</span>
         </Link>
         <span className="ml-auto text-[11px] text-[var(--color-faint)]">Shared, read only</span>
       </header>

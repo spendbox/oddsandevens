@@ -1,5 +1,5 @@
 /*
- * Service worker: the part that makes Pad open with no network.
+ * Service worker: the part that makes Jotter open with no network.
  *
  * Two strategies, chosen by what is being fetched:
  *
@@ -101,7 +101,7 @@ self.addEventListener('fetch', (event) => {
             .then(
               (hit) =>
                 hit ??
-                new Response('<h1>Offline</h1><p>Open Pad once while online to install it.</p>', {
+                new Response('<h1>Offline</h1><p>Open Jotter once while online to install it.</p>', {
                   headers: { 'Content-Type': 'text/html' },
                   status: 503,
                 }),

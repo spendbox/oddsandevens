@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
+import { APP_NAME } from '@/lib/app'
 
 /**
  * The one server route, so the API key never reaches a browser.
@@ -669,7 +670,7 @@ export async function POST(request: Request) {
   if ((request.headers.get('content-type') ?? '').includes('multipart/form-data')) {
     if (!transcribes()) {
       return NextResponse.json(
-        { error: 'Transcription is not set up on this copy of Pad.' },
+        { error: `Transcription is not set up on this copy of ${APP_NAME}.` },
         { status: 501 },
       )
     }
@@ -700,7 +701,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          'Writing help is not set up on this copy of Pad. Add an OPENAI_API_KEY to turn it on.',
+          `Writing help is not set up on this copy of ${APP_NAME}. Add an OPENAI_API_KEY to turn it on.`,
       },
       { status: 501 },
     )

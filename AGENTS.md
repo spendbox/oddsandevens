@@ -1,7 +1,14 @@
-# Pad
+# Jotter
 
 A note-taking app for people who take notes for a living. Two screens: the
 notes, and a note.
+
+**The name lives in `src/lib/app.ts` and nowhere else.** It was the word
+"Pad" in fourteen files, three of which still said this was a place to build
+forms. A name ends up in the manifest, on the install prompt, under the icon
+on a home screen and at the top of a stranger's sign-in, and it is exactly
+the kind of thing somebody changes their mind about once. The one place it
+cannot be imported is `public/sw.js`, which is served as a plain file.
 
 **Everything the reader sees is called a note.** Not a document, not a file.
 Two lines or twenty pages, the same word for both.
@@ -856,6 +863,44 @@ a page.
   phone keyboard it is most of the reason a sign-in fails twice before it
   works. The eye keeps the focus — `preventDefault` on mousedown — or
   showing the password takes the keyboard down with it.
+- **Closing the writing box keeps what was in it.** A pop-up can be shut by
+  every accident a phone has — the back gesture, a press that landed
+  slightly outside, being switched away from — and three lines lost that way
+  is the worst thing this app can do. `lib/draft.ts` keeps them, the bar
+  says there is a draft, and opening the box again has the words back with
+  the caret at the end. It is dropped the moment the note is saved: a draft
+  that outlives the thing it became is a second copy nobody asked for.
+- **There is one box you write in.** `compose-sheet.tsx`. Writing a note and
+  saying something to a team are the same act — a few lines, typed quickly,
+  and then you are done — and they were two boxes, the second awkward in
+  exactly the ways the first had already been fixed. The shell owns where it
+  sits, how it closes and the caret; what goes in it, what the button says
+  and what happens on save belong to the caller, because a shell that also
+  decided those is one neither caller quite fits.
+- **The search field is asked for, not always there.** It spent the width of
+  the page and the height of a row, at the top of every screen, on a thing
+  most people press once a day. It is a button at the end of the row of
+  tabs, lined up with the World, and the field it opens still says "every
+  word in every note" — which is the part a 24-pixel icon cannot say.
+- **The mode lasts a visit, not forever.** In `sessionStorage`: kept in
+  localStorage, pressing Team once meant every future opening of the app
+  landed on a team screen, and this app is the notes. A session is long
+  enough to survive the one navigation that matters — a team's link, which
+  goes through a sign-in page — and short enough that the morning starts on
+  your own notes.
+- **Two sticky bars are stacked by measuring, not by guessing.** The team's
+  navigation sticks under the app's own bar at `--pad-header`, which a
+  `ResizeObserver` writes straight onto the element rather than into state:
+  a number in state is a render every time the header changes size,
+  including while somebody types their name into it, and this app has
+  already paid once for a layout that reacted to its own relayout.
+- **A chat is not read at a reading width.** Notes are, which is what the
+  measure is for; a chat is short lines with a name beside each one, and
+  holding it to the width of a paragraph leaves two thirds of a laptop
+  empty. Team mode is wider on purpose.
+- **An admin wears a star and nothing louder.** Who can remove people is
+  worth knowing at a glance and is not worth a badge, a colour or a word —
+  it is the sort of thing you notice when you go looking for it.
 - **One swipe, written once.** `swipe-away.tsx` is the shared gesture: the
   distance, the slop, the word that slides in underneath, and the three ways it
   goes wrong (capturing on pointerdown kills every button inside; a vertical

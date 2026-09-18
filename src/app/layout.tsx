@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from 'next'
+import { APP_NAME } from '@/lib/app'
 import { PREFS_SCRIPT } from '@/lib/ui-prefs'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Pad',
+  title: APP_NAME,
   description:
     'A note-taking app for people who take notes for a living. Open it and start typing. Works offline.',
-  applicationName: 'Pad',
-  appleWebApp: { capable: true, title: 'Pad', statusBarStyle: 'default' },
+  applicationName: APP_NAME,
+  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: 'default' },
   formatDetection: { telephone: false },
 }
 

@@ -1,4 +1,4 @@
-# Pad
+# Jotter
 
 A note-taking app for people who take notes for a living.
 
@@ -21,9 +21,10 @@ there is not — a bin on forty rows under a scrolling thumb is forty small
 mistakes waiting to happen. Either way it asks first, and names the note it is
 asking about.
 
-Across the top — and staying there as you scroll — **Hi, <your name>**, a search
-field that reads inside every note, and three tabs: **Notes**, **Actions** and
-**World**. Three places. Under Notes there are three ways of looking at the same
+Across the top — and staying there as you scroll — **Hi, <your name>** and
+three tabs: **Notes**, **Actions** and **World**, with a magnifying glass at
+the end of the row. Pressing that opens the field that reads inside every note;
+pressing × puts it away again. Three places. Under Notes there are three ways of looking at the same
 notes — **All**, **Favourites** and **Dashboard** — which is what a favourite
 actually is: your own notes with most of them hidden, not somewhere else to go.
 The name is worked out from your email address if you have signed in, and the
@@ -45,7 +46,10 @@ toolbar, no ribbon of controls across the top of the page you came to write on.
 ## Writing
 
 **Write a note** opens a box that sits above the keyboard on a phone and stays
-there. Type into it however you like — shorthand, three words, no punctuation —
+there. Close it with something in it and nothing is lost: the bar at the bottom
+shows the first words of your draft, and pressing it opens the box again with
+them still in it. It survives a reload, and it is cleared the moment the note
+is saved. Type into it however you like — shorthand, three words, no punctuation —
 and press Save. A list carries on as you write it: Return after "- milk" starts
 another bullet, Return after "1. first" starts "2.", and Return on an empty one
 ends the list. What happens next:
@@ -156,6 +160,8 @@ the whole thing back out.
 ## Working with other people
 
 There is a card at the top of your notes that turns over: **Me** and **Team**.
+The app always opens on Me — Team lasts for as long as the app is open, and
+not into tomorrow morning.
 Me is where this app lives and it is the default — everything above works with
 no account and nothing in it is shared with anybody. Team is a different
 screen.
@@ -165,8 +171,9 @@ has said something in one of your teams — who, and which team — and pressing
 takes you straight to that chat. It is there only when there is something, and
 it goes as soon as you have read it.
 
-**A team is a chat, and the work that comes out of it.** You type what needs
-doing the way you would say it — *@ada can you send the service charge figures
+**A team is a chat, and the work that comes out of it.** The bar at the bottom
+opens the same box you write a note in. You type what needs doing the way you
+would say it — *@ada can you send the service charge figures
 by Friday* — and it appears on the team's **Actions** board with Ada's name and
 "Friday" against it. Typing **@** offers the people in the team; pick one and
 the task is theirs.
@@ -351,8 +358,8 @@ end of the address bar. On an iPhone there is no button to press: the Install
 button shows you the two steps instead, which are **Share → Add to Home
 Screen**.
 
-Installed, it opens from your dock or home screen in its own window, with no
-address bar, and starts with no internet connection at all.
+Installed, it opens from your dock or home screen as **Jotter**, in its own
+window with no address bar, and starts with no internet connection at all.
 
 **Updates.** An installed app is resumed rather than reopened, so it can go on
 running an old version for weeks. Pad checks for a new one when it opens, every
@@ -496,7 +503,9 @@ src/lib/transcribe.ts   sending those pieces to be transcribed properly
 src/lib/install.ts      the browser's install offer, caught and kept
 src/lib/update.ts       noticing a new version, and offering it
 src/lib/handover.ts     whose device this is, and clearing it when that changes
-src/lib/mode.ts         mine, or the team's
+src/lib/app.ts          what this app is called, in one place
+src/lib/draft.ts        what was in the writing box when it was closed
+src/lib/mode.ts         me, or the team's — for this visit only
 src/lib/team-chat.ts    reading a chat message for the work in it, and the
                         guard that stops anything else being written down
 src/lib/team-unread.ts  which teams have said something since you looked

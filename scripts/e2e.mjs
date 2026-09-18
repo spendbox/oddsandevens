@@ -130,8 +130,8 @@ log(
     (await page.evaluate(() => document.body.innerText.includes('On this device'))),
 )
 log(
-  'the search field says what it searches',
-  /search every word in every note/i.test(await page.evaluate(() => document.body.innerText)),
+  'searching is one press away, and says what it searches',
+  (await page.locator('[aria-label="Search every word in every note"]').count()) === 1,
 )
 log(
   'and there is a way to write one, and to record one',
@@ -582,7 +582,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     Favourites is one of those: the same notes with most of them hidden, not
     somewhere else to go.
   */
-  const places = page.locator('[role="tablist"][aria-label="Pad"]')
+  const places = page.locator('[role="tablist"][aria-label="Places"]')
   log(
     'there are three places, and Favourites is not one of them',
     (await places.locator('[role="tab"]').count()) === 3 &&
@@ -651,7 +651,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   )
   log(
     'and one search box, not two',
-    (await page.locator('button:has-text("Search every word in every note")').count()) === 0,
+    (await page.locator('[aria-label="Search every word in every note"]').count()) === 0,
   )
   /*
     No Supabase in this run, so there is nothing out there to read. What it
@@ -1052,6 +1052,10 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
 /* ---------------------------------------------------------------- search */
 
 {
+  // Search is a button in the row of tabs now, and the field it opens is
+  // the thing that says what it searches.
+  await page.locator('[aria-label="Search every word in every note"]').click()
+  await page.waitForTimeout(300)
   await page.locator('button:has-text("Search every word in every note")').click()
   await page.waitForTimeout(500)
   const panel = page.locator('[role="dialog"][aria-label="Search"]')
@@ -1871,7 +1875,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   )
   log(
     'the notes and their tabs are not on it',
-    (await page.locator('[role="tablist"][aria-label="Pad"]').count()) === 0,
+    (await page.locator('[role="tablist"][aria-label="Places"]').count()) === 0,
   )
   log(
     'and neither is the box for writing a note — the chat has its own',
@@ -1884,8 +1888,87 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await page.waitForTimeout(700)
   log(
     'and pressing Mine gives the notes back, untouched',
-    (await page.locator('[role="tablist"][aria-label="Pad"]').count()) === 1 &&
+    (await page.locator('[role="tablist"][aria-label="Places"]').count()) === 1 &&
       (await rows().count()) > 0,
+  )
+}
+
+/* -------------------------------------------------- search, behind a press */
+
+{
+  /*
+    The field used to sit across the top of every screen, spending a row on
+    a thing most people press once a day. It is a button in the row of tabs
+    now, at the end beside the World.
+  */
+  log(
+    'the search field is not there until it is asked for',
+    (await page.locator('button:has-text("Search every word in every note")').count()) === 0,
+  )
+  const ask = page.locator('[aria-label="Search every word in every note"]')
+  log('and there is a button for it, in the row of tabs', await ask.isVisible())
+  log(
+    'lined up with the World',
+    await page.evaluate(() => {
+      const world = [...document.querySelectorAll('[role="tab"]')].find((t) =>
+        (t.textContent ?? '').includes('World'),
+      )
+      const button = document.querySelector('[aria-label="Search every word in every note"]')
+      if (!world || !button) return false
+      const a = world.getBoundingClientRect()
+      const b = button.getBoundingClientRect()
+      return Math.abs(a.top - b.top) < 6
+    }),
+  )
+  await ask.click()
+  await page.waitForTimeout(350)
+  log(
+    'pressing it opens the field, which says what it searches',
+    await page.locator('button:has-text("Search every word in every note")').isVisible(),
+  )
+  await page.locator('[aria-label="Stop searching"]').click()
+  await page.waitForTimeout(350)
+  log(
+    'and it can be put away again',
+    (await page.locator('button:has-text("Search every word in every note")').count()) === 0,
+  )
+}
+
+/* ----------------------------------------------------- a note kept as a draft */
+
+{
+  /*
+    A pop-up can be closed by every accident a phone has. Three lines lost
+    that way is the worst thing this app can do, so closing keeps them.
+  */
+  await page.locator('button:has-text("Write a note…")').click()
+  await page.waitForTimeout(400)
+  await page.locator('[aria-label="What happened"]').fill('half a thought about the boiler')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(500)
+  log(
+    'closing the box keeps what was in it, and the bar says so',
+    /half a thought about the boiler/i.test(
+      await page.locator('button:has-text("half a thought")').innerText(),
+    ),
+  )
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+  log(
+    'and it survives a reload',
+    (await page.locator('button:has-text("half a thought")').count()) === 1,
+  )
+  await page.locator('button:has-text("half a thought")').click()
+  await page.waitForTimeout(500)
+  log(
+    'opening it again has the words back in the box',
+    (await page.inputValue('[aria-label="What happened"]')) === 'half a thought about the boiler',
+  )
+  await page.locator('[role="dialog"] button:has-text("Save")').click()
+  await page.waitForTimeout(1200)
+  log(
+    'and once it is a note, the draft is gone',
+    (await page.locator('button:has-text("Write a note…")').count()) === 1,
   )
 }
 
@@ -1937,7 +2020,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await page2.goto(`${URL}/t/11111111-1111-1111-1111-111111111111`, { waitUntil: 'networkidle' })
   await page2.waitForTimeout(700)
   const text2 = await page2.evaluate(() => document.body.innerText)
-  log('a team link opens a page of its own', /a team on pad/i.test(text2), text2.split('\n').slice(0, 5).join(' / '))
+  log('a team link opens a page of its own', /a team on jotter/i.test(text2), text2.split('\n').slice(0, 5).join(' / '))
   log(
     'and it says plainly that it is not a way into the team',
     /not a way into the team/i.test(text2),
@@ -1982,7 +2065,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   )
   log(
     'and it opens in its own window, under its own name',
-    mf?.display === 'standalone' && mf?.start_url === '/' && /Pad/.test(mf?.name ?? ''),
+    mf?.display === 'standalone' && mf?.start_url === '/' && /Jotter/.test(mf?.name ?? ''),
     `${mf?.display} ${mf?.name}`,
   )
   log(
@@ -1997,7 +2080,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   */
   log(
     'no install button until the browser offers one',
-    (await page.locator('[aria-label="Install Pad as an app"]').count()) === 0,
+    (await page.locator('[aria-label="Install Jotter as an app"]').count()) === 0,
   )
   await page.evaluate(() => {
     const offer = new Event('beforeinstallprompt')
@@ -2008,12 +2091,12 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     window.dispatchEvent(offer)
   })
   await page.waitForTimeout(400)
-  const install = page.locator('[aria-label="Install Pad as an app"]')
+  const install = page.locator('[aria-label="Install Jotter as an app"]')
   log('and one as soon as it does', await install.isVisible())
   log(
     'it sits at the top, beside the account',
     await page.evaluate(() => {
-      const button = document.querySelector('[aria-label="Install Pad as an app"]')
+      const button = document.querySelector('[aria-label="Install Jotter as an app"]')
       return !!button && button.getBoundingClientRect().top < 120
     }),
   )
@@ -2023,7 +2106,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   log('pressing it asks the browser to install', await page.evaluate(() => window.__prompted === true))
   log(
     'and it is gone once that is answered, rather than sitting there forever',
-    (await page.locator('[aria-label="Install Pad as an app"]').count()) === 0,
+    (await page.locator('[aria-label="Install Jotter as an app"]').count()) === 0,
   )
 }
 
@@ -2094,7 +2177,7 @@ const manifest = await page.evaluate(async () => {
   const r = await fetch('/manifest.webmanifest')
   return r.ok ? await r.json() : null
 })
-log('web manifest serves', !!manifest && manifest.name?.includes('Pad'))
+log('web manifest serves', !!manifest && manifest.name?.includes('Jotter'))
 const swRegistered = await page.evaluate(async () => {
   const regs = await navigator.serviceWorker.getRegistrations()
   return regs.length > 0

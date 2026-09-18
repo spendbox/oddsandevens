@@ -2,6 +2,7 @@
 
 import { Download, X } from 'lucide-react'
 import { useRef, useState } from 'react'
+import { APP_NAME } from '@/lib/app'
 import { askToInstall, useInstall } from '@/lib/install'
 import { useDismiss } from './dismiss'
 
@@ -49,8 +50,8 @@ export default function InstallButton() {
           if (manual) setShowing((on) => !on)
           else void askToInstall()
         }}
-        aria-label="Install Pad as an app"
-        title="Install Pad as an app"
+        aria-label={`Install ${APP_NAME} as an app`}
+        title={`Install ${APP_NAME} as an app`}
         className="flex items-center gap-1.5 rounded-full border border-[var(--color-line)] px-3 py-1.5 text-[13px] text-[var(--color-muted)] hover:border-[var(--color-faint)] hover:text-[var(--color-ink)]"
       >
         <Download size={14} />
@@ -79,7 +80,7 @@ export default function InstallButton() {
           >
             <X size={15} />
           </button>
-          <p className="text-[13px] font-medium">Add Pad to your home screen</p>
+          <p className="text-[13px] font-medium">Add {APP_NAME} to your home screen</p>
           <p className="mt-1 text-[12px] leading-relaxed text-[var(--color-muted)]">
             Press <span className="font-medium text-[var(--color-ink)]">Share</span> at the bottom
             of the browser, then{' '}
