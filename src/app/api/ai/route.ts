@@ -9,9 +9,10 @@ import { NextResponse } from 'next/server'
  * That is the whole reason this is a route rather than a direct call from the
  * editor, and why the key is read from the environment here and nowhere else.
  *
- * Three things go through it, and nothing else: turning a page of notes into a
- * plan, answering a question from extracts of somebody's own notes, and giving
- * a batch of imported files better titles. It used to rewrite prose as well —
+ * Four things go through it, and nothing else: writing up a note somebody
+ * dashed off into the box, tidying a transcript of what was said, answering a
+ * question from extracts of somebody's own notes, and putting the outstanding
+ * things across every note into an order. It used to rewrite prose as well —
  * expand this, tidy that — and that whole vocabulary is gone: an editor that
  * rewrites the sentence you are in the middle of is one people switch off, and
  * what a page of notes is actually for is reading it back and deciding what
@@ -19,8 +20,10 @@ import { NextResponse } from 'next/server'
  *
  * Like every other optional piece of this app, it degrades rather than breaks.
  * With no key the GET below reports `configured: false`, and every caller has
- * an answer it can produce on the device: local titles in the Library, and a
- * plan read off the words with `lib/plan.ts`.
+ * an answer it can produce on the device: a name taken from the opening line,
+ * a transcript written in as it was heard, and the Actions tab’s own list,
+ * which is read off the notes by `lib/actions.ts` before the model is asked
+ * anything at all.
  *
  * ## Which model
  *
@@ -375,6 +378,67 @@ async function ask(question: string, sources: Source[]) {
   return NextResponse.json({ text })
 }
 
+/**
+ * Everything still to be done, sharpened.
+ *
+ * ## What the model is and is not doing here
+ *
+ * The list already exists without it. `lib/actions.ts` reads every note on the
+ * device and comes back with the boxes nobody has ticked and the lines that
+ * read like commitments — free, offline, instant, and the same every time. So
+ * this is not what makes the Actions tab work; it is what makes it worth
+ * reading when there are forty items on it, which is the point at which a list
+ * of everything stops being a list of what to do.
+ *
+ * It is pressed, never automatic. Somebody with nine hundred notes should not
+ * be charged for a request every time they glance at a tab, and a screen that
+ * cannot be opened without a network is not a screen this app is allowed to
+ * have.
+ *
+ * ## What it is given
+ *
+ * The lines and the names of the notes they came from, and nothing else — see
+ * `digest` in lib/actions.ts. Not the notes. The collection does not leave the
+ * machine to be told what to do next, for the same reason it does not leave it
+ * to be searched.
+ */
+const ACTIONS_SYSTEM =
+  'Somebody keeps their notes in a notes app. It has read all of them and pulled out every ' +
+  'unticked box and every line that reads like something they said they would do. You are ' +
+  'given that list and you tell them what to do about it.\n\n' +
+  'Return ONLY markdown, in this shape:\n' +
+  '- Three to six "- " bullets, each one thing to do, most pressing first.\n' +
+  '- Start each bullet with the thing itself, in the imperative. Where the list gives a day ' +
+  'or a date, put it at the end in brackets, in the words it was written in.\n' +
+  '- Where several items are plainly the same piece of work, say so in one bullet rather ' +
+  'than repeating them.\n' +
+  '- If something in the list looks stale or already done, you may say so in its bullet. Say ' +
+  'it plainly; do not guess at why.\n\n' +
+  'Rules, in order of importance:\n' +
+  '1. Add nothing. Every task, name, number and date you return must be in the list you were ' +
+  'given. You are ordering and grouping what is there, not thinking of more.\n' +
+  '2. No preamble, no heading, no closing remark, no offer of further help.\n' +
+  '3. No assessment of how much they have to do and no encouragement. They can see the list.\n' +
+  '4. Keep the language the list is written in.'
+
+/** A list of what is outstanding in; a short, ordered read of it out. */
+async function actions(list: string) {
+  const text = await complete({
+    system: ACTIONS_SYSTEM,
+    user:
+      `Today is ${new Date().toISOString().slice(0, 10)}.\n\n` +
+      `Everything outstanding across my notes:\n\n${list}`,
+    maxTokens: 1200,
+    // Deciding what matters most out of forty half-related lines is a
+    // judgement, which is the one kind of thing worth paying the extra for.
+    effort: 'high',
+  })
+  if (!text) {
+    return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
+  }
+  return NextResponse.json({ text })
+}
+
 export async function POST(request: Request) {
   if (!configured()) {
     return NextResponse.json(
@@ -399,6 +463,8 @@ export async function POST(request: Request) {
     text?: string
     title?: string
     question?: string
+    /** The outstanding list, when the action is 'actions'. */
+    list?: string
     sources?: Source[]
     /** Whether a transcript was a meeting rather than a dictated paragraph. */
     meeting?: boolean
@@ -440,9 +506,24 @@ export async function POST(request: Request) {
   }
 
   /*
-    Filing a batch of freshly imported documents. Only the opening of each one
-    is sent — enough to say what a thing is, which is all a title needs.
+    What to do next, read off the list of everything outstanding. Only the
+    lines go — never the notes they came out of.
   */
+  if (body.action === 'actions') {
+    const list = (body.list ?? '').trim()
+    if (!list) {
+      return NextResponse.json({ error: 'There is nothing outstanding.' }, { status: 400 })
+    }
+    if (list.length > MAX_INPUT_CHARS) {
+      return NextResponse.json({ error: 'Too much at once.' }, { status: 413 })
+    }
+    try {
+      return await actions(list)
+    } catch (error) {
+      return failure(error)
+    }
+  }
+
   /*
     A note typed into the box, written up. The one action here that makes a
     note rather than reading one back.

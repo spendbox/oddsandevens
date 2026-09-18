@@ -1,11 +1,16 @@
 'use client'
 
-import { Pencil, Search, Star } from 'lucide-react'
+import { Check, ListChecks, Pencil, Search, Star } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { PastedBlock } from '@/lib/paste'
 import type { Doc } from '@/lib/types'
 import { byDay } from '@/lib/when'
+import { docLabel } from '@/lib/blocks'
+import { greeting, nameFromEmail } from '@/lib/name'
+import { useName } from '@/lib/profile'
 import AccountButton, { type Account } from './account'
+import ActionsPanel from './actions-panel'
+import Confirm from './confirm'
 import DictationButton from './dictation-button'
 import NoteRow from './note-row'
 import TrashSection from './trash-section'
@@ -25,12 +30,16 @@ import type { SyncState } from '@/lib/sync'
  * the front page, writing is one press from it, and the note you were in is
  * the first row.
  *
- * ## Two tabs, and why favourites is one of them
+ * ## Three tabs, and why each of them is one
  *
- * Notes and Favourites. A favourite is not a shelf at the top of a list —
- * that is what it was, and it pushed everything else down while answering a
- * question nobody was asking. It is a *different list*: the handful you keep
- * coming back to, which is exactly what a tab is for.
+ * Notes, Favourites and Actions. A favourite is not a shelf at the top of a
+ * list — that is what it was, and it pushed everything else down while
+ * answering a question nobody was asking. It is a *different list*: the
+ * handful you keep coming back to, which is exactly what a tab is for.
+ *
+ * Actions is the same argument made about a different question. What is still
+ * to be done is written across forty notes, one line at a time, and no amount
+ * of scrolling the notes answers it. See `actions-panel.tsx`.
  *
  * ## Days, not a wall
  *
@@ -56,7 +65,7 @@ import type { SyncState } from '@/lib/sync'
 
 /** How many rows are rendered at once, and how many more each time. */
 const PAGE = 10
-export type NotesTab = 'notes' | 'favourites'
+export type NotesTab = 'notes' | 'favourites' | 'actions'
 
 export interface NotesScreenProps {
   docs: Doc[]
@@ -68,6 +77,10 @@ export interface NotesScreenProps {
   onSearch: () => void
   onFavorite: (id: string, favorite: boolean) => void
   onDelete: (id: string) => void
+  /** Ticks a box from the Actions tab, in the note it lives in. */
+  onTick: (docId: string, blockId: string) => void
+  /** Turns a line of prose into a box, in the note it lives in. */
+  onMakeBox: (docId: string, blockId: string) => void
   onRestore: (id: string) => void
   onPurge: (id: string) => void
   onEmptyTrash: () => void
@@ -93,6 +106,8 @@ export default function NotesScreen({
   onSearch,
   onFavorite,
   onDelete,
+  onTick,
+  onMakeBox,
   onRestore,
   onPurge,
   onEmptyTrash,
@@ -104,6 +119,15 @@ export default function NotesScreen({
   onSignedOut,
   onSyncNow,
 }: NotesScreenProps) {
+  /*
+    What to call them. What they have typed wins; otherwise it is worked out
+    from the account's email, which is a good guess and never a certainty —
+    see lib/name.ts. With neither, the greeting is "Hi there" rather than a
+    greeting addressed to nobody.
+  */
+  const { name: chosen, set: setName } = useName()
+  const name = chosen || nameFromEmail(account?.email ?? '')
+
   const live = docs.filter((doc) => !doc.deletedAt)
   const favourites = live
     .filter((doc) => doc.favoritedAt)
@@ -148,13 +172,21 @@ export default function NotesScreen({
 
   const groups = byDay(page)
 
+  /*
+    The note a swipe or a bin has offered up for deletion, and nothing has
+    happened to yet. Asking is one dialog rather than a flag on the row: see
+    confirm.tsx for why an inline question is the wrong shape in a list
+    somebody is scrolling.
+  */
+  const [doomed, setDoomed] = useState<Doc | null>(null)
+
   return (
     <div className="min-h-dvh bg-[var(--color-paper)]">
       {/* The bottom padding clears the bar, and a phone's home indicator. */}
       <div className="mx-auto w-full max-w-3xl px-4 pb-32 sm:px-8 sm:pb-32">
         {/*
-          The name of the screen, the search field and the two tabs stay at the
-          top while the notes scroll under them.
+          The greeting, the search field and the tabs stay at the top while
+          the notes scroll under them.
 
           They are one sticky block rather than three, because three things
           that stick at three different offsets is three numbers to keep in
@@ -165,9 +197,7 @@ export default function NotesScreen({
         */}
         <header className="sticky top-0 z-20 bg-[var(--color-paper)] pt-5 sm:pt-8">
           <div className="mb-4 flex items-center gap-2">
-          <h1 className="pad-serif text-[30px] font-semibold tracking-tight sm:text-[34px]">
-            Notes
-          </h1>
+            <Greeting name={name} onName={setName} />
           {/*
             Signing in, where it can be found.
 
@@ -219,10 +249,25 @@ export default function NotesScreen({
             label="Favourites"
             count={favourites.length}
           />
+          <Tab
+            id="actions"
+            current={tab}
+            onTab={onTab}
+            icon={<ListChecks size={14} />}
+            label="Actions"
+          />
         </div>
         </header>
 
-        {listed.length === 0 ? (
+        {tab === 'actions' ? (
+          <ActionsPanel
+            docs={live}
+            aiReady={aiReady}
+            onOpen={onOpen}
+            onTick={onTick}
+            onMakeBox={onMakeBox}
+          />
+        ) : listed.length === 0 ? (
           <p className="py-12 text-center text-[15px] text-[var(--color-faint)]">
             {tab === 'favourites'
               ? 'Star a note and it will be here.'
@@ -247,7 +292,7 @@ export default function NotesScreen({
                       doc={doc}
                       onOpen={onOpen}
                       onFavorite={onFavorite}
-                      onDelete={onDelete}
+                      onDelete={(id) => setDoomed(live.find((d) => d.id === id) ?? null)}
                     />
                   ))}
                 </ul>
@@ -299,6 +344,17 @@ export default function NotesScreen({
         </div>
       </div>
 
+      <Confirm
+        open={!!doomed}
+        title={doomed ? `Delete “${docLabel(doomed)}”?` : ''}
+        body="It goes to the trash, and stays there for 7 days."
+        onCancel={() => setDoomed(null)}
+        onConfirm={() => {
+          if (doomed) onDelete(doomed.id)
+          setDoomed(null)
+        }}
+      />
+
       {/*
         The recorder, in the corner it is in everywhere else in this app. Here
         what is said becomes a new note rather than going into an open one —
@@ -307,6 +363,74 @@ export default function NotesScreen({
       */}
       <DictationButton title="" aiReady={aiReady} onWrite={onRecord} />
     </div>
+  )
+}
+
+/**
+ * "Hi, Ada", and a pencil to correct it.
+ *
+ * Editing happens in place — the heading becomes a field of the same size in
+ * the same spot — rather than opening a dialog to change one word. Escape puts
+ * it back, Return keeps it, and leaving the field keeps it too, because a name
+ * somebody typed and then tapped away from is a name they meant.
+ */
+function Greeting({ name, onName }: { name: string; onName: (name: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(name)
+
+  const start = () => {
+    setDraft(name)
+    setEditing(true)
+  }
+  const keep = () => {
+    onName(draft)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <span className="flex min-w-0 flex-1 items-center gap-1">
+        <input
+          autoFocus
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') keep()
+            if (event.key === 'Escape') setEditing(false)
+          }}
+          onBlur={keep}
+          aria-label="Your name"
+          placeholder="Your name"
+          maxLength={24}
+          className="pad-serif min-w-0 flex-1 border-b border-[var(--color-accent)] bg-transparent text-[30px] font-semibold tracking-tight outline-none sm:text-[34px]"
+        />
+        <button
+          type="button"
+          onClick={keep}
+          aria-label="Save your name"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--color-accent)] hover:bg-[var(--color-hover)]"
+        >
+          <Check size={18} />
+        </button>
+      </span>
+    )
+  }
+
+  return (
+    <span className="flex min-w-0 items-center gap-1">
+      <h1 className="pad-serif min-w-0 truncate text-[30px] font-semibold tracking-tight sm:text-[34px]">
+        {greeting(name)}
+      </h1>
+      <button
+        type="button"
+        onClick={start}
+        aria-label="Change your name"
+        title="Change your name"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+      >
+        <Pencil size={14} />
+      </button>
+    </span>
   )
 }
 

@@ -100,8 +100,13 @@ await page.screenshot({ path: `${SHOTS}/01-first-open.png` })
 
 log(
   'the app opens on the notes, not inside a note',
-  (await page.locator('h1:has-text("Notes")').isVisible()) &&
+  (await page.locator('[role="tab"]:has-text("Notes")').first().isVisible()) &&
     (await page.locator('[aria-label="Back to notes"]').count()) === 0,
+)
+log(
+  'and the top of it greets you rather than labelling itself',
+  /^Hi\b/.test(await page.locator('h1').first().innerText()),
+  await page.locator('h1').first().innerText(),
 )
 log(
   'an empty collection says what this screen is for',
@@ -420,6 +425,36 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     JSON.stringify(await lines()),
   )
   await page.screenshot({ path: `${SHOTS}/06-tick.png` })
+
+  /*
+    Writing down past the bottom of the window. The page has to come with the
+    caret: an editor where you type yourself off the screen is one you cannot
+    write more than a screenful in.
+  */
+  await page.locator('[role="textbox"] [data-block-id]').last().click()
+  await page.keyboard.press('Control+End')
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press('Enter')
+    await page.keyboard.type(`line number ${i}`)
+  }
+  await page.waitForTimeout(600)
+  log(
+    'typing past the bottom of the window brings the page with it',
+    await page.evaluate(() => {
+      const range = window.getSelection()?.getRangeAt(0)
+      if (!range) return false
+      const rect = range.getBoundingClientRect()
+      const bottom = rect.bottom || rect.top
+      return bottom > 0 && bottom < window.innerHeight
+    }),
+    `scrolled to ${await page.evaluate(() => Math.round(window.scrollY))}`,
+  )
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press('Control+Z')
+  }
+  await page.waitForTimeout(600)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.waitForTimeout(300)
 }
 
 /* ------------------------------------------- formatting, on a selection only */
@@ -443,7 +478,21 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     document.dispatchEvent(new Event('selectionchange'))
   })
   await page.waitForTimeout(500)
-  log('selecting words brings it up, over the words', await bar.isVisible())
+  log('selecting words brings it up', await bar.isVisible())
+  /*
+    Under the words, not over them. A bar above the selection covers the line
+    being read on a phone, where the thumb is already below and the hand is
+    already over the bottom half of the screen.
+  */
+  log(
+    'and it sits under the selection rather than on top of it',
+    await page.evaluate(() => {
+      const el = document.querySelector('[role="toolbar"][aria-label="Selection formatting"]')
+      const words = window.getSelection()?.getRangeAt(0).getBoundingClientRect()
+      if (!el || !words) return false
+      return el.getBoundingClientRect().top >= words.bottom - 1
+    }),
+  )
   log(
     'it carries the marks and the line styles',
     (await bar.locator('button').count()) >= 10,
@@ -520,7 +569,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
 /* ------------------------------------------------------------- favourites */
 
 {
-  log('favourites is a tab of its own', (await page.locator('[role="tab"]').count()) === 2)
+  log('favourites is a tab of its own', (await page.locator('[role="tab"]').count()) === 3)
   await page.locator('[role="tab"]:has-text("Favourites")').click()
   await page.waitForTimeout(400)
   log(
@@ -546,6 +595,95 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await page.locator('li [aria-label^="Remove"]').first().click()
   await page.waitForTimeout(600)
   log('and can be taken off again', (await rows().count()) === 0)
+  await page.locator('[role="tab"]:has-text("Notes")').click()
+  await page.waitForTimeout(400)
+}
+
+/* ----------------------------------------------------------- the greeting */
+
+{
+  log(
+    'the greeting can be corrected with one press',
+    await page.locator('[aria-label="Change your name"]').isVisible(),
+  )
+  await page.locator('[aria-label="Change your name"]').click()
+  await page.waitForTimeout(300)
+  log(
+    'which turns it into a field, already focused',
+    await page.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Your name'),
+  )
+  await page.keyboard.type('Ada')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(400)
+  log(
+    'and what is typed is what it says',
+    (await page.locator('h1').first().innerText()).trim() === 'Hi, Ada',
+    await page.locator('h1').first().innerText(),
+  )
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+  log(
+    'a name survives a reload',
+    (await page.locator('h1').first().innerText()).trim() === 'Hi, Ada',
+  )
+}
+
+/* ------------------------------------------------------------- the actions */
+
+{
+  await page.locator('[role="tab"]:has-text("Actions")').click()
+  await page.waitForTimeout(600)
+  const text = () => page.evaluate(() => document.body.innerText)
+  log('actions is a tab of its own', await page.locator('[role="tab"]:has-text("Actions")').isVisible())
+  log(
+    'and it has read every note, not the open one',
+    /still to do|looks like something to do|tick boxes into your notes/i.test(await text()),
+    (await text()).split('\n').slice(0, 12).join(' / '),
+  )
+  await page.screenshot({ path: `${SHOTS}/07-actions.png` })
+
+  const box = page.locator('[aria-label^="Tick"]').first()
+  if (await box.count()) {
+    const before = await box.getAttribute('aria-label')
+    const said = before.replace(/^Tick .|.$/g, '')
+    log('an unticked box from any note is on the list', true, before)
+    log(
+      'and every row says which note it came from',
+      (await page.locator('li button').count()) > 0,
+    )
+    await box.click()
+    await page.waitForTimeout(900)
+    log(
+      'ticking it here takes it off the list',
+      !(await page.locator('[aria-label^="Tick"]').allTextContents()).join(' ').includes(said) &&
+        (await page.locator(`[aria-label="${before}"]`).count()) === 0,
+      said,
+    )
+    await page.reload({ waitUntil: 'networkidle' })
+    await page.waitForTimeout(900)
+    await page.locator('[role="tab"]:has-text("Actions")').click()
+    await page.waitForTimeout(600)
+    log(
+      'because it was written into the note, so a reload agrees',
+      (await page.locator(`[aria-label="${before}"]`).count()) === 0,
+    )
+  } else {
+    log('an unticked box from any note is on the list', false, 'no box found')
+  }
+
+  // A line of prose this app thinks is a commitment. It is offered, never taken.
+  const offer = page.locator('[aria-label^="Make "]').first()
+  if (await offer.count()) {
+    const label = await offer.getAttribute('aria-label')
+    log('prose that reads like a task is offered, with a reason beside it', true, label)
+    await offer.click()
+    await page.waitForTimeout(900)
+    log(
+      'and accepting it makes that line a box in the note it is already in',
+      (await page.locator('[aria-label^="Tick"]').count()) > 0,
+    )
+  }
+
   await page.locator('[role="tab"]:has-text("Notes")').click()
   await page.waitForTimeout(400)
 }
@@ -629,7 +767,10 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   )
   await page.locator('[role="menu"] button:has-text("Delete")').last().click()
   await page.waitForTimeout(900)
-  log('and it goes back to the notes, without that one', (await page.locator('h1:has-text("Notes")').isVisible()))
+  log(
+    'and it goes back to the notes, without that one',
+    await page.locator('[role="tab"]:has-text("Notes")').first().isVisible(),
+  )
   log(
     'the note is gone from the list',
     !/kitchen tap/i.test(await page.locator('ul').first().innerText()),
@@ -778,9 +919,41 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     await page.waitForTimeout(30)
   }
   await page.mouse.up()
-  await page.waitForTimeout(900)
+  await page.waitForTimeout(500)
   log(
-    'and letting go past the line deletes it',
+    'letting go past the line asks before it deletes',
+    (await page.locator('[role="dialog"][aria-label^="Delete"]').count()) === 1 &&
+      (await page.locator('ul').first().innerText()).includes(name),
+    name,
+  )
+  log(
+    'and the harmless answer has the focus, so Return keeps the note',
+    await page.evaluate(() => document.activeElement?.textContent?.trim() === 'Keep it'),
+  )
+  await page.locator('[role="dialog"] button:has-text("Keep it")').click()
+  await page.waitForTimeout(500)
+  log(
+    'saying no keeps it',
+    (await page.locator('ul').first().innerText()).includes(name),
+  )
+
+  // And again, all the way through this time.
+  {
+    const again = page.locator('li').first()
+    const there = await again.boundingBox()
+    await page.mouse.move(there.x + 300, there.y + 20)
+    await page.mouse.down()
+    for (let x = 20; x <= 160; x += 20) {
+      await page.mouse.move(there.x + 300 - x, there.y + 20)
+      await page.waitForTimeout(30)
+    }
+    await page.mouse.up()
+    await page.waitForTimeout(400)
+    await page.locator('[role="dialog"] button:has-text("Delete")').click()
+    await page.waitForTimeout(900)
+  }
+  log(
+    'and saying yes deletes it',
     !(await page.locator('ul').first().innerText()).includes(name),
     name,
   )
@@ -811,9 +984,22 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   const third = page.locator('li').first()
   const doomed = (await third.innerText()).split('\n')[0]
   await third.locator('[aria-label^="Delete"]').click()
+  await page.waitForTimeout(400)
+  log(
+    'the same delete is a button on the row, and asks too',
+    (await page.locator('[role="dialog"][aria-label^="Delete"]').count()) === 1,
+  )
+  log(
+    'and the question names the note it is about',
+    (await page.locator('[role="dialog"][aria-label^="Delete"]').getAttribute('aria-label')).includes(
+      doomed.slice(0, 12),
+    ),
+    doomed,
+  )
+  await page.locator('[role="dialog"] button:has-text("Delete")').click()
   await page.waitForTimeout(800)
   log(
-    'the same delete is a button on the row',
+    'and then it goes',
     !(await page.locator('ul').first().innerText()).includes(doomed),
     doomed,
   )
@@ -832,7 +1018,10 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     'nothing runs off the side of a phone',
     await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   )
-  log('the notes fill the screen', (await mobile.locator('h1:has-text("Notes")').isVisible()))
+  log(
+    'the notes fill the screen',
+    await mobile.locator('[role="tab"]:has-text("Notes")').first().isVisible(),
+  )
   log(
     'the bar to write a note is fixed to the bottom, where a thumb is',
     await mobile.evaluate(() => {
@@ -847,6 +1036,19 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
 
   await write('a note written on a phone', mobile)
   log('and a note can be written on it', /written on a phone/i.test(await mobile.locator('ul').first().innerText()))
+  /*
+    No bin on the row here. There is no hover on a touch screen, so a button
+    that reveals itself on hover is a button that is simply always there —
+    forty small destructive controls under a scrolling thumb. The swipe is the
+    gesture on a phone, and the note's own ⋯ is the other way in.
+  */
+  log(
+    'the bin is not on every row on a phone; the swipe is the gesture there',
+    await mobile.evaluate(() => {
+      const bins = [...document.querySelectorAll('li [aria-label^="Delete"]')]
+      return bins.every((el) => el.getBoundingClientRect().width === 0)
+    }),
+  )
   await mobile.locator('li button').first().click()
   await mobile.waitForTimeout(800)
   const bar = await mobile.locator('[role="toolbar"]').boundingBox()

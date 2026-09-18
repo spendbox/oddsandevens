@@ -61,7 +61,7 @@ export default function FormatToolbar({
   /** Changes the kind of the line the selection is in. */
   onStyle: (choice: StyleChoice) => void
 }) {
-  const [box, setBox] = useState<{ top: number; left: number } | null>(null)
+  const [box, setBox] = useState<{ top: number; bottom: number; left: number } | null>(null)
   const [marks, setMarks] = useState({
     bold: false,
     italic: false,
@@ -93,7 +93,7 @@ export default function FormatToolbar({
       strike: document.queryCommandState('strikeThrough'),
       code: !!el.closest('code'),
     })
-    setBox({ top: rect.top, left: rect.left + rect.width / 2 })
+    setBox({ top: rect.top, bottom: rect.bottom, left: rect.left + rect.width / 2 })
   }, [scope])
 
   useEffect(() => {
@@ -120,12 +120,21 @@ export default function FormatToolbar({
       // Fixed, because the coordinates come from getBoundingClientRect, which
       // is already relative to the viewport.
       /*
-        Kept on the screen. Centring it on the selection is right until the
-        selection is near an edge, where half the bar ends up outside the
-        window — so the centre is clamped to half a bar's width from either
-        side. The width is the eleven controls below at 28px plus the padding.
+        Under the words, not over them.
+
+        Above the selection is where a bar like this usually goes, and it is
+        the wrong place here: it covers the line above — which on a phone,
+        where the selection is made with a thumb, is often the line somebody is
+        comparing against. Under it, the highlighted words stay visible the
+        whole time they are being formatted. Only when there is no room below
+        does it go back above, which is the one case where covering something
+        is better than being off the screen.
+
+        Kept on the screen sideways for the same reason: centring on the
+        selection is right until the selection is near an edge, so the centre
+        is clamped to half a bar's width from either side.
       */
-      style={{ top: Math.max(8, box.top - 46), left: clamp(box.left) }}
+      style={{ top: below(box), left: clamp(box.left) }}
       className="fixed z-50 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] p-1 shadow-lg"
     >
       <Mark label="Bold" active={marks.bold} onRun={() => applyFormat('bold')}>
@@ -217,6 +226,16 @@ function headingToggle(target: StyleChoice | null, level: 1 | 2): StyleChoice {
 
 /** Half the bar's width, so neither end can leave the window. */
 const HALF_BAR = 170
+/** The bar's own height, plus the gap it keeps from the words. */
+const BAR = 46
+
+/** Under the selection, or above it when there is no room under. */
+function below(box: { top: number; bottom: number }): number {
+  const room = typeof window === 'undefined' ? 0 : window.innerHeight
+  const under = box.bottom + 8
+  if (!room || under + BAR <= room) return under
+  return Math.max(8, box.top - BAR)
+}
 
 function clamp(left: number): number {
   const width = typeof window === 'undefined' ? 0 : window.innerWidth
