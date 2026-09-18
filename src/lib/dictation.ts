@@ -1,21 +1,29 @@
 /**
  * Speech into a document.
  *
- * ## Why the browser does the listening
+ * ## Who listens, and when
  *
- * Every browser people actually use — Chrome, Edge, Safari, and Chrome on
- * Android — already has a speech recogniser built in, and it is free, live and
- * costs nothing to download. Uploading audio to a transcription service is
- * more accurate and is the obvious thing to reach for, and it is also money
- * per minute of every meeting anybody ever records, a file upload on a phone
- * connection, and a wait at the end instead of words appearing as they are
- * said. The recogniser that is already installed wins on cost, on latency and
- * on weight, which is three of the four; the model then makes up most of the
- * difference on the fourth by tidying what came back.
+ * Both, and they are doing different jobs. The browser's own recogniser —
+ * Chrome, Edge, Safari, Chrome on Android — runs while somebody is talking:
+ * free, live, nothing to download, and the only one of the two that can
+ * answer the question people actually have while recording, which is not "is
+ * it on" but "is it hearing me".
  *
- * That is the same bargain as everything else here: it works with no key, no
- * account and no network round trip, and the model improves the result rather
- * than being the reason there is one.
+ * What it hands back, though, is a stream of guesses. No punctuation it did
+ * not invent, names and figures replaced by whatever sounded nearest, and
+ * whole phrases lost when two people talk across each other. For a dictated
+ * sentence that is fine; for a meeting it is a page of approximate words, and
+ * approximately what was said is the one thing a meeting note must not be.
+ *
+ * So the microphone is recorded as well and the audio is transcribed properly
+ * when the recording stops — see lib/recorder.ts and lib/transcribe.ts. It
+ * costs money per minute, so it happens only where a key is configured, and
+ * the live words are the fallback rather than the discard: no key, a refused
+ * microphone, a failed upload, and what the browser heard is what goes in.
+ *
+ * That keeps the bargain the rest of the app makes. It works with no key, no
+ * account and no network; the model makes it accurate rather than being the
+ * reason there is anything at all.
  *
  * ## Why this file has no DOM in it
  *

@@ -44,6 +44,7 @@ export default function Editor({
   onRedo,
   externalRevision = 0,
   aiReady,
+  transcribes,
   onBack,
   onFavorite,
   onIgnoreTasks,
@@ -67,6 +68,8 @@ export default function Editor({
   externalRevision?: number
   /** Whether the model is configured. Asked once, by the workspace. */
   aiReady: boolean
+  /** Whether a recording can be transcribed properly rather than only heard. */
+  transcribes: boolean
   /** Back to the notes. */
   onBack: () => void
   onFavorite: (favorite: boolean) => void
@@ -316,6 +319,7 @@ export default function Editor({
         <DictationButton
           title={doc.title}
           aiReady={aiReady}
+          transcribes={transcribes}
           onWrite={(pasted) => {
             if (!pasted.length) return
             const created = pasted.map((item) => {

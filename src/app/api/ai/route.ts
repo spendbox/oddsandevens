@@ -56,6 +56,23 @@ import { NextResponse } from 'next/server'
  * money for nothing.
  */
 const MODEL = 'gpt-4o'
+/**
+ * What actually listens to the audio, when there is audio to listen to.
+ *
+ * The browser's own recogniser is still what runs while somebody is talking:
+ * it is free, it is live, and it is the only thing that can answer "is it
+ * hearing me" as they speak. But what it hands back is a stream of guesses
+ * with no punctuation, and it mis-hears names, numbers and anything said
+ * across another voice — which in a meeting is most of it. So the audio is
+ * kept as well, and this is what it is sent to when the recording stops.
+ *
+ * `gpt-4o-transcribe` rather than `whisper-1`: better on names and accents,
+ * and the same endpoint. Older accounts may not have it, so a model that
+ * comes back unknown falls through to Whisper rather than costing somebody
+ * their recording.
+ */
+const TRANSCRIBE_MODEL = 'gpt-4o-transcribe'
+const TRANSCRIBE_FALLBACK = 'whisper-1'
 /** The Anthropic fallback, for the reading jobs. Small, quick and cheap. */
 const FALLBACK_MODEL = 'claude-haiku-4-5-20251001'
 /** And for the two that are a judgement rather than a reading. */
@@ -75,7 +92,13 @@ export const dynamic = 'force-dynamic'
  * limiter in front.
  */
 const WINDOW_MS = 60_000
-const MAX_PER_WINDOW = 20
+/*
+  Raised from 20 when transcription arrived. A long recording is uploaded a
+  piece at a time the moment it stops — twelve pieces for an hour — and each
+  piece is a request, so the old limit turned "you recorded a long meeting"
+  into "that is a lot of requests at once".
+*/
+const MAX_PER_WINDOW = 40
 const seen = new Map<string, { count: number; until: number }>()
 
 function overLimit(key: string): boolean {
@@ -114,9 +137,22 @@ function configured(): boolean {
   return openAiKey() !== null || anthropicKey() !== null
 }
 
-/** Lets the interface know whether to offer this at all. */
+/**
+ * Whether audio can be transcribed, which is a narrower question than whether
+ * a model is configured at all.
+ *
+ * Only OpenAI is asked to listen to anything. The Anthropic fallback has no
+ * transcription endpoint, so a copy of Pad with only an `ANTHROPIC_API_KEY`
+ * keeps the browser's recogniser and everything downstream of it — which is
+ * exactly how the whole app behaved before this existed.
+ */
+function transcribes(): boolean {
+  return openAiKey() !== null
+}
+
+/** Lets the interface know what to offer at all. */
 export async function GET() {
-  return NextResponse.json({ configured: configured() })
+  return NextResponse.json({ configured: configured(), transcribes: transcribes() })
 }
 
 const DICTATION_SYSTEM =
@@ -467,7 +503,115 @@ async function actions(list: string) {
   return NextResponse.json({ text })
 }
 
+/**
+ * The largest piece of audio this will take in one request.
+ *
+ * Not a guess: a serverless function's request body is capped at around
+ * 4.5MB, and a request over it is refused by the platform before any of this
+ * runs — which would look like transcription silently failing. The recorder
+ * cuts a recording into pieces well under this (see lib/recorder.ts), so the
+ * limit is a backstop rather than something anybody meets.
+ */
+const MAX_AUDIO_BYTES = 4_000_000
+
+/**
+ * One piece of a recording, listened to properly.
+ *
+ * ## Why this exists when the browser already heard it
+ *
+ * The browser's recogniser is free and live and genuinely good at a quiet
+ * person dictating a sentence. It is not good at a meeting: no punctuation,
+ * no paragraph it did not invent, and names, figures and anything said over
+ * another voice come back as whatever was nearest. Sending the audio costs
+ * money per minute — which is why it is not the only path and never runs
+ * without a key — and it is the difference between a record of a meeting and
+ * a page of approximate words.
+ *
+ * What the reader gets is both: the live words while they talk, from the
+ * browser, and this when they stop. If this fails, for any reason, the words
+ * the browser heard are what goes into the note. A recording must never be
+ * lost to a request.
+ */
+async function transcribe(file: File, language: string) {
+  const key = openAiKey()
+  if (!key) {
+    return NextResponse.json(
+      { error: 'Transcription needs an OPENAI_API_KEY. The words heard in the browser were kept.' },
+      { status: 501 },
+    )
+  }
+  if (file.size > MAX_AUDIO_BYTES) {
+    return NextResponse.json({ error: 'That piece of audio is too large.' }, { status: 413 })
+  }
+  if (!file.size) {
+    return NextResponse.json({ error: 'That piece of audio was empty.' }, { status: 400 })
+  }
+
+  const client = new OpenAI({ apiKey: key })
+  const ask = (model: string) =>
+    client.audio.transcriptions.create({
+      file,
+      model,
+      // Told rather than guessed at, when the browser knows. A recogniser
+      // left to detect the language will occasionally decide a quiet English
+      // sentence is Welsh and translate it.
+      ...(language ? { language } : {}),
+      response_format: 'text',
+    })
+
+  let text: string
+  try {
+    text = String(await ask(TRANSCRIBE_MODEL))
+  } catch (error) {
+    // An account without the newer model gets Whisper rather than nothing.
+    // Anything else is a real failure and is reported as one.
+    const unknown =
+      error instanceof OpenAI.NotFoundError ||
+      (error instanceof OpenAI.APIError && /model/i.test(error.message ?? ''))
+    if (!unknown) throw error
+    text = String(await ask(TRANSCRIBE_FALLBACK))
+  }
+
+  return NextResponse.json({ text: text.trim() })
+}
+
 export async function POST(request: Request) {
+  /*
+    Audio arrives as a form rather than as JSON, because a few hundred
+    kilobytes of Opus base64-encoded into a JSON string is a third larger for
+    no reason. It is the one request to this route that is not JSON, so it is
+    picked off by its content type before the body is parsed.
+  */
+  if ((request.headers.get('content-type') ?? '').includes('multipart/form-data')) {
+    if (!transcribes()) {
+      return NextResponse.json(
+        { error: 'Transcription is not set up on this copy of Pad.' },
+        { status: 501 },
+      )
+    }
+    if (overLimit(clientKey(request))) {
+      return NextResponse.json(
+        { error: 'That is a lot of requests at once. Try again in a minute.' },
+        { status: 429 },
+      )
+    }
+    try {
+      const form = await request.formData()
+      const audio = form.get('audio')
+      if (!(audio instanceof File)) {
+        return NextResponse.json({ error: 'No audio arrived.' }, { status: 400 })
+      }
+      // Only the base language, because that is all the API takes: "en-GB"
+      // from a browser is "en" here.
+      const language = String(form.get('language') ?? '')
+        .split('-')[0]
+        .slice(0, 8)
+      return await transcribe(audio, language)
+    } catch (error) {
+      return failure(error)
+    }
+  }
+
   if (!configured()) {
     return NextResponse.json(
       {

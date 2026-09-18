@@ -13,6 +13,7 @@ import AccountButton, { type Account } from './account'
 import ActionsPanel from './actions-panel'
 import Confirm from './confirm'
 import DictationButton from './dictation-button'
+import InstallButton from './install-button'
 import NoteRow from './note-row'
 import TrashSection from './trash-section'
 import type { SyncState } from '@/lib/sync'
@@ -131,6 +132,8 @@ export interface NotesScreenProps {
   onRecord: (blocks: PastedBlock[]) => void
   /** Whether the model is configured, for the recorder's write-up. */
   aiReady: boolean
+  /** Whether the recording itself can be transcribed properly. */
+  transcribes: boolean
   /** A note copied out of the World, which becomes a note of your own. */
   onSaveFromWorld: (note: { title: string; blocks: Block[] }) => Promise<void>
   /* Signing in, which is on this screen because this is where people are. */
@@ -163,6 +166,7 @@ export default function NotesScreen({
   onEmptyTrash,
   onRecord,
   aiReady,
+  transcribes,
   onSaveFromWorld,
   account,
   syncState,
@@ -259,6 +263,13 @@ export default function NotesScreen({
             of the app, so it is where the account belongs.
           */}
           <div className="ml-auto flex shrink-0 items-center gap-2">
+            {/*
+              Install, beside the account and before it — the two things on
+              this screen that are about the app rather than about the notes.
+              It is absent on every browser that has nothing to offer, and
+              gone for good once the app is installed. See install.ts.
+            */}
+            <InstallButton />
             <AccountButton
               account={account}
               syncState={syncState}
@@ -453,7 +464,12 @@ export default function NotesScreen({
         the difference between "take this down" and "write this in here", which
         are two intentions half a second apart.
       */}
-      <DictationButton title="" aiReady={aiReady} onWrite={onRecord} />
+      <DictationButton
+        title=""
+        aiReady={aiReady}
+        transcribes={transcribes}
+        onWrite={onRecord}
+      />
     </div>
   )
 }

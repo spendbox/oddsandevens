@@ -293,13 +293,34 @@ a page.
   and a dictaphone all put one round button where a thumb already is, because
   you reach for it rather than going looking — usually while somebody else is
   still talking.
-- **The browser does the listening, not a transcription service.** Chrome,
-  Edge, Safari and Chrome on Android all ship a recogniser that is free, live
-  and weighs nothing. Uploading audio is more accurate and is also money per
-  minute of every meeting anybody records, an upload on a phone connection, and
-  a wait at the end instead of words arriving as they are said. The model makes
-  up most of the difference afterwards by tidying the text, which costs one
-  request rather than one per minute.
+- **Two things listen, and they are listening for different reasons.** The
+  browser's recogniser runs while somebody talks: free, live, weighs nothing,
+  and the only one of the two that can answer "is it hearing me" as they
+  speak. The microphone is also recorded, and the audio is transcribed
+  properly when the recording stops — because what the recogniser hands back
+  is a stream of guesses with no punctuation that loses names, figures and
+  anything said across another voice, and approximately what was said is the
+  one thing a meeting note must not be. This rule used to say the browser did
+  all of it and gave cost as the reason; the cost is real, and is why this
+  needs a key and a press, and it is not a reason to write down wrong words.
+- **The live words are the fallback, never the discard.** No key, a refused
+  microphone, a failed upload, one piece of a long recording that did not
+  arrive, a browser with only one of the two abilities: whatever exists is
+  what goes into the note, and a missing piece is said out loud rather than
+  left as a silent hole. A recording must never be lost to a request.
+- **Audio is uploaded as complete files, cut into pieces by restarting the
+  recorder.** A slice of a WebM stream has no header and nothing can decode
+  it, which is the trap this looks like it should fall into. Pieces exist
+  because a serverless request body caps out around 4.5MB, and because one
+  upload failing at minute fifty must not cost fifty minutes — five minutes
+  of Opus at 24kbps is about 900KB, which is inside every limit involved.
+- **Ask for the microphone by name.** `echoCancellation`, `noiseSuppression`
+  and `autoGainControl` are the difference between a phone on a meeting-room
+  table and a recording of a meeting room, and the defaults are not them.
+- **A recorder holds the microphone open until its tracks are stopped.** The
+  light stays on, and that is the thing people notice. Every way out —
+  stopping, cancelling, unmounting, leaving the page — goes through one
+  release.
 - **A recogniser that stops on its own is restarted.** Every browser one stops
   after a pause, however plainly it has been told to run continuously — and in
   a meeting the pauses are where people are thinking. Every stop that was not
@@ -686,6 +707,25 @@ a page.
   dashboard are `next/dynamic`, like the sign-in client and the PDF reader, and
   `npm run e2e` asserts both are absent from a page that has never pressed
   their tab. Keep it that way for anything added beside them.
+- **An install is offered by the app as well as by the browser.** Chrome's
+  own offer is a 16-pixel icon at the end of the address bar that most people
+  have never looked at, and on an iPhone there is no offer at all — it is two
+  taps inside the Share menu. `beforeinstallprompt` is caught at module scope
+  in `lib/install.ts`, never in an effect: it fires once, early, often before
+  hydration, and a listener added afterwards is one that missed it. The
+  button appears only when there is something to do and is gone for good once
+  the app is installed or the offer has been answered — anything still
+  sitting in the bar after somebody has said no is furniture.
+- **Every manifest icon was `maskable`, which is why nothing offered to
+  install it.** Maskable is a different promise — "crop me to whatever shape
+  this platform uses" — and Chrome needs a 192 and a 512 PNG with
+  `purpose: "any"` before it will offer at all. They are declared both ways
+  now, and `npm run e2e` checks the manifest for it, because this is the kind
+  of thing that breaks silently and is noticed months later.
+- **The manifest is read out on the install prompt and then sits under the
+  icon forever.** It described a spreadsheet, a code editor and a form
+  builder for months after all three were taken out of the app. Its name,
+  description and theme colour are part of the app, not metadata.
 - **One swipe, written once.** `swipe-away.tsx` is the shared gesture: the
   distance, the slop, the word that slides in underneath, and the three ways it
   goes wrong (capturing on pointerdown kills every button inside; a vertical

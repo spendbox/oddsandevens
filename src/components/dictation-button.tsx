@@ -11,6 +11,8 @@ import {
   paragraphsFrom,
 } from '@/lib/dictation'
 import { parsePastedText, type PastedBlock } from '@/lib/paste'
+import { canRecord, startRecording, type Recording } from '@/lib/recorder'
+import { transcribeAll } from '@/lib/transcribe'
 
 /**
  * A recorder in the corner: press it, talk, press it again, and what you said
@@ -26,14 +28,22 @@ import { parsePastedText, type PastedBlock } from '@/lib/paste'
  * it, you reach for it — usually while somebody else is still talking, which
  * is exactly the moment you cannot be hunting through a menu.
  *
- * ## Why the browser does the listening
+ * ## Two things listen, and they are listening for different reasons
  *
- * Chrome, Edge, Safari and Chrome on Android all ship a speech recogniser.
- * It is free, it is live, and it costs nothing to download. Uploading audio to
- * a transcription service would be more accurate and would also be money per
- * minute of every meeting anybody records, an upload on a phone connection,
- * and a wait at the end instead of words arriving as they are said. See the
- * note at the top of lib/dictation.ts.
+ * The browser's own recogniser runs while somebody talks. It is free, it is
+ * live, and it is the only one of the two that can answer the question people
+ * actually have while recording — not "is it on" but "is it hearing me".
+ *
+ * The microphone is also recorded, and when the recording stops the audio is
+ * transcribed properly — see lib/recorder.ts and lib/transcribe.ts. That is
+ * what goes into the note, because what the browser heard is a stream of
+ * guesses with no punctuation that loses names, figures and anything said
+ * across another voice. The live words are the fallback and never the
+ * discard: no key, a refused microphone, a failed upload, or a browser that
+ * only has one of the two, and whatever exists is what is written down.
+ *
+ * It costs money per minute of recording, which is why it happens only where
+ * a key is configured and never without the button being pressed.
  *
  * ## Why it restarts itself
  *
@@ -114,6 +124,14 @@ export interface DictationButtonProps {
   /** False when no key is configured: the transcript goes in as it was heard. */
   aiReady: boolean
   /**
+   * Whether the audio can be transcribed properly when the recording stops.
+   *
+   * False on a copy of Pad with no OpenAI key, where the browser's own words
+   * are the whole of the transcript — which is how this worked before, and
+   * still works now.
+   */
+  transcribes: boolean
+  /**
    * True when this one is on the notes screen rather than on a note.
    *
    * That screen is a full-window dialog, and this button is a portal to the
@@ -127,14 +145,24 @@ export default function DictationButton({
   onWrite,
   title,
   aiReady,
+  transcribes,
   overDialog = false,
 }: DictationButtonProps) {
-  const supported = useSyncExternalStore(
+  /*
+    What this browser can do, asked the way every value outside React is read
+    here. Two abilities rather than one: a browser with a recogniser can show
+    live words, and a browser that can record can have its audio transcribed.
+    Firefox has the second and not the first, and used to get no recorder at
+    all — now it gets one wherever transcription is configured.
+  */
+  const can = useSyncExternalStore(
     neverChanges,
-    () => recogniser() !== null,
-    () => false,
+    () => `${recogniser() !== null}/${canRecord()}`,
+    () => 'false/false',
   )
-  const [state, setState] = useState<'idle' | 'listening' | 'writing'>('idle')
+  const [canListen, canKeep] = can.split('/').map((flag) => flag === 'true')
+  const supported = canListen || (canKeep && transcribes)
+  const [state, setState] = useState<'idle' | 'listening' | 'transcribing' | 'writing'>('idle')
   /*
     What the sign paints, which is not the same value as the record below.
 
@@ -149,6 +177,12 @@ export default function DictationButton({
   const [problem, setProblem] = useState<string | null>(null)
 
   const engine = useRef<Recognition | null>(null)
+  /** The audio, when it is being kept. Null when only the browser is listening. */
+  const tape = useRef<Recording | null>(null)
+  /** How far through the upload, for the sign. */
+  const [sent, setSent] = useState({ done: 0, total: 0 })
+  /** 0 to 1, for the meter. State, because a ref changing repaints nothing. */
+  const [level, setLevel] = useState(0)
   /** Everything the recogniser has settled on, across every restart. */
   const finals = useRef<string[]>([])
   /** Whether the recogniser stopping was asked for, or is one to restart. */
@@ -162,15 +196,63 @@ export default function DictationButton({
     return () => clearInterval(id)
   }, [state])
 
-  const write = async () => {
-    const said = joinTranscript(finals.current, '')
+  /*
+    The meter, read off the recording rather than pushed by it.
+
+    Ten times a second is enough for a bar that is only ever answering "is it
+    hearing me", and it costs nothing when there is no recording to read —
+    the interval is not started at all.
+  */
+  useEffect(() => {
+    if (state !== 'listening') return
+    const id = setInterval(() => setLevel(tape.current?.level() ?? 0), 100)
+    return () => clearInterval(id)
+  }, [state])
+
+  /**
+   * Everything that happens after the button is pressed a second time.
+   *
+   * In order: the audio is transcribed properly if there is any, the words
+   * the browser heard stand in if there is not, and then the model writes it
+   * up. Every step is allowed to fail into the step before it, so the worst
+   * outcome of anything going wrong is a rougher note rather than no note.
+   */
+  const write = async (audio: Blob[]) => {
+    const heard = joinTranscript(finals.current, '')
     finals.current = []
     setLive('')
+    setLevel(0)
+
+    let said = heard
+    if (audio.length) {
+      setState('transcribing')
+      setProblem(null)
+      setSent({ done: 0, total: audio.length })
+      const transcript = await transcribeAll(
+        audio,
+        navigator.language || 'en',
+        (done, total) => setSent({ done, total }),
+      )
+      if (transcript.text) {
+        said = transcript.text
+        // Some of it arrived and some did not. Saying so matters: a meeting
+        // note with a hole in it that nobody was told about is worse than a
+        // rough one that says it is rough.
+        if (transcript.heard < transcript.sent) {
+          setProblem('Part of the recording could not be sent, so some of it may be missing.')
+        }
+      } else if (heard) {
+        setProblem('The recording could not be sent, so the words heard here went in instead.')
+      }
+    }
+
     if (!said) {
       setState('idle')
+      setSent({ done: 0, total: 0 })
       setProblem('Nothing was picked up. Check the microphone and try again.')
       return
     }
+    setSent({ done: 0, total: 0 })
 
     // With no key, the words go in as they were heard, broken into paragraphs
     // on this device. Nothing is added, removed or reworded.
@@ -226,17 +308,70 @@ export default function DictationButton({
       // Already stopped. The transcript is what matters and it is kept above.
     }
     engine.current = null
-    void write()
+    /*
+      The audio is asked for before anything else happens, because the last
+      few seconds of it are still buffered inside the recorder until it has
+      stopped — and those seconds are usually the sentence somebody pressed
+      stop in the middle of.
+    */
+    const recording = tape.current
+    tape.current = null
+    if (!recording) {
+      void write([])
+      return
+    }
+    void recording.stop().then((audio) => write(audio))
   }
 
   const start = () => {
-    const Recogniser = recogniser()
-    if (!Recogniser) return
     setProblem(null)
     finals.current = []
     setLive('')
+    setLevel(0)
     startedAt.current = 0
     setSince(0)
+
+    /*
+      The audio, kept from the moment the button is pressed.
+
+      Started before the recogniser and never awaited by it: the microphone
+      permission is one dialog for both, and a browser with no recogniser at
+      all — Firefox — has nothing else to start. If this throws, the
+      recogniser below still runs and its words are the recording; if there
+      is no recogniser either, the failure is the whole of it and it says so.
+    */
+    if (canKeep && transcribes) {
+      void startRecording()
+        .then((recording) => {
+          // Pressed stop while the microphone dialog was open. Nothing is
+          // written, and the microphone is let go of again straight away.
+          if (!wanted.current && !canListen) return recording.cancel()
+          tape.current = recording
+          if (!startedAt.current) startedAt.current = Date.now()
+        })
+        .catch(() => {
+          if (canListen) return
+          wanted.current = false
+          setState('idle')
+          setProblem(
+            'The microphone is blocked for this site. Allow it in the browser’s address bar and try again.',
+          )
+        })
+    }
+
+    const Recogniser = recogniser()
+    if (!Recogniser) {
+      /*
+        No live words here, only the clock and the meter. The recording is
+        still a recording: what goes into the note is what the transcriber
+        makes of the audio when this is stopped.
+      */
+      if (!canKeep || !transcribes) return
+      wanted.current = true
+      startedAt.current = Date.now()
+      setState('listening')
+      return
+    }
 
     const engineInstance = new Recogniser()
     engineInstance.continuous = true
@@ -282,7 +417,9 @@ export default function DictationButton({
           : 'The recogniser stopped. What was picked up before that is going in.',
       )
       engine.current = null
-      void write()
+      // Whatever was recorded still goes to be transcribed: the recogniser
+      // giving up is not the microphone giving up.
+      stop()
     }
 
     engineInstance.onend = () => {
@@ -303,7 +440,7 @@ export default function DictationButton({
           // rather than the end of the transcript.
           wanted.current = false
           engine.current = null
-          void write()
+          stop()
         }
       }, RESTART_MS)
     }
@@ -329,12 +466,18 @@ export default function DictationButton({
       } catch {
         // Nothing to abort.
       }
+      // And the microphone light goes out. A recording left running holds it
+      // open with nothing to write into.
+      tape.current?.cancel()
+      tape.current = null
     }
   }, [])
 
   if (!supported) return null
 
   const listening = state === 'listening'
+  /** Whether the audio is being kept, which decides whether there is a meter. */
+  const keeping = canKeep && transcribes
   // Whole class names, never a string built from a variable: Tailwind reads
   // the source for the classes it generates and cannot see one that is
   // assembled at runtime.
@@ -348,7 +491,7 @@ export default function DictationButton({
         because the question somebody has while recording is not "is it on" but
         "is it hearing me", and only the third of those three answers it.
       */}
-      {(listening || state === 'writing' || problem) && (
+      {(listening || state === 'transcribing' || state === 'writing' || problem) && (
         <div
           role="status"
           aria-live="polite"
@@ -366,17 +509,38 @@ export default function DictationButton({
               </span>
             </p>
           )}
+          {/*
+            The upload, said as a fraction. An hour of speech is twelve
+            uploads, and twelve uploads with no sign of progress is an app
+            that has hung.
+          */}
+          {state === 'transcribing' && (
+            <p className="flex items-center gap-2 text-[13px] font-medium">
+              <LoaderCircle size={13} className="animate-spin text-[var(--color-accent)]" />
+              {sent.total > 1
+                ? `Transcribing ${Math.min(sent.done + 1, sent.total)} of ${sent.total}…`
+                : 'Transcribing…'}
+            </p>
+          )}
           {state === 'writing' && (
             <p className="flex items-center gap-2 text-[13px] font-medium">
               <LoaderCircle size={13} className="animate-spin text-[var(--color-accent)]" />
               Writing it up…
             </p>
           )}
-          {listening && (
+          {listening && canListen && (
             <p className="mt-1 line-clamp-3 text-[13px] leading-snug text-[var(--color-muted)]">
               {live ? live.slice(-LIVE_TAIL) : 'Say something and it will appear here.'}
             </p>
           )}
+          {/*
+            The meter, which is the only answer to "is it hearing me" on a
+            browser with no live words — and a second one where there are.
+            Seven bars: enough to move visibly, few enough to read at a
+            glance, and drawn in ink rather than a colour, because green says
+            what kind of note something is and nothing else may use it.
+          */}
+          {listening && keeping && <Meter level={level} />}
           {problem && (
             <p className="mt-1 text-[12px] leading-snug text-[var(--color-danger)]">{problem}</p>
           )}
@@ -393,7 +557,7 @@ export default function DictationButton({
         aria-label={listening ? 'Stop recording' : 'Record what you say'}
         aria-pressed={listening}
         title={listening ? 'Stop recording' : 'Record what you say'}
-        disabled={state === 'writing'}
+        disabled={state === 'writing' || state === 'transcribing'}
         /*
           A tap, on click, never on pointerdown. Acting on pointerdown starts
           the recogniser under a finger that is still down and the click
@@ -416,7 +580,7 @@ export default function DictationButton({
             : 'bg-[var(--color-ink)] text-[var(--color-paper)] hover:opacity-90'
         }`}
       >
-        {state === 'writing' ? (
+        {state === 'writing' || state === 'transcribing' ? (
           <LoaderCircle size={22} className="animate-spin" />
         ) : listening ? (
           <Square size={20} fill="currentColor" />
@@ -426,5 +590,29 @@ export default function DictationButton({
       </button>
     </>,
     document.body,
+  )
+}
+
+/**
+ * How loud it is, right now.
+ *
+ * Seven bars rather than a number or a waveform: a number is something to
+ * read and a waveform is something to look at, and the question this answers
+ * is neither — it is "is this thing hearing me", which a bar that moves
+ * answers in the corner of an eye while somebody is talking to you.
+ */
+function Meter({ level }: { level: number }) {
+  const bars = 7
+  const lit = Math.round(Math.min(1, level * 1.6) * bars)
+  return (
+    <div className="mt-1.5 flex items-end gap-0.5" aria-hidden>
+      {Array.from({ length: bars }, (_, i) => (
+        <span
+          key={i}
+          className="w-1.5 rounded-sm bg-[var(--color-ink)] transition-[height,opacity] duration-100"
+          style={{ height: `${6 + i * 2}px`, opacity: i < lit ? 0.8 : 0.15 }}
+        />
+      ))}
+    </div>
   )
 }

@@ -82,6 +82,13 @@ export default function Workspace() {
    * while the tab is open.
    */
   const [aiReady, setAiReady] = useState(false)
+  /**
+   * Whether audio can be sent to be transcribed properly, which is a
+   * narrower question than whether a model is configured: only the OpenAI
+   * side listens to anything. Asked in the same breath as the first, because
+   * it is the same request and the same answer for the life of the tab.
+   */
+  const [transcribes, setTranscribes] = useState(false)
   /** Whether the last keystrokes are still on their way to the disk. */
   const [saving, setSaving] = useState(false)
   /**
@@ -139,9 +146,14 @@ export default function Workspace() {
   useEffect(() => {
     let cancelled = false
     void fetch('/api/ai')
-      .then((response) => response.json() as Promise<{ configured?: boolean }>)
+      .then(
+        (response) =>
+          response.json() as Promise<{ configured?: boolean; transcribes?: boolean }>,
+      )
       .then((data) => {
-        if (!cancelled) setAiReady(!!data.configured)
+        if (cancelled) return
+        setAiReady(!!data.configured)
+        setTranscribes(!!data.transcribes)
       })
       .catch(() => {
         // No answer means no writing help offered, which is the same as no
@@ -664,6 +676,7 @@ export default function Workspace() {
                 onRedo={redoEdit}
                 externalRevision={undoRevision}
                 aiReady={aiReady}
+                transcribes={transcribes}
                 accountId={account?.id ?? null}
                 saving={saving}
                 covered={searching}
@@ -698,6 +711,7 @@ export default function Workspace() {
           onEmptyTrash={() => void emptyTrash()}
           onRecord={recordNote}
           aiReady={aiReady}
+          transcribes={transcribes}
           onSaveFromWorld={saveFromWorld}
           account={account}
           syncState={syncState}

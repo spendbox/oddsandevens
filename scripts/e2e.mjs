@@ -36,9 +36,16 @@ const log = (name, ok, detail = '') => {
 
 mkdirSync(SHOTS, { recursive: true })
 
-const browser = await chromium.launch(
-  process.env.PAD_E2E_CHROME ? { executablePath: process.env.PAD_E2E_CHROME } : {},
-)
+const browser = await chromium.launch({
+  ...(process.env.PAD_E2E_CHROME ? { executablePath: process.env.PAD_E2E_CHROME } : {}),
+  /*
+    A microphone that is always there and always allowed. Chromium's fake
+    device produces a real audio stream, so MediaRecorder produces real files
+    and the recording path can be driven end to end — which is the only way
+    to test the part of it that is not a string function.
+  */
+  args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+})
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, acceptDownloads: true })
 const page = await ctx.newPage()
 const errors = []
@@ -1594,6 +1601,263 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await mic.screenshot({ path: `${SHOTS}/12-dictated.png` })
   log('no uncaught errors from the recorder', micErrors.length === 0, micErrors.slice(0, 2).join(' | '))
   await heard.close()
+}
+
+/* ------------------------------------------- transcribed, not just heard */
+
+/*
+  The recording path with transcription turned on. The route is stubbed —
+  there is no key in this repository, and a test that spends money on every
+  run is not one anybody will keep running — but everything on this side of
+  it is real: a real microphone stream from Chromium's fake device, a real
+  MediaRecorder, real audio in a real multipart upload.
+
+  The recogniser is deliberately absent, which is Firefox. That browser used
+  to get no recorder at all; with transcription configured it gets one, and
+  what goes into the note is what came back from the audio rather than
+  nothing.
+*/
+{
+  const studio = await browser.newContext({
+    viewport: { width: 1280, height: 860 },
+    permissions: ['microphone'],
+  })
+  await studio.addInitScript(() => {
+    delete window.SpeechRecognition
+    delete window.webkitSpeechRecognition
+  })
+  const said = 'The lease runs to the fourteenth of March and Ada is sending the figures.'
+  let uploaded = 0
+  let audioBytes = 0
+  await studio.route('**/api/ai', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ configured: true, transcribes: true }),
+      })
+    }
+    const type = request.headers()['content-type'] ?? ''
+    if (type.includes('multipart/form-data')) {
+      uploaded++
+      audioBytes += (request.postDataBuffer() ?? Buffer.alloc(0)).length
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: said }),
+      })
+    }
+    // The write-up afterwards, which is the path that already existed.
+    const body = JSON.parse(request.postData() ?? '{}')
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ text: String(body.text ?? '') }),
+    })
+  })
+
+  const studioPage = await studio.newPage()
+  const studioErrors = []
+  studioPage.on('pageerror', (e) => studioErrors.push(String(e)))
+  await studioPage.goto(URL, { waitUntil: 'networkidle' })
+  await studioPage.waitForTimeout(1000)
+
+  const record = studioPage.locator('[aria-label="Record what you say"]')
+  log(
+    'a browser with no recogniser still gets a recorder, once audio can be transcribed',
+    await record.isVisible(),
+  )
+
+  await record.click()
+  await studioPage.waitForTimeout(2500)
+  const sign = studioPage.locator('[role="status"]', { hasText: 'Listening' })
+  log('it records, with a clock', await sign.isVisible())
+  log(
+    'and a meter, because there are no live words to show on this browser',
+    (await sign.locator('span[style*="height"]').count()) >= 5,
+  )
+  await studioPage.screenshot({ path: `${SHOTS}/11b-transcribing.png` })
+
+  await studioPage.locator('[aria-label="Stop recording"]').click()
+  await studioPage.waitForTimeout(4000)
+
+  log('the audio is sent to be transcribed', uploaded === 1, `${uploaded} upload(s)`)
+  log(
+    'and what was sent is actual audio, not an empty file',
+    audioBytes > 1000,
+    `${audioBytes} bytes`,
+  )
+  const written = [
+    await studioPage.inputValue('[aria-label="Note title"]').catch(() => ''),
+    ...(await lines(studioPage).catch(() => [])),
+  ].join(' | ')
+  log(
+    'and the note is what the transcriber heard, not what the browser did',
+    /fourteenth of March/i.test(written),
+    written.slice(0, 120),
+  )
+  log('no uncaught errors while transcribing', studioErrors.length === 0, studioErrors.slice(0, 2).join(' | '))
+  await studio.close()
+}
+
+/* ------------------------------------- and when both of them can listen */
+
+/*
+  Chrome with a key: the recogniser shows live words while somebody talks and
+  the audio is transcribed when they stop. What goes into the note has to be
+  the second one — that is the whole point of keeping the audio, and the
+  failure this is written against is a note made of the browser's guesses
+  with an upload that happened for nothing.
+*/
+{
+  const both = await browser.newContext({
+    viewport: { width: 1280, height: 860 },
+    permissions: ['microphone'],
+  })
+  await both.addInitScript(() => {
+    class Fake {
+      constructor() {
+        this.continuous = false
+        this.interimResults = false
+        this.onstart = null
+        this.onresult = null
+        this.onerror = null
+        this.onend = null
+        window.__rec = this
+      }
+      start() {
+        setTimeout(() => this.onstart && this.onstart(), 0)
+      }
+      stop() {
+        setTimeout(() => this.onend && this.onend(), 0)
+      }
+      abort() {}
+    }
+    window.SpeechRecognition = Fake
+    window.__say = (text) => {
+      const rec = window.__rec
+      if (!rec || !rec.onresult) return false
+      rec.onresult({
+        resultIndex: 0,
+        results: { length: 1, 0: { isFinal: true, 0: { transcript: text } } },
+      })
+      return true
+    }
+  })
+  const proper = 'Ada is sending the service charge figures on Friday.'
+  await both.route('**/api/ai', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ configured: true, transcribes: true }),
+      })
+    }
+    if ((request.headers()['content-type'] ?? '').includes('multipart/form-data')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: proper }),
+      })
+    }
+    const body = JSON.parse(request.postData() ?? '{}')
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ text: String(body.text ?? '') }),
+    })
+  })
+
+  const page2 = await both.newPage()
+  await page2.goto(URL, { waitUntil: 'networkidle' })
+  await page2.waitForTimeout(900)
+  await page2.locator('[aria-label="Record what you say"]').click()
+  await page2.waitForTimeout(1500)
+  await page2.evaluate(() => window.__say('ADA IS SENDING THE SERVICE CHARGES ON FRYDAY'))
+  await page2.waitForTimeout(400)
+  const sign2 = page2.locator('[role="status"]', { hasText: 'Listening' })
+  log(
+    'the words the browser hears still show while you talk',
+    /FRYDAY/i.test(await sign2.innerText()),
+  )
+  await page2.locator('[aria-label="Stop recording"]').click()
+  await page2.waitForTimeout(4000)
+  const kept = [
+    await page2.inputValue('[aria-label="Note title"]').catch(() => ''),
+    ...(await lines(page2).catch(() => [])),
+  ].join(' | ')
+  log(
+    'but what is written down is the proper transcript, not those guesses',
+    /service charge figures on Friday/i.test(kept) && !/FRYDAY/i.test(kept),
+    kept.slice(0, 120),
+  )
+  await both.close()
+}
+
+/* --------------------------------------------------- installing it as an app */
+
+{
+  // The manifest is what a browser reads before it will offer Install at all.
+  // Every icon in it was `maskable`, which is a different promise, so there
+  // was no plain icon to install with and the offer never appeared.
+  const mf = await page.evaluate(async () => {
+    const r = await fetch('/manifest.webmanifest')
+    return r.ok ? await r.json() : null
+  })
+  const plain = (mf?.icons ?? []).filter((i) => (i.purpose ?? 'any').split(' ').includes('any'))
+  log(
+    'the manifest offers a plain 192 and 512 icon, which is what Install needs',
+    plain.some((i) => i.sizes === '192x192' && i.type === 'image/png') &&
+      plain.some((i) => i.sizes === '512x512' && i.type === 'image/png'),
+    (mf?.icons ?? []).map((i) => `${i.sizes}:${i.purpose}`).join(' '),
+  )
+  log(
+    'and it opens in its own window, under its own name',
+    mf?.display === 'standalone' && mf?.start_url === '/' && /Pad/.test(mf?.name ?? ''),
+    `${mf?.display} ${mf?.name}`,
+  )
+  log(
+    'and it does not still describe features this app no longer has',
+    !/spreadsheet|code|form/i.test(`${mf?.name} ${mf?.description}`),
+  )
+
+  /*
+    The button. Chrome hands the offer over as an event that has to be caught
+    and kept, and it fires once, early — so it is dispatched here the way the
+    browser would, and the button has to appear from it.
+  */
+  log(
+    'no install button until the browser offers one',
+    (await page.locator('[aria-label="Install Pad as an app"]').count()) === 0,
+  )
+  await page.evaluate(() => {
+    const offer = new Event('beforeinstallprompt')
+    offer.prompt = async () => {
+      window.__prompted = true
+    }
+    offer.userChoice = Promise.resolve({ outcome: 'accepted' })
+    window.dispatchEvent(offer)
+  })
+  await page.waitForTimeout(400)
+  const install = page.locator('[aria-label="Install Pad as an app"]')
+  log('and one as soon as it does', await install.isVisible())
+  log(
+    'it sits at the top, beside the account',
+    await page.evaluate(() => {
+      const button = document.querySelector('[aria-label="Install Pad as an app"]')
+      return !!button && button.getBoundingClientRect().top < 120
+    }),
+  )
+  await page.screenshot({ path: `${SHOTS}/13-install.png` })
+  await install.click()
+  await page.waitForTimeout(500)
+  log('pressing it asks the browser to install', await page.evaluate(() => window.__prompted === true))
+  log(
+    'and it is gone once that is answered, rather than sitting there forever',
+    (await page.locator('[aria-label="Install Pad as an app"]').count()) === 0,
+  )
 }
 
 /* ----------------------------------------------------- weight, and the rest */
