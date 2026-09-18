@@ -12,11 +12,17 @@ you wrote never reads like a field in a form.
 
 ## Two screens
 
-**Your notes.** One column, newest first. Each row has a small green tile
-saying what the note is about, its name, the first two lines of it and the time
-it was last written in. Across the top, a search field that reads inside every
-note. Two tabs: **Notes** and **Favourites**. At the bottom, a bar to write a
-note, and a black button to record one.
+**Your notes.** One column, newest first, grouped under the day they were
+written — Today, Yesterday, then the weekday, then the date. Each row has a
+small green tile saying what the note is about, its name, the first two lines of
+it and the time it was last written in. Swipe a row to the left to delete it, or
+press the bin on it. Across the top — and staying there as you scroll — the
+name of the screen, a search field that reads inside every note, and two tabs:
+**Notes** and **Favourites**. At the bottom, a bar to write a note, and a black
+button to record one.
+
+Long lists stay quick: ten notes are rendered at a time and the next ten arrive
+as you reach them.
 
 **A note.** The way back, a word saying it is saved, and a **⋯**. Under the bar,
 in green: what kind of note this is — Meeting, Task, Idea, Person, Research or
@@ -27,8 +33,11 @@ toolbar, no ribbon of controls across the top of the page you came to write on.
 
 ## Writing
 
-**Write a note** opens a box. Type into it however you like — shorthand, three
-words, no punctuation — and press Save. What happens next:
+**Write a note** opens a box that sits above the keyboard on a phone and stays
+there. Type into it however you like — shorthand, three words, no punctuation —
+and press Save. A list carries on as you write it: Return after "- milk" starts
+another bullet, Return after "1. first" starts "2.", and Return on an empty one
+ends the list. What happens next:
 
 - It is **named for you**, from the writing. You are never made to fill in a
   title before you are allowed to write, and the name is an ordinary field you
@@ -68,6 +77,12 @@ of these is one `Ctrl+Z` away.
 
 None of it involves a model. They are string comparisons: instant, free,
 offline, and the same every time.
+
+**Formatting appears when you select something.** Highlight any words and a
+small bar comes up over them: bold, italic, underline, strikethrough, inline
+code, and the kind of line it is — heading, smaller heading, bulleted list,
+numbered list, box to tick, quote. There is no permanent toolbar anywhere in the
+app, and `Ctrl+B`, `Ctrl+I`, `Ctrl+U` and `Ctrl+E` still work.
 
 Return in a list carries the list on, and Return on an empty item leaves it.
 Backspace at the start of a bullet, a box, a heading or a quote takes that off

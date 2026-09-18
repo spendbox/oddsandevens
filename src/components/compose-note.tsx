@@ -1,11 +1,12 @@
 'use client'
 
-import { LoaderCircle, Sparkles, X } from 'lucide-react'
+import { LoaderCircle, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { blocksFromPasted } from '@/lib/blocks'
-import { splitComposed, titleFrom } from '@/lib/compose'
+import { nextListPrefix, splitComposed, titleFrom } from '@/lib/compose'
 import { parsePastedText } from '@/lib/paste'
 import type { Block } from '@/lib/types'
+import { useKeyboardInset } from './keyboard'
 
 /**
  * The text of a note, as the lines somebody actually typed.
@@ -59,6 +60,7 @@ export default function ComposeNote({
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const box = useRef<HTMLTextAreaElement>(null)
+  const keyboard = useKeyboardInset()
 
   // The caret goes in the box, because there is nothing else on this screen to
   // press. Opening a writing box and having to click it first is a small
@@ -79,6 +81,46 @@ export default function ComposeNote({
   }
 
   if (!open) return null
+
+  /**
+   * Return inside a list carries the list on.
+   *
+   * A box you write a list in that does not do this is a box where every item
+   * after the first is typed by hand. The rule itself is in `lib/compose.ts`
+   * and is a unit test; this is the part that needs a textarea.
+   *
+   * `execCommand` rather than setting `value`: it keeps the browser's own undo
+   * stack, so one Ctrl+Z takes the marker back out — the same reason every
+   * automatic change on the writing page is made that way.
+   */
+  const carryList = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const el = event.currentTarget
+    const at = el.selectionStart
+    if (at !== el.selectionEnd) return
+    const before = el.value.slice(0, at)
+    const line = before.slice(before.lastIndexOf('\n') + 1)
+    const prefix = nextListPrefix(line)
+    if (prefix === null) return
+
+    event.preventDefault()
+    if (prefix === '') {
+      /*
+        An empty item: take the marker off and stay on the line, which is how
+        a list ends everywhere else in this app.
+
+        `setRangeText` rather than a selection and `execCommand`: asking
+        execCommand to insert an empty string is a delete by implication, and
+        what it actually deleted was one character more than was selected —
+        the line break above it — so the next thing typed joined the line
+        before. This says exactly which characters go, and nothing else moves.
+      */
+      el.setRangeText('', at - line.length, at, 'end')
+      setText(el.value)
+      return
+    }
+    document.execCommand('insertText', false, `\n${prefix}`)
+    setText(el.value)
+  }
 
   const save = async () => {
     const typed = text.trim()
@@ -139,12 +181,21 @@ export default function ComposeNote({
         aria-label="Write a note"
         aria-modal="true"
         /*
-          At the bottom on a phone, where the thumb and the keyboard already
-          are; a panel in the middle of the screen on a desktop. Centred by a
-          flex parent rather than by `left-1/2`, because an inline or
-          higher-specificity horizontal position is exactly what collapses a
-          full-width sheet to the width of its own text.
+          At the bottom on a phone, where the thumb already is; a panel in the
+          middle of the screen on a desktop. Centred by a flex parent rather
+          than by `left-1/2`, because an inline or higher-specificity
+          horizontal position is exactly what collapses a full-width sheet to
+          the width of its own text.
+
+          The padding is what keeps it above the keyboard. A phone does not
+          make the page shorter when the keys come up — it draws them over the
+          bottom of it — so a sheet pinned to the bottom is underneath them at
+          the exact moment somebody is typing into it. See keyboard.ts. It is
+          an inline style because it is a number that changes as the keyboard
+          opens, and it is zero on every screen that has no keyboard, so it
+          never fights the desktop layout.
         */
+        style={{ paddingBottom: keyboard }}
         className="fixed inset-x-0 bottom-0 z-[60] flex justify-center p-2 sm:inset-y-0 sm:items-center"
       >
         <div className="w-full max-w-xl rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] p-3 shadow-2xl">
@@ -172,8 +223,13 @@ export default function ComposeNote({
               if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault()
                 void save()
+                return
               }
-              if (event.key === 'Escape') onClose()
+              if (event.key === 'Escape') {
+                onClose()
+                return
+              }
+              if (event.key === 'Enter' && !event.shiftKey) carryList(event)
             }}
             rows={5}
             aria-label="What happened"
@@ -187,23 +243,22 @@ export default function ComposeNote({
             </p>
           )}
 
-          <div className="flex items-center gap-2">
-            <p className="min-w-0 flex-1 truncate text-[12px] text-[var(--color-faint)]">
-              {aiReady
-                ? 'Saved, named and written up. Nothing is added that you did not write.'
-                : 'Saved as you typed it. Writing up needs a key.'}
-            </p>
+          {/*
+            One button, and nothing beside it.
+
+            There was a sentence explaining what saving would do — true, and a
+            paragraph of small print in a box somebody opened to write three
+            words in. What the box does is the box's business; the person
+            pressing Save is not reading a notice about it.
+          */}
+          <div className="flex items-center justify-end">
             <button
               type="button"
               onClick={() => void save()}
               disabled={!text.trim() || busy}
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-accent)] px-4 text-[14px] font-medium text-white disabled:opacity-40"
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-accent)] px-5 text-[14px] font-medium text-white disabled:opacity-40"
             >
-              {busy ? (
-                <LoaderCircle size={15} className="animate-spin" />
-              ) : (
-                aiReady && <Sparkles size={15} />
-              )}
+              {busy && <LoaderCircle size={15} className="animate-spin" />}
               {busy ? 'Writing it up…' : 'Save'}
             </button>
           </div>

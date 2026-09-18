@@ -322,6 +322,60 @@ body {
 }
 
 /*
+ * The day a run of notes was written on.
+ *
+ * Sticky, so it is still there when its own notes are halfway up the screen —
+ * and it sticks *under* the screen's header rather than at the top of the
+ * scroller, because two things stuck to the same line sit on top of each
+ * other. The offset is the header's height at each width, which is the one
+ * number these two rules have to agree on.
+ */
+.pad-day-heading {
+  position: sticky;
+  top: 8.6rem;
+  z-index: 10;
+  background: var(--color-paper);
+  padding-block: 0.6rem 0.25rem;
+}
+
+@media (min-width: 640px) {
+  .pad-day-heading {
+    top: 9.8rem;
+  }
+}
+
+/*
+ * A box to tick, painted in the margin.
+ *
+ * Out of the text flow on purpose: an inline control at the front of a line is
+ * a caret position before the first character, and everything typed there goes
+ * in front of the box rather than into the task. Absolute, in the padding the
+ * line already leaves, means the first place a caret can be is the first
+ * letter — which is what it is on every other kind of line.
+ */
+.pad-plain > .pad-todo {
+  padding-left: 1.7em;
+  position: relative;
+}
+
+.pad-tick {
+  position: absolute;
+  left: 0.1em;
+  top: 0.45em;
+  height: 0.85em;
+  width: 0.85em;
+  cursor: pointer;
+}
+
+.pad-plain > .pad-todo.pad-indent-1 {
+  padding-left: 3.45rem;
+}
+
+.pad-plain > .pad-todo.pad-indent-2 {
+  padding-left: 5.2rem;
+}
+
+/*
  * Indentation is padding on the line, not nested markup.
  *
  * The document stays a flat run of lines, so pulling one out of a sub-list is

@@ -5,7 +5,7 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Pad',
   description:
-    'Notes, spreadsheets, tasks, code and forms in one place. Open it and start typing. Works offline.',
+    'A note-taking app for people who take notes for a living. Open it and start typing. Works offline.',
   applicationName: 'Pad',
   appleWebApp: { capable: true, title: 'Pad', statusBarStyle: 'default' },
   formatDetection: { telephone: false },
@@ -19,6 +19,13 @@ export const viewport: Viewport = {
   maximumScale: 5,
   // viewport-fit lets the app paint under the notch when it is installed.
   viewportFit: 'cover',
+  /*
+    The keyboard makes the page shorter rather than being drawn over it, where
+    a browser supports that. It is half of the fix for a sheet that ended up
+    under the keys the moment somebody typed into it; the other half is
+    keyboard.ts, for the browsers that ignore this.
+  */
+  interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)', color: '#191a1d' },

@@ -16,6 +16,12 @@ import type { Doc } from '@/lib/types'
  * Every row says when it will go. "Deletes in 4 days" is the fact someone
  * needs in order to decide whether to act now, and it is not something they
  * can work out from a deletion date they never saw.
+ *
+ * Putting a note back and destroying it for good are always visible on a
+ * touch screen, and appear on hover on a desktop. They used to be hover-only
+ * everywhere, which on a phone is a control that does not exist: "delete for
+ * good" could not be pressed at all, and the note it was pressed at stayed
+ * exactly where it was.
  */
 export default function TrashSection({
   docs,
@@ -69,7 +75,7 @@ export default function TrashSection({
                   aria-label={`Restore ${item.title.trim() || 'Untitled'}`}
                   title="Put it back"
                   onClick={() => onRestore(item.id)}
-                  className="shrink-0 rounded p-1 text-[var(--color-faint)] opacity-0 transition-opacity group-focus-within/trash:opacity-100 group-hover/trash:opacity-100 hover:text-[var(--color-good)]"
+                  className="shrink-0 rounded p-2 text-[var(--color-faint)] transition-opacity hover:text-[var(--color-good)] sm:p-1 sm:opacity-0 sm:group-focus-within/trash:opacity-100 sm:group-hover/trash:opacity-100"
                 >
                   <RotateCcw size={13} />
                 </button>
@@ -78,7 +84,7 @@ export default function TrashSection({
                   aria-label={`Delete ${item.title.trim() || 'Untitled'} permanently`}
                   title="Delete permanently"
                   onClick={() => setConfirming(item.id)}
-                  className="shrink-0 rounded p-1 text-[var(--color-faint)] opacity-0 transition-opacity group-focus-within/trash:opacity-100 group-hover/trash:opacity-100 hover:text-[var(--color-danger)]"
+                  className="shrink-0 rounded p-2 text-[var(--color-faint)] transition-opacity hover:text-[var(--color-danger)] sm:p-1 sm:opacity-0 sm:group-focus-within/trash:opacity-100 sm:group-hover/trash:opacity-100"
                 >
                   <X size={12} />
                 </button>

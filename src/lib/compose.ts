@@ -135,3 +135,28 @@ export function withoutTitleLine(blocks: Block[], title: string): Block[] {
   }
   return out
 }
+
+/**
+ * What pressing Return in the box should put at the start of the next line.
+ *
+ * A box you write a list in has to carry the list on, or every item after the
+ * first is typed by hand — which is exactly the complaint, and exactly what
+ * every note app does for you. Returns null when the line is not a list item,
+ * and an empty string when it is an item with nothing in it, which is the
+ * signal to end the list rather than add another empty bullet to it.
+ */
+export function nextListPrefix(line: string): string | null {
+  const found = /^(\s*)([-*]|\d{1,3}[.)]|\[[ xX]?\])(\s+)(.*)$/.exec(line)
+  if (!found) return null
+  const [, lead, marker, gap, rest] = found
+  // An item with nothing in it ends the list, the way Return does on the page.
+  if (!rest.trim()) return ''
+  if (/^\d/.test(marker)) {
+    const n = Number.parseInt(marker, 10)
+    const punctuation = marker.slice(-1)
+    return `${lead}${Number.isFinite(n) ? n + 1 : 1}${punctuation}${gap}`
+  }
+  // A box carries on as an empty box, never as a ticked one.
+  if (marker.startsWith('[')) return `${lead}[ ]${gap}`
+  return `${lead}${marker}${gap}`
+}

@@ -142,3 +142,13 @@ test('a markdown task list pastes as boxes to tick', () => {
   assert.equal(blocks[0].text, 'ring the landlord')
   assert.equal(blocks[1].done, true)
 })
+
+test('a numbered list stays numbered, from markdown and from HTML', () => {
+  const typed = parsePastedText('1. first\n2. second')
+  assert.deepEqual(typed.map((b) => b.ordered), [true, true])
+  const bulleted = parsePastedText('- first\n- second')
+  assert.deepEqual(bulleted.map((b) => b.ordered), [undefined, undefined])
+  const html = parsePastedHtml('<ol><li>one</li><li>two</li></ol>')
+  assert.deepEqual(html.map((b) => b.ordered), [true, true])
+  assert.deepEqual(parsePastedHtml('<ul><li>one</li></ul>').map((b) => b.ordered), [undefined])
+})

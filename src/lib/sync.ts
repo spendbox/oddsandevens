@@ -33,7 +33,7 @@ import { getSupabase } from './supabase.ts'
 import type { Doc, Project } from './types'
 
 /** A document as the `docs` table stores it. */
-interface Row {
+export interface Row {
   id: string
   user_id: string
   title: string
@@ -55,7 +55,21 @@ interface ProjectRow {
   deleted_at: number | null
 }
 
-function toDoc(row: Row): Doc {
+export function toDoc(row: Row): Doc {
+  const deletedAt = row.deleted_at ? Number(row.deleted_at) : undefined
+  /*
+    A note destroyed for good is recognised by what is left of it, rather than
+    by a column.
+
+    A purge empties the row and keeps it — the id is what stops another device
+    pushing its copy back — and for a while nothing carried that fact across
+    the wire. The other device pulled a row that was merely "deleted", put the
+    empty note back in its trash, and the note somebody had destroyed for good
+    reappeared there on every device they owned. Reading it off the row costs
+    no migration and cannot get out of step with the data, because it *is* the
+    data: deleted, and nothing left in it, is what a purge looks like.
+  */
+  const emptied = !String(row.title ?? '').trim() && !(Array.isArray(row.blocks) && row.blocks.length)
   return {
     id: row.id,
     title: row.title,
@@ -63,10 +77,11 @@ function toDoc(row: Row): Doc {
     createdAt: Number(row.created_at) || Date.now(),
     updatedAt: Number(row.updated_at) || Date.now(),
     ...(row.project_id ? { projectId: row.project_id } : {}),
-    // Absent rather than zero, so a document nobody has starred is stored
-    // exactly as one written before favourites existed.
+    // Absent rather than zero, so a note nobody has starred is stored exactly
+    // as one written before favourites existed.
     ...(row.favorited_at ? { favoritedAt: Number(row.favorited_at) } : {}),
-    ...(row.deleted_at ? { deletedAt: Number(row.deleted_at) } : {}),
+    ...(deletedAt ? { deletedAt } : {}),
+    ...(deletedAt && emptied ? { purgedAt: deletedAt } : {}),
   }
 }
 
