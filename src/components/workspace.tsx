@@ -16,7 +16,7 @@ import {
   type History,
 } from '@/lib/history'
 import { purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
-import { blockText, type Block, type Doc } from '@/lib/types'
+import { blockText, isTextish, type Block, type Doc } from '@/lib/types'
 import { type Account } from './account'
 import ComposeNote from './compose-note'
 import Editor from './editor'
@@ -442,6 +442,65 @@ export default function Workspace() {
     [docs],
   )
 
+  /**
+   * Ticks a box, or makes a line into one, from the Actions tab.
+   *
+   * ## Why this writes through the same path as an edit
+   *
+   * Because a tick on the Actions tab is an edit to a note, and the moment it
+   * is anything else there are two accounts of whether that thing is done.
+   * It loads the note, changes the one block, saves it and puts it back in the
+   * list — which is also what makes the row disappear from Actions: the tab
+   * reads the notes, so a ticked box is no longer outstanding a render later.
+   *
+   * The open note is updated too, in the rare case it is the one being changed
+   * — a recorder covering a note, say. Never the other way round: this must
+   * not yank a note out from under a caret it is not in.
+   */
+  const changeBlock = useCallback(
+    async (docId: string, blockId: string, change: (block: Block) => Block | null) => {
+      const source = (await loadDoc(docId)) ?? docs.find((d) => d.id === docId)
+      if (!source) return
+      let touched = false
+      const blocks = source.blocks.map((block) => {
+        if (block.id !== blockId) return block
+        const next = change(block)
+        if (!next) return block
+        touched = true
+        return next
+      })
+      if (!touched) return
+      const next: Doc = { ...source, blocks, updatedAt: Date.now() }
+      await saveDoc(next)
+      setDocs((all) =>
+        [next, ...all.filter((d) => d.id !== docId)].sort((a, b) => b.updatedAt - a.updatedAt),
+      )
+      if (latest.current?.id === docId) setDoc(next)
+    },
+    [docs],
+  )
+
+  const tickBox = useCallback(
+    (docId: string, blockId: string) =>
+      void changeBlock(docId, blockId, (block) =>
+        block.type === 'todo' ? { ...block, done: true } : null,
+      ),
+    [changeBlock],
+  )
+
+  /*
+    A line of prose becomes a box where it already is. The words are not
+    touched and the line is not moved: this app suggests, and accepting a
+    suggestion is the smallest change that could possibly mean yes.
+  */
+  const makeBox = useCallback(
+    (docId: string, blockId: string) =>
+      void changeBlock(docId, blockId, (block) =>
+        isTextish(block) ? { id: block.id, type: 'todo', text: block.text, done: false } : null,
+      ),
+    [changeBlock],
+  )
+
   /** Speech from the notes screen, which becomes a note of its own. */
   const recordNote = useCallback(
     (blocks: PastedBlock[]) => {
@@ -501,6 +560,8 @@ export default function Workspace() {
           onSearch={() => setSearching(true)}
           onFavorite={(id, favorite) => void setFavorite(id, favorite)}
           onDelete={(id) => void deleteDoc(id)}
+          onTick={tickBox}
+          onMakeBox={makeBox}
           onRestore={(id) => void restoreDoc(id)}
           onPurge={(id) => void purgeDoc(id)}
           onEmptyTrash={() => void emptyTrash()}

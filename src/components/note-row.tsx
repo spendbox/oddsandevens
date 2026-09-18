@@ -31,11 +31,24 @@ import { KindTile } from './note-kind'
  *
  * ## Swiping it away
  *
- * Drag the row to the left and it goes to the trash — the gesture every list
- * on a phone has, and the one people try first. It is a pointer gesture rather
- * than a touch one, so a trackpad does the same thing; and it is never the
- * only way, because a gesture nobody discovers is a feature nobody has. The
- * same delete is a button on the row, and it is in the note's own ⋯.
+ * Drag the row to the left and it is offered for deletion — the gesture every
+ * list on a phone has, and the one people try first. It is a pointer gesture
+ * rather than a touch one, so a trackpad does the same thing; and it is never
+ * the only way, because a gesture nobody discovers is a feature nobody has:
+ * the same delete is a button on the row on a desktop, and it is in the note's
+ * own ⋯ everywhere.
+ *
+ * The button is not on the row on a phone. There is no hover on a touch
+ * screen, so a bin on every row is a bin visible on every row — forty little
+ * destructive controls under a scrolling thumb. The swipe is the gesture
+ * there, and it asks before it does anything.
+ *
+ * ## Why it asks
+ *
+ * Because a swipe is easy to start by accident on a list somebody is scrolling
+ * with their thumb, and because the row disappearing with no question is the
+ * one interaction here that reads as data loss even though the trash has it.
+ * One question, once, and then it is gone from the list.
  */
 
 /** How far a row has to be dragged before letting go deletes it. */
@@ -220,12 +233,19 @@ export default function NoteRow({
           pointer is a control a phone does not have.
         */}
         <span className="absolute right-1 bottom-2 flex items-center">
+          {/*
+            The bin exists on a desktop, where it appears under the pointer and
+            is out of the way otherwise. On a phone it is not rendered at all:
+            with no hover to hide behind it would be a destructive control
+            sitting on every row of a list people scroll with a thumb, and the
+            swipe is the gesture there.
+          */}
           {onDelete && (
             <button
               type="button"
               aria-label={`Delete ${label}`}
               onClick={() => onDelete(doc.id)}
-              className="rounded-md p-2 text-[var(--color-faint)] hover:text-[var(--color-danger)] sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus:opacity-100"
+              className="hidden rounded-md p-2 text-[var(--color-faint)] hover:text-[var(--color-danger)] sm:block sm:opacity-0 sm:group-hover/row:opacity-100 sm:focus:opacity-100"
             >
               <Trash2 size={13} />
             </button>

@@ -6,10 +6,11 @@ notes, and a note.
 **Everything the reader sees is called a note.** Not a document, not a file.
 Two lines or twenty pages, the same word for both.
 
-Three things in it talk to a model, all of them on purpose and all of them
+Four things in it talk to a model, all of them on purpose and all of them
 optional: the box that writes a note up, the recorder that writes down what was
-said, and the question you can ask of your own notes. Nothing else does, and
-nothing runs without being pressed.
+said, the question you can ask of your own notes, and the button that puts
+everything outstanding in an order. Nothing else does, and nothing runs without
+being pressed.
 
 There is one writing surface and it is a page. Lines finish themselves as the
 caret leaves them, with no model involved.
@@ -502,6 +503,58 @@ a page.
   The drag takes the pointer only after it has moved sideways past a threshold:
   capturing on pointerdown kills every button inside the row, and a drag that
   starts vertical belongs to the scroller.
+
+- **Deleting from the list asks, and names the note.** A swipe is easy to start
+  by accident on a list a thumb is scrolling, and a row vanishing with no
+  question reads as data loss even though the trash has it. The question is a
+  sheet rather than an inline "are you sure?": an inline one turns one row into
+  two and moves every row under it, which is the wrong thing to do to a list
+  somebody is already moving through. The safe answer takes the focus, so
+  Return keeps the note. The trash's own "delete for good" stays inline,
+  because by then the list has stopped.
+- **The bin is not on a row on a phone.** There is no hover on a touch screen,
+  so a control that reveals itself on hover is a control that is simply always
+  there — forty small destructive buttons under a scrolling thumb. The swipe is
+  the gesture there, and the note's own ⋯ is the other way in, so nothing is
+  reachable only by a gesture.
+- **The top of the notes greets the reader; it does not label the screen.** It
+  said "Notes", which is a filing cabinet's label on the only screen this app
+  opens to. The name is derived from the account's email — and derived means
+  guessed, so `nameFromEmail` returns nothing rather than "Hi, A_l99", and what
+  somebody types always wins. It lives in localStorage beside the theme, read
+  through `useSyncExternalStore` with an empty server snapshot, because a name
+  is a preference about this browser's chrome and not something to hold on a
+  server.
+- **The page follows the caret.** Typing past the bottom of the window with the
+  page staying put is an editor you cannot write more than a screenful in. The
+  scroll is worked out from the selection's own rect — falling back to the
+  line's, because a collapsed range at the start of an empty line has no rect —
+  and it keeps the caret inside the band between the bar and the keyboard.
+  Driven from `selectionchange`, never from a keystroke, because the caret also
+  moves by arrow, by tap and by the handles on a phone.
+- **A caret at the front of a line goes into the text, not in front of the
+  control.** `contenteditable=false` children — the box on a task — are
+  positions the caret can legally occupy, and everything typed there lands
+  outside the text. `settleCaret` moves it into the first text node before
+  anything else reads the selection.
+- **The selection bar sits under the words, not over them.** Above is where a
+  bar like this usually goes and it is wrong here: on a phone the selection is
+  made with a thumb and the line above is often what is being compared against.
+  Only when there is no room below does it go back above, which is the one case
+  where covering something beats being off the screen.
+- **What is still to do is a tab, not a feature inside a note.** Nobody writes
+  their tasks in one place; they write them where they happened. `lib/actions.ts`
+  reads every note at once, and the two groups are kept apart on purpose: a box
+  somebody drew is certain and ticking it here ticks it there, and a line of
+  prose is this app reading words — so it says why it was picked and the only
+  thing offered is turning it into a box. Nothing is moved, nothing is copied
+  into a second list, and the note it came from is named on the row, because a
+  task without its context is a line somebody has to go and re-read anyway.
+- **The Actions tab is complete before the model is asked anything.** The list
+  is built on the device, offline, free and identical every time. The model is
+  one button that puts it in an order, it is pressed and never automatic, and
+  it is given only the lines and the note names — never the notes. A screen
+  that spends money when somebody glances at it is a screen they stop opening.
 
 ## Checking work
 

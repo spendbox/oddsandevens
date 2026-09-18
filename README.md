@@ -15,11 +15,19 @@ you wrote never reads like a field in a form.
 **Your notes.** One column, newest first, grouped under the day they were
 written — Today, Yesterday, then the weekday, then the date. Each row has a
 small green tile saying what the note is about, its name, the first two lines of
-it and the time it was last written in. Swipe a row to the left to delete it, or
-press the bin on it. Across the top — and staying there as you scroll — the
-name of the screen, a search field that reads inside every note, and two tabs:
-**Notes** and **Favourites**. At the bottom, a bar to write a note, and a black
-button to record one.
+it and the time it was last written in. Swipe a row to the left to delete it; on
+a computer there is also a bin on the row when you hover it, and on a phone
+there is not — a bin on forty rows under a scrolling thumb is forty small
+mistakes waiting to happen. Either way it asks first, and names the note it is
+asking about.
+
+Across the top — and staying there as you scroll — **Hi, <your name>**, a search
+field that reads inside every note, and three tabs: **Notes**, **Favourites**
+and **Actions**. The name is worked out from your email address if you have
+signed in, and the pencil beside it changes it to whatever you would rather be
+called. It is kept on this device and sent nowhere.
+
+At the bottom, a bar to write a note, and a black button to record one.
 
 Long lists stay quick: ten notes are rendered at a time and the next ten arrive
 as you reach them.
@@ -135,6 +143,30 @@ attached. The retrieval happens on your device: the index picks the notes and
 only the matching passages are sent, so your collection never leaves the machine
 and the cost of a question does not grow with how much you have written.
 
+## What is still to do
+
+**Actions** is the third tab, and it has read every note you have.
+
+**Still to do** is every box you have drawn and not ticked, wherever you drew
+it — in a meeting note three weeks ago, in a note about a boiler, in a list you
+made on a train. Tick it here and it is ticked in the note; the note it came
+from is named under it and one press away, because the note is the context.
+
+**Looks like something to do** is prose that reads like a commitment — "ring the
+landlord", "send the figures by Friday" — found by reading the words, with no
+model involved and nothing sent anywhere. Each one says why it was picked, and
+the only thing offered is the **+** that turns that line into a box to tick in
+the note it is already in. Nothing is moved, nothing is reworded, and nothing
+happens until you press it.
+
+Any day or date is kept in the words you wrote it in. "Friday" is not turned
+into a date, because which Friday was meant is not something this app knows.
+
+With a model configured, and only when you press it, **What should I do first?**
+puts the list in an order and says where several rows are really one job. Only
+those lines and the names of the notes they came from are sent — never the
+notes. The list is complete without it.
+
 ## Keeping
 
 Everything is saved on your device as you type. The bar says so.
@@ -245,6 +277,9 @@ src/lib/kind.ts         what kind of note it is, from its own words
 src/lib/doc-icon.ts     which picture a note gets, and why
 src/lib/search.ts       the BM25 index over everything
 src/lib/ask.ts          retrieval on the device, and citations
+src/lib/tasks.ts        prose that reads like a commitment, by string rules
+src/lib/actions.ts      everything outstanding, gathered from every note
+src/lib/name.ts         a first name out of an email address, or nothing
 src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
 src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
 src/lib/store.ts        saving to the device (IndexedDB)
@@ -255,7 +290,8 @@ src/lib/share.ts        publishing a read-only copy to a link
 src/lib/export.ts       turning a note into markdown or plain text
 src/lib/docx.ts         Word files out, built on zip.ts
 src/lib/when.ts         "3 minutes ago", and the stamp a list prints
-src/app/api/ai/         the one server route: compose, speech, questions
+src/app/api/ai/         the one server route: compose, speech, questions,
+                        and putting what is outstanding in an order
 src/components/         the notes screen, the note, and the box
 src/app/s/[id]/         the public page a shared link opens
 supabase/migrations/    the database tables and their security policies

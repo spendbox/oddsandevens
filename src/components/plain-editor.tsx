@@ -73,6 +73,15 @@ export interface PlainEditorProps {
   onCaret: (id: string | null) => void
 }
 
+/**
+ * The bar at the top of a note, which is sticky and therefore covers the top
+ * of the page, and the room left around the caret when the page is scrolled to
+ * follow it. One line of text is about 32 pixels; this is a little more, so
+ * the caret is never typing against an edge.
+ */
+const BAR = 49
+const MARGIN = 40
+
 /** One run of consecutive paragraphs, or one block that is not text. */
 type Group =
   | { kind: 'run'; key: string; from: number; blocks: Block[] }
@@ -466,14 +475,90 @@ function TextRun({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /**
+   * Puts the caret where a caret can actually be.
+   *
+   * A line that carries a box to tick has a control as its first child, and
+   * every browser will happily put a caret *before* it — offset 0 of the line
+   * itself, which is a position with no text in front of it and a control
+   * behind it. It looks like the caret is sitting inside the box, and anything
+   * typed there lands outside the words. This nudges it to the first character
+   * instead, which is the only position that line has ever meant.
+   */
+  const settleCaret = () => {
+    const el = host.current
+    const selection = window.getSelection()
+    if (!el || !selection || !selection.isCollapsed || selection.rangeCount === 0) return
+    const range = selection.getRangeAt(0)
+    const node = range.startContainer
+    if (node.nodeType !== Node.ELEMENT_NODE) return
+    const line = node as HTMLElement
+    if (!line.dataset?.blockId || !el.contains(line)) return
+    // Only when the caret is in front of something that is painted rather than
+    // typed: the box on a task, and anything of that kind added later.
+    const first = line.childNodes[range.startOffset] as HTMLElement | undefined
+    if (!first || first.nodeType !== Node.ELEMENT_NODE) return
+    if (first.getAttribute?.('contenteditable') !== 'false') return
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
+    const text = walker.nextNode() as Text | null
+    const moved = document.createRange()
+    if (text) moved.setStart(text, 0)
+    else moved.setStartAfter(first)
+    moved.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(moved)
+  }
+
+  /**
+   * Keeps the caret on the screen while somebody is typing.
+   *
+   * The browser scrolls a caret into view on its own, and on this page that is
+   * not enough: the bar at the top is sticky, so "in view" includes the strip
+   * underneath it, and on a phone the keyboard covers the bottom third of the
+   * window without the page knowing. Typing down a long note therefore ended
+   * with the caret behind the keyboard, with the note refusing to move.
+   *
+   * So the visible band is worked out here — under the bar, above whatever the
+   * keyboard is covering — and the page is scrolled by exactly the amount the
+   * caret is outside it. Nothing moves while the caret is inside the band,
+   * which is almost always.
+   */
+  const keepCaretInView = () => {
+    const el = host.current
+    const selection = window.getSelection()
+    if (!el || !selection || selection.rangeCount === 0) return
+    const range = selection.getRangeAt(0)
+    if (!el.contains(range.startContainer)) return
+
+    let rect = range.getBoundingClientRect()
+    if (!rect.height) {
+      // A collapsed caret at the start of an empty line has no rectangle of
+      // its own; the line it is in does.
+      const id = caretLine(el)
+      const line = id ? el.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(id)}"]`) : null
+      if (!line) return
+      rect = line.getBoundingClientRect()
+    }
+
+    const viewport = window.visualViewport
+    const bottom = (viewport ? viewport.height + viewport.offsetTop : window.innerHeight) - MARGIN
+    if (rect.bottom > bottom) {
+      window.scrollBy({ top: rect.bottom - bottom })
+      return
+    }
+    if (rect.top < BAR + MARGIN) window.scrollBy({ top: rect.top - BAR - MARGIN })
+  }
+
   /** Notices the caret moving off a line, which is when that line is finished. */
   useEffect(() => {
     const el = host.current
     if (!el) return
     const onSelection = () => {
       if (!el.contains(document.activeElement)) return
+      settleCaret()
       const on = caretLine(el)
       if (on) wasAt.current = { id: on, offset: offsetIn(el, on) }
+      keepCaretInView()
       if (on === wasOn.current) return
       const left = wasOn.current
       wasOn.current = on
