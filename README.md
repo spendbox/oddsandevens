@@ -147,20 +147,33 @@ and the cost of a question does not grow with how much you have written.
 
 **Actions** is the third tab, and it has read every note you have.
 
-**Still to do** is every box you have drawn and not ticked, wherever you drew
-it — in a meeting note three weeks ago, in a note about a boiler, in a list you
-made on a train. Tick it here and it is ticked in the note; the note it came
-from is named under it and one press away, because the note is the context.
+Everything is **grouped under the note it came from**, newest note first. Six
+lines from Tuesday's meeting are one piece of work with one set of names and
+one reason for existing, so they are read under that meeting's name — and the
+name opens the note. **Clear** beside it takes the whole group off in one
+press, which is how people actually finish with a meeting. It asks first, and
+says exactly what it will and will not touch.
 
-**Looks like something to do** is prose that reads like a commitment — "ring the
-landlord", "send the figures by Friday" — found by reading the words, with no
-model involved and nothing sent anywhere. Each one says why it was picked, and
-the only thing offered is the **+** that turns that line into a box to tick in
-the note it is already in. Nothing is moved, nothing is reworded, and nothing
-happens until you press it.
+Inside a group there are two kinds of thing:
+
+- A **box** you drew and have not ticked. Tick it here and it is ticked in the
+  note. Swipe it to the left and the line comes out of the note, because that
+  is what the line was.
+- A **suggestion** — prose that reads like a commitment, like "ring the
+  landlord" or "send the figures by Friday", found by reading the words with no
+  model involved and nothing sent anywhere. It says why it was picked, and the
+  **+** turns that line into a box to tick in the note it is already in. Swipe
+  it away and it says **Not a task**: the guess is turned down and remembered,
+  and not one word of what you wrote is touched.
 
 Any day or date is kept in the words you wrote it in. "Friday" is not turned
 into a date, because which Friday was meant is not something this app knows.
+
+**Done** is a quiet line at the bottom that opens. What is finished is not what
+is to be done, so it is folded away — but it is kept rather than thrown away,
+because *did I actually do that* is a real question and the tick is the only
+record of the answer. Press one to put it back; **Clear them for good** takes
+every ticked box out of the notes it is in, and asks first.
 
 With a model configured, and only when you press it, **What should I do first?**
 puts the list in an order and says where several rows are really one job. Only
@@ -210,18 +223,38 @@ configuration beyond pointing it at this repository.
 
 ## Turning on the model (optional)
 
-Three things use it, and nothing else: writing up a note from the box, writing
-up what you dictate, and answering a question about your notes. All three work
-without it — more roughly, on your device. It is **GPT-4o**. Get a key from
-[platform.openai.com](https://platform.openai.com/api-keys), then put it in
-`.env.local`:
+Four things use it, and nothing else: writing up a note from the box, writing up
+what you dictate, answering a question about your notes, and putting what is
+outstanding in an order. All four work without it — more roughly, on your
+device — and none of them runs unless you press something.
+
+It is **GPT-4o**, because it is what most people already have a key for and it
+is inside the free allowance on a new account.
+
+**Adding the key.** Get one from
+[platform.openai.com](https://platform.openai.com/api-keys). Then, if you are
+running Pad yourself, make a file called `.env.local` in the root of the
+project (next to `package.json`) with one line in it:
 
 ```
 OPENAI_API_KEY=sk-...
 ```
 
-If you already had `ANTHROPIC_API_KEY` set from before, it still works — it is
-read only when `OPENAI_API_KEY` is empty.
+Stop the server and start it again — environment variables are read at startup,
+so a running server will not pick up a new key. On Vercel it goes in **Project →
+Settings → Environment Variables** under the same name, and the project has to
+be redeployed afterwards for the same reason.
+
+If both keys are set, **OpenAI wins**: `ANTHROPIC_API_KEY` is read only when
+`OPENAI_API_KEY` is empty, so if it still seems to be using Anthropic, the
+OpenAI key is either missing, misspelt, or was added after the server started.
+
+**Which model, and what it costs.** Nothing here is agentic and nothing uses
+tools, so nothing asks for a large model. On the Anthropic side the job picks:
+the small, quick one punctuates dictation and writes up a note from the box,
+and the middle one is used only for the two things that are a judgement rather
+than a reading — answering a question about your notes, and deciding what out
+of forty outstanding lines matters first.
 
 The key stays on the server and is never sent to the browser — that is why this
 is the one feature with a server route behind it. Requests are limited to 20 a
@@ -280,6 +313,7 @@ src/lib/ask.ts          retrieval on the device, and citations
 src/lib/tasks.ts        prose that reads like a commitment, by string rules
 src/lib/actions.ts      everything outstanding, gathered from every note
 src/lib/name.ts         a first name out of an email address, or nothing
+src/lib/dismissed.ts    the suggestions you have already said no to
 src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
 src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
 src/lib/store.ts        saving to the device (IndexedDB)

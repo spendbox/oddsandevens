@@ -252,6 +252,17 @@ a page.
   `OPENAI_API_KEY` is empty. `effort` is meaningful only to that fallback, and
   the signature says so rather than pretending both providers have the same
   controls.
+- **The cheap model is the default, and the job picks the expensive one.**
+  Nothing in this app is agentic and nothing uses tools, so nothing asks for the
+  largest model. Punctuating a dictated paragraph and expanding "mtg" to
+  "meeting" are reading tasks: the small model does them as well as the large
+  one, costs a fraction, and is the faster of the two — which matters because it
+  is the one somebody is sitting and waiting for. `effort: 'high'` is the only
+  thing that moves a request up, and only two callers set it: answering a
+  question about the notes, and ordering what is outstanding. Both are a
+  judgement rather than a reading. `output_config` goes only to the model that
+  understands it, because a 400 back would turn "the cheap model does the cheap
+  jobs" into "writing help stopped working".
 - **Search is one thing, not two.** A box that filters the list of file names
   and a box that searches inside documents behave differently and teach people
   to distrust both. `src/lib/search.ts` is a BM25 index over everything, built
@@ -555,6 +566,32 @@ a page.
   one button that puts it in an order, it is pressed and never automatic, and
   it is given only the lines and the note names — never the notes. A screen
   that spends money when somebody glances at it is a screen they stop opening.
+- **Actions are grouped by note, and a group goes at once.** Six lines from
+  Tuesday's meeting are one piece of work with one set of names and one reason
+  for existing; scattered through a flat list of forty they are six separate
+  things to reconstruct. It is also what makes "I am finished with this
+  meeting" one press instead of six — and that press asks, because several of
+  those lines are writing rather than boxes.
+- **Turning down a suggestion must never touch a word of what was written.**
+  Getting rid of a box means taking that line out of the note, because the box
+  *is* the line. A suggestion is only this app's guess about a line, so no is
+  remembered in `lib/dismissed.ts` — beside the theme, on the device — and the
+  line stays exactly where it was. A screen of guesses that can delete writing
+  is a screen nobody should swipe on.
+- **What is done is folded away, not thrown away.** A list that keeps
+  everything ever finished at the bottom of it gets longer forever, and a list
+  that silently discards it cannot answer "did I actually do that" — which is a
+  real question, and the tick is the only record of the answer. So it is one
+  quiet line that opens, every item can be put back, and clearing it for good
+  is a deliberate press that asks.
+- **One swipe, written once.** `swipe-away.tsx` is the shared gesture: the
+  distance, the slop, the word that slides in underneath, and the three ways it
+  goes wrong (capturing on pointerdown kills every button inside; a vertical
+  drag belongs to the scroller; the click that completes the gesture has to be
+  swallowed). A gesture that behaves differently in two places in the same app
+  is a gesture nobody trusts. `note-row.tsx` keeps its own copy because it is
+  welded into the one list this app is built around; everything after it uses
+  this.
 
 ## Checking work
 

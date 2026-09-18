@@ -489,6 +489,19 @@ export default function Workspace() {
   )
 
   /*
+    And back again. Ticking the wrong thing is the easiest mistake to make on a
+    screen of boxes, and a tick you cannot take back is a tick people stop
+    making.
+  */
+  const untickBox = useCallback(
+    (docId: string, blockId: string) =>
+      void changeBlock(docId, blockId, (block) =>
+        block.type === 'todo' ? { ...block, done: false } : null,
+      ),
+    [changeBlock],
+  )
+
+  /*
     A line of prose becomes a box where it already is. The words are not
     touched and the line is not moved: this app suggests, and accepting a
     suggestion is the smallest change that could possibly mean yes.
@@ -499,6 +512,37 @@ export default function Workspace() {
         isTextish(block) ? { id: block.id, type: 'todo', text: block.text, done: false } : null,
       ),
     [changeBlock],
+  )
+
+  /**
+   * Takes lines out of a note for good, from the Actions tab.
+   *
+   * Several at once, because clearing a note's worth of finished boxes is one
+   * action and doing it as six saves would be six rows appearing and
+   * disappearing in the list while the writes land. A note is never left with
+   * no blocks at all: an empty note that cannot be typed into is worse than a
+   * note with one blank line in it.
+   */
+  const removeBlocks = useCallback(
+    async (docId: string, blockIds: string[]) => {
+      if (!blockIds.length) return
+      const source = (await loadDoc(docId)) ?? docs.find((d) => d.id === docId)
+      if (!source) return
+      const doomed = new Set(blockIds)
+      const kept = source.blocks.filter((block) => !doomed.has(block.id))
+      if (kept.length === source.blocks.length) return
+      const next: Doc = {
+        ...source,
+        blocks: kept.length ? kept : [makeBlock('text')],
+        updatedAt: Date.now(),
+      }
+      await saveDoc(next)
+      setDocs((all) =>
+        [next, ...all.filter((d) => d.id !== docId)].sort((a, b) => b.updatedAt - a.updatedAt),
+      )
+      if (latest.current?.id === docId) setDoc(next)
+    },
+    [docs],
   )
 
   /** Speech from the notes screen, which becomes a note of its own. */
@@ -561,7 +605,9 @@ export default function Workspace() {
           onFavorite={(id, favorite) => void setFavorite(id, favorite)}
           onDelete={(id) => void deleteDoc(id)}
           onTick={tickBox}
+          onUntick={untickBox}
           onMakeBox={makeBox}
+          onRemove={(docId, blockIds) => void removeBlocks(docId, blockIds)}
           onRestore={(id) => void restoreDoc(id)}
           onPurge={(id) => void purgeDoc(id)}
           onEmptyTrash={() => void emptyTrash()}
