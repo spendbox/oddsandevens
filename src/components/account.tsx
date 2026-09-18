@@ -1,6 +1,16 @@
 'use client'
 
-import { Check, CloudOff, LoaderCircle, LogOut, Moon, RefreshCw, Sun } from 'lucide-react'
+import {
+  Check,
+  CloudOff,
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  LogOut,
+  Moon,
+  RefreshCw,
+  Sun,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 import { THEME, usePref } from '@/lib/ui-prefs'
@@ -47,6 +57,8 @@ export default function AccountButton({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  /** Whether the password is readable. Never remembered between visits. */
+  const [showing, setShowing] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const root = useRef<HTMLDivElement>(null)
@@ -227,17 +239,38 @@ export default function AccountButton({
               aria-label="Email"
               className="w-full rounded-md border border-[var(--color-line)] bg-transparent px-2 py-1.5 text-sm outline-none focus:border-[var(--color-accent)]"
             />
-            <input
-              type="password"
-              required
-              minLength={8}
-              autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              aria-label="Password"
-              className="w-full rounded-md border border-[var(--color-line)] bg-transparent px-2 py-1.5 text-sm outline-none focus:border-[var(--color-accent)]"
-            />
+            {/*
+              The eye. A password field you cannot read back is where typos
+              go to hide, and on a phone with autocorrect off and a small
+              keyboard that is most of the reason a sign-in fails twice
+              before it works.
+            */}
+            <span className="relative block">
+              <input
+                type={showing ? 'text' : 'password'}
+                required
+                minLength={8}
+                autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                aria-label="Password"
+                className="w-full rounded-md border border-[var(--color-line)] bg-transparent py-1.5 pr-8 pl-2 text-sm outline-none focus:border-[var(--color-accent)]"
+              />
+              <button
+                type="button"
+                // The keyboard stays up and the caret stays in the field:
+                // every button steals the focus, and a phone takes the keys
+                // down with it.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setShowing((on) => !on)}
+                aria-label={showing ? 'Hide the password' : 'Show the password'}
+                aria-pressed={showing}
+                className="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-[var(--color-faint)] hover:text-[var(--color-ink)]"
+              >
+                {showing ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </span>
 
             {message && <p className="text-[11px] text-[var(--color-danger)]">{message}</p>}
             {notice && <p className="text-[11px] text-[var(--color-good)]">{notice}</p>}

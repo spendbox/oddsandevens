@@ -36,10 +36,14 @@ import { whenIn } from './tasks.ts'
 
 /** Somebody who can be given a task. */
 export interface Member {
+  /** The membership row, which is what a removal or a promotion acts on. */
+  id?: string
   /** Null while they are an invitation nobody has signed in against yet. */
   userId: string | null
   name: string
   email: string
+  /** Whether they may add people, remove them and rename the team. */
+  admin?: boolean
 }
 
 export interface DraftTask {
@@ -127,7 +131,19 @@ function withoutLeadingMention(text: string): string {
  * because the cost of missing one is that somebody adds it by hand and the
  * cost of inventing one is that the whole list stops being believed.
  */
-export function readTasks(message: string, members: Member[] = []): DraftTask[] {
+export function readTasks(
+  message: string,
+  members: Member[] = [],
+  /**
+   * Who a task belongs to when nobody is named in the line.
+   *
+   * This is what a reply is for. "Yes, by Thursday" written under Ada's
+   * question is Ada's job, and nobody is going to type her name again to
+   * say so — so the person being answered is the assignee unless the line
+   * names somebody else, which always wins.
+   */
+  answering?: Member,
+): DraftTask[] {
   const lines = message.split('\n')
   const out: DraftTask[] = []
   /* A mention on its own line applies to the lines under it: "@ada:" and
@@ -155,7 +171,7 @@ export function readTasks(message: string, members: Member[] = []): DraftTask[] 
     // One word is not a task, however it was punctuated.
     if (text.split(/\s+/).length < 2) continue
 
-    const who = named[0] ?? standing
+    const who = named[0] ?? standing ?? answering
     const due = whenIn(text)
     out.push({
       text,

@@ -139,3 +139,27 @@ test('two different tasks stay two', () => {
     2,
   )
 })
+
+/* --------------------------------------------- answering somebody's message */
+
+test('a task written as an answer belongs to whoever was answered', () => {
+  // "Yes, by Thursday" under Ada's question is Ada's job, and nobody is
+  // going to type her name again to say so.
+  const found = readTasks('yes, I will send them by Thursday', team, ada)
+  assert.equal(found.length, 1)
+  assert.equal(found[0].assigneeName, 'Ada Nwosu')
+  assert.equal(found[0].assignee, 'u-ada')
+  assert.match(found[0].due ?? '', /thursday/i)
+})
+
+test('but a name in the line always beats who was answered', () => {
+  const found = readTasks('@ben can you do it instead', team, ada)
+  assert.equal(found.length, 1)
+  assert.equal(found[0].assigneeName, 'Ben', 'what somebody wrote beats what was worked out')
+})
+
+test('answering nobody in particular leaves a task unassigned', () => {
+  const found = readTasks('we need to book the room', team)
+  assert.equal(found.length, 1)
+  assert.equal(found[0].assigneeName, undefined)
+})
