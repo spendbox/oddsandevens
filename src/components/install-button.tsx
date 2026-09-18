@@ -1,8 +1,9 @@
 'use client'
 
 import { Download, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { askToInstall, useInstall } from '@/lib/install'
+import { useDismiss } from './dismiss'
 
 /**
  * Install: the one button in this app that is about the app.
@@ -29,30 +30,11 @@ export default function InstallButton() {
   const state = useInstall()
   const [showing, setShowing] = useState(false)
   const bubble = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
 
-  /*
-    The iOS instruction closes on a press outside it, tested by where the
-    press landed rather than by stopping propagation — the rule every other
-    panel in this app follows, and for the same reason: propagation closes it
-    on pointerdown and unmounts the thing that was about to be clicked.
-  */
-  useEffect(() => {
-    if (!showing) return
-    const away = (event: Event) => {
-      const el = event.target as Element | null
-      if (el && bubble.current?.contains(el)) return
-      setShowing(false)
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowing(false)
-    }
-    document.addEventListener('pointerdown', away)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', away)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [showing])
+  // The same rule as every other panel here, including the half of it that
+  // is easy to miss: the button that opened this is not "outside" it.
+  useDismiss(() => setShowing(false), bubble, button)
 
   if (state === 'none' || state === 'installed') return null
 
@@ -61,6 +43,7 @@ export default function InstallButton() {
   return (
     <div className="relative shrink-0">
       <button
+        ref={button}
         type="button"
         onClick={() => {
           if (manual) setShowing((on) => !on)

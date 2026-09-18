@@ -766,6 +766,49 @@ a page.
   promptly" and is actually "the page you are typing into is now served by a
   different version of the app than the one running in it". It takes a
   `skip-waiting` message instead, sent when somebody presses Update.
+- **The button that opened a panel is not "outside" it.** Half of the
+  outside-press rule, and the half that kept being missed: pressing the ⋯ a
+  second time closed the menu on pointerdown and then the button's own click
+  toggled it straight back open, so the control that opened it could not
+  shut it. `components/dismiss.ts` is the shared hook and it takes the
+  trigger as well as the panel. Every panel opened from a control uses it.
+- **Team mode is a mode, not a fourth tab.** A team is a different thing the
+  app is for, with its own screen and its own rules about who sees what; a
+  tab beside Notes and Actions would say it was one more list of yours, and
+  the first question anybody would have is whether their notes are now
+  shared. They are not, and nothing in Team mode reads, moves or copies a
+  note. Mine is the default and everything in it still works with no account
+  at all.
+- **A task has to be a thing somebody actually said.** The rule the team
+  chat lives or dies by, and it is written three times on purpose: the
+  device reads the message with string rules, the prompt tells the model to
+  pick lines out rather than think of any, and `keepOnlyReal` then throws
+  away anything made of words the message did not contain. A model asked to
+  pull tasks out of a conversation will eventually add the obvious next one
+  — and on a team's board that is a job with somebody else's name against it
+  that nobody agreed to, which is how a whole list stops being believed.
+  Never loosen that check to catch more tasks; missing one costs a manual
+  add, inventing one costs the feature.
+- **The chat is the record and the tasks are a reading of it.** The message
+  is saved first and separately, and everything after it is best effort: the
+  reading failing must never cost somebody the thing they said. Every task
+  carries the message it came from, so it can always be traced back to the
+  sentence that was typed.
+- **A team's dates are the words somebody wrote**, the same as everywhere
+  else here. "Friday" is not turned into a date, because which Friday was
+  meant is not something this knows and a wrong date on another person's
+  task is worse than a vague one.
+- **You cannot look somebody up by email from a browser, and must not try.**
+  `auth.users` is not readable with the anon key and never should be. So a
+  member added by address is a row with no user id, and `claim_invites()` —
+  security definer, matching on the address in the caller's own token —
+  attaches it the first time they sign in. That is why somebody added while
+  they are asleep simply has the team waiting for them.
+- **Membership is checked by one function.** `in_team()` is security
+  definer, because a policy on `team_members` that reads `team_members` to
+  decide is infinitely recursive and Postgres only says so at query time.
+  One function called by every policy is also one place to be wrong instead
+  of twelve.
 - **One swipe, written once.** `swipe-away.tsx` is the shared gesture: the
   distance, the slop, the word that slides in underneath, and the three ways it
   goes wrong (capturing on pointerdown kills every button inside; a vertical

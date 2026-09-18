@@ -16,6 +16,7 @@ import {
   type History,
 } from '@/lib/history'
 import { claimDevice, handOverTo, leaveDevice } from '@/lib/handover'
+import { backToMine } from '@/lib/mode'
 import { purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
 import { watchForUpdates } from '@/lib/update'
 import { blockText, isTextish, type Block, type Doc, type RemovedBlock } from '@/lib/types'
@@ -708,6 +709,10 @@ export default function Workspace() {
   const signOut = useCallback(async () => {
     const who = latestAccount.current
     setAccount(null)
+    // And back to the notes. A team screen with nobody signed in is a screen
+    // that can only say "this needs an account", which is not where to leave
+    // somebody who has just signed out.
+    backToMine()
     setSyncState(isSyncConfigured() ? 'idle' : 'off')
     if (!who) return
     await flushSave()

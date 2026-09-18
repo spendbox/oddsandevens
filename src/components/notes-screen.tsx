@@ -8,12 +8,14 @@ import type { Block, Doc, RemovedBlock } from '@/lib/types'
 import { byDay } from '@/lib/when'
 import { docLabel } from '@/lib/blocks'
 import { greeting, nameFromEmail } from '@/lib/name'
+import { useMode } from '@/lib/mode'
 import { useName } from '@/lib/profile'
 import AccountButton, { type Account } from './account'
 import ActionsPanel from './actions-panel'
 import Confirm from './confirm'
 import DictationButton from './dictation-button'
 import InstallButton from './install-button'
+import ModeToggle from './mode-toggle'
 import UpdateButton from './update-button'
 import NoteRow from './note-row'
 import TrashSection from './trash-section'
@@ -33,6 +35,14 @@ const WorldPanel = dynamic(() => import('./world-panel'), {
   loading: () => <Waiting />,
 })
 const DashboardPanel = dynamic(() => import('./dashboard-panel'), {
+  ssr: false,
+  loading: () => <Waiting />,
+})
+/*
+  And the team, which most people will never press. It is the largest of the
+  three and the only one that is not about this person's own notes at all.
+*/
+const TeamsPanel = dynamic(() => import('./teams-panel'), {
   ssr: false,
   loading: () => <Waiting />,
 })
@@ -183,6 +193,13 @@ export default function NotesScreen({
   */
   const { name: chosen, set: setName } = useName()
   const name = chosen || nameFromEmail(account?.email ?? '')
+  /*
+    Which half of the app this is. Mine is the default and everything in it
+    works with no account; Team is a different screen entirely, and nothing
+    of yours moves into it — see lib/mode.ts.
+  */
+  const { mode } = useMode()
+  const team = mode === 'team'
 
   const live = docs.filter((doc) => !doc.deletedAt)
   const favourites = live
@@ -274,6 +291,8 @@ export default function NotesScreen({
                 both are absent nearly all of the time. */}
             <UpdateButton />
             <InstallButton />
+            {/* The one control that changes what the whole screen is for. */}
+            <ModeToggle />
             <AccountButton
               account={account}
               syncState={syncState}
@@ -298,7 +317,7 @@ export default function NotesScreen({
           different collections is the fastest way to make somebody distrust
           both.
         */}
-        {tab !== 'world' && (
+        {!team && tab !== 'world' && (
           <button
             type="button"
             onClick={onSearch}
@@ -309,6 +328,11 @@ export default function NotesScreen({
           </button>
         )}
 
+        {/*
+          The three places, and only in Mine: a team has two of its own and
+          two rows of tabs is a screen nobody can find their way around.
+        */}
+        {!team && (
         <div
           role="tablist"
           aria-label="Pad"
@@ -324,6 +348,7 @@ export default function NotesScreen({
           />
           <Tab id="world" current={tab} onTab={onTab} icon={<Globe2 size={14} />} label="World" />
         </div>
+        )}
 
         {/*
           And underneath, the ways of looking at the same notes.
@@ -333,7 +358,7 @@ export default function NotesScreen({
           were. They are only there while Notes is, because a way of looking
           at your notes means nothing on a screen that is not showing them.
         */}
-        {tab === 'notes' && (
+        {!team && tab === 'notes' && (
           <div
             role="tablist"
             aria-label="Your notes"
@@ -366,7 +391,15 @@ export default function NotesScreen({
         )}
         </header>
 
-        {tab === 'actions' ? (
+        {team ? (
+          <TeamsPanel
+            me={
+              account
+                ? { id: account.id, email: account.email, name: name || account.email.split('@')[0] }
+                : null
+            }
+          />
+        ) : tab === 'actions' ? (
           <ActionsPanel
             docs={live}
             aiReady={aiReady}
@@ -425,7 +458,7 @@ export default function NotesScreen({
           The bin, at the foot of the notes rather than beside them: it is a
           safety net, not a place anybody wants to look at.
         */}
-        {tab === 'notes' && view === 'all' && trashed.length > 0 && (
+        {!team && tab === 'notes' && view === 'all' && trashed.length > 0 && (
           <section className="mt-8 border-t border-[var(--color-line)] pt-3">
             <TrashSection
               docs={trashed}
@@ -444,7 +477,12 @@ export default function NotesScreen({
         scrolling as before it, and a "new note" button that scrolls away is a
         button that is missing exactly when the list is long enough to make you
         want one.
+
+        Not in Team mode: the chat has its own box in the same place, and two
+        boxes at the bottom of one screen is one of them being typed into by
+        mistake.
       */}
+      {!team && (
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[var(--color-line)] bg-[var(--color-paper)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex w-full max-w-3xl items-center gap-3 pr-16">
           <button
@@ -457,6 +495,7 @@ export default function NotesScreen({
           </button>
         </div>
       </div>
+      )}
 
       <Confirm
         open={!!doomed}
@@ -475,12 +514,14 @@ export default function NotesScreen({
         the difference between "take this down" and "write this in here", which
         are two intentions half a second apart.
       */}
-      <DictationButton
-        title=""
-        aiReady={aiReady}
-        transcribes={transcribes}
-        onWrite={onRecord}
-      />
+      {!team && (
+        <DictationButton
+          title=""
+          aiReady={aiReady}
+          transcribes={transcribes}
+          onWrite={onRecord}
+        />
+      )}
     </div>
   )
 }

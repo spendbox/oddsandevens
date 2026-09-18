@@ -153,6 +153,40 @@ Nothing is written down until you stop, so a correction the recogniser makes hal
 a sentence later does not rewrite the page under your caret. One `Ctrl+Z` takes
 the whole thing back out.
 
+## Working with other people
+
+There is a switch at the top of your notes: **Mine** and **Team**. Mine is
+where this app lives and it is the default — everything above works with no
+account and nothing in it is shared with anybody. Team is a different screen.
+
+**A team is a chat, and the work that comes out of it.** You type what needs
+doing the way you would say it — *@ada can you send the service charge figures
+by Friday* — and it appears on the team's **Actions** board with Ada's name and
+"Friday" against it. Typing **@** offers the people in the team; pick one and
+the task is theirs.
+
+**Nothing is invented.** A task has to be something somebody actually typed.
+Your device reads each message with plain rules first, the model is then asked
+to pick lines out rather than think of any, and anything it hands back made of
+words the message did not contain is thrown away before it reaches the board.
+Missing a task costs you adding it by hand; inventing one puts a job nobody
+agreed to under somebody's name, so the app is built to err the first way.
+
+**The board** shows what is outstanding, who has it and when it is for, with
+what is finished folded away underneath. Anybody in the team can tick, untick
+or delete anything — it is shared work — and **Add a task** takes the same @
+and the same date words as the chat does.
+
+**Adding people.** Press **Add** in the chat and type their email address. They
+are in the team immediately, and if they have not signed up yet, the team is
+waiting for them the first time they sign in with that address. Nothing is
+emailed — this app has no mail sender, and saying "invitation sent" when
+nothing was sent would be a lie.
+
+**Only the team sees any of it.** That is enforced by the database, not by the
+app: the chat, the members and the tasks are readable only by people in that
+team. Teams need sign-in to be set up, and migration `0007_teams.sql`.
+
 ## Finding
 
 The field across the top of your notes, or `Ctrl+K`. It reads inside every note
@@ -441,6 +475,10 @@ src/lib/transcribe.ts   sending those pieces to be transcribed properly
 src/lib/install.ts      the browser's install offer, caught and kept
 src/lib/update.ts       noticing a new version, and offering it
 src/lib/handover.ts     whose device this is, and clearing it when that changes
+src/lib/mode.ts         mine, or the team's
+src/lib/team-chat.ts    reading a chat message for the work in it, and the
+                        guard that stops anything else being written down
+src/lib/teams.ts        the team's chat, members and board, on the server
 src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
 src/lib/store.ts        saving to the device (IndexedDB)
 src/lib/sync.ts         optional sync to Supabase
