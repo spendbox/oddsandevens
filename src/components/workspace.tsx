@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { blocksFromPasted, makeBlock } from '@/lib/blocks'
+import { blocksFromPasted, makeBlock, withBlocksBack, withoutBlocks } from '@/lib/blocks'
 import { titleFrom, withoutTitleLine } from '@/lib/compose'
 import { newId } from '@/lib/id'
 import type { PastedBlock } from '@/lib/paste'
@@ -16,7 +16,7 @@ import {
   type History,
 } from '@/lib/history'
 import { purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
-import { blockText, isTextish, type Block, type Doc } from '@/lib/types'
+import { blockText, isTextish, type Block, type Doc, type RemovedBlock } from '@/lib/types'
 import { type Account } from './account'
 import ComposeNote from './compose-note'
 import Editor from './editor'
@@ -557,16 +557,46 @@ export default function Workspace() {
    * note with one blank line in it.
    */
   const removeBlocks = useCallback(
-    async (docId: string, blockIds: string[]) => {
-      if (!blockIds.length) return
+    async (docId: string, blockIds: string[]): Promise<RemovedBlock[]> => {
+      if (!blockIds.length) return []
       const source = (await loadDoc(docId)) ?? docs.find((d) => d.id === docId)
-      if (!source) return
-      const doomed = new Set(blockIds)
-      const kept = source.blocks.filter((block) => !doomed.has(block.id))
-      if (kept.length === source.blocks.length) return
+      if (!source) return []
+      const { kept, removed } = withoutBlocks(source.blocks, blockIds)
+      if (!removed.length) return []
       const next: Doc = {
         ...source,
         blocks: kept.length ? kept : [makeBlock('text')],
+        updatedAt: Date.now(),
+      }
+      await saveDoc(next)
+      setDocs((all) =>
+        [next, ...all.filter((d) => d.id !== docId)].sort((a, b) => b.updatedAt - a.updatedAt),
+      )
+      if (latest.current?.id === docId) setDoc(next)
+      // What came out, and where it was. The caller holds this for as long as
+      // an undo is on offer; nothing else remembers it.
+      return removed
+    },
+    [docs],
+  )
+
+  /**
+   * And back again, where they came from.
+   *
+   * The other half of `removeBlocks`, written through the same path as any
+   * other edit so it is saved, listed and synced identically. The ordering
+   * and the emptied-note case are in `withBlocksBack`, with no React and no
+   * DOM around them, because "three lines out of the middle and back again"
+   * is a thing to test rather than to swipe at.
+   */
+  const putBackBlocks = useCallback(
+    async (docId: string, removed: RemovedBlock[]) => {
+      if (!removed.length) return
+      const source = (await loadDoc(docId)) ?? docs.find((d) => d.id === docId)
+      if (!source) return
+      const next: Doc = {
+        ...source,
+        blocks: withBlocksBack(source.blocks, removed),
         updatedAt: Date.now(),
       }
       await saveDoc(next)
@@ -661,7 +691,8 @@ export default function Workspace() {
           onTick={tickBox}
           onUntick={untickBox}
           onMakeBox={makeBox}
-          onRemove={(docId, blockIds) => void removeBlocks(docId, blockIds)}
+          onRemove={removeBlocks}
+          onPutBack={(docId, removed) => void putBackBlocks(docId, removed)}
           onRestore={(id) => void restoreDoc(id)}
           onPurge={(id) => void purgeDoc(id)}
           onEmptyTrash={() => void emptyTrash()}

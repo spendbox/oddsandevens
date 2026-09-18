@@ -1,23 +1,17 @@
 'use client'
 
 import {
-  Check,
-  Copy,
   FileDown,
   FileType,
   Globe2,
   Link2,
-  Link2Off,
   ListChecks,
-  LoaderCircle,
   Printer,
   Star,
   Trash2,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { docToMarkdown, safeFilename } from '@/lib/export'
-import { useName } from '@/lib/profile'
-import { publishDoc, shareState, unpublishDoc } from '@/lib/share'
 import type { Doc } from '@/lib/types'
 
 /**
@@ -41,54 +35,30 @@ import type { Doc } from '@/lib/types'
  */
 export default function NoteMenu({
   doc,
-  accountId,
   onFavorite,
   onIgnoreTasks,
+  onShare,
   onDelete,
   onClose,
 }: {
   doc: Doc
-  /** Null when nobody is signed in, which is what sharing requires. */
-  accountId: string | null
   onFavorite: (favorite: boolean) => void
   /** Whether this note is one the Actions tab reads. */
   onIgnoreTasks: (ignore: boolean) => void
+  /**
+   * Opens the share panel.
+   *
+   * The panel is not rendered here: this menu closes on a press outside
+   * itself, and a panel drawn inside it would go with it. The note owns the
+   * panel; the menu is one of the two ways to ask for it.
+   */
+  onShare: () => void
   onDelete: () => void
   onClose: () => void
 }) {
-  /*
-    What a shared copy is credited to. The name they call themselves in the
-    app, which lives on the device beside the theme — the account knows an
-    email address and nobody wants their email address on a note in the
-    World.
-  */
-  const { name } = useName()
-  const [share, setShare] = useState<{
-    url: string | null
-    /** Whether the shared copy is in the World, or only at its own link. */
-    listed: boolean
-    busy: boolean
-    problem?: string
-  }>({ url: null, listed: false, busy: false })
-  const [copied, setCopied] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const root = useRef<HTMLDivElement>(null)
-
-  // Looked up once per note rather than on every render, so a note shared
-  // earlier still shows its link after a reload.
-  useEffect(() => {
-    if (!accountId) return
-    let cancelled = false
-    void shareState(doc.id, accountId).then((state) => {
-      if (!cancelled) {
-        setShare((current) => (current.busy ? current : { ...state, busy: false }))
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [accountId, doc.id])
 
   /*
     Closed by testing where the press landed, never by stopPropagation.
@@ -146,140 +116,34 @@ export default function NoteMenu({
 
       <div className="my-1 h-px bg-[var(--color-line)]" />
 
-      {share.url ? (
-        <div className="px-2 py-1.5">
-          <p className="mb-1 text-[12px] text-[var(--color-faint)]">
-            {share.listed
-              ? 'In the World, where anyone can find it'
-              : 'Anyone with this link can read it'}
-          </p>
-          <div className="flex items-center gap-1">
-            <input
-              readOnly
-              value={share.url}
-              aria-label="Share link"
-              onFocus={(event) => event.currentTarget.select()}
-              className="min-w-0 flex-1 rounded border border-[var(--color-line)] bg-[var(--color-hover)] px-1.5 py-1 text-[12px] outline-none"
-            />
-            <button
-              type="button"
-              aria-label="Copy link"
-              onClick={() => {
-                navigator.clipboard?.writeText(share.url ?? '').then(
-                  () => {
-                    setCopied(true)
-                    setTimeout(() => setCopied(false), 1500)
-                  },
-                  () => {
-                    // Clipboard access can be refused. The link is on screen
-                    // and selectable, so this is not a dead end.
-                  },
-                )
-              }}
-              className="shrink-0 rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
-            >
-              {copied ? <Check size={14} className="text-[var(--color-good)]" /> : <Copy size={14} />}
-            </button>
-          </div>
-          {/*
-            And the second, separate act: putting it where anyone can find
-            it.
+      {/*
+        Two ways to let somebody else read this, and both of them open the
+        same panel.
 
-            A link is sent to particular people; a listing is left in the
-            World. They are one flag apart in the database and a long way
-            apart in what somebody means, so this is never implied by
-            sharing — it is its own switch, it says what it does in the
-            present tense, and turning it off leaves the link working for
-            whoever already has it.
-          */}
-          <label className="mt-1.5 flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1.5 hover:bg-[var(--color-hover)]">
-            <input
-              type="checkbox"
-              checked={share.listed}
-              disabled={share.busy}
-              onChange={(event) => {
-                if (!accountId) return
-                const listed = event.currentTarget.checked
-                setShare({ url: share.url, listed, busy: true })
-                void publishDoc(doc, accountId, { listed, author: name }).then((result) =>
-                  setShare({
-                    url: result.url ?? share.url,
-                    listed: result.ok ? listed : !listed,
-                    busy: false,
-                    problem: result.problem,
-                  }),
-                )
-              }}
-              className="mt-0.5 accent-[var(--color-accent)]"
-            />
-            <span className="min-w-0">
-              <span className="flex items-center gap-1.5 text-[13px]">
-                <Globe2 size={13} className="shrink-0 text-[var(--color-muted)]" />
-                List it in the World
-              </span>
-              <span className="block text-[12px] text-[var(--color-faint)]">
-                Anyone can find it there, search it and save a copy
-              </span>
-            </span>
-          </label>
-          <div className="mt-1 flex gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                if (!accountId) return
-                setShare({ url: share.url, listed: share.listed, busy: true })
-                void publishDoc(doc, accountId, { listed: share.listed, author: name }).then(
-                  (result) =>
-                    setShare({
-                      url: result.url ?? null,
-                      listed: share.listed,
-                      busy: false,
-                      problem: result.problem,
-                    }),
-                )
-              }}
-              className="rounded-md px-1.5 py-1 text-[12px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
-            >
-              Update the shared copy
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!accountId) return
-                setShare({ url: null, listed: false, busy: true })
-                void unpublishDoc(doc.id, accountId).then(() =>
-                  setShare({ url: null, listed: false, busy: false }),
-                )
-              }}
-              className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
-            >
-              <Link2Off size={12} /> Stop sharing
-            </button>
-          </div>
-        </div>
-      ) : (
-        <Row
-          icon={share.busy ? <LoaderCircle size={15} className="animate-spin" /> : <Link2 size={15} />}
-          label="Share a link"
-          hint={accountId ? 'A read-only copy at a public address' : 'Needs an account'}
-          disabled={!accountId || share.busy}
-          onRun={() => {
-            if (!accountId) return
-            setShare({ url: null, listed: false, busy: true })
-            void publishDoc(doc, accountId, { author: name }).then((result) =>
-              setShare({
-                url: result.url ?? null,
-                listed: !!result.listed,
-                busy: false,
-                problem: result.problem,
-              }),
-            )
-          }}
-        />
-      )}
-      {share.problem && (
-        <p className="px-2 py-1 text-[12px] text-[var(--color-danger)]">{share.problem}</p>
-      )}
+        Listing a note in the World used to be a tickbox that appeared inside
+        this menu only after a link had already been made — so the way to put
+        a note in the World was to press something that does not mention the
+        World. It says what it is now, on its own row, and what opens is a
+        panel that closes when you press outside it.
+      */}
+      <Row
+        icon={<Link2 size={15} />}
+        label="Share a link"
+        hint="A read-only copy at an address you send to people"
+        onRun={() => {
+          onShare()
+          onClose()
+        }}
+      />
+      <Row
+        icon={<Globe2 size={15} />}
+        label="Share to the World"
+        hint="Anyone can find it, search it and save a copy"
+        onRun={() => {
+          onShare()
+          onClose()
+        }}
+      />
 
       <div className="my-1 h-px bg-[var(--color-line)]" />
 

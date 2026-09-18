@@ -282,6 +282,19 @@ export default function ComposeNote({
               type="button"
               role="switch"
               aria-checked={findTasks}
+              /*
+                The keyboard stays up.
+
+                Pressing any button moves the focus off the textarea, and a
+                phone takes the keyboard down with it — so answering a
+                question about the note you are in the middle of writing
+                threw you out of writing it, and the box jumped half a screen
+                while the keyboard slid away. Preventing the default on
+                mousedown is what stops the focus moving at all; the click
+                still arrives, so the switch still works, and the caret never
+                leaves the words.
+              */
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => setFindTasks((on) => !on)}
               className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] ${
                 findTasks

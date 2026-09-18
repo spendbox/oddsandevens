@@ -9,6 +9,7 @@ import DictationButton from './dictation-button'
 import FormatToolbar, { type StyleChoice } from './format-toolbar'
 import { KindLine } from './note-kind'
 import NoteMenu from './note-menu'
+import ShareSheet from './share-sheet'
 import PlainEditor from './plain-editor'
 
 /**
@@ -95,6 +96,12 @@ export default function Editor({
   const [revision, setRevision] = useState(0)
   const paintRevision = revision + externalRevision
   const [menu, setMenu] = useState(false)
+  /*
+    The share panel, owned here rather than by the menu that asks for it: the
+    menu closes on a press outside itself, and a panel drawn inside it would
+    be unmounted by the first press anywhere in it.
+  */
+  const [sharing, setSharing] = useState(false)
   /** The line the caret is in, so a dictation knows where to write. */
   const [currentId, setCurrentId] = useState<string | null>(null)
 
@@ -234,15 +241,23 @@ export default function Editor({
           {menu && (
             <NoteMenu
               doc={doc}
-              accountId={accountId}
               onFavorite={onFavorite}
               onIgnoreTasks={onIgnoreTasks}
+              onShare={() => setSharing(true)}
               onDelete={onDelete}
               onClose={() => setMenu(false)}
             />
           )}
         </div>
       </div>
+
+      {/*
+        Who can see this note. Opened from the ⋯ and closed by a press
+        outside it, which is what a press outside means everywhere else here.
+      */}
+      {sharing && (
+        <ShareSheet doc={doc} accountId={accountId} onClose={() => setSharing(false)} />
+      )}
 
       <div className="px-4 pt-5 pb-32 sm:px-12 sm:pt-8">
         {/*

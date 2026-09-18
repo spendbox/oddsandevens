@@ -160,8 +160,11 @@ says exactly what it will and will not touch.
 Inside a group there are two kinds of thing:
 
 - A **box** you drew and have not ticked. Tick it here and it is ticked in the
-  note. Swipe it to the left and the line comes out of the note, because that
-  is what the line was.
+  note. Swipe it to the left to get rid of it — that takes the line out of the
+  note, because that is what the line was, so it **asks first and names the
+  line**, and then offers you **five seconds to undo it**. The undo puts the
+  line back exactly where it was. Clearing a whole group, or everything under
+  Done, works the same way.
 - A **suggestion** — prose that reads like a commitment, like "ring the
   landlord" or "send the figures by Friday", found by reading the words with no
   model involved and nothing sent anywhere. It says why it was picked, and the
@@ -201,14 +204,17 @@ own from a copy of the words. A copy and nothing else: it does not stay linked
 to the original, it does not change when the original does, and the original
 being taken down does not take yours with it.
 
-**Sharing one of yours is two separate decisions.** A note's **⋯** has *Share a
-link*, which is a read-only copy at an unguessable address you send to
-particular people — that is what it has always been and nothing about it has
-changed. Beside it now is **List it in the World**, off unless you tick it.
-Listing puts the note, its opening lines and the name you call yourself in this
-app where anybody can search them. Unticking takes it out of the World and
-leaves the link working for whoever already has it; *Stop sharing* takes down
-both.
+**Sharing one of yours** is in a note's **⋯**, which has two rows — *Share a
+link* and *Share to the World* — and both open the same panel. It closes when
+you press outside it.
+
+Inside are the two separate decisions. **Anyone with the link** is a read-only
+copy at an unguessable address you send to particular people. **In the World**
+puts the note, its opening lines and the name you call yourself in this app
+where anybody can find and search them. Either one publishes the note on its
+own; neither implies the other. Turning the World off takes it out of the World
+and leaves the link working for whoever already has it, and *Stop sharing*
+takes down both.
 
 The World needs sign-in to be set up (see below). Without it the tab says so,
 and nothing else on the screen is affected.
@@ -221,10 +227,16 @@ written something, boxes still to tick and boxes ticked, favourites, and how man
 notes you have left out of Actions. Under that, the last fortnight as one bar a
 day, and what kinds of note they are.
 
-Every number is counted on your device from notes that are already in memory.
-Nothing is sent anywhere, nothing is asked of a model, it works with no network,
-and it is the same answer every time. Each of them is a number you could arrive
-at by opening your notes and counting.
+Every one of those is counted on your device from notes that are already in
+memory. Nothing is sent anywhere, nothing is asked of a model, it works with no
+network, and it is the same answer every time. Each of them is a number you
+could arrive at by opening your notes and counting.
+
+Signed in, there is one more section: **In the World** — how many of your notes
+are out there, how many copies other people have taken of them, and how big the
+World is. Those three are facts about a server, so they arrive after the rest
+and are simply not there when they cannot be fetched. Nothing on the page waits
+for them.
 
 ## Keeping
 

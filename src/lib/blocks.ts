@@ -1,6 +1,13 @@
 import { newId } from './id.ts'
 import type { PastedBlock } from './paste.ts'
-import { blockText, isTextish, type Block, type BlockType, type Doc } from './types.ts'
+import {
+  blockText,
+  isTextish,
+  type Block,
+  type BlockType,
+  type Doc,
+  type RemovedBlock,
+} from './types.ts'
 
 /**
  * Makes an empty block of a given type. One factory, so a block made by a
@@ -179,4 +186,51 @@ export function blocksFromPasted(pasted: PastedBlock[]): Block[] {
     if (made.type === 'todo' && item.done) made.done = true
     return made
   })
+}
+
+/**
+ * Lines taken out of a note, and where each one was.
+ *
+ * Kept here with no DOM and no React so that "what happens to the rest of the
+ * note when three lines come out of the middle of it" is a unit test rather
+ * than something to reproduce by swiping. The removed blocks come back with
+ * their index, which is the whole of what an undo needs.
+ */
+export function withoutBlocks(
+  blocks: Block[],
+  ids: string[],
+): { kept: Block[]; removed: RemovedBlock[] } {
+  const doomed = new Set(ids)
+  const kept: Block[] = []
+  const removed: RemovedBlock[] = []
+  blocks.forEach((block, index) => {
+    if (doomed.has(block.id)) removed.push({ index, block })
+    else kept.push(block)
+  })
+  return { kept, removed }
+}
+
+/**
+ * The same lines, put back where they came from.
+ *
+ * Ascending by index, because each insertion shifts everything after it: an
+ * index recorded against the note as it was is only right once every earlier
+ * one is already back in place. A block that is somehow there already is
+ * skipped rather than duplicated — two undos, or a second device having put
+ * it back first, must not leave the line twice.
+ *
+ * A note emptied to a single blank line by the removal is replaced outright,
+ * or putting three lines back would leave a stray empty paragraph above them.
+ */
+export function withBlocksBack(blocks: Block[], removed: RemovedBlock[]): Block[] {
+  const blank =
+    blocks.length === 1 && blocks[0].type === 'text' && !blocks[0].text.trim() && !blocks[0].html
+  const out = blank ? [] : [...blocks]
+  const here = new Set(out.map((block) => block.id))
+  for (const { index, block } of [...removed].sort((a, b) => a.index - b.index)) {
+    if (here.has(block.id)) continue
+    out.splice(Math.min(Math.max(index, 0), out.length), 0, block)
+    here.add(block.id)
+  }
+  return out
 }

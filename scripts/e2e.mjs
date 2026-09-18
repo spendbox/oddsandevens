@@ -813,10 +813,19 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     }
     await page.mouse.up()
     await page.waitForTimeout(800)
+    /*
+      Gone from the list — but not from the screen, because it is on the undo
+      bar for five seconds. So this asks the list, not the page: the row is
+      no longer offered, and the bar says what went.
+    */
     log(
       'and letting go stops it being offered',
-      !(await page.evaluate(() => document.body.innerText)).includes(said),
+      (await page.locator('section li').filter({ hasText: said }).count()) === 0,
       said,
+    )
+    log(
+      'with a few seconds to take it back',
+      (await page.locator('button:has-text("Undo")').count()) === 1,
     )
     await page.reload({ waitUntil: 'networkidle' })
     await page.waitForTimeout(900)
@@ -845,6 +854,39 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     )
   }
 
+  /*
+    Getting rid of one box takes a line out of a note, which is writing. So
+    it asks, and it names the line.
+  */
+  {
+    const one = page.locator('section li').first()
+    if (await one.count()) {
+      const said = (await one.innerText()).split('\n')[0].trim()
+      // The swipe is the gesture on a phone; the same delete is here as a
+      // drag on a desktop, so the row is dragged rather than clicked.
+      const box = await one.boundingBox()
+      if (box) {
+        await page.mouse.move(box.x + box.width - 30, box.y + box.height / 2)
+        await page.mouse.down()
+        await page.mouse.move(box.x + box.width - 200, box.y + box.height / 2, { steps: 12 })
+        await page.mouse.up()
+        await page.waitForTimeout(500)
+        const asked = page.locator('[role="dialog"][aria-label^="Delete"]')
+        log(
+          'getting rid of one line asks first, and names the line',
+          (await asked.count()) === 1 && (await asked.getAttribute('aria-label')).includes(said.slice(0, 12)),
+          await asked.getAttribute('aria-label').catch(() => ''),
+        )
+        await page.locator('[role="dialog"] button:has-text("Keep it")').click()
+        await page.waitForTimeout(400)
+        log(
+          'and saying no leaves the line exactly where it was',
+          (await page.locator('section li').first().innerText()).includes(said),
+        )
+      }
+    }
+  }
+
   // A whole note's worth at once, which is how people finish with a meeting.
   {
     const clear = page.locator('section button:has-text("Clear")').first()
@@ -867,6 +909,32 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
         'and saying yes takes the whole group off at once',
         before > 0 && after < before,
         `${before} → ${after}`,
+      )
+
+      /*
+        And then offers it back for five seconds. A question stops the swipe
+        nobody meant; the undo covers the yes that was pressed too quickly,
+        which is the mistake a question cannot catch.
+      */
+      const undo = page.locator('button:has-text("Undo")')
+      log('an undo is offered straight afterwards', (await undo.count()) === 1)
+      await undo.click()
+      await page.waitForTimeout(1200)
+      log(
+        'and it puts the lines back in the notes they came from',
+        (await page.locator('section li').count()) === before,
+        `${after} → ${await page.locator('section li').count()}`,
+      )
+      await page.screenshot({ path: `${SHOTS}/07d-actions-undo.png` })
+
+      // And it does not hang about: five seconds and it is gone.
+      await clear.click()
+      await page.waitForTimeout(300)
+      await page.locator('[role="dialog"] button:has-text("Clear")').click()
+      await page.waitForTimeout(6200)
+      log(
+        'the undo is gone after five seconds rather than becoming furniture',
+        (await page.locator('button:has-text("Undo")').count()) === 0,
       )
     }
   }
@@ -897,6 +965,19 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await toggle.click()
   await page.waitForTimeout(200)
   log('and it can be turned off before the note is saved', (await toggle.getAttribute('aria-checked')) === 'false')
+  /*
+    And the caret never leaves the words. Pressing any button moves the focus,
+    and a phone takes the keyboard down with it — so answering a question
+    about the note you are writing threw you out of writing it. The focus
+    staying in the textarea is the whole of the fix, and the only part of it a
+    desktop browser can be asked about.
+  */
+  log(
+    'and answering it does not take the keyboard away',
+    await page.evaluate(
+      () => document.activeElement?.getAttribute('aria-label') === 'What happened',
+    ),
+  )
   await page.locator('[role="dialog"] button:has-text("Save")').click()
   await page.waitForTimeout(1200)
 
@@ -989,8 +1070,8 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   const text = await menu.innerText()
   log('favouriting, sharing, three ways out, and deleting', /favourite/i.test(text) && /share/i.test(text) && /markdown/i.test(text) && /delete/i.test(text), text.replace(/\n+/g, ' / ').slice(0, 140))
   log(
-    'sharing says it needs an account rather than failing',
-    /needs an account/i.test(text),
+    'and the World is one of the things it offers',
+    /share to the world/i.test(text),
   )
   log(
     'and the menu hangs below the bar rather than inside it',
@@ -1009,6 +1090,32 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   log('a note downloads as markdown', /\.md$/.test(file.suggestedFilename()), file.suggestedFilename())
   await page.waitForTimeout(400)
   await page.keyboard.press('Escape')
+
+  /*
+    Sharing is a panel now, not rows that grow inside the menu. Listing a
+    note in the World used to be a tickbox that only appeared after a link
+    had been made, which is the same as not existing.
+  */
+  await openMenu()
+  await page.locator('[role="menu"] button:has-text("Share to the World")').click()
+  await page.waitForTimeout(400)
+  const sheet = page.locator('[role="dialog"][aria-label="Share this note"]')
+  log('the World row opens a panel', await sheet.isVisible())
+  const sheetText = await sheet.innerText()
+  log(
+    'it offers the link and the World as two separate answers',
+    /anyone with the link/i.test(sheetText) && /in the world/i.test(sheetText),
+    sheetText.replace(/\n+/g, ' / ').slice(0, 120),
+  )
+  log(
+    'and with no account it says so rather than failing',
+    /needs an account/i.test(sheetText),
+  )
+  await page.screenshot({ path: `${SHOTS}/08b-share.png` })
+  // A press outside closes it, which is what a press outside means here.
+  await page.mouse.click(5, 400)
+  await page.waitForTimeout(400)
+  log('a press outside closes it', (await sheet.count()) === 0)
   await back()
 }
 

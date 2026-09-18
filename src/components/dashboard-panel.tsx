@@ -1,8 +1,10 @@
 'use client'
 
-import { useMemo } from 'react'
+import { Globe2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { countLabel, summarise } from '@/lib/stats'
 import type { Doc } from '@/lib/types'
+import { myWorld, worldStats, type MyWorld, type WorldStats } from '@/lib/world'
 
 /**
  * A page of numbers about your own notes.
@@ -27,17 +29,52 @@ import type { Doc } from '@/lib/types'
  *
  * ## Why it costs nothing
  *
- * Every number is counted from the notes already in memory, on the device,
- * offline, free, and the same every time. See `lib/stats.ts`, where all of it
- * lives as pure functions with unit tests — this file only draws.
+ * Every number about your own notes is counted from the notes already in
+ * memory, on the device, offline, free, and the same every time. See
+ * `lib/stats.ts`, where all of it lives as pure functions with unit tests —
+ * this file only draws.
+ *
+ * ## The one part that is not local, and how it behaves
+ *
+ * What you have put into the World, and how many copies people took of it,
+ * are facts about a server and cannot be anything else. So they arrive after
+ * the rest and are their own section: the page is complete and readable the
+ * moment it opens, nothing waits for them, and if they never come — no
+ * account, no network, no migration — that section is simply not there. A
+ * dashboard that shows a spinner where a number should be is a dashboard that
+ * looks broken every time somebody opens it on a train.
  */
-export default function DashboardPanel({ docs }: { docs: Doc[] }) {
+export default function DashboardPanel({
+  docs,
+  accountId,
+}: {
+  docs: Doc[]
+  /** Null when nobody is signed in, which is what the World needs. */
+  accountId: string | null
+}) {
   /*
     Memoised, because it reads every block of every note and this tab
     re-renders for reasons that have nothing to do with the notes — the same
     reason the Actions tab memoises its gather.
   */
   const summary = useMemo(() => summarise(docs), [docs])
+
+  const [mine, setMine] = useState<MyWorld | null>(null)
+  const [world, setWorld] = useState<WorldStats | null>(null)
+
+  useEffect(() => {
+    if (!accountId) return
+    let cancelled = false
+    void (async () => {
+      const [own, all] = await Promise.all([myWorld(accountId), worldStats()])
+      if (cancelled) return
+      setMine(own)
+      setWorld(all)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [accountId])
 
   if (!summary.notes) {
     return (
@@ -105,6 +142,39 @@ export default function DashboardPanel({ docs }: { docs: Doc[] }) {
           {summary.days.map((day) => `${day.label}: ${day.count}`).join(', ')}
         </p>
       </section>
+
+      {/*
+        What you have put out there, and what came of it.
+
+        Under its own heading rather than mixed in with the tiles above,
+        because these two are about a server and the rest are about this
+        device — and because a number that is sometimes missing sitting in a
+        grid of numbers that never are reads as a fault rather than as a
+        different kind of fact.
+      */}
+      {mine && (
+        <section className="mt-3 rounded-xl border border-[var(--color-line)] p-3">
+          <h3 className="flex items-center gap-1.5 text-[12px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
+            <Globe2 size={12} />
+            In the World
+          </h3>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <Tile label="Notes you have shared" value={countLabel(mine.shared)} />
+            <Tile
+              label="Copies people took"
+              value={countLabel(mine.saves)}
+              hint={mine.shared === 0 ? 'Share one from a note’s ⋯' : undefined}
+            />
+            {world && (
+              <Tile
+                label="Notes out there"
+                value={countLabel(world.notes)}
+                hint={`from ${countLabel(world.people)} ${world.people === 1 ? 'person' : 'people'}`}
+              />
+            )}
+          </div>
+        </section>
+      )}
 
       {summary.kinds.length > 1 && (
         <section className="mt-3 rounded-xl border border-[var(--color-line)] p-3">
