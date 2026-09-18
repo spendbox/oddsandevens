@@ -111,6 +111,21 @@ export interface Doc {
    */
   favoritedAt?: number
   /**
+   * Whether this note is left out of the Actions tab.
+   *
+   * Absent — which is every note ever written before this existed, and every
+   * note where nobody said otherwise — means the app reads it for boxes and
+   * for lines that look like commitments, exactly as it always has. `true`
+   * means it is passed over: not hidden, not changed, simply not one of the
+   * notes that question is asked of.
+   *
+   * It is a decision about the note, so it lives on the note: set when it is
+   * written and changeable afterwards from the note's own menu, in one place,
+   * which is what lets it travel with everything else instead of being a
+   * second list on one device that disagrees with the first.
+   */
+  ignoreTasks?: boolean
+  /**
    * When it was moved to the trash. The row stays so sync carries the delete
    * to other devices, and so it can be restored.
    */

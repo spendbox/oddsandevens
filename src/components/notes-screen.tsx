@@ -1,9 +1,10 @@
 'use client'
 
-import { Check, ListChecks, Pencil, Search, Star } from 'lucide-react'
+import { BarChart3, Check, Globe2, ListChecks, Pencil, Search, Star } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import type { PastedBlock } from '@/lib/paste'
-import type { Doc } from '@/lib/types'
+import type { Block, Doc } from '@/lib/types'
 import { byDay } from '@/lib/when'
 import { docLabel } from '@/lib/blocks'
 import { greeting, nameFromEmail } from '@/lib/name'
@@ -15,6 +16,29 @@ import DictationButton from './dictation-button'
 import NoteRow from './note-row'
 import TrashSection from './trash-section'
 import type { SyncState } from '@/lib/sync'
+
+/*
+  The two screens nobody has opened yet are not in the first download.
+
+  The World needs the sign-in client to talk to the server at all, and the
+  dashboard is a page of numbers most people will look at once a month. Both
+  are fetched the first time their tab is pressed — the same bargain the
+  sign-in client and the PDF reader already make, and the reason opening the
+  notes still costs what it did before either of them existed.
+*/
+const WorldPanel = dynamic(() => import('./world-panel'), {
+  ssr: false,
+  loading: () => <Waiting />,
+})
+const DashboardPanel = dynamic(() => import('./dashboard-panel'), {
+  ssr: false,
+  loading: () => <Waiting />,
+})
+
+/** What a tab shows for the moment it takes to arrive. */
+function Waiting() {
+  return <p className="py-12 text-center text-[15px] text-[var(--color-faint)]">One moment…</p>
+}
 
 /**
  * The notes: the app's front page, and the only screen it has that is not a
@@ -30,16 +54,20 @@ import type { SyncState } from '@/lib/sync'
  * the front page, writing is one press from it, and the note you were in is
  * the first row.
  *
- * ## Three tabs, and why each of them is one
+ * ## Three tabs, and three ways of looking at your own notes under one of them
  *
- * Notes, Favourites and Actions. A favourite is not a shelf at the top of a
- * list — that is what it was, and it pushed everything else down while
- * answering a question nobody was asking. It is a *different list*: the
- * handful you keep coming back to, which is exactly what a tab is for.
+ * Notes, Actions, World — three *places*, and that is what a tab is for.
+ * Actions is what is still to be done, written across forty notes one line at
+ * a time, which no amount of scrolling the notes answers: see
+ * `actions-panel.tsx`. The World is other people's notes, which is somewhere
+ * else entirely: see `world-panel.tsx`.
  *
- * Actions is the same argument made about a different question. What is still
- * to be done is written across forty notes, one line at a time, and no amount
- * of scrolling the notes answers it. See `actions-panel.tsx`.
+ * Favourites is not one of them, and that is the correction. It is not a
+ * different place — it is the same notes, with most of them hidden — so it
+ * sits under Notes with All and the dashboard, as a way of looking rather
+ * than a place to go. It was a top-level tab and before that a shelf at the
+ * top of the list, and both said the same wrong thing: that your favourites
+ * are somewhere other than your notes.
  *
  * ## Days, not a wall
  *
@@ -65,13 +93,19 @@ import type { SyncState } from '@/lib/sync'
 
 /** How many rows are rendered at once, and how many more each time. */
 const PAGE = 10
-export type NotesTab = 'notes' | 'favourites' | 'actions'
+/** The three places. */
+export type NotesTab = 'notes' | 'actions' | 'world'
+/** The three ways of looking at your own notes, inside the first of them. */
+export type NotesView = 'all' | 'favourites' | 'dashboard'
 
 export interface NotesScreenProps {
   docs: Doc[]
   trashed: Doc[]
   tab: NotesTab
   onTab: (tab: NotesTab) => void
+  /** Which of the three ways of looking at your own notes is on. */
+  view: NotesView
+  onView: (view: NotesView) => void
   onOpen: (id: string) => void
   onCompose: () => void
   onSearch: () => void
@@ -92,6 +126,8 @@ export interface NotesScreenProps {
   onRecord: (blocks: PastedBlock[]) => void
   /** Whether the model is configured, for the recorder's write-up. */
   aiReady: boolean
+  /** A note copied out of the World, which becomes a note of your own. */
+  onSaveFromWorld: (note: { title: string; blocks: Block[] }) => Promise<void>
   /* Signing in, which is on this screen because this is where people are. */
   account: Account | null
   syncState: SyncState
@@ -105,6 +141,8 @@ export default function NotesScreen({
   trashed,
   tab,
   onTab,
+  view,
+  onView,
   onOpen,
   onCompose,
   onSearch,
@@ -119,6 +157,7 @@ export default function NotesScreen({
   onEmptyTrash,
   onRecord,
   aiReady,
+  onSaveFromWorld,
   account,
   syncState,
   onSignedIn,
@@ -138,17 +177,18 @@ export default function NotesScreen({
   const favourites = live
     .filter((doc) => doc.favoritedAt)
     .sort((a, b) => (b.favoritedAt ?? 0) - (a.favoritedAt ?? 0))
-  const listed = tab === 'favourites' ? favourites : live
+  const listed = view === 'favourites' ? favourites : live
 
   /*
-    How many rows are on screen. Reset whenever the tab changes, because
+    How many rows are on screen. Reset whenever the list changes underneath —
+    a different tab, or a different way of looking at the notes — because
     scrolling four pages into your notes and then pressing Favourites should
     not hand you four pages of favourites.
   */
   const [shown, setShown] = useState(PAGE)
-  const [seenTab, setSeenTab] = useState(tab)
-  if (tab !== seenTab) {
-    setSeenTab(tab)
+  const [seenWhere, setSeenWhere] = useState(`${tab}/${view}`)
+  if (`${tab}/${view}` !== seenWhere) {
+    setSeenWhere(`${tab}/${view}`)
     setShown(PAGE)
   }
 
@@ -231,30 +271,29 @@ export default function NotesScreen({
           what it searches is the point: "every word in every note" is the
           thing people do not expect a notes app to do, and a 24-pixel icon
           says none of it.
+
+          Not on the World, which searches everybody's notes and has a field
+          of its own saying so. Two search boxes on one screen searching two
+          different collections is the fastest way to make somebody distrust
+          both.
         */}
-        <button
-          type="button"
-          onClick={onSearch}
-          className="mb-3 flex w-full items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
-        >
-          <Search size={17} />
-          Search every word in every note
-        </button>
+        {tab !== 'world' && (
+          <button
+            type="button"
+            onClick={onSearch}
+            className="mb-3 flex w-full items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
+          >
+            <Search size={17} />
+            Search every word in every note
+          </button>
+        )}
 
         <div
           role="tablist"
-          aria-label="Notes"
+          aria-label="Pad"
           className="flex items-stretch gap-1 border-b border-[var(--color-line)]"
         >
           <Tab id="notes" current={tab} onTab={onTab} icon={<Pencil size={14} />} label="Notes" />
-          <Tab
-            id="favourites"
-            current={tab}
-            onTab={onTab}
-            icon={<Star size={14} />}
-            label="Favourites"
-            count={favourites.length}
-          />
           <Tab
             id="actions"
             current={tab}
@@ -262,7 +301,41 @@ export default function NotesScreen({
             icon={<ListChecks size={14} />}
             label="Actions"
           />
+          <Tab id="world" current={tab} onTab={onTab} icon={<Globe2 size={14} />} label="World" />
         </div>
+
+        {/*
+          And underneath, the ways of looking at the same notes.
+
+          Quiet pills rather than a second row of tabs with underlines: they
+          are not places, and drawing them like the row above would say they
+          were. They are only there while Notes is, because a way of looking
+          at your notes means nothing on a screen that is not showing them.
+        */}
+        {tab === 'notes' && (
+          <div
+            role="tablist"
+            aria-label="Your notes"
+            className="flex items-center gap-1 pt-2 pb-1"
+          >
+            <View id="all" current={view} onView={onView} label="All" count={live.length} />
+            <View
+              id="favourites"
+              current={view}
+              onView={onView}
+              icon={<Star size={13} />}
+              label="Favourites"
+              count={favourites.length}
+            />
+            <View
+              id="dashboard"
+              current={view}
+              onView={onView}
+              icon={<BarChart3 size={13} />}
+              label="Dashboard"
+            />
+          </div>
+        )}
         </header>
 
         {tab === 'actions' ? (
@@ -275,9 +348,13 @@ export default function NotesScreen({
             onMakeBox={onMakeBox}
             onRemove={onRemove}
           />
+        ) : tab === 'world' ? (
+          <WorldPanel onSave={onSaveFromWorld} />
+        ) : view === 'dashboard' ? (
+          <DashboardPanel docs={live} />
         ) : listed.length === 0 ? (
           <p className="py-12 text-center text-[15px] text-[var(--color-faint)]">
-            {tab === 'favourites'
+            {view === 'favourites'
               ? 'Star a note and it will be here.'
               : 'Everything you write shows up here.'}
           </p>
@@ -319,7 +396,7 @@ export default function NotesScreen({
           The bin, at the foot of the notes rather than beside them: it is a
           safety net, not a place anybody wants to look at.
         */}
-        {tab === 'notes' && trashed.length > 0 && (
+        {tab === 'notes' && view === 'all' && trashed.length > 0 && (
           <section className="mt-8 border-t border-[var(--color-line)] pt-3">
             <TrashSection
               docs={trashed}
@@ -448,14 +525,12 @@ function Tab({
   onTab,
   icon,
   label,
-  count,
 }: {
   id: NotesTab
   current: NotesTab
   onTab: (tab: NotesTab) => void
   icon: React.ReactNode
   label: string
-  count?: number
 }) {
   const on = current === id
   return (
@@ -472,8 +547,50 @@ function Tab({
     >
       {icon}
       {label}
-      {/* A count only where it is news: nobody needs telling how many notes
-          they have, but "3" beside Favourites is the whole tab in one glyph. */}
+    </button>
+  )
+}
+
+/**
+ * One way of looking at your own notes: a pill, not a tab.
+ *
+ * The difference is deliberate and it is the whole point of the change. The
+ * row above is places — your notes, what is outstanding, everybody else's.
+ * This row is the same notes seen three ways, and drawing it identically
+ * would say there were six places when there are three.
+ */
+function View({
+  id,
+  current,
+  onView,
+  icon,
+  label,
+  count,
+}: {
+  id: NotesView
+  current: NotesView
+  onView: (view: NotesView) => void
+  icon?: React.ReactNode
+  label: string
+  count?: number
+}) {
+  const on = current === id
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={on}
+      onClick={() => onView(id)}
+      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] ${
+        on
+          ? 'bg-[var(--color-hover)] font-medium text-[var(--color-ink)]'
+          : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+      }`}
+    >
+      {icon}
+      {label}
+      {/* A count only where it is news. Beside Favourites it is the whole
+          thing in one glyph; beside All it says how much there is to scroll. */}
       {count !== undefined && count > 0 && (
         <span className="text-[12px] text-[var(--color-faint)]">{count}</span>
       )}

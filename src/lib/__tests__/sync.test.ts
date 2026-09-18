@@ -105,6 +105,7 @@ const row = (over = {}) => ({
   updated_at: 2,
   project_id: null,
   favorited_at: null,
+  ignore_tasks: null,
   deleted_at: null,
   ...over,
 })
@@ -114,6 +115,13 @@ test('an ordinary row comes back as an ordinary note', () => {
   assert.equal(doc.title, 'A note')
   assert.equal(doc.deletedAt, undefined)
   assert.equal(doc.purgedAt, undefined)
+})
+
+test('a note left out of Actions says so on the way back', () => {
+  // The lesson favourites taught: one optional field on the note is only
+  // "it travels with everything else" once the row knows about it too.
+  assert.equal(toDoc(row() as never).ignoreTasks, undefined)
+  assert.equal(toDoc(row({ ignore_tasks: true }) as never).ignoreTasks, true)
 })
 
 test('a deleted row comes back in the trash', () => {

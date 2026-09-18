@@ -1,10 +1,10 @@
 'use client'
 
 import {
+  ArrowDownNarrowWide,
   ChevronRight,
   LoaderCircle,
   Plus,
-  Sparkles,
   Square,
   SquareCheck,
 } from 'lucide-react'
@@ -194,7 +194,21 @@ export default function ActionsPanel({
             disabled={reading}
             className="flex items-center gap-2 text-[14px] font-medium text-[var(--color-accent)] disabled:opacity-60"
           >
-            {reading ? <LoaderCircle size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            {/*
+              An arrow putting a list in order, not a sparkle.
+
+              A sparkle is the badge every app in the world now puts on
+              anything a model touched, and it says nothing about what the
+              button does — it says "this is the AI bit", which is a fact
+              about how it was built rather than about what it is for. What
+              this button does is put the list in an order, so it wears the
+              picture of a list being put in an order.
+            */}
+            {reading ? (
+              <LoaderCircle size={15} className="animate-spin" />
+            ) : (
+              <ArrowDownNarrowWide size={15} />
+            )}
             {reading ? 'Reading your list…' : read ? 'Read it again' : 'What should I do first?'}
           </button>
           {problem && <p className="mt-2 text-[13px] text-[var(--color-danger)]">{problem}</p>}
@@ -208,9 +222,6 @@ export default function ActionsPanel({
               ))}
             </ul>
           )}
-          <p className="mt-2 text-[12px] text-[var(--color-faint)]">
-            Only these lines are sent, never your notes.
-          </p>
         </section>
       )}
 

@@ -22,10 +22,13 @@ mistakes waiting to happen. Either way it asks first, and names the note it is
 asking about.
 
 Across the top — and staying there as you scroll — **Hi, <your name>**, a search
-field that reads inside every note, and three tabs: **Notes**, **Favourites**
-and **Actions**. The name is worked out from your email address if you have
-signed in, and the pencil beside it changes it to whatever you would rather be
-called. It is kept on this device and sent nowhere.
+field that reads inside every note, and three tabs: **Notes**, **Actions** and
+**World**. Three places. Under Notes there are three ways of looking at the same
+notes — **All**, **Favourites** and **Dashboard** — which is what a favourite
+actually is: your own notes with most of them hidden, not somewhere else to go.
+The name is worked out from your email address if you have signed in, and the
+pencil beside it changes it to whatever you would rather be called. It is kept
+on this device and sent nowhere.
 
 At the bottom, a bar to write a note, and a black button to record one.
 
@@ -175,20 +178,65 @@ because *did I actually do that* is a real question and the tick is the only
 record of the answer. Press one to put it back; **Clear them for good** takes
 every ticked box out of the notes it is in, and asks first.
 
+**A note can be left out of all this.** The box you write a note in asks, while
+you are writing it, whether the app should look for tasks in it — on unless you
+say otherwise. A diary, a page of quotes, a draft: turn it off and that note
+never appears here. Nothing in it is changed, hidden or moved, and a note's **⋯**
+changes its mind either way afterwards.
+
 With a model configured, and only when you press it, **What should I do first?**
 puts the list in an order and says where several rows are really one job. Only
 those lines and the names of the notes they came from are sent — never the
 notes. The list is complete without it.
 
+## The World
+
+**World** is the third tab: the notes other people have chosen to leave where
+anyone can find them. One list, newest first, with a search across all of it,
+and a line at the top saying how many people have shared how many notes.
+
+Two things you can do to a row. **Open it** — it opens at the address it was
+shared at, read-only, in a new tab. Or **Save** it, which makes a note of your
+own from a copy of the words. A copy and nothing else: it does not stay linked
+to the original, it does not change when the original does, and the original
+being taken down does not take yours with it.
+
+**Sharing one of yours is two separate decisions.** A note's **⋯** has *Share a
+link*, which is a read-only copy at an unguessable address you send to
+particular people — that is what it has always been and nothing about it has
+changed. Beside it now is **List it in the World**, off unless you tick it.
+Listing puts the note, its opening lines and the name you call yourself in this
+app where anybody can search them. Unticking takes it out of the World and
+leaves the link working for whoever already has it; *Stop sharing* takes down
+both.
+
+The World needs sign-in to be set up (see below). Without it the tab says so,
+and nothing else on the screen is affected.
+
+## Your dashboard
+
+**Dashboard**, under Notes, is a page of counts about your own writing: how many
+notes and words, how many you started this week, how many days in a row you have
+written something, boxes still to tick and boxes ticked, favourites, and how many
+notes you have left out of Actions. Under that, the last fortnight as one bar a
+day, and what kinds of note they are.
+
+Every number is counted on your device from notes that are already in memory.
+Nothing is sent anywhere, nothing is asked of a model, it works with no network,
+and it is the same answer every time. Each of them is a number you could arrive
+at by opening your notes and counting.
+
 ## Keeping
 
 Everything is saved on your device as you type. The bar says so.
 
-**Favourites** are a tab of their own: the handful you keep coming back to. The
-star is on every row, and in a note's **⋯**.
+**Favourites** are one of the three ways of looking at your notes, beside All
+and Dashboard: the handful you keep coming back to. The star is on every row,
+and in a note's **⋯**.
 
 **The ⋯** on a note holds everything else: favourite it, share a read-only link,
-save as PDF, download as Markdown or as Word, and delete.
+list it in the World, read it for tasks or leave it out, save as PDF, download
+as Markdown or as Word, and delete.
 
 **Deleting is undoable.** A deleted note goes to the trash at the foot of your
 notes and stays for 7 days, with each row saying how long it has left. You can
@@ -278,6 +326,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 Row-level security is on and the policies only ever let somebody read and write
 their own notes. That is enforced by the database, not by the app.
 
+Shared notes live in their own table with their own rules: a note listed in the
+World is readable by anyone, and a note shared only by link is fetched by the
+id in that link and cannot be listed or enumerated. Migration
+`0005_world.sql` is what narrows that — before it, one query against the shared
+table returned every link-shared note in it.
+
 ## How it is built
 
 - **Next.js 16, React 19, TypeScript, Tailwind v4.** No editor library, no
@@ -288,7 +342,13 @@ their own notes. That is enforced by the database, not by the app.
   Return, selection, copy and `Ctrl+A` are the browser's own behaviour rather
   than three hundred lines imitating it.
 - **The sign-in client is a dynamic import**, so the ~100KB it costs stays out
-  of the first download for everyone who never signs in.
+  of the first download for everyone who never signs in. The World and the
+  dashboard are the same: neither is fetched until its tab is pressed, and
+  `npm run e2e` checks that on a page that has never pressed either.
+- **The World is searched by the server; your own notes never are.** Your notes
+  are indexed on the device because they are already there, and the World
+  cannot be, so its search is one indexed query in Postgres and a page of
+  twenty rows carrying two lines each.
 
 ### The one rule
 
@@ -320,7 +380,9 @@ src/lib/store.ts        saving to the device (IndexedDB)
 src/lib/sync.ts         optional sync to Supabase
 src/lib/history.ts      undo and redo, over whole notes
 src/lib/trash.ts        the seven-day retention rules
-src/lib/share.ts        publishing a read-only copy to a link
+src/lib/share.ts        publishing a read-only copy, to a link or the World
+src/lib/world.ts        reading the World: the feed, the search, the counts
+src/lib/stats.ts        the dashboard's numbers, counted on the device
 src/lib/export.ts       turning a note into markdown or plain text
 src/lib/docx.ts         Word files out, built on zip.ts
 src/lib/when.ts         "3 minutes ago", and the stamp a list prints

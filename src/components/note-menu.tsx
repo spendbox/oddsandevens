@@ -5,8 +5,10 @@ import {
   Copy,
   FileDown,
   FileType,
+  Globe2,
   Link2,
   Link2Off,
+  ListChecks,
   LoaderCircle,
   Printer,
   Star,
@@ -14,7 +16,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { docToMarkdown, safeFilename } from '@/lib/export'
-import { existingShare, publishDoc, unpublishDoc } from '@/lib/share'
+import { useName } from '@/lib/profile'
+import { publishDoc, shareState, unpublishDoc } from '@/lib/share'
 import type { Doc } from '@/lib/types'
 
 /**
@@ -40,6 +43,7 @@ export default function NoteMenu({
   doc,
   accountId,
   onFavorite,
+  onIgnoreTasks,
   onDelete,
   onClose,
 }: {
@@ -47,13 +51,25 @@ export default function NoteMenu({
   /** Null when nobody is signed in, which is what sharing requires. */
   accountId: string | null
   onFavorite: (favorite: boolean) => void
+  /** Whether this note is one the Actions tab reads. */
+  onIgnoreTasks: (ignore: boolean) => void
   onDelete: () => void
   onClose: () => void
 }) {
-  const [share, setShare] = useState<{ url: string | null; busy: boolean; problem?: string }>({
-    url: null,
-    busy: false,
-  })
+  /*
+    What a shared copy is credited to. The name they call themselves in the
+    app, which lives on the device beside the theme — the account knows an
+    email address and nobody wants their email address on a note in the
+    World.
+  */
+  const { name } = useName()
+  const [share, setShare] = useState<{
+    url: string | null
+    /** Whether the shared copy is in the World, or only at its own link. */
+    listed: boolean
+    busy: boolean
+    problem?: string
+  }>({ url: null, listed: false, busy: false })
   const [copied, setCopied] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -64,8 +80,10 @@ export default function NoteMenu({
   useEffect(() => {
     if (!accountId) return
     let cancelled = false
-    void existingShare(doc.id, accountId).then((url) => {
-      if (!cancelled) setShare((current) => (current.busy ? current : { url, busy: false }))
+    void shareState(doc.id, accountId).then((state) => {
+      if (!cancelled) {
+        setShare((current) => (current.busy ? current : { ...state, busy: false }))
+      }
     })
     return () => {
       cancelled = true
@@ -131,7 +149,9 @@ export default function NoteMenu({
       {share.url ? (
         <div className="px-2 py-1.5">
           <p className="mb-1 text-[12px] text-[var(--color-faint)]">
-            Anyone with this link can read it
+            {share.listed
+              ? 'In the World, where anyone can find it'
+              : 'Anyone with this link can read it'}
           </p>
           <div className="flex items-center gap-1">
             <input
@@ -161,14 +181,61 @@ export default function NoteMenu({
               {copied ? <Check size={14} className="text-[var(--color-good)]" /> : <Copy size={14} />}
             </button>
           </div>
+          {/*
+            And the second, separate act: putting it where anyone can find
+            it.
+
+            A link is sent to particular people; a listing is left in the
+            World. They are one flag apart in the database and a long way
+            apart in what somebody means, so this is never implied by
+            sharing — it is its own switch, it says what it does in the
+            present tense, and turning it off leaves the link working for
+            whoever already has it.
+          */}
+          <label className="mt-1.5 flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1.5 hover:bg-[var(--color-hover)]">
+            <input
+              type="checkbox"
+              checked={share.listed}
+              disabled={share.busy}
+              onChange={(event) => {
+                if (!accountId) return
+                const listed = event.currentTarget.checked
+                setShare({ url: share.url, listed, busy: true })
+                void publishDoc(doc, accountId, { listed, author: name }).then((result) =>
+                  setShare({
+                    url: result.url ?? share.url,
+                    listed: result.ok ? listed : !listed,
+                    busy: false,
+                    problem: result.problem,
+                  }),
+                )
+              }}
+              className="mt-0.5 accent-[var(--color-accent)]"
+            />
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 text-[13px]">
+                <Globe2 size={13} className="shrink-0 text-[var(--color-muted)]" />
+                List it in the World
+              </span>
+              <span className="block text-[12px] text-[var(--color-faint)]">
+                Anyone can find it there, search it and save a copy
+              </span>
+            </span>
+          </label>
           <div className="mt-1 flex gap-1">
             <button
               type="button"
               onClick={() => {
                 if (!accountId) return
-                setShare({ url: share.url, busy: true })
-                void publishDoc(doc, accountId).then((result) =>
-                  setShare({ url: result.url ?? null, busy: false, problem: result.problem }),
+                setShare({ url: share.url, listed: share.listed, busy: true })
+                void publishDoc(doc, accountId, { listed: share.listed, author: name }).then(
+                  (result) =>
+                    setShare({
+                      url: result.url ?? null,
+                      listed: share.listed,
+                      busy: false,
+                      problem: result.problem,
+                    }),
                 )
               }}
               className="rounded-md px-1.5 py-1 text-[12px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
@@ -179,9 +246,9 @@ export default function NoteMenu({
               type="button"
               onClick={() => {
                 if (!accountId) return
-                setShare({ url: null, busy: true })
+                setShare({ url: null, listed: false, busy: true })
                 void unpublishDoc(doc.id, accountId).then(() =>
-                  setShare({ url: null, busy: false }),
+                  setShare({ url: null, listed: false, busy: false }),
                 )
               }}
               className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
@@ -198,9 +265,14 @@ export default function NoteMenu({
           disabled={!accountId || share.busy}
           onRun={() => {
             if (!accountId) return
-            setShare({ url: null, busy: true })
-            void publishDoc(doc, accountId).then((result) =>
-              setShare({ url: result.url ?? null, busy: false, problem: result.problem }),
+            setShare({ url: null, listed: false, busy: true })
+            void publishDoc(doc, accountId, { author: name }).then((result) =>
+              setShare({
+                url: result.url ?? null,
+                listed: !!result.listed,
+                busy: false,
+                problem: result.problem,
+              }),
             )
           }}
         />
@@ -208,6 +280,31 @@ export default function NoteMenu({
       {share.problem && (
         <p className="px-2 py-1 text-[12px] text-[var(--color-danger)]">{share.problem}</p>
       )}
+
+      <div className="my-1 h-px bg-[var(--color-line)]" />
+
+      {/*
+        Whether the Actions tab reads this note.
+
+        The same question the box asks when a note is written, in the one
+        place a note's own settings live — because an answer given in a hurry
+        while typing has to be changeable later, and because a note that
+        turned into a list of things to do after the fact should be able to
+        say so.
+      */}
+      <Row
+        icon={<ListChecks size={15} />}
+        label={doc.ignoreTasks ? 'Find tasks in this note' : 'Ignore tasks in this note'}
+        hint={
+          doc.ignoreTasks
+            ? 'Its boxes and commitments go back to Actions'
+            : 'It stops appearing in Actions. Nothing in it changes'
+        }
+        onRun={() => {
+          onIgnoreTasks(!doc.ignoreTasks)
+          onClose()
+        }}
+      />
 
       <div className="my-1 h-px bg-[var(--color-line)]" />
 

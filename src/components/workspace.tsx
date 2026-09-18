@@ -20,7 +20,7 @@ import { blockText, isTextish, type Block, type Doc } from '@/lib/types'
 import { type Account } from './account'
 import ComposeNote from './compose-note'
 import Editor from './editor'
-import NotesScreen, { type NotesTab } from './notes-screen'
+import NotesScreen, { type NotesTab, type NotesView } from './notes-screen'
 import SearchPanel from './search-panel'
 
 /**
@@ -62,6 +62,14 @@ export default function Workspace() {
   const [doc, setDoc] = useState<Doc | null>(null)
   const [ready, setReady] = useState(false)
   const [tab, setTab] = useState<NotesTab>('notes')
+  /*
+    Which way of looking at your own notes is on, kept here rather than inside
+    the notes screen so that opening a favourite and coming back lands on the
+    favourites again. The screen unmounts while a note is open, and state that
+    lives in it is state that is thrown away every time somebody writes
+    something.
+  */
+  const [view, setView] = useState<NotesView>('all')
   const [searching, setSearching] = useState(false)
   const [composing, setComposing] = useState(false)
   /**
@@ -348,10 +356,13 @@ export default function Workspace() {
 
   /** A note that arrived whole: composed in the box, or spoken into the mic. */
   const addNote = useCallback(
-    async (note: { title: string; blocks: Block[] }) => {
+    async (note: { title: string; blocks: Block[]; ignoreTasks?: boolean }) => {
       await flushSave()
       const fresh = emptyDoc()
       fresh.title = note.title
+      // Only when it was said, so a note nobody answered the question about
+      // carries no field at all — see `ignoreTasks` on the note.
+      if (note.ignoreTasks) fresh.ignoreTasks = true
       // Never demand a name: when nothing has given the note one, it is made
       // from the opening line.
       if (!fresh.title.trim()) {
@@ -435,6 +446,28 @@ export default function Workspace() {
       const next: Doc = { ...source, updatedAt: Date.now() }
       if (favorite) next.favoritedAt = Date.now()
       else delete next.favoritedAt
+      await saveDoc(next)
+      setDocs((all) => all.map((d) => (d.id === docId ? next : d)))
+      if (latest.current?.id === docId) setDoc(next)
+    },
+    [docs],
+  )
+
+  /**
+   * Whether a note is one the Actions tab reads.
+   *
+   * Written through the same path as a favourite, and for the same reason:
+   * it is one optional field on the note, so it is saved once, listed once
+   * and synced once, and there is no second list anywhere that can disagree
+   * with it.
+   */
+  const setIgnoreTasks = useCallback(
+    async (docId: string, ignore: boolean) => {
+      const source = (await loadDoc(docId)) ?? docs.find((d) => d.id === docId)
+      if (!source) return
+      const next: Doc = { ...source, updatedAt: Date.now() }
+      if (ignore) next.ignoreTasks = true
+      else delete next.ignoreTasks
       await saveDoc(next)
       setDocs((all) => all.map((d) => (d.id === docId ? next : d)))
       if (latest.current?.id === docId) setDoc(next)
@@ -545,6 +578,24 @@ export default function Workspace() {
     [docs],
   )
 
+  /**
+   * A note out of the World, copied into your own.
+   *
+   * A copy, and nothing more: fresh ids, your own note, saved on the device
+   * like anything else you wrote. It is deliberately not a link back to the
+   * original — a row in somebody's list that another person can edit or take
+   * down is not a thing a notes app should have — and it deliberately does
+   * not open, because saving several while reading is one gesture and being
+   * thrown into the editor after each one is not.
+   */
+  const saveFromWorld = useCallback(
+    async (note: { title: string; blocks: Block[] }) => {
+      const blocks = note.blocks.map((block) => ({ ...block, id: newId() }))
+      await addNote({ title: note.title, blocks: blocks.length ? blocks : [makeBlock('text')] })
+    },
+    [addNote],
+  )
+
   /** Speech from the notes screen, which becomes a note of its own. */
   const recordNote = useCallback(
     (blocks: PastedBlock[]) => {
@@ -588,6 +639,7 @@ export default function Workspace() {
                 covered={searching}
                 onBack={() => void closeDoc()}
                 onFavorite={(favorite) => void setFavorite(doc.id, favorite)}
+                onIgnoreTasks={(ignore) => void setIgnoreTasks(doc.id, ignore)}
                 onDelete={() => void deleteDoc(doc.id)}
               />
             </div>
@@ -599,6 +651,8 @@ export default function Workspace() {
           trashed={trashed}
           tab={tab}
           onTab={setTab}
+          view={view}
+          onView={setView}
           onOpen={(id) => void openDoc(id)}
           onCompose={() => setComposing(true)}
           onSearch={() => setSearching(true)}
@@ -613,6 +667,7 @@ export default function Workspace() {
           onEmptyTrash={() => void emptyTrash()}
           onRecord={recordNote}
           aiReady={aiReady}
+          onSaveFromWorld={saveFromWorld}
           account={account}
           syncState={syncState}
           onSignedIn={(next) => {

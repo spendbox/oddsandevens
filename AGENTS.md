@@ -584,6 +584,70 @@ a page.
   real question, and the tick is the only record of the answer. So it is one
   quiet line that opens, every item can be put back, and clearing it for good
   is a deliberate press that asks.
+- **A favourite is a way of looking at your notes, not a place to go.** It was
+  a top-level tab, and before that a shelf on top of the list, and both said
+  the same wrong thing — that the notes you keep coming back to live somewhere
+  other than your notes. The tabs are places (Notes, Actions, World); the pills
+  under Notes are the same notes seen three ways (All, Favourites, Dashboard),
+  and they are drawn differently on purpose, because a second row of tabs would
+  say there were six places when there are three.
+- **Whether a note is read for tasks is asked while it is written.**
+  `ignoreTasks` on the note, absent by default, because a diary and a page of
+  quotes are notes too and the Actions tab reading them is noise nobody asked
+  for. It is asked in the box, at the one moment somebody knows what kind of
+  note this is, and changeable afterwards from the note's own ⋯ — and it leaves
+  the note exactly as it was: not hidden, not changed, simply not one of the
+  notes that question is asked of. `gatherActions` and `gatherDone` both honour
+  it through one helper, because two places deciding which notes are in scope
+  is two places to disagree.
+- **A sparkle is not a picture of anything.** It is the badge every app now
+  puts on whatever a model touched, and it says "this is the AI bit" — a fact
+  about how the thing was built rather than about what it does. The button that
+  orders the Actions list wears an arrow ordering a list. The same test applies
+  to anything added later: draw the job, not the implementation.
+- **The screen does not explain its own privacy in small print.** "Only these
+  lines are sent, never your notes" was true, and it was a footnote under a
+  button asking to be trusted — which is where a notice goes when the design
+  cannot make the point on its own. What is sent is in `digest`, and it is one
+  function with the reason written above it.
+- **A link share and a World listing are two decisions, and one is never
+  implied by the other.** `listed` on the shared row is the whole difference,
+  it defaults to false, and publishing without it leaves a note exactly as
+  private as it was. Turning a listing off leaves the link working for whoever
+  already has it, because those people were given it on purpose.
+- **Reading `shared_docs` is limited to what is listed, plus your own.** A
+  policy of `using (true)` was fine while nobody could enumerate the table and
+  wrong the moment the anon key was in a bundle: one unfiltered select returned
+  every link-shared note there was. A link is served by `shared_doc(id)`, a
+  security-definer function that can return the one row whose id you already
+  have — the id is the secret, as it always was. Never widen that select policy
+  to make the World easier to query.
+- **A note saved out of the World is a copy, and nothing more.** New ids, your
+  note, on your device. It does not follow the original, the original changing
+  does not change it, and the original being taken down does not take it with
+  it. A row in somebody's list that another person can edit or delete is not a
+  thing a notes app may have.
+- **The World is searched by the server; your own notes never are.** Your notes
+  are already on the device, so the index is local — see `lib/search.ts`. The
+  World is everybody's and unbounded, so downloading it to search it is the one
+  thing that could not be made fast: it is a generated tsvector, a GIN index
+  and a page of twenty rows carrying a stored two-line preview each. Never
+  select `blocks` or `body` to draw a list.
+- **The dashboard is counted on the device, and every number is one the reader
+  could check.** `lib/stats.ts`, pure, unit-tested, no network and no model —
+  the same bargain as the icons and the kinds. Its boxes are every box in every
+  live note, deliberately not the Actions tab's list, which is capped per note
+  and filtered by what somebody turned down: right for a list to read, and a
+  lie to print.
+- **No palette, on the dashboard least of all.** Green says what kind of note
+  something is and yellow marks a searched word; a dashboard is exactly where
+  a third and fourth colour creep in, and the moment they do neither of the
+  first two means anything. Bars are ink at two weights, and a day with nothing
+  on it is a hairline rather than a gap.
+- **A tab nobody has opened is not in the first download.** The World and the
+  dashboard are `next/dynamic`, like the sign-in client and the PDF reader, and
+  `npm run e2e` asserts both are absent from a page that has never pressed
+  their tab. Keep it that way for anything added beside them.
 - **One swipe, written once.** `swipe-away.tsx` is the shared gesture: the
   distance, the slop, the word that slides in underneath, and the three ways it
   goes wrong (capturing on pointerdown kills every button inside; a vertical
