@@ -121,13 +121,33 @@ headings for what was actually discussed, bullets under them, and an **Actions**
 list at the end with anything anybody committed to — with the day kept in the
 words it was said in.
 
-The listening is done by your browser, which already has a speech recogniser
-built in. That means it is free, it starts instantly, and the words appear as you
-speak rather than after an upload. It works in Chrome, Edge, Safari and Chrome on
-Android; in a browser without one the button simply is not there. A pause does
-not end the recording — browsers stop listening after a silence, and this starts
-them again and keeps everything already heard, which is what makes a long meeting
-survive.
+**Two things are listening, and they are doing different jobs.** Your browser's
+own recogniser runs while you talk — that is what puts the words on screen as
+you say them, and it is free and instant. But what it hears is a stream of
+guesses: no punctuation, names and figures replaced by whatever sounded
+nearest, and whole phrases lost when two people talk over each other. So the
+microphone is recorded as well, and when you stop, the audio is **transcribed
+properly** and *that* is what goes into your note. The sign says "Transcribing"
+while it happens, and counts the pieces on a long recording.
+
+That part needs a key (see below) and costs a little per minute of recording,
+which is why it never runs unless you press record. Without one, the words your
+browser heard are what gets written down — which is exactly how this worked
+before, and is still a real recording.
+
+**Nothing is ever lost to a failure.** No key, a blocked microphone, a dropped
+upload, one piece of an hour that did not arrive: whatever exists is what goes
+into the note, and if part of it is missing it says so rather than leaving a
+silent hole.
+
+A pause does not end the recording — browsers stop listening after a silence,
+and this starts them again and keeps everything already heard, which is what
+makes a long meeting survive. A meter beside the clock moves when you speak, so
+you can see it is hearing you even in a browser that shows no live words.
+
+**Firefox works now too.** It has no speech recogniser, so it used to get no
+recorder at all; with transcription configured it records and transcribes like
+everything else.
 
 Nothing is written down until you stop, so a correction the recogniser makes half
 a sentence later does not rewrite the page under your caret. One `Ctrl+Z` takes
@@ -261,10 +281,17 @@ signing out leaves every note where it was.
 
 ## Installing it as an app
 
-Open the site in a browser and choose **Install** (Chrome and Edge put it in the
-address bar; on an iPhone it is Share → Add to Home Screen). It then opens from
-your dock or home screen in its own window, with no address bar, and starts with
-no internet connection at all.
+There is an **Install** button at the top of your notes, beside your account. It
+appears when your browser can install Pad and disappears for good once it has,
+so most of the time there is nothing there.
+
+Your browser offers it too — Chrome and Edge put a small icon at the right-hand
+end of the address bar. On an iPhone there is no button to press: the Install
+button shows you the two steps instead, which are **Share → Add to Home
+Screen**.
+
+Installed, it opens from your dock or home screen in its own window, with no
+address bar, and starts with no internet connection at all.
 
 ## Running it yourself
 
@@ -283,13 +310,22 @@ configuration beyond pointing it at this repository.
 
 ## Turning on the model (optional)
 
-Four things use it, and nothing else: writing up a note from the box, writing up
-what you dictate, answering a question about your notes, and putting what is
-outstanding in an order. All four work without it — more roughly, on your
-device — and none of them runs unless you press something.
+Five things use it, and nothing else: writing up a note from the box,
+transcribing a recording, writing up what you dictate, answering a question
+about your notes, and putting what is outstanding in an order. All five work
+without it — more roughly, on your device — and none of them runs unless you
+press something.
 
-It is **GPT-4o**, because it is what most people already have a key for and it
-is inside the free allowance on a new account.
+It is **GPT-4o** for the writing, because it is what most people already have a
+key for and it is inside the free allowance on a new account, and
+**gpt-4o-transcribe** for the audio (Whisper on an account that does not have
+the newer one yet).
+
+**What the audio costs.** Transcription is the one thing here priced by the
+minute rather than by the request — a few pence an hour of recording at the
+time of writing. It only happens when you press record and stop, never in the
+background, and a copy of Pad with no key records perfectly well using your
+browser's own recogniser instead.
 
 **Adding the key.** Get one from
 [platform.openai.com](https://platform.openai.com/api-keys). Then, if you are
@@ -387,6 +423,9 @@ src/lib/actions.ts      everything outstanding, gathered from every note
 src/lib/name.ts         a first name out of an email address, or nothing
 src/lib/dismissed.ts    the suggestions you have already said no to
 src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
+src/lib/recorder.ts     keeping the audio, in pieces, with a level meter
+src/lib/transcribe.ts   sending those pieces to be transcribed properly
+src/lib/install.ts      the browser's install offer, caught and kept
 src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
 src/lib/store.ts        saving to the device (IndexedDB)
 src/lib/sync.ts         optional sync to Supabase
