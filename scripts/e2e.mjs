@@ -637,35 +637,68 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   log('actions is a tab of its own', await page.locator('[role="tab"]:has-text("Actions")').isVisible())
   log(
     'and it has read every note, not the open one',
-    /still to do|looks like something to do|tick boxes into your notes/i.test(await text()),
-    (await text()).split('\n').slice(0, 12).join(' / '),
+    /lease meeting/i.test(await text()),
+    (await text()).split('\n').slice(0, 14).join(' / '),
+  )
+  /*
+    Grouped by the note each line came from. The note is the context, and six
+    lines from one meeting are one piece of work rather than six.
+  */
+  log(
+    'everything is grouped under the note it came from, once',
+    await page.evaluate(() => {
+      // The first button in a group's header is the note's name; the last is
+      // "Clear". A note may not head two groups, or the grouping did nothing.
+      const names = [...document.querySelectorAll('section')]
+        .map((section) => section.querySelector(':scope > div > button'))
+        .filter((b) => b && (b.textContent ?? '').trim() !== 'Done')
+        .map((b) => b.textContent.trim())
+      return names.length > 0 && new Set(names).size === names.length
+    }),
+  )
+  log(
+    'and each group can be cleared in one press',
+    (await page.locator('button:has-text("Clear")').count()) > 0,
   )
   await page.screenshot({ path: `${SHOTS}/07-actions.png` })
 
   const box = page.locator('[aria-label^="Tick"]').first()
   if (await box.count()) {
     const before = await box.getAttribute('aria-label')
-    const said = before.replace(/^Tick .|.$/g, '')
     log('an unticked box from any note is on the list', true, before)
-    log(
-      'and every row says which note it came from',
-      (await page.locator('li button').count()) > 0,
-    )
     await box.click()
     await page.waitForTimeout(900)
     log(
       'ticking it here takes it off the list',
-      !(await page.locator('[aria-label^="Tick"]').allTextContents()).join(' ').includes(said) &&
-        (await page.locator(`[aria-label="${before}"]`).count()) === 0,
-      said,
+      (await page.locator(`[aria-label="${before}"]`).count()) === 0,
+      before,
+    )
+    log(
+      'and it turns up under Done, folded away rather than thrown away',
+      /done/i.test(await text()),
+    )
+    await page.locator('button[aria-expanded]:has-text("Done")').click()
+    await page.waitForTimeout(400)
+    const put = before.replace(/^Tick /, 'Put ').replace(/$/, ' back')
+    log(
+      'opening Done shows what was finished, with a way to put it back',
+      (await page.locator(`[aria-label="${put}"]`).count()) === 1,
+      put,
+    )
+    await page.screenshot({ path: `${SHOTS}/07b-actions-done.png` })
+    await page.locator(`[aria-label="${put}"]`).click()
+    await page.waitForTimeout(900)
+    log(
+      'and putting it back makes it outstanding again',
+      (await page.locator(`[aria-label="${before}"]`).count()) === 1,
     )
     await page.reload({ waitUntil: 'networkidle' })
     await page.waitForTimeout(900)
     await page.locator('[role="tab"]:has-text("Actions")').click()
     await page.waitForTimeout(600)
     log(
-      'because it was written into the note, so a reload agrees',
-      (await page.locator(`[aria-label="${before}"]`).count()) === 0,
+      'because all of it was written into the note, so a reload agrees',
+      (await page.locator(`[aria-label="${before}"]`).count()) === 1,
     )
   } else {
     log('an unticked box from any note is on the list', false, 'no box found')
@@ -682,6 +715,91 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
       'and accepting it makes that line a box in the note it is already in',
       (await page.locator('[aria-label^="Tick"]').count()) > 0,
     )
+  }
+
+  /*
+    Swiping one away. A box is a line in a note, so it comes out of the note;
+    a suggestion is only a guess about a line, so turning it down must not
+    touch a word of what was written.
+  */
+  const guess = page.locator('[aria-label^="Make "]').first()
+  if (await guess.count()) {
+    const said = (await guess.getAttribute('aria-label')).replace(/^Make “|” a box to tick$/g, '')
+    const row = page.locator('li').filter({ hasText: said }).first()
+    const spot = await row.boundingBox()
+    await page.mouse.move(spot.x + 200, spot.y + 12)
+    await page.mouse.down()
+    for (let x = 20; x <= 60; x += 20) {
+      await page.mouse.move(spot.x + 200 - x, spot.y + 12)
+      await page.waitForTimeout(30)
+    }
+    log(
+      'dragging a suggestion says it is being turned down, not deleted',
+      /not a task/i.test(await row.innerText()),
+      (await row.innerText()).replace(/\n+/g, ' / '),
+    )
+    for (let x = 80; x <= 160; x += 20) {
+      await page.mouse.move(spot.x + 200 - x, spot.y + 12)
+      await page.waitForTimeout(30)
+    }
+    await page.mouse.up()
+    await page.waitForTimeout(800)
+    log(
+      'and letting go stops it being offered',
+      !(await page.evaluate(() => document.body.innerText)).includes(said),
+      said,
+    )
+    await page.reload({ waitUntil: 'networkidle' })
+    await page.waitForTimeout(900)
+    await page.locator('[role="tab"]:has-text("Actions")').click()
+    await page.waitForTimeout(600)
+    log(
+      'a no is remembered across a reload',
+      !(await page.evaluate(() => document.body.innerText)).includes(said),
+    )
+    log(
+      'and the line is still in the note, because nothing written was touched',
+      await page.evaluate(async (needle) => {
+        const open = indexedDB.open('pad')
+        const db = await new Promise((resolve) => {
+          open.onsuccess = () => resolve(open.result)
+        })
+        const rows = await new Promise((resolve) => {
+          const request = db.transaction('docs').objectStore('docs').getAll()
+          request.onsuccess = () => resolve(request.result)
+        })
+        return rows.some((row) =>
+          (row.blocks ?? []).some((block) => (block.text ?? '').includes(needle)),
+        )
+      }, said),
+      said,
+    )
+  }
+
+  // A whole note's worth at once, which is how people finish with a meeting.
+  {
+    const clear = page.locator('section button:has-text("Clear")').first()
+    if (await clear.count()) {
+      const before = await page.locator('section li').count()
+      await clear.click()
+      await page.waitForTimeout(400)
+      const asked = await page
+        .locator('[role="dialog"][aria-label^="Clear everything"]')
+        .getAttribute('aria-label')
+      log(
+        'clearing a whole group asks first, names the note, and says what it will not touch',
+        !!asked && /nothing you wrote is touched/i.test(await text()),
+        asked,
+      )
+      await page.locator('[role="dialog"] button:has-text("Clear")').click()
+      await page.waitForTimeout(1000)
+      const after = await page.locator('section li').count()
+      log(
+        'and saying yes takes the whole group off at once',
+        before > 0 && after < before,
+        `${before} → ${after}`,
+      )
+    }
   }
 
   await page.locator('[role="tab"]:has-text("Notes")').click()

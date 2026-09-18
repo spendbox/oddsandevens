@@ -52,6 +52,29 @@ export interface ActionItem {
   reason?: string
   /** When the note was last written in, which is how this list is ordered. */
   updatedAt: number
+  /** Only ever true for a box, and only in the list of what is finished. */
+  done?: boolean
+}
+
+/**
+ * Everything one note contributes, under that note's name.
+ *
+ * ## Why the note is the grouping and not the day, or the kind
+ *
+ * Because the note is the context. Six lines from a meeting on Tuesday are one
+ * piece of work with one set of names and one reason for existing, and reading
+ * them under that meeting's name is reading them with all of it attached.
+ * The same six lines scattered through a flat list of forty are six separate
+ * things to reconstruct.
+ *
+ * It is also what makes "I am done with this note" a single press: a whole
+ * group goes at once, which is how people actually finish with a meeting.
+ */
+export interface ActionGroup {
+  docId: string
+  docTitle: string
+  updatedAt: number
+  items: ActionItem[]
 }
 
 /** How many items one note may contribute, so a long note cannot fill the list. */
@@ -128,6 +151,70 @@ export function gatherActions(docs: Doc[], limit = LIMIT): ActionItem[] {
     if (out.length >= limit) break
   }
   return out
+}
+
+/**
+ * The boxes that have been ticked, newest note first.
+ *
+ * Kept out of the list proper and put behind a fold. What is done is not what
+ * is to be done, and a list that keeps everything ever finished at the bottom
+ * of it gets longer forever — but throwing it away silently is worse, because
+ * "did I actually do that" is a real question and the tick is the only record
+ * of the answer. So it is one line that says how many, and it opens.
+ */
+export function gatherDone(docs: Doc[], limit = LIMIT): ActionItem[] {
+  const out: ActionItem[] = []
+  const live = docs
+    .filter((doc) => !doc.deletedAt && !doc.purgedAt)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+
+  for (const doc of live) {
+    const docTitle = docLabel(doc)
+    let taken = 0
+    for (const block of doc.blocks) {
+      if (taken >= PER_NOTE) break
+      if (block.type !== 'todo' || !block.done) continue
+      const text = block.text.trim()
+      if (!text) continue
+      out.push({
+        docId: doc.id,
+        docTitle,
+        blockId: block.id,
+        text,
+        kind: 'box',
+        done: true,
+        updatedAt: doc.updatedAt,
+      })
+      taken++
+      if (out.length >= limit) return out
+    }
+  }
+  return out
+}
+
+/**
+ * The same items, gathered under the note each one came from.
+ *
+ * Order is preserved rather than recomputed: whatever came in first stays
+ * first, so a group's boxes sit above its suggestions exactly as they do in
+ * the flat list, and the notes come out in the order their first item did —
+ * which, from `gatherActions`, is newest note first.
+ */
+export function byNote(items: ActionItem[]): ActionGroup[] {
+  const groups = new Map<string, ActionGroup>()
+  for (const item of items) {
+    const found = groups.get(item.docId)
+    if (found) found.items.push(item)
+    else {
+      groups.set(item.docId, {
+        docId: item.docId,
+        docTitle: item.docTitle,
+        updatedAt: item.updatedAt,
+        items: [item],
+      })
+    }
+  }
+  return [...groups.values()]
 }
 
 /**

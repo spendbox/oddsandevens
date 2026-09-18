@@ -1,9 +1,19 @@
 'use client'
 
-import { LoaderCircle, Plus, Sparkles, Square } from 'lucide-react'
+import {
+  ChevronRight,
+  LoaderCircle,
+  Plus,
+  Sparkles,
+  Square,
+  SquareCheck,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { digest, gatherActions, type ActionItem } from '@/lib/actions'
+import { byNote, digest, gatherActions, gatherDone, type ActionItem } from '@/lib/actions'
+import { dismissKey, useDismissed } from '@/lib/dismissed'
 import type { Doc } from '@/lib/types'
+import Confirm from './confirm'
+import SwipeAway from './swipe-away'
 
 /**
  * Everything still to be done, read out of every note at once.
@@ -16,31 +26,40 @@ import type { Doc } from '@/lib/types'
  * in a note about something else. Every one of them is findable and none of
  * them is *found*, which is how a fortnight goes by.
  *
- * So this reads the lot. Nothing is moved and nothing is copied into a second
- * list: the note each line came from is named on the row and one press away,
- * because the note is the context and a task without its context is a line
- * somebody has to go and re-read anyway.
+ * ## Grouped by note, because the note is the context
  *
- * ## Two groups, and the difference is the whole design
+ * Six lines from Tuesday's meeting are one piece of work with one set of names
+ * and one reason for existing. Under that meeting's name they read with all of
+ * it attached; scattered through a flat list of forty they are six separate
+ * things to reconstruct. It is also what makes "I am finished with this
+ * meeting" one press instead of six.
  *
- * **Still to do** is boxes somebody drew. There is no guessing in it, ticking
- * one here ticks it in the note, and it is first because it is certain.
+ * ## Two kinds in a group, and the difference is the whole design
  *
- * **Looks like something to do** is prose this app read — string rules, no
- * model, see `lib/tasks.ts`. Every row says why it was picked and the only
- * thing offered is turning it into a box, which is the reader agreeing. Whether
- * "speak to Sam about the lease" is a task or a description of something that
- * already happened is not decidable from the sentence, which is exactly why
- * nothing here acts on its own.
+ * A **box** is a box somebody drew. There is no guessing in it, ticking it
+ * here ticks it in the note, and removing it takes that line out of the note —
+ * because that is what the line was.
+ *
+ * A **suggestion** is prose this app read — string rules, no model, see
+ * `lib/tasks.ts`. It says why it was picked, and the only thing offered is
+ * turning it into a box, which is the reader agreeing. Turning one *down*
+ * never touches a word of what they wrote: it is remembered as a no in
+ * `lib/dismissed.ts` and simply stops being offered. A screen of guesses must
+ * not be a way to lose writing.
+ *
+ * ## Done is folded away, not thrown away
+ *
+ * What is done is not what is to be done, so it is one quiet line that opens.
+ * It is kept rather than discarded because "did I actually do that" is a real
+ * question and the tick is the only record of the answer — and it can be
+ * cleared for good when somebody decides it has stopped being one.
  *
  * ## Where the model comes in, and where it does not
  *
- * The list is complete without it: it is built on the device, offline, free,
- * and identical every time. The model is one button that puts forty lines into
- * an order and groups the ones that are the same piece of work — pressed,
- * never automatic, because a screen that spends money when you glance at it is
- * a screen people stop opening, and because with no key at all this tab still
- * has to work.
+ * The list is complete without it: built on the device, offline, free, and
+ * identical every time. The model is one button that puts it in an order —
+ * pressed, never automatic, because a screen that spends money when you glance
+ * at it is a screen people stop opening.
  */
 
 export default function ActionsPanel({
@@ -48,40 +67,57 @@ export default function ActionsPanel({
   aiReady,
   onOpen,
   onTick,
+  onUntick,
   onMakeBox,
+  onRemove,
 }: {
   docs: Doc[]
   aiReady: boolean
   onOpen: (id: string) => void
   /** Ticks a box in the note it lives in. */
   onTick: (docId: string, blockId: string) => void
+  /** Puts a ticked box back to unticked, in the note it lives in. */
+  onUntick: (docId: string, blockId: string) => void
   /** Turns a line of prose into a box in the note it lives in. */
   onMakeBox: (docId: string, blockId: string) => void
+  /** Takes lines out of a note for good. */
+  onRemove: (docId: string, blockIds: string[]) => void
 }) {
   /*
     Re-read whenever the notes change, which is what makes a tick here empty
     the row: the note is written, the note comes back changed, and the box is
-    no longer outstanding. Memoised because it reads every block of every note
-    and a tab that is on screen re-renders for reasons that have nothing to do
-    with the notes.
+    no longer outstanding a render later. Memoised because this reads every
+    block of every note, and a tab on screen re-renders for reasons that have
+    nothing to do with the notes.
   */
-  const items = useMemo(() => gatherActions(docs), [docs])
-  const boxes = items.filter((item) => item.kind === 'box')
-  const lines = items.filter((item) => item.kind === 'line')
+  const all = useMemo(() => gatherActions(docs), [docs])
+  const done = useMemo(() => gatherDone(docs), [docs])
+  const { has: turnedDown, add: turnDown } = useDismissed()
+
+  /*
+    A suggestion somebody has already said no to is not offered again. Boxes
+    are never filtered: a box is a fact about the note, and the only way to be
+    rid of one is to take the line out.
+  */
+  const live = all.filter((item) => item.kind === 'box' || !turnedDown(item.docId, item.blockId))
+  const groups = byNote(live)
 
   const [read, setRead] = useState<string[] | null>(null)
   const [reading, setReading] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  /** Something asked about before it happens: a whole group, or the done list. */
+  const [doomed, setDoomed] = useState<{ title: string; body: string; go: () => void } | null>(null)
+  const [showDone, setShowDone] = useState(false)
 
   const sharpen = async () => {
-    if (reading || !items.length) return
+    if (reading || !live.length) return
     setReading(true)
     setProblem(null)
     try {
       const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'actions', list: digest(items) }),
+        body: JSON.stringify({ action: 'actions', list: digest(live) }),
       })
       const data = (await response.json()) as { text?: string; error?: string }
       if (!response.ok || !data.text) {
@@ -97,22 +133,60 @@ export default function ActionsPanel({
     }
   }
 
-  if (!items.length) {
-    return (
-      <p className="py-12 text-center text-[15px] text-[var(--color-faint)]">
-        Tick boxes into your notes and they will be here.
-      </p>
-    )
+  /**
+   * Getting rid of one line.
+   *
+   * A box is a line in a note, so it comes out of the note. A suggestion is
+   * this app's guess about a line, so only the guess goes. Nothing here asks
+   * first: a swipe is deliberate, one row is small, and a box that mattered is
+   * one Ctrl+Z away inside the note it came from.
+   */
+  const away = (item: ActionItem) => {
+    if (item.kind === 'box') onRemove(item.docId, [item.blockId])
+    else turnDown([dismissKey(item.docId, item.blockId)])
   }
+
+  /*
+    A whole note's worth at once, which is how people actually finish with a
+    meeting. This one asks, because it is several lines and some of them are
+    writing rather than boxes.
+  */
+  const clearGroup = (docId: string, docTitle: string, items: ActionItem[]) =>
+    setDoomed({
+      title: `Clear everything from “${docTitle}”?`,
+      body: `${items.length} ${items.length === 1 ? 'thing' : 'things'}. The ticked boxes come out of the note; the suggestions are only turned down, and nothing you wrote is touched.`,
+      go: () => {
+        const boxes = items.filter((item) => item.kind === 'box').map((item) => item.blockId)
+        const lines = items
+          .filter((item) => item.kind === 'line')
+          .map((item) => dismissKey(item.docId, item.blockId))
+        if (boxes.length) onRemove(docId, boxes)
+        if (lines.length) turnDown(lines)
+      },
+    })
+
+  const clearDone = () =>
+    setDoomed({
+      title: `Clear ${done.length} finished ${done.length === 1 ? 'thing' : 'things'}?`,
+      body: 'Every ticked box comes out of the note it is in. The rest of the note is untouched.',
+      go: () => {
+        for (const group of byNote(done)) {
+          onRemove(
+            group.docId,
+            group.items.map((item) => item.blockId),
+          )
+        }
+      },
+    })
 
   return (
     <div className="pb-4">
       {/*
         What matters most, when there is enough of a list for the question to
         mean anything. Below five items the order is already obvious and this
-        would be a button that spends money to tell somebody what they can see.
+        would be a button that spends money to say what is on the screen.
       */}
-      {aiReady && items.length >= 5 && (
+      {aiReady && live.length >= 5 && (
         <section className="mt-4 rounded-xl border border-[var(--color-line)] bg-[var(--color-hover)] p-3">
           <button
             type="button"
@@ -120,11 +194,7 @@ export default function ActionsPanel({
             disabled={reading}
             className="flex items-center gap-2 text-[14px] font-medium text-[var(--color-accent)] disabled:opacity-60"
           >
-            {reading ? (
-              <LoaderCircle size={15} className="animate-spin" />
-            ) : (
-              <Sparkles size={15} />
-            )}
+            {reading ? <LoaderCircle size={15} className="animate-spin" /> : <Sparkles size={15} />}
             {reading ? 'Reading your list…' : read ? 'Read it again' : 'What should I do first?'}
           </button>
           {problem && <p className="mt-2 text-[13px] text-[var(--color-danger)]">{problem}</p>}
@@ -144,127 +214,177 @@ export default function ActionsPanel({
         </section>
       )}
 
-      {boxes.length > 0 && (
-        <Group label="Still to do" count={boxes.length}>
-          {boxes.map((item) => (
-            <Row key={`${item.docId}:${item.blockId}`} item={item} onOpen={onOpen}>
-              <button
-                type="button"
-                onClick={() => onTick(item.docId, item.blockId)}
-                aria-label={`Tick “${item.text}”`}
-                className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-accent)]"
-              >
-                <Square size={16} />
-              </button>
-            </Row>
-          ))}
-        </Group>
-      )}
-
-      {lines.length > 0 && (
-        <Group label="Looks like something to do" count={lines.length}>
-          {lines.map((item) => (
-            <Row key={`${item.docId}:${item.blockId}`} item={item} onOpen={onOpen}>
+      {groups.length === 0 ? (
+        <p className="py-12 text-center text-[15px] text-[var(--color-faint)]">
+          {done.length
+            ? 'Nothing outstanding. Everything you have written down is done.'
+            : 'Tick boxes into your notes and they will be here.'}
+        </p>
+      ) : (
+        groups.map((group) => (
+          <section key={group.docId} className="mt-5">
+            <div className="mb-1 flex items-center gap-2">
               {/*
-                The offer, not the act. Pressing it writes a box into the note
-                where the line already is — the line is not moved, not copied
-                and not reworded.
+                The note's name is the heading and the way into it. The note is
+                the context, and a task read without it is a line somebody has
+                to go and re-read anyway.
               */}
               <button
                 type="button"
-                onClick={() => onMakeBox(item.docId, item.blockId)}
-                aria-label={`Make “${item.text}” a box to tick`}
-                title="Make it a box to tick"
-                className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-accent)]"
+                onClick={() => onOpen(group.docId)}
+                className="min-w-0 truncate text-left text-[13px] font-semibold text-[var(--color-ink)] underline-offset-2 hover:underline"
               >
-                <Plus size={16} />
+                {group.docTitle}
               </button>
-            </Row>
-          ))}
-        </Group>
+              <span className="shrink-0 text-[12px] text-[var(--color-faint)]">
+                {group.items.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => clearGroup(group.docId, group.docTitle, group.items)}
+                className="ml-auto shrink-0 rounded-full px-2 py-1 text-[12px] text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-danger)]"
+              >
+                Clear
+              </button>
+            </div>
+            <ul className="border-t border-[var(--color-line)]">
+              {group.items.map((item) => (
+                <Row
+                  key={item.blockId}
+                  item={item}
+                  onAway={() => away(item)}
+                  onAct={() =>
+                    item.kind === 'box'
+                      ? onTick(item.docId, item.blockId)
+                      : onMakeBox(item.docId, item.blockId)
+                  }
+                />
+              ))}
+            </ul>
+          </section>
+        ))
       )}
+
+      {/*
+        What is finished, behind a fold and saying nothing until it is opened.
+        One line, because a list that keeps everything ever done at the bottom
+        of it gets longer forever.
+      */}
+      {done.length > 0 && (
+        <section className="mt-8 border-t border-[var(--color-line)] pt-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDone((on) => !on)}
+              aria-expanded={showDone}
+              className="flex items-center gap-1.5 text-[13px] text-[var(--color-faint)] hover:text-[var(--color-ink)]"
+            >
+              <ChevronRight
+                size={14}
+                className={`transition-transform ${showDone ? 'rotate-90' : ''}`}
+              />
+              Done
+              <span>{done.length}</span>
+            </button>
+            {showDone && (
+              <button
+                type="button"
+                onClick={clearDone}
+                className="ml-auto rounded-full px-2 py-1 text-[12px] text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-danger)]"
+              >
+                Clear them for good
+              </button>
+            )}
+          </div>
+          {showDone && (
+            <ul className="mt-1 border-t border-[var(--color-line)]">
+              {done.map((item) => (
+                <Row
+                  key={item.blockId}
+                  item={item}
+                  onAway={() => onRemove(item.docId, [item.blockId])}
+                  onAct={() => onUntick(item.docId, item.blockId)}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      <Confirm
+        open={!!doomed}
+        title={doomed?.title ?? ''}
+        body={doomed?.body}
+        confirmLabel="Clear"
+        onCancel={() => setDoomed(null)}
+        onConfirm={() => {
+          doomed?.go()
+          setDoomed(null)
+        }}
+      />
     </div>
   )
 }
 
-function Group({
-  label,
-  count,
-  children,
-}: {
-  label: string
-  count: number
-  children: React.ReactNode
-}) {
-  return (
-    <section className="mt-5">
-      <h2 className="mb-1 flex items-center gap-2 text-[12px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
-        {label}
-        <span className="font-normal normal-case">{count}</span>
-      </h2>
-      <ul>{children}</ul>
-    </section>
-  )
-}
-
 /**
- * One outstanding thing: the control that acts on it, the line itself, when it
- * is due in the words it was written in, and the note it came out of.
+ * One outstanding thing: the control that acts on it, the line itself, and
+ * when it is due in the words it was written in.
  *
- * The note's name is a press, and it is the only press that leaves this
- * screen: the row itself is not a link, because a row whose whole surface
- * navigates makes the tick beside it feel like it might too.
+ * The note is not named on the row any more — the group above it says so, and
+ * printing the same note's name six times in a column is six lines of noise
+ * where one heading does the job.
  */
 function Row({
   item,
-  onOpen,
-  children,
+  onAct,
+  onAway,
 }: {
   item: ActionItem
-  onOpen: (id: string) => void
-  children: React.ReactNode
+  /** Tick it, untick it, or turn a line into a box. */
+  onAct: () => void
+  /** Swiped off: out of the note if it is a box, turned down if it is a guess. */
+  onAway: () => void
 }) {
+  const label = item.done
+    ? `Put “${item.text}” back`
+    : item.kind === 'box'
+      ? `Tick “${item.text}”`
+      : `Make “${item.text}” a box to tick`
+
   return (
-    <li className="flex items-start gap-2.5 border-b border-[var(--color-line)] py-2.5 last:border-b-0">
-      {children}
-      <div className="min-w-0 flex-1">
-        <p className="text-[15px] leading-snug">{item.text}</p>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-[var(--color-faint)]">
+    <li className="border-b border-[var(--color-line)] last:border-b-0">
+      <SwipeAway onAway={onAway} label={item.kind === 'box' ? 'Delete' : 'Not a task'}>
+        <div className="flex items-start gap-2.5 py-2.5">
           <button
             type="button"
-            onClick={() => onOpen(item.docId)}
-            className="max-w-[16rem] truncate text-left underline-offset-2 hover:text-[var(--color-ink)] hover:underline"
+            onClick={onAct}
+            aria-label={label}
+            title={item.kind === 'line' ? 'Make it a box to tick' : undefined}
+            className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-accent)]"
           >
-            {item.docTitle}
+            {item.done ? <SquareCheck size={16} /> : item.kind === 'box' ? <Square size={16} /> : <Plus size={16} />}
           </button>
-          {item.due && (
-            <span className="text-[var(--color-muted)]">
-              <Dot />
-              {item.due}
-            </span>
-          )}
-          {/* Why a guess was made, next to the guess. A suggestion whose
-              reasoning is hidden is one nobody can disagree with usefully. */}
-          {item.reason && (
-            <span>
-              <Dot />
-              {item.reason}
-            </span>
-          )}
-        </p>
-      </div>
+          <div className="min-w-0 flex-1">
+            <p
+              className={`text-[15px] leading-snug ${
+                item.done ? 'text-[var(--color-faint)] line-through' : ''
+              }`}
+            >
+              {item.text}
+            </p>
+            {(item.due || item.reason) && (
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-[var(--color-faint)]">
+                {item.due && <span className="text-[var(--color-muted)]">{item.due}</span>}
+                {/* Why a guess was made, next to the guess. A suggestion whose
+                    reasoning is hidden is one nobody can disagree with usefully. */}
+                {item.reason && <span>{item.reason}</span>}
+              </p>
+            )}
+          </div>
+        </div>
+      </SwipeAway>
     </li>
   )
-}
-
-/**
- * What separates the note's name from the date and the reason.
- *
- * A gap alone runs three unrelated facts into one phrase — "Lease meeting
- * before Tuesday starts with an action" reads as a sentence and is not one.
- */
-function Dot() {
-  return <span className="mr-2 text-[var(--color-line)]">·</span>
 }
 
 /**
@@ -274,7 +394,7 @@ function Dot() {
  * is not a thing to build a screen on: anything that is not a bullet is kept
  * as its own line rather than dropped, for the same reason `lib/compose.ts`
  * reads a reply forgivingly. Losing an answer to a stray "Sure —" is worse
- * than showing one line that has no dash in front of it.
+ * than showing one line with no dash in front of it.
  */
 function bullets(text: string): string[] {
   return text

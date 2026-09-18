@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { digest, gatherActions } from '../actions.ts'
+import { byNote, digest, gatherActions, gatherDone } from '../actions.ts'
 import type { Block, Doc } from '../types.ts'
 
 let counter = 0
@@ -89,4 +89,48 @@ test('what is sent is the lines and the names, and nothing else', () => {
   assert.match(sent, /Send the figures/)
   assert.match(sent, /Friday/)
   assert.match(sent, /"Lease"/)
+})
+
+test('what is done is kept, separately from what is to be done', () => {
+  const docs = [note('Friday', [todo('Ring the bank'), todo('Posted the forms', true)])]
+  assert.deepEqual(gatherActions(docs).map((f) => f.text), ['Ring the bank'])
+  const finished = gatherDone(docs)
+  assert.deepEqual(finished.map((f) => f.text), ['Posted the forms'])
+  assert.equal(finished[0].done, true)
+  assert.equal(finished[0].kind, 'box')
+})
+
+test('a note with nothing ticked contributes nothing to the done list', () => {
+  assert.deepEqual(gatherDone([note('Friday', [todo('Ring the bank')])]), [])
+})
+
+test('the done list is newest note first, like everything else', () => {
+  const finished = gatherDone([
+    note('Old', [todo('An old one', true)], 1),
+    note('New', [todo('A new one', true)], 99),
+  ])
+  assert.deepEqual(finished.map((f) => f.docTitle), ['New', 'Old'])
+})
+
+test('grouping puts every line under the note it came from', () => {
+  const groups = byNote(
+    gatherActions([
+      note('Lease', [todo('Ring the agent'), text('I need to check the break clause')], 99),
+      note('Boiler', [todo('Ring the landlord')], 1),
+    ]),
+  )
+  assert.deepEqual(groups.map((g) => g.docTitle), ['Lease', 'Boiler'])
+  assert.equal(groups[0].items.length, 2)
+  assert.deepEqual(groups[1].items.map((i) => i.text), ['Ring the landlord'])
+})
+
+test('a group keeps its boxes above its suggestions', () => {
+  const [group] = byNote(
+    gatherActions([note('Lease', [text('I need to check the clause'), todo('Ring the agent')])]),
+  )
+  assert.deepEqual(group.items.map((i) => i.kind), ['box', 'line'])
+})
+
+test('grouping an empty list is an empty list, not a group with nothing in it', () => {
+  assert.deepEqual(byNote([]), [])
 })

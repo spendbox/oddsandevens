@@ -79,8 +79,12 @@ export interface NotesScreenProps {
   onDelete: (id: string) => void
   /** Ticks a box from the Actions tab, in the note it lives in. */
   onTick: (docId: string, blockId: string) => void
+  /** Puts a ticked box back, in the note it lives in. */
+  onUntick: (docId: string, blockId: string) => void
   /** Turns a line of prose into a box, in the note it lives in. */
   onMakeBox: (docId: string, blockId: string) => void
+  /** Takes lines out of a note for good, from the Actions tab. */
+  onRemove: (docId: string, blockIds: string[]) => void
   onRestore: (id: string) => void
   onPurge: (id: string) => void
   onEmptyTrash: () => void
@@ -107,7 +111,9 @@ export default function NotesScreen({
   onFavorite,
   onDelete,
   onTick,
+  onUntick,
   onMakeBox,
+  onRemove,
   onRestore,
   onPurge,
   onEmptyTrash,
@@ -265,7 +271,9 @@ export default function NotesScreen({
             aiReady={aiReady}
             onOpen={onOpen}
             onTick={onTick}
+            onUntick={onUntick}
             onMakeBox={onMakeBox}
+            onRemove={onRemove}
           />
         ) : listed.length === 0 ? (
           <p className="py-12 text-center text-[15px] text-[var(--color-faint)]">

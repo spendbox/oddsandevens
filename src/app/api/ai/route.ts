@@ -27,18 +27,39 @@ import { NextResponse } from 'next/server'
  *
  * ## Which model
  *
- * GPT-4o, from `OPENAI_API_KEY`. Anthropic is kept as a fallback rather than
- * deleted, because anyone who already had `ANTHROPIC_API_KEY` set would
- * otherwise wake up to an app whose writing help had silently disappeared —
- * and the cost of keeping it is one branch in `complete` below. Whichever
- * answers, the rest of this file and every caller in the browser is unchanged:
- * text goes in, replacement text comes out.
+ * GPT-4o, from `OPENAI_API_KEY`, and that is the one to set: if both keys are
+ * present, OpenAI wins. Anthropic is kept as a fallback rather than deleted,
+ * because anyone who already had `ANTHROPIC_API_KEY` set would otherwise wake
+ * up to an app whose writing help had silently disappeared — and the cost of
+ * keeping it is one branch in `complete` below. Whichever answers, the rest of
+ * this file and every caller in the browser is unchanged: text goes in,
+ * replacement text comes out.
  */
 
-/** The model this app asks for by default. */
+/**
+ * Which model, and why the cheap one is the default.
+ *
+ * GPT-4o from `OPENAI_API_KEY`, because it is what most people already have a
+ * key for and it is inside the free allowance on a new account — which for an
+ * app whose writing help is optional is the difference between people trying
+ * it and people not.
+ *
+ * The Anthropic side picks by job rather than using one model for everything.
+ * Punctuating a dictated paragraph and expanding "mtg" to "meeting" are
+ * reading tasks: the small model does them as well as the large one and costs
+ * a fraction, and it is also the faster of the two, which matters because it
+ * is the one somebody is sitting and waiting for. Deciding what a question is
+ * really asking, or what out of forty outstanding lines actually matters
+ * first, is a judgement — so `effort: 'high'` is what moves the request up to
+ * the middle model. Nothing here asks for the largest one: no call in this app
+ * is agentic, none of them use tools, and paying top rates to tidy speech is
+ * money for nothing.
+ */
 const MODEL = 'gpt-4o'
-/** What the fallback asks for when only an Anthropic key is configured. */
-const FALLBACK_MODEL = 'claude-opus-5'
+/** The Anthropic fallback, for the reading jobs. Small, quick and cheap. */
+const FALLBACK_MODEL = 'claude-haiku-4-5-20251001'
+/** And for the two that are a judgement rather than a reading. */
+const FALLBACK_THINKING_MODEL = 'claude-sonnet-5'
 
 export const runtime = 'nodejs'
 /** Never cached: every request is different and none should be stored. */
@@ -239,10 +260,17 @@ async function complete(options: {
     the request is still the right call: a long expansion can outlast the
     SDK's HTTP timeout on a non-streaming call.
   */
+  /*
+    The job decides the model — see the note on both constants above — and the
+    effort knob goes only to the model that has one. Sending `output_config` to
+    a model that does not understand it is a 400 back, which would turn "the
+    cheap model does the cheap jobs" into "writing help stopped working".
+  */
+  const thinking = options.effort === 'high'
   const stream = client.messages.stream({
-    model: FALLBACK_MODEL,
+    model: thinking ? FALLBACK_THINKING_MODEL : FALLBACK_MODEL,
     max_tokens: options.maxTokens,
-    output_config: { effort: options.effort ?? 'medium' },
+    ...(thinking ? { output_config: { effort: 'high' as const } } : {}),
     system: options.system,
     messages: [{ role: 'user', content: options.user }],
   })
