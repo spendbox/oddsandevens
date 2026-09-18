@@ -1836,14 +1836,32 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     default and everything in it works with no account; Team is a different
     screen, and nothing of anybody's notes moves into it.
   */
-  const toggle = page.locator('[role="tablist"][aria-label="Mine or the team\'s"]')
-  log('there is a switch between mine and the team', await toggle.isVisible())
+  /*
+    One card that turns over, rather than two pills side by side: half the
+    room on a bar that already holds a name, an account and an install.
+  */
+  const toggle = page.locator('[aria-label*="notes. Press to go to the team"]')
+  log('there is one card that turns over between me and the team', await toggle.isVisible())
   log(
-    'and it starts on mine',
-    (await toggle.locator('[role="tab"][aria-selected="true"]').innerText()).includes('Mine'),
+    'and it starts on me',
+    (await toggle.innerText()).includes('Me'),
+    (await toggle.innerText()).replace(/\n+/g, ' / '),
+  )
+  log(
+    'it really turns, rather than swapping two labels',
+    await page.evaluate(() => {
+      const card = document.querySelector('.pad-flip')
+      const inner = card?.querySelector('.pad-flip-inner')
+      if (!card || !inner) return false
+      const before = getComputedStyle(inner).transform
+      card.setAttribute('data-flipped', 'true')
+      const after = getComputedStyle(inner).transform
+      card.setAttribute('data-flipped', 'false')
+      return before !== after
+    }),
   )
 
-  await toggle.locator('[role="tab"]:has-text("Team")').click()
+  await toggle.click()
   await page.waitForTimeout(900)
   const teamText = await page.evaluate(() => document.body.innerText)
   log(
@@ -1862,13 +1880,71 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await page.screenshot({ path: `${SHOTS}/14-team.png` })
 
   // And back, with everything exactly as it was.
-  await toggle.locator('[role="tab"]:has-text("Mine")').click()
+  await page.locator('[aria-label*="Press to go back to your own notes"]').click()
   await page.waitForTimeout(700)
   log(
     'and pressing Mine gives the notes back, untouched',
     (await page.locator('[role="tablist"][aria-label="Pad"]').count()) === 1 &&
       (await rows().count()) > 0,
   )
+}
+
+/* ------------------------------------------------- signing in, and the eye */
+
+{
+  /*
+    A password field you cannot read back is where typos go to hide, and on
+    a phone with a small keyboard that is most of the reason a sign-in
+    fails twice before it works.
+  */
+  const signIn = page.locator('button:has-text("Sign in")').first()
+  if (await signIn.count()) {
+    await signIn.click()
+    await page.waitForTimeout(400)
+    const field = page.locator('[aria-label="Password"]')
+    log('the password field has an eye', (await page.locator('[aria-label="Show the password"]').count()) === 1)
+    await field.fill('a-secret-one')
+    log('and it starts hidden', (await field.getAttribute('type')) === 'password')
+    await page.locator('[aria-label="Show the password"]').click()
+    await page.waitForTimeout(200)
+    log('pressing it shows the password', (await field.getAttribute('type')) === 'text')
+    log(
+      'and the caret stays in the field, so the keyboard does not drop',
+      await page.evaluate(
+        () => document.activeElement?.getAttribute('aria-label') === 'Password',
+      ),
+    )
+    await page.locator('[aria-label="Hide the password"]').click()
+    await page.waitForTimeout(200)
+    log('and again to hide it', (await field.getAttribute('type')) === 'password')
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+  }
+}
+
+/* ------------------------------------------------------- a team's own page */
+
+{
+  /*
+    The page a team's link opens: a name and a way in, and nothing else.
+    There is no database in this run, so it cannot know the name — what it
+    must not do is fail.
+  */
+  const door = await browser.newContext({ viewport: { width: 1280, height: 860 } })
+  const page2 = await door.newPage()
+  const errors2 = []
+  page2.on('pageerror', (e) => errors2.push(String(e)))
+  await page2.goto(`${URL}/t/11111111-1111-1111-1111-111111111111`, { waitUntil: 'networkidle' })
+  await page2.waitForTimeout(700)
+  const text2 = await page2.evaluate(() => document.body.innerText)
+  log('a team link opens a page of its own', /a team on pad/i.test(text2), text2.split('\n').slice(0, 5).join(' / '))
+  log(
+    'and it says plainly that it is not a way into the team',
+    /not a way into the team/i.test(text2),
+  )
+  log('with no uncaught errors', errors2.length === 0, errors2.slice(0, 2).join(' | '))
+  await page2.screenshot({ path: `${SHOTS}/15-team-link.png` })
+  await door.close()
 }
 
 /* --------------------------------------------------- installing it as an app */
@@ -2006,6 +2082,10 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   log(
     'nor is the dashboard',
     !coldBundle.includes('The last fortnight'),
+  )
+  log(
+    'nor is the team, which most people never press',
+    !coldBundle.includes('What needs doing? Use @ to give it to somebody.'),
   )
   await cold.context().close()
 }

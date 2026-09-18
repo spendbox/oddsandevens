@@ -155,9 +155,15 @@ the whole thing back out.
 
 ## Working with other people
 
-There is a switch at the top of your notes: **Mine** and **Team**. Mine is
-where this app lives and it is the default — everything above works with no
-account and nothing in it is shared with anybody. Team is a different screen.
+There is a card at the top of your notes that turns over: **Me** and **Team**.
+Me is where this app lives and it is the default — everything above works with
+no account and nothing in it is shared with anybody. Team is a different
+screen.
+
+While you are in your own notes, a quiet line appears at the top when somebody
+has said something in one of your teams — who, and which team — and pressing it
+takes you straight to that chat. It is there only when there is something, and
+it goes as soon as you have read it.
 
 **A team is a chat, and the work that comes out of it.** You type what needs
 doing the way you would say it — *@ada can you send the service charge figures
@@ -172,16 +178,31 @@ words the message did not contain is thrown away before it reaches the board.
 Missing a task costs you adding it by hand; inventing one puts a job nobody
 agreed to under somebody's name, so the app is built to err the first way.
 
-**The board** shows what is outstanding, who has it and when it is for, with
-what is finished folded away underneath. Anybody in the team can tick, untick
-or delete anything — it is shared work — and **Add a task** takes the same @
-and the same date words as the chat does.
+**Replying is how a task finds its owner.** Answer somebody's message and
+anything you promise in it is theirs to expect from you — and "yes, by
+Thursday" under Ada's question becomes Ada's job without anybody typing her
+name again. An @ in the line always wins over that. You can also correct or
+delete anything you wrote; a corrected message says it was edited.
 
-**Adding people.** Press **Add** in the chat and type their email address. They
+**The board** has **Outstanding** and **Done** side by side, each showing who
+has what and when it is for. Anybody in the team can tick, untick or delete
+anything — it is shared work — and **Add a task** takes the same @ and the same
+date words as the chat does.
+
+**Who can do what.** Whoever made the team is an admin and can never be removed
+from it. Admins add and remove people, hand out admin, and rename or delete the
+team. Tap anybody's name to see them and, if you are an admin, to change any of
+that. Tap the team's name for all your teams — the ones with something new in
+them carry a dot — and the ⚙ for its settings, a link to send people, and
+deleting it, which asks you to type its name first.
+
+**Adding people.** An admin presses **Add** and types their email address. They
 are in the team immediately, and if they have not signed up yet, the team is
 waiting for them the first time they sign in with that address. Nothing is
 emailed — this app has no mail sender, and saying "invitation sent" when
-nothing was sent would be a lie.
+nothing was sent would be a lie. There is a link you can copy and send them
+instead: it opens a page with the team's name and a way to sign in or make an
+account. It is not a way into the team — they still have to have been added.
 
 **Only the team sees any of it.** That is enforced by the database, not by the
 app: the chat, the members and the tasks are readable only by people in that
@@ -478,6 +499,7 @@ src/lib/handover.ts     whose device this is, and clearing it when that changes
 src/lib/mode.ts         mine, or the team's
 src/lib/team-chat.ts    reading a chat message for the work in it, and the
                         guard that stops anything else being written down
+src/lib/team-unread.ts  which teams have said something since you looked
 src/lib/teams.ts        the team's chat, members and board, on the server
 src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
 src/lib/store.ts        saving to the device (IndexedDB)
@@ -494,6 +516,7 @@ src/app/api/ai/         the one server route: compose, speech, questions,
                         and putting what is outstanding in an order
 src/components/         the notes screen, the note, and the box
 src/app/s/[id]/         the public page a shared link opens
+src/app/t/[id]/         the page a team's link opens: a name and a way in
 supabase/migrations/    the database tables and their security policies
 scripts/e2e.mjs         drives a real browser through every feature
 ```

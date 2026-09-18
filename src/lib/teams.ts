@@ -45,6 +45,10 @@ export interface TeamMessage {
   authorName: string
   body: string
   createdAt: number
+  /** Stamped when it was corrected, so the row can say so. */
+  editedAt: number | null
+  /** What it is answering, if anything. */
+  replyTo: string | null
 }
 
 export interface TeamTask {
@@ -63,6 +67,23 @@ export interface TeamTask {
 
 /** What went wrong, in a sentence, or nothing when it worked. */
 export type Problem = string | undefined
+
+/**
+ * When each team last had something said in it.
+ *
+ * One call for every team rather than one per team per minute — see
+ * `team_pulse()` in 0008_team_roles.sql. What is unread is worked out
+ * against what this device last looked at, which is kept on the device:
+ * writing a row every time somebody glances at a chat is a write per
+ * glance.
+ */
+export interface Pulse {
+  teamId: string
+  name: string
+  lastAt: number
+  lastAuthor: string
+  messages: number
+}
 
 const OFFLINE = 'Teams need an account, which is not set up on this copy of Pad.'
 
@@ -155,18 +176,62 @@ export async function teamMembers(teamId: string): Promise<Member[]> {
   try {
     const { data, error } = await db
       .from('team_members')
-      .select('user_id, email, name')
+      .select('id, user_id, email, name, role')
       .eq('team_id', teamId)
       .order('created_at', { ascending: true })
     if (error || !data) return []
     return data.map((row) => ({
+      id: String(row.id),
       userId: row.user_id ? String(row.user_id) : null,
       email: String(row.email ?? ''),
       name: String(row.name ?? '').trim() || String(row.email ?? '').split('@')[0],
+      admin: String(row.role ?? '') === 'admin',
     }))
   } catch {
     return []
   }
+}
+
+/** Makes somebody an admin, or takes it back. Admins only — the policy says so. */
+export async function setMemberRole(memberId: string, admin: boolean): Promise<Problem> {
+  const db = await getSupabase()
+  if (!db) return OFFLINE
+  try {
+    const { error } = await db
+      .from('team_members')
+      .update({ role: admin ? 'admin' : 'member' })
+      .eq('id', memberId)
+    return error ? explain(error.message) : undefined
+  } catch {
+    return 'Could not reach the server.'
+  }
+}
+
+/**
+ * Takes somebody out of a team.
+ *
+ * A real delete rather than a tombstone, and the one place in this app
+ * where that is right: the row *is* the permission, so keeping a marked
+ * copy of it would be keeping the thing it is supposed to remove. The
+ * owner's row cannot be deleted at all — the database refuses it — so a
+ * team can never be left with nobody able to change it.
+ */
+export async function removeMember(memberId: string): Promise<Problem> {
+  const db = await getSupabase()
+  if (!db) return OFFLINE
+  try {
+    const { error } = await db.from('team_members').delete().eq('id', memberId)
+    if (error) return explain(error.message)
+    return undefined
+  } catch {
+    return 'Could not reach the server.'
+  }
+}
+
+/** Whether this account may change this team. Read from the member list. */
+export function isAdmin(members: Member[], userId: string, ownerId: string): boolean {
+  if (userId === ownerId) return true
+  return members.some((member) => member.userId === userId && member.admin)
 }
 
 /**
@@ -213,8 +278,9 @@ export async function teamMessages(teamId: string): Promise<TeamMessage[]> {
   try {
     const { data, error } = await db
       .from('team_messages')
-      .select('id, team_id, author, author_name, body, created_at')
+      .select('id, team_id, author, author_name, body, created_at, edited_at, reply_to')
       .eq('team_id', teamId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(CHAT_PAGE)
     if (error || !data) return []
@@ -228,6 +294,8 @@ export async function teamMessages(teamId: string): Promise<TeamMessage[]> {
         authorName: String(row.author_name ?? ''),
         body: String(row.body ?? ''),
         createdAt: Number(row.created_at) || 0,
+        editedAt: row.edited_at ? Number(row.edited_at) : null,
+        replyTo: row.reply_to ? String(row.reply_to) : null,
       }))
       .reverse()
   } catch {
@@ -239,6 +307,8 @@ export async function sendMessage(
   teamId: string,
   author: { id: string; name: string },
   body: string,
+  /** What this is answering, when it is answering something. */
+  replyTo?: string,
 ): Promise<{ message?: TeamMessage; problem: Problem }> {
   const db = await getSupabase()
   if (!db) return { problem: OFFLINE }
@@ -249,6 +319,8 @@ export async function sendMessage(
     authorName: author.name,
     body: body.trim(),
     createdAt: Date.now(),
+    editedAt: null,
+    replyTo: replyTo ?? null,
   }
   if (!message.body) return { problem: undefined }
   try {
@@ -259,11 +331,120 @@ export async function sendMessage(
       author_name: author.name,
       body: message.body,
       created_at: message.createdAt,
+      reply_to: replyTo ?? null,
     })
     if (error) return { problem: explain(error.message) }
     return { message, problem: undefined }
   } catch {
     return { problem: 'Could not reach the server.' }
+  }
+}
+
+/**
+ * Correcting something you said.
+ *
+ * The row stays and is stamped, so the chat can say it was edited: a
+ * message that changed with no sign of it is a record you cannot rely on.
+ * Only the author can do this — the policy enforces it, not this file.
+ */
+export async function editMessage(id: string, body: string): Promise<Problem> {
+  const db = await getSupabase()
+  if (!db) return OFFLINE
+  const trimmed = body.trim()
+  if (!trimmed) return 'A message cannot be empty. Delete it instead.'
+  try {
+    const { error } = await db
+      .from('team_messages')
+      .update({ body: trimmed, edited_at: Date.now() })
+      .eq('id', id)
+    return error ? explain(error.message) : undefined
+  } catch {
+    return 'Could not reach the server.'
+  }
+}
+
+/**
+ * Taking one down.
+ *
+ * A tombstone rather than a removal, as everything deleted here is: the
+ * tasks that came out of it point at it, and a task whose source has gone
+ * missing is a task nobody can check.
+ */
+export async function deleteMessage(id: string): Promise<Problem> {
+  const db = await getSupabase()
+  if (!db) return OFFLINE
+  try {
+    const { error } = await db
+      .from('team_messages')
+      .update({ deleted_at: Date.now() })
+      .eq('id', id)
+    return error ? explain(error.message) : undefined
+  } catch {
+    return 'Could not reach the server.'
+  }
+}
+
+/* ------------------------------------------------------------- the pulse */
+
+/**
+ * When every team of mine last had something said in it.
+ *
+ * One request, whatever the number of teams. It is what the mark on the
+ * notes screen is read from, and it is deliberately the smallest question
+ * that answers it: no messages, no tasks, no members — five columns a team.
+ */
+export async function teamPulse(): Promise<Pulse[]> {
+  const db = await getSupabase()
+  if (!db) return []
+  try {
+    const { data, error } = await db.rpc('team_pulse')
+    if (error || !Array.isArray(data)) return []
+    return data.map((row: Record<string, unknown>) => ({
+      teamId: String(row.team_id),
+      name: String(row.name ?? ''),
+      lastAt: Number(row.last_at) || 0,
+      lastAuthor: String(row.last_author ?? ''),
+      messages: Number(row.messages) || 0,
+    }))
+  } catch {
+    return []
+  }
+}
+
+/* ------------------------------------------------- renaming and deleting */
+
+export async function renameTeam(teamId: string, name: string): Promise<Problem> {
+  const db = await getSupabase()
+  if (!db) return OFFLINE
+  const trimmed = name.trim()
+  if (!trimmed) return 'A team needs a name.'
+  try {
+    const { error } = await db
+      .from('teams')
+      .update({ name: trimmed, updated_at: Date.now() })
+      .eq('id', teamId)
+    return error ? explain(error.message) : undefined
+  } catch {
+    return 'Could not reach the server.'
+  }
+}
+
+/**
+ * Deleting a team, and everything in it.
+ *
+ * The one destructive act here that cannot be undone from inside the app —
+ * the members, the chat and the board go with it, by the foreign keys. That
+ * is why the interface makes somebody type the team's name first, and why
+ * only its owner can do it at all.
+ */
+export async function deleteTeam(teamId: string): Promise<Problem> {
+  const db = await getSupabase()
+  if (!db) return OFFLINE
+  try {
+    const { error } = await db.from('teams').delete().eq('id', teamId)
+    return error ? explain(error.message) : undefined
+  } catch {
+    return 'Could not reach the server.'
   }
 }
 

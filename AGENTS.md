@@ -809,6 +809,53 @@ a page.
   decide is infinitely recursive and Postgres only says so at query time.
   One function called by every policy is also one place to be wrong instead
   of twelve.
+- **A box pinned to the bottom of a screen with `fixed` ends up under it.**
+  The team's chat box did: a fixed element is positioned against the window
+  and has to be told about the keyboard, the safe area and every browser's
+  idea of where the bottom is, and getting one of those wrong puts it off
+  the screen entirely. `sticky bottom-0` is in the page, so it sits at the
+  bottom of what is visible and the browser does the arithmetic. Prefer it
+  for anything that follows a scrolling list.
+- **Two sticky bars at the same offset is one drawn over the other.** In
+  Team mode the greeting does not stick and the team's own header does,
+  rather than stacking them with an offset that breaks the moment a name
+  wraps. Whichever bar is the one you need while scrolling is the one that
+  sticks; the other scrolls away.
+- **`@` means the same thing in every field or it means nothing.** It
+  worked in the chat box and not in the box on the board, a tab away —
+  `mention-field.tsx` is both of them now. A rule that holds in one field
+  and not its neighbour is worse than no rule.
+- **Answering somebody is how a task finds its owner.** A reply carries who
+  it answers, so "yes, by Thursday" under Ada's question is Ada's job with
+  nobody typing her name again. An `@` in the line always wins: what
+  somebody wrote beats what the app worked out.
+- **Admin is a role on the membership row, and the database enforces it.**
+  Only admins add people, remove them, rename a team; the owner is an admin
+  by construction and can never be removed or demoted, so a team can never
+  be left with nobody able to change it. `is_team_admin()` is
+  security-definer for the same reason `in_team()` is.
+- **Deleting a team asks for its name to be typed.** It takes the chat, the
+  board and everybody's place in it, and cannot be undone from inside the
+  app. A second "are you sure" is something people press twice; typing the
+  name is something you cannot do by accident.
+- **What has been read is kept on the device.** A row per person per team,
+  written every time somebody glances at a chat, is a write per glance —
+  for a fact that only ever draws a dot. The cost is honest: read it on a
+  laptop and the phone still shows the dot. `team_pulse()` is the one
+  question the other side of it asks, once a minute, and only while the tab
+  is in front of somebody.
+- **A mark that says "something happened" must land where it says.** The
+  line on the notes opens *that* team, through a module value taken once —
+  landing in whichever team happens to be first is how a notification
+  teaches people to ignore it.
+- **A team's link is a way in to a sign-in page, never a way into a team.**
+  Membership is an admin adding an address, and nothing else. `team_name()`
+  returns one column so that a link which went astray gets whoever has it
+  exactly as far as a form.
+- **A password field needs an eye.** It is where typos go to hide, and on a
+  phone keyboard it is most of the reason a sign-in fails twice before it
+  works. The eye keeps the focus — `preventDefault` on mousedown — or
+  showing the password takes the keyboard down with it.
 - **One swipe, written once.** `swipe-away.tsx` is the shared gesture: the
   distance, the slop, the word that slides in underneath, and the three ways it
   goes wrong (capturing on pointerdown kills every button inside; a vertical

@@ -2,6 +2,7 @@
 
 import { forgetDismissed } from './dismissed.ts'
 import { forgetName } from './profile.ts'
+import { forgetSeen } from './team-unread.ts'
 import { clearAll, loadMeta, saveMeta } from './store.ts'
 import { pushAll } from './sync.ts'
 
@@ -70,6 +71,8 @@ export async function wipeDevice(): Promise<void> {
   await clearAll()
   forgetName()
   forgetDismissed()
+  // Which team chats had been read is a fact about the last person here.
+  forgetSeen()
 }
 
 /** What happened when an account signed in, so the caller can say so. */

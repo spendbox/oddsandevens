@@ -31,6 +31,13 @@ import { useSyncExternalStore } from 'react'
 
 const KEY = 'pad-mode'
 
+/**
+ * `mine` on the wire, "Me" on the screen.
+ *
+ * The stored value is left alone deliberately: renaming what is written in
+ * localStorage would put everybody who had chosen Team back on the notes
+ * for no reason anybody could see.
+ */
 export type Mode = 'mine' | 'team'
 
 const listeners = new Set<() => void>()
@@ -71,6 +78,27 @@ export function useMode(): { mode: Mode; set: (mode: Mode) => void } {
     for (const listener of listeners) listener()
   }
   return { mode, set }
+}
+
+/**
+ * Which team to open when Team mode next appears.
+ *
+ * A module value rather than storage: it is true for one press — the mark
+ * on the notes saying "Ada said something in Tuesday" has to land in
+ * *that* team and not in whichever one happens to be first — and it is
+ * meaningless a second later. Taking it clears it, so it cannot leak into
+ * the next visit.
+ */
+let pending: string | null = null
+
+export function openTeamNext(teamId: string): void {
+  pending = teamId
+}
+
+export function takePendingTeam(): string | null {
+  const id = pending
+  pending = null
+  return id
 }
 
 /** Puts the app back on the notes. Used when an account goes away. */

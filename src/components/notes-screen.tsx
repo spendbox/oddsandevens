@@ -46,6 +46,12 @@ const TeamsPanel = dynamic(() => import('./teams-panel'), {
   ssr: false,
   loading: () => <Waiting />,
 })
+/*
+  And the mark that says a team has something new in it. Lazy for the same
+  reason: it draws nothing at all most of the time, and the queries behind
+  it belong to a screen many people will never open.
+*/
+const TeamNudge = dynamic(() => import('./team-nudge'), { ssr: false })
 
 /** What a tab shows for the moment it takes to arrive. */
 function Waiting() {
@@ -269,7 +275,18 @@ export default function NotesScreen({
           bar the page scrolls under has to be a surface, or the words show
           through it.
         */}
-        <header className="sticky top-0 z-20 bg-[var(--color-paper)] pt-5 sm:pt-8">
+        {/*
+          The greeting sticks in Me, and does not in Team.
+
+          Two sticky bars at the same offset is one of them drawn over the
+          other, and the team's own header — which team, chat or actions —
+          is the one worth keeping on screen once you are in a chat. So
+          this one scrolls away there rather than being stacked against by
+          arithmetic that breaks the moment a name wraps.
+        */}
+        <header
+          className={`z-20 bg-[var(--color-paper)] pt-5 sm:pt-8 ${team ? '' : 'sticky top-0'}`}
+        >
           <div className="mb-4 flex items-center gap-2">
             <Greeting name={name} onName={setName} />
           {/*
@@ -327,6 +344,12 @@ export default function NotesScreen({
             Search every word in every note
           </button>
         )}
+
+        {/*
+          What has been said in a team while somebody was in their own
+          notes. Nothing at all when there is nothing — see team-nudge.tsx.
+        */}
+        {!team && <TeamNudge accountId={account?.id ?? null} />}
 
         {/*
           The three places, and only in Mine: a team has two of its own and
