@@ -105,6 +105,8 @@ export default function Editor({
     be unmounted by the first press anywhere in it.
   */
   const [sharing, setSharing] = useState(false)
+  /** The ⋯, so the menu knows which press is the one that opened it. */
+  const moreButton = useRef<HTMLButtonElement>(null)
   /** The line the caret is in, so a dictation knows where to write. */
   const [currentId, setCurrentId] = useState<string | null>(null)
 
@@ -233,9 +235,12 @@ export default function Editor({
 
         <div className="relative shrink-0">
           <button
+            ref={moreButton}
             type="button"
             aria-label="More"
             aria-expanded={menu}
+            // Plain toggling, which works because the menu leaves this
+            // button alone when it decides a press landed outside it.
             onClick={() => setMenu((open) => !open)}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
           >
@@ -249,6 +254,7 @@ export default function Editor({
               onShare={() => setSharing(true)}
               onDelete={onDelete}
               onClose={() => setMenu(false)}
+              trigger={moreButton}
             />
           )}
         </div>

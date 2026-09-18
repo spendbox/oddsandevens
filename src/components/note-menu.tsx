@@ -10,9 +10,10 @@ import {
   Star,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState, type RefObject } from 'react'
 import { docToMarkdown, safeFilename } from '@/lib/export'
 import type { Doc } from '@/lib/types'
+import { useDismiss } from './dismiss'
 
 /**
  * Everything you can do to a note that is not writing in it.
@@ -40,6 +41,7 @@ export default function NoteMenu({
   onShare,
   onDelete,
   onClose,
+  trigger,
 }: {
   doc: Doc
   onFavorite: (favorite: boolean) => void
@@ -55,33 +57,20 @@ export default function NoteMenu({
   onShare: () => void
   onDelete: () => void
   onClose: () => void
+  /**
+   * The ⋯ itself.
+   *
+   * It is not "outside": pressing it a second time used to close this on
+   * pointerdown and then have the button's own click toggle it straight back
+   * open, so the control that opened the menu could not close it.
+   */
+  trigger: RefObject<HTMLElement | null>
 }) {
   const [confirming, setConfirming] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const root = useRef<HTMLDivElement>(null)
 
-  /*
-    Closed by testing where the press landed, never by stopPropagation.
-    Relying on propagation closes the menu on pointerdown and unmounts the
-    button before its own click can fire — which is how every item in a menu
-    ends up doing nothing.
-  */
-  useEffect(() => {
-    const close = (event: Event) => {
-      const el = event.target as Element | null
-      if (el && root.current?.contains(el)) return
-      onClose()
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('pointerdown', close)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', close)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [onClose])
+  useDismiss(onClose, root, trigger)
 
   const download = () => {
     const blob = new Blob([docToMarkdown(doc)], { type: 'text/markdown' })

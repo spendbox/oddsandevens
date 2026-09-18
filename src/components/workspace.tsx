@@ -15,7 +15,10 @@ import {
   undo,
   type History,
 } from '@/lib/history'
+import { claimDevice, handOverTo, leaveDevice } from '@/lib/handover'
+import { backToMine } from '@/lib/mode'
 import { purge, restore, shouldPurge, trashedDocs } from '@/lib/trash'
+import { watchForUpdates } from '@/lib/update'
 import { blockText, isTextish, type Block, type Doc, type RemovedBlock } from '@/lib/types'
 import { type Account } from './account'
 import ComposeNote from './compose-note'
@@ -117,6 +120,11 @@ export default function Workspace() {
   useEffect(() => {
     latest.current = doc
   }, [doc])
+  /** The same trick for the account, so signing out reads the current one. */
+  const latestAccount = useRef<Account | null>(null)
+  useEffect(() => {
+    latestAccount.current = account
+  }, [account])
 
   /* ---------------------------------------------------------------- start up */
 
@@ -164,13 +172,15 @@ export default function Workspace() {
     }
   }, [])
 
-  // The service worker is what makes the installed app open with no network.
+  /*
+    The service worker is what makes the installed app open with no network —
+    and what has to be watched, because an installed app is not a tab
+    somebody closes. It sits on a home screen for a fortnight, resumed rather
+    than reopened, and would run a version from three deploys ago until
+    something made it reload. See lib/update.ts.
+  */
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return
-    const register = () => navigator.serviceWorker.register('/sw.js').catch(() => {})
-    // Registering after load keeps it off the path of the first paint.
-    if (document.readyState === 'complete') register()
-    else window.addEventListener('load', register, { once: true })
+    watchForUpdates()
   }, [])
 
   /* ------------------------------------------------------------------ saving */
@@ -298,21 +308,6 @@ export default function Workspace() {
     },
     [refreshFromStore],
   )
-
-  // Restore an existing session on load, so a signed-in user is not asked again.
-  useEffect(() => {
-    if (!isSyncConfigured()) return
-    void (async () => {
-      const db = await getSupabase()
-      if (!db) return
-      const { data } = await db.auth.getSession()
-      const user = data.session?.user
-      if (!user) return
-      const found = { id: user.id, email: user.email ?? '' }
-      setAccount(found)
-      void sync(found.id)
-    })()
-  }, [sync])
 
   useEffect(() => {
     if (!account) return
@@ -647,6 +642,85 @@ export default function Workspace() {
     [addNote],
   )
 
+  /* --------------------------------------------------------- whose device */
+
+  /** Everything on screen, emptied. Used when the device changes hands. */
+  const forgetOnScreen = useCallback(() => {
+    setDocs([])
+    setTrashed([])
+    setDoc(null)
+    setHistory(emptyHistory())
+    setTab('notes')
+    setView('all')
+  }, [])
+
+  /**
+   * Somebody signed in.
+   *
+   * A device that has never been signed into keeps what is on it and pushes
+   * it up: writing before you have an account and then claiming it is the
+   * point of being able to write without one. A *different* account is a
+   * hand-over — the device is emptied first, then filled from the server —
+   * because otherwise the previous person's notes are both on screen and, a
+   * moment later, uploaded into the account that has just arrived.
+   */
+  const signIn = useCallback(
+    async (next: Account) => {
+      await flushSave()
+      const what = await handOverTo(next.id)
+      if (what === 'fresh') forgetOnScreen()
+      setAccount(next)
+      if (what === 'adopted') await pushAll(next.id)
+      await sync(next.id)
+      await refreshFromStore()
+    },
+    [flushSave, forgetOnScreen, refreshFromStore, sync],
+  )
+
+  /*
+    An existing session, restored on load, so a signed-in user is not asked
+    again — and through the same path as pressing Sign in, so a device that
+    has changed hands is emptied here too. It is declared after `signIn`
+    rather than beside the other start-up effects: a dependency array is
+    read during render, and a `useCallback` further down the file does not
+    exist yet at that point.
+  */
+  useEffect(() => {
+    if (!isSyncConfigured()) return
+    void (async () => {
+      const db = await getSupabase()
+      if (!db) return
+      const { data } = await db.auth.getSession()
+      const user = data.session?.user
+      if (!user) return
+      await signIn({ id: user.id, email: user.email ?? '' })
+    })()
+  }, [signIn])
+
+  /**
+   * And signed out, which takes the notes off the device with them.
+   *
+   * Only once everything has reached the server. A push that failed means
+   * notes that exist nowhere else, and clearing those because somebody
+   * pressed Sign out on a train would be the worst thing this app could do —
+   * so that case keeps them, and `account.tsx` says so. Either way the next
+   * account to sign in wipes what is left before it shows anything.
+   */
+  const signOut = useCallback(async () => {
+    const who = latestAccount.current
+    setAccount(null)
+    // And back to the notes. A team screen with nobody signed in is a screen
+    // that can only say "this needs an account", which is not where to leave
+    // somebody who has just signed out.
+    backToMine()
+    setSyncState(isSyncConfigured() ? 'idle' : 'off')
+    if (!who) return
+    await flushSave()
+    const { cleared } = await leaveDevice(who.id)
+    if (cleared) forgetOnScreen()
+    else await claimDevice(who.id)
+  }, [flushSave, forgetOnScreen])
+
   /* ------------------------------------------------------------------ render */
 
   /*
@@ -715,16 +789,8 @@ export default function Workspace() {
           onSaveFromWorld={saveFromWorld}
           account={account}
           syncState={syncState}
-          onSignedIn={(next) => {
-            setAccount(next)
-            // Everything written before signing in belongs to this account
-            // now; without this first push it would stay on one device.
-            void pushAll(next.id).then(() => sync(next.id))
-          }}
-          onSignedOut={() => {
-            setAccount(null)
-            setSyncState('idle')
-          }}
+          onSignedIn={(next) => void signIn(next)}
+          onSignedOut={() => void signOut()}
           onSyncNow={() => account && void sync(account.id)}
         />
       )}

@@ -582,14 +582,29 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     Favourites is one of those: the same notes with most of them hidden, not
     somewhere else to go.
   */
+  const places = page.locator('[role="tablist"][aria-label="Pad"]')
   log(
     'there are three places, and Favourites is not one of them',
-    (await page.locator('[role="tablist"]').first().locator('[role="tab"]').count()) === 3 &&
-      (await page.locator('[role="tablist"]').first().locator('[role="tab"]:has-text("Favourites")').count()) === 0,
+    (await places.locator('[role="tab"]').count()) === 3 &&
+      (await places.locator('[role="tab"]:has-text("Favourites")').count()) === 0,
   )
   log(
     'it is a way of looking at your notes, beside All and the dashboard',
     (await page.locator('[role="tablist"][aria-label="Your notes"] [role="tab"]').count()) === 3,
+  )
+  /*
+    And a hairline under it. It is the bottom edge of the header: without one
+    the pills float over the first row of notes as the list scrolls beneath
+    them, with nothing to say where one stops and the other starts.
+  */
+  log(
+    'and it has a line under it, separating it from the notes',
+    await page.evaluate(() => {
+      const row = document.querySelector('[role="tablist"][aria-label="Your notes"]')
+      if (!row) return false
+      const style = getComputedStyle(row)
+      return parseFloat(style.borderBottomWidth) > 0 && style.borderBottomStyle !== 'none'
+    }),
   )
   await page.locator('[role="tab"]:has-text("Favourites")').click()
   await page.waitForTimeout(400)
@@ -1090,6 +1105,23 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     }),
   )
   await page.screenshot({ path: `${SHOTS}/08-note-menu.png` })
+
+  /*
+    Pressing the ⋯ again closes it. It used to reopen: the menu closed on
+    pointerdown and the button's own click then toggled it straight back, so
+    the control that opened the menu could not shut it and you had to guess
+    at a safe patch of screen.
+  */
+  await page.locator('[aria-label="More"]').click()
+  await page.waitForTimeout(400)
+  log('pressing the ⋯ again closes the menu', (await menu.count()) === 0)
+  await page.locator('[aria-label="More"]').click()
+  await page.waitForTimeout(300)
+  log('and it opens again after that', await menu.isVisible())
+  await page.mouse.click(40, 400)
+  await page.waitForTimeout(400)
+  log('a press anywhere else closes it too', (await menu.count()) === 0)
+  await openMenu()
 
   const download = page.waitForEvent('download')
   await menu.locator('button:has-text("Download as Markdown")').click()
@@ -1796,6 +1828,49 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await both.close()
 }
 
+/* ------------------------------------------------------ mine, or the team's */
+
+{
+  /*
+    The one control that changes what the whole screen is for. Mine is the
+    default and everything in it works with no account; Team is a different
+    screen, and nothing of anybody's notes moves into it.
+  */
+  const toggle = page.locator('[role="tablist"][aria-label="Mine or the team\'s"]')
+  log('there is a switch between mine and the team', await toggle.isVisible())
+  log(
+    'and it starts on mine',
+    (await toggle.locator('[role="tab"][aria-selected="true"]').innerText()).includes('Mine'),
+  )
+
+  await toggle.locator('[role="tab"]:has-text("Team")').click()
+  await page.waitForTimeout(900)
+  const teamText = await page.evaluate(() => document.body.innerText)
+  log(
+    'pressing Team opens a different screen, which says what it needs',
+    /needs an account/i.test(teamText),
+    teamText.split('\n').slice(0, 8).join(' / '),
+  )
+  log(
+    'the notes and their tabs are not on it',
+    (await page.locator('[role="tablist"][aria-label="Pad"]').count()) === 0,
+  )
+  log(
+    'and neither is the box for writing a note — the chat has its own',
+    (await page.locator('button:has-text("Write a note…")').count()) === 0,
+  )
+  await page.screenshot({ path: `${SHOTS}/14-team.png` })
+
+  // And back, with everything exactly as it was.
+  await toggle.locator('[role="tab"]:has-text("Mine")').click()
+  await page.waitForTimeout(700)
+  log(
+    'and pressing Mine gives the notes back, untouched',
+    (await page.locator('[role="tablist"][aria-label="Pad"]').count()) === 1 &&
+      (await rows().count()) > 0,
+  )
+}
+
 /* --------------------------------------------------- installing it as an app */
 
 {
@@ -1807,6 +1882,22 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     return r.ok ? await r.json() : null
   })
   const plain = (mf?.icons ?? []).filter((i) => (i.purpose ?? 'any').split(' ').includes('any'))
+  /*
+    Updates. The worker no longer takes over the moment it installs — that
+    reads as "updates arrive promptly" and is actually "the page you are
+    typing into is being served by a different version than the one running
+    in it". The app asks it to, once somebody has pressed Update.
+  */
+  const worker = await page.evaluate(async () => (await fetch('/sw.js')).text())
+  log(
+    'a new version waits to be taken rather than taking over mid-sentence',
+    /skip-waiting/.test(worker) && !/\.then\(\(\) => self\.skipWaiting\(\)\)/.test(worker),
+  )
+  log(
+    'and nothing offers an update until there is one',
+    (await page.locator('[aria-label="Update to the new version"]').count()) === 0,
+  )
+
   log(
     'the manifest offers a plain 192 and 512 icon, which is what Install needs',
     plain.some((i) => i.sizes === '192x192' && i.type === 'image/png') &&

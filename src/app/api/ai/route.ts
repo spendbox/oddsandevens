@@ -443,6 +443,90 @@ async function ask(question: string, sources: Source[]) {
 }
 
 /**
+ * One chat message, read for the work in it.
+ *
+ * ## What this is and is not allowed to do
+ *
+ * It picks lines out. It does not think of any. That is the entire
+ * specification, and it is written three times — here, in the prompt, and
+ * again in `keepOnlyReal` in lib/team-chat.ts, which throws away anything
+ * that came back made of words the message did not contain.
+ *
+ * Belt and braces on purpose. A model asked to pull tasks out of a
+ * conversation will eventually add the obvious next one: the follow-up
+ * nobody mentioned, the reminder that usually goes with this kind of job. In
+ * somebody's own notes that is annoying. On a team's board it is a piece of
+ * work with another person's name against it that nobody agreed to, and the
+ * whole list stops being believed the first time it happens.
+ *
+ * The device has already read the message with string rules before this is
+ * asked anything, so this failing costs sharpness and never the list.
+ */
+const CHAT_SYSTEM =
+  'You are given one message from a team chat. You list the tasks that are stated in it, and ' +
+  'nothing else.\n\n' +
+  'Return ONLY a JSON array, and nothing around it. Each element is an object with:\n' +
+  '  "text": the task, in the imperative, in the words of the message\n' +
+  '  "who": the name written after an @ for that task, or "" if none\n' +
+  '  "due": any day, date or time phrase for that task, copied exactly as written, or ""\n\n' +
+  'Return [] when the message states no tasks. Most messages state none, and [] is the right ' +
+  'answer far more often than it feels like it should be.\n\n' +
+  'Rules, in order of importance:\n' +
+  '1. Every task must be something the message actually says somebody will do. Do not add the ' +
+  'obvious next step, the usual follow-up, or anything that would normally go with this work. ' +
+  'If it is not in the message, it does not exist.\n' +
+  '2. Use the words of the message. You may drop "please" and "can you", and turn a question ' +
+  'into an instruction. You may not introduce a noun that is not there.\n' +
+  '3. One task per thing to do. A sentence with two jobs in it is two tasks; a sentence with ' +
+  'one job described twice is one.\n' +
+  '4. Copy any day or date exactly as written — "Friday", "end of month", "the 14th". Never ' +
+  'turn it into a calendar date.\n' +
+  '5. Discussion, opinions, questions, thanks and decisions already taken are not tasks.\n' +
+  '6. Keep the language the message is written in.'
+
+/** A message in; the tasks stated in it out, as rows the caller can use. */
+async function chatTasks(message: string, names: string) {
+  const text = await complete({
+    system: CHAT_SYSTEM,
+    user:
+      (names ? `The people in this team: ${names}.\n\n` : '') +
+      `The message:\n\n${message}`,
+    maxTokens: 800,
+    /*
+      A reading, not a judgement — which is the cheap model's job, and it is
+      also the one somebody is sitting and watching a chat for.
+    */
+    effort: 'low',
+  })
+  /*
+    Parsed forgivingly, and never fatally. A model that wrapped its array in
+    a code fence, or said "Here you go" first, must not cost somebody the
+    tasks this device already found on its own — so anything unreadable comes
+    back as an empty list rather than an error.
+  */
+  const start = text.indexOf('[')
+  const end = text.lastIndexOf(']')
+  if (start < 0 || end <= start) return NextResponse.json({ tasks: [] })
+  try {
+    const parsed: unknown = JSON.parse(text.slice(start, end + 1))
+    const rows = Array.isArray(parsed) ? parsed : []
+    return NextResponse.json({
+      tasks: rows
+        .map((row) => (row && typeof row === 'object' ? (row as Record<string, unknown>) : {}))
+        .map((row) => ({
+          text: String(row.text ?? '').trim(),
+          who: String(row.who ?? '').trim(),
+          due: String(row.due ?? '').trim(),
+        }))
+        .filter((row) => row.text)
+        .slice(0, 12),
+    })
+  } catch {
+    return NextResponse.json({ tasks: [] })
+  }
+}
+
+/**
  * Everything still to be done, sharpened.
  *
  * ## What the model is and is not doing here
@@ -637,6 +721,8 @@ export async function POST(request: Request) {
     question?: string
     /** The outstanding list, when the action is 'actions'. */
     list?: string
+    /** Who is in the team, when the action is 'chat-tasks'. */
+    names?: string
     sources?: Source[]
     /** Whether a transcript was a meeting rather than a dictated paragraph. */
     meeting?: boolean
@@ -691,6 +777,24 @@ export async function POST(request: Request) {
     }
     try {
       return await actions(list)
+    } catch (error) {
+      return failure(error)
+    }
+  }
+
+  /*
+    A team's chat message, read for the tasks stated in it. The narrowest
+    job in this file and the one written against the most damaging failure:
+    see CHAT_SYSTEM above.
+  */
+  if (body.action === 'chat-tasks') {
+    const message = (body.text ?? '').trim()
+    if (!message) return NextResponse.json({ tasks: [] })
+    if (message.length > 8_000) {
+      return NextResponse.json({ error: 'That message is too long to read.' }, { status: 413 })
+    }
+    try {
+      return await chatTasks(message, (body.names ?? '').slice(0, 500))
     } catch (error) {
       return failure(error)
     }

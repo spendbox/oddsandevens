@@ -82,6 +82,18 @@ function write(keys: Set<string>) {
   for (const listener of listeners) listener()
 }
 
+/**
+ * Forgets every no, and tells everything reading them.
+ *
+ * Used when the device changes hands: the keys are note ids belonging to
+ * somebody else's notes, so they mean nothing to the account arriving — and
+ * a list of another person's note ids is not a thing to leave lying in a
+ * browser either.
+ */
+export function forgetDismissed(): void {
+  write(new Set())
+}
+
 export function useDismissed(): {
   /** Whether this line has already been turned down. */
   has: (docId: string, blockId: string) => boolean

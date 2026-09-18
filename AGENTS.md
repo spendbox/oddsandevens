@@ -726,6 +726,89 @@ a page.
   icon forever.** It described a spreadsheet, a code editor and a form
   builder for months after all three were taken out of the app. Its name,
   description and theme colour are part of the app, not metadata.
+- **The device belongs to whoever last signed in, and it remembers that.**
+  IndexedDB is the store, not a cache, and it knew nothing about accounts —
+  so signing out left every note on the device and signing in as somebody
+  else showed them and then *uploaded* them into the new account, because
+  signing in pushes what is on the device up. `lib/handover.ts` stamps an
+  owner beside the notes: a different account arriving wipes first and fills
+  from the server after, and a device with no owner is somebody's own notes
+  written before they had an account, which are adopted exactly as before.
+  Nothing is ever merged — there is no honest way to merge two people's
+  notes.
+- **A wipe takes the sync cursors with it.** The quiet half of the same bug:
+  a cursor is "the newest row this device has accepted", so one left behind
+  from another account makes the next account's first pull ask only for rows
+  newer than it, and every older note silently never arrives. `clearAll()`
+  empties every store including `meta`, and the in-memory fallbacks with
+  them.
+- **Signing out pushes before it clears, and clears only if that worked.**
+  That order is the whole safety of it: a failed push means notes that exist
+  nowhere else, and clearing those because somebody pressed Sign out on a
+  train is the worst thing this app could do. So a clean sign-out leaves an
+  empty browser and a failed one keeps the notes and says so — and either
+  way the next account to sign in wipes what is left before showing
+  anything.
+- **The theme survives a hand-over; a name does not.** The theme and the
+  page width are about this screen. A name somebody typed and the
+  suggestions they turned down are about *them*, and the first is printed
+  across the top of the screen — "Hi, Ada" to whoever signs in next is the
+  complaint. Both are cleared through their own stores rather than by
+  removing the key: these are read through `useSyncExternalStore`, and a key
+  removed behind its back leaves the old value on screen.
+- **An installed app is not a tab somebody closes.** It is resumed rather
+  than reopened, so it will run a version from three deploys ago until
+  something makes it reload. `lib/update.ts` checks on opening, every half
+  hour, and on coming back after a while away, and then *offers* — it never
+  reloads on its own, because somebody may be halfway through a sentence.
+- **The service worker waits to be told before taking over.** It used to
+  call `skipWaiting()` on install, which sounds like "updates arrive
+  promptly" and is actually "the page you are typing into is now served by a
+  different version of the app than the one running in it". It takes a
+  `skip-waiting` message instead, sent when somebody presses Update.
+- **The button that opened a panel is not "outside" it.** Half of the
+  outside-press rule, and the half that kept being missed: pressing the ⋯ a
+  second time closed the menu on pointerdown and then the button's own click
+  toggled it straight back open, so the control that opened it could not
+  shut it. `components/dismiss.ts` is the shared hook and it takes the
+  trigger as well as the panel. Every panel opened from a control uses it.
+- **Team mode is a mode, not a fourth tab.** A team is a different thing the
+  app is for, with its own screen and its own rules about who sees what; a
+  tab beside Notes and Actions would say it was one more list of yours, and
+  the first question anybody would have is whether their notes are now
+  shared. They are not, and nothing in Team mode reads, moves or copies a
+  note. Mine is the default and everything in it still works with no account
+  at all.
+- **A task has to be a thing somebody actually said.** The rule the team
+  chat lives or dies by, and it is written three times on purpose: the
+  device reads the message with string rules, the prompt tells the model to
+  pick lines out rather than think of any, and `keepOnlyReal` then throws
+  away anything made of words the message did not contain. A model asked to
+  pull tasks out of a conversation will eventually add the obvious next one
+  — and on a team's board that is a job with somebody else's name against it
+  that nobody agreed to, which is how a whole list stops being believed.
+  Never loosen that check to catch more tasks; missing one costs a manual
+  add, inventing one costs the feature.
+- **The chat is the record and the tasks are a reading of it.** The message
+  is saved first and separately, and everything after it is best effort: the
+  reading failing must never cost somebody the thing they said. Every task
+  carries the message it came from, so it can always be traced back to the
+  sentence that was typed.
+- **A team's dates are the words somebody wrote**, the same as everywhere
+  else here. "Friday" is not turned into a date, because which Friday was
+  meant is not something this knows and a wrong date on another person's
+  task is worse than a vague one.
+- **You cannot look somebody up by email from a browser, and must not try.**
+  `auth.users` is not readable with the anon key and never should be. So a
+  member added by address is a row with no user id, and `claim_invites()` —
+  security definer, matching on the address in the caller's own token —
+  attaches it the first time they sign in. That is why somebody added while
+  they are asleep simply has the team waiting for them.
+- **Membership is checked by one function.** `in_team()` is security
+  definer, because a policy on `team_members` that reads `team_members` to
+  decide is infinitely recursive and Postgres only says so at query time.
+  One function called by every policy is also one place to be wrong instead
+  of twelve.
 - **One swipe, written once.** `swipe-away.tsx` is the shared gesture: the
   distance, the slop, the word that slides in underneath, and the three ways it
   goes wrong (capturing on pointerdown kills every button inside; a vertical
