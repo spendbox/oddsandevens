@@ -75,6 +75,7 @@ function openDb(): Promise<IDBDatabase | null> {
 /** Used only when IndexedDB is unavailable, so the session still works. */
 const memory = new Map<string, Doc>()
 const projectMemory = new Map<string, Project>()
+const metaMemory = new Map<string, unknown>()
 
 function run<T>(
   store: string,
@@ -203,6 +204,29 @@ export async function acceptFromServer(doc: Doc): Promise<void> {
 }
 
 /**
+ * Everything on this device, forgotten.
+ *
+ * Every store, including the sync cursors — especially the sync cursors. A
+ * cursor is "the newest row this device has accepted", and one left behind
+ * from another account is a timestamp that would make the next pull skip
+ * every row older than it. The new account would sign in to a device that
+ * quietly refuses to download most of their notes.
+ *
+ * The in-memory fallbacks go with them, because they are the store on a
+ * browser where IndexedDB is unavailable and leaving them would mean the
+ * previous account's notes surviving a hand-over in exactly the case where
+ * nothing else did.
+ */
+export async function clearAll(): Promise<void> {
+  memory.clear()
+  projectMemory.clear()
+  metaMemory.clear()
+  for (const name of [DOCS, OUTBOX, FILES, PROJECTS, PROJECT_OUTBOX, META]) {
+    await run(name, 'readwrite', (s) => s.clear())
+  }
+}
+
+/**
  * Small bookkeeping values, kept beside the data they describe.
  *
  * Sync cursors live here rather than in localStorage: they belong to the same
@@ -210,8 +234,6 @@ export async function acceptFromServer(doc: Doc): Promise<void> {
  * keeping the other cannot happen. A missing value is always safe — it means a
  * full reconcile next time, which is slower and never wrong.
  */
-const metaMemory = new Map<string, unknown>()
-
 export async function saveMeta(key: string, value: unknown): Promise<void> {
   metaMemory.set(key, value)
   await run(META, 'readwrite', (s) => s.put(value, key))

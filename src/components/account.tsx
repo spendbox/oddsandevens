@@ -11,9 +11,18 @@ import type { SyncState } from '@/lib/sync'
  *
  * The important thing about it is what it does not do: nothing in this app
  * waits for it. Signing in adds a copy on the server so a second device can
- * catch up, and signing out leaves every document exactly where it was. The
- * button is an upgrade, never a gate — which is why it is a small corner
- * control and not a screen you meet first.
+ * catch up. The button is an upgrade, never a gate — which is why it is a
+ * small corner control and not a screen you meet first.
+ *
+ * ## Signing out takes the notes with it
+ *
+ * It used to leave every note on the device, which is right for one person
+ * with one laptop and wrong for every other case: the next person to open
+ * the browser saw them, and the next account to sign in had them uploaded
+ * into it. So signing out pushes everything to the server and then empties
+ * the device — and only in that order. A push that could not reach the
+ * server means notes that exist nowhere else, so that case keeps them and
+ * says so here. See lib/handover.ts.
  */
 export interface Account {
   id: string
@@ -171,7 +180,8 @@ export default function AccountButton({
               }}
             />
             <p className="px-2.5 pt-1.5 pb-1 text-[10px] leading-snug text-[var(--color-faint)]">
-              Signing out leaves every note on this device.
+              Your notes are saved to your account and taken off this device, so the next person
+              to open this browser does not see them.
             </p>
           </div>
         )}

@@ -14,6 +14,7 @@ import ActionsPanel from './actions-panel'
 import Confirm from './confirm'
 import DictationButton from './dictation-button'
 import InstallButton from './install-button'
+import UpdateButton from './update-button'
 import NoteRow from './note-row'
 import TrashSection from './trash-section'
 import type { SyncState } from '@/lib/sync'
@@ -269,6 +270,9 @@ export default function NotesScreen({
               It is absent on every browser that has nothing to offer, and
               gone for good once the app is installed. See install.ts.
             */}
+            {/* Both of these are about the app rather than the notes, and
+                both are absent nearly all of the time. */}
+            <UpdateButton />
             <InstallButton />
             <AccountButton
               account={account}
@@ -333,7 +337,14 @@ export default function NotesScreen({
           <div
             role="tablist"
             aria-label="Your notes"
-            className="flex items-center gap-1 pt-2 pb-1"
+            /*
+              A hairline under it, for the same reason the tabs above have
+              one: it is the bottom edge of the header, and without it the
+              pills float over the first row of notes as the list scrolls
+              under them with nothing to say where one stops and the other
+              starts.
+            */
+            className="flex items-center gap-1 border-b border-[var(--color-line)] pt-2 pb-2"
           >
             <View id="all" current={view} onView={onView} label="All" count={live.length} />
             <View

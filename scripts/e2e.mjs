@@ -591,6 +591,20 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     'it is a way of looking at your notes, beside All and the dashboard',
     (await page.locator('[role="tablist"][aria-label="Your notes"] [role="tab"]').count()) === 3,
   )
+  /*
+    And a hairline under it. It is the bottom edge of the header: without one
+    the pills float over the first row of notes as the list scrolls beneath
+    them, with nothing to say where one stops and the other starts.
+  */
+  log(
+    'and it has a line under it, separating it from the notes',
+    await page.evaluate(() => {
+      const row = document.querySelector('[role="tablist"][aria-label="Your notes"]')
+      if (!row) return false
+      const style = getComputedStyle(row)
+      return parseFloat(style.borderBottomWidth) > 0 && style.borderBottomStyle !== 'none'
+    }),
+  )
   await page.locator('[role="tab"]:has-text("Favourites")').click()
   await page.waitForTimeout(400)
   log(
@@ -1807,6 +1821,22 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     return r.ok ? await r.json() : null
   })
   const plain = (mf?.icons ?? []).filter((i) => (i.purpose ?? 'any').split(' ').includes('any'))
+  /*
+    Updates. The worker no longer takes over the moment it installs — that
+    reads as "updates arrive promptly" and is actually "the page you are
+    typing into is being served by a different version than the one running
+    in it". The app asks it to, once somebody has pressed Update.
+  */
+  const worker = await page.evaluate(async () => (await fetch('/sw.js')).text())
+  log(
+    'a new version waits to be taken rather than taking over mid-sentence',
+    /skip-waiting/.test(worker) && !/\.then\(\(\) => self\.skipWaiting\(\)\)/.test(worker),
+  )
+  log(
+    'and nothing offers an update until there is one',
+    (await page.locator('[aria-label="Update to the new version"]').count()) === 0,
+  )
+
   log(
     'the manifest offers a plain 192 and 512 icon, which is what Install needs',
     plain.some((i) => i.sizes === '192x192' && i.type === 'image/png') &&

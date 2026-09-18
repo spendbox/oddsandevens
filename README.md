@@ -276,8 +276,14 @@ put it back, or delete it for good straight away — that one asks first, becaus
 it means it.
 
 **Signing in is optional** and lives at the top right of your notes. It adds a
-copy on the server so your other devices catch up. Nothing waits for it, and
-signing out leaves every note where it was.
+copy on the server so your other devices catch up. Nothing waits for it.
+
+**Signing out takes your notes off the device.** They are pushed to your
+account first and only then cleared, so the next person to open this browser
+sees an empty app — and if anything could not reach the server, they stay put
+and it says so rather than losing them. Signing in as a *different* account
+clears whatever is left before it shows you anything, so you never see, and
+never accidentally upload, somebody else's notes.
 
 ## Installing it as an app
 
@@ -292,6 +298,13 @@ Screen**.
 
 Installed, it opens from your dock or home screen in its own window, with no
 address bar, and starts with no internet connection at all.
+
+**Updates.** An installed app is resumed rather than reopened, so it can go on
+running an old version for weeks. Pad checks for a new one when it opens, every
+half hour while it is open, and whenever you come back to it after a while —
+and then an **Update** button appears next to your account. It never reloads by
+itself, because you might be halfway through a sentence; press it when you are
+ready and it takes a second.
 
 ## Running it yourself
 
@@ -426,6 +439,8 @@ src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
 src/lib/recorder.ts     keeping the audio, in pieces, with a level meter
 src/lib/transcribe.ts   sending those pieces to be transcribed properly
 src/lib/install.ts      the browser's install offer, caught and kept
+src/lib/update.ts       noticing a new version, and offering it
+src/lib/handover.ts     whose device this is, and clearing it when that changes
 src/lib/rich-text.ts    inline formatting, and the HTML sanitiser
 src/lib/store.ts        saving to the device (IndexedDB)
 src/lib/sync.ts         optional sync to Supabase

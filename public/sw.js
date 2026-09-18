@@ -27,9 +27,22 @@ self.addEventListener('install', (event) => {
       .then((cache) => cache.addAll(['/']))
       // A failed precache must not leave the worker uninstalled and the app
       // with no offline story at all; the fetch handler fills the gap later.
-      .catch(() => {})
-      .then(() => self.skipWaiting()),
+      .catch(() => {}),
   )
+})
+
+/*
+ * Taking over when the app says so, and not before.
+ *
+ * This used to call skipWaiting() as soon as it installed, which sounds like
+ * "updates arrive promptly" and is actually "the page you are typing into is
+ * now being served by a different version of the app than the one running in
+ * it". The app asks instead — see lib/update.ts, which offers the reader an
+ * Update and reloads once this has answered — so a new version lands at a
+ * moment somebody chose rather than in the middle of a sentence.
+ */
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'skip-waiting') self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {

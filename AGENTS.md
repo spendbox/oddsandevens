@@ -726,6 +726,46 @@ a page.
   icon forever.** It described a spreadsheet, a code editor and a form
   builder for months after all three were taken out of the app. Its name,
   description and theme colour are part of the app, not metadata.
+- **The device belongs to whoever last signed in, and it remembers that.**
+  IndexedDB is the store, not a cache, and it knew nothing about accounts —
+  so signing out left every note on the device and signing in as somebody
+  else showed them and then *uploaded* them into the new account, because
+  signing in pushes what is on the device up. `lib/handover.ts` stamps an
+  owner beside the notes: a different account arriving wipes first and fills
+  from the server after, and a device with no owner is somebody's own notes
+  written before they had an account, which are adopted exactly as before.
+  Nothing is ever merged — there is no honest way to merge two people's
+  notes.
+- **A wipe takes the sync cursors with it.** The quiet half of the same bug:
+  a cursor is "the newest row this device has accepted", so one left behind
+  from another account makes the next account's first pull ask only for rows
+  newer than it, and every older note silently never arrives. `clearAll()`
+  empties every store including `meta`, and the in-memory fallbacks with
+  them.
+- **Signing out pushes before it clears, and clears only if that worked.**
+  That order is the whole safety of it: a failed push means notes that exist
+  nowhere else, and clearing those because somebody pressed Sign out on a
+  train is the worst thing this app could do. So a clean sign-out leaves an
+  empty browser and a failed one keeps the notes and says so — and either
+  way the next account to sign in wipes what is left before showing
+  anything.
+- **The theme survives a hand-over; a name does not.** The theme and the
+  page width are about this screen. A name somebody typed and the
+  suggestions they turned down are about *them*, and the first is printed
+  across the top of the screen — "Hi, Ada" to whoever signs in next is the
+  complaint. Both are cleared through their own stores rather than by
+  removing the key: these are read through `useSyncExternalStore`, and a key
+  removed behind its back leaves the old value on screen.
+- **An installed app is not a tab somebody closes.** It is resumed rather
+  than reopened, so it will run a version from three deploys ago until
+  something makes it reload. `lib/update.ts` checks on opening, every half
+  hour, and on coming back after a while away, and then *offers* — it never
+  reloads on its own, because somebody may be halfway through a sentence.
+- **The service worker waits to be told before taking over.** It used to
+  call `skipWaiting()` on install, which sounds like "updates arrive
+  promptly" and is actually "the page you are typing into is now served by a
+  different version of the app than the one running in it". It takes a
+  `skip-waiting` message instead, sent when somebody presses Update.
 - **One swipe, written once.** `swipe-away.tsx` is the shared gesture: the
   distance, the slop, the word that slides in underneath, and the three ways it
   goes wrong (capturing on pointerdown kills every button inside; a vertical

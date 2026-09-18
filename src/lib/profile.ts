@@ -45,6 +45,23 @@ function read(): string {
 
 const none = () => ''
 
+/**
+ * Forgets the name, and tells everything reading it.
+ *
+ * Removing the key on its own is not enough: this store's snapshot is read
+ * through `useSyncExternalStore`, the `storage` event does not fire in the
+ * tab that made the change, and a greeting nobody was told about goes on
+ * saying "Hi, Ada" to the person who has just signed in instead.
+ */
+export function forgetName(): void {
+  try {
+    localStorage.removeItem(KEY)
+  } catch {
+    // Nothing was kept.
+  }
+  for (const listener of listeners) listener()
+}
+
 export function useName(): { name: string; set: (name: string) => void } {
   const name = useSyncExternalStore(subscribe, read, none)
   const set = useCallback((next: string) => {
