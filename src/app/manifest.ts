@@ -1,7 +1,8 @@
 import type { MetadataRoute } from 'next'
+import { APP_NAME, APP_TAGLINE } from '@/lib/app'
 
 /**
- * What makes Pad a thing you can install rather than a page you visit.
+ * What makes this a thing you can install rather than a page you visit.
  *
  * With this file plus the service worker, a browser offers Install — its own
  * button in the address bar on a desktop, Add to Home Screen on a phone — and
@@ -31,8 +32,8 @@ export default function manifest(): MetadataRoute.Manifest {
     // A stable id, so a change of start_url is not read as a different app
     // by a browser that already has this one installed.
     id: '/',
-    name: 'Pad — notes for people who take notes',
-    short_name: 'Pad',
+    name: `${APP_NAME} — ${APP_TAGLINE.toLowerCase()}`,
+    short_name: APP_NAME,
     description:
       'Open it and start typing. Every note is saved on your device as you write, searched by every word inside it, and yours with no account at all.',
     start_url: '/',

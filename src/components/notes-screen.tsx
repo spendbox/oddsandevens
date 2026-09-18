@@ -1,6 +1,6 @@
 'use client'
 
-import { BarChart3, Check, Globe2, ListChecks, Pencil, Search, Star } from 'lucide-react'
+import { BarChart3, Check, Globe2, ListChecks, Pencil, Search, Star, X } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import type { PastedBlock } from '@/lib/paste'
@@ -8,6 +8,7 @@ import type { Block, Doc, RemovedBlock } from '@/lib/types'
 import { byDay } from '@/lib/when'
 import { docLabel } from '@/lib/blocks'
 import { greeting, nameFromEmail } from '@/lib/name'
+import { draftLabel, useDraft } from '@/lib/draft'
 import { useMode } from '@/lib/mode'
 import { useName } from '@/lib/profile'
 import AccountButton, { type Account } from './account'
@@ -206,6 +207,34 @@ export default function NotesScreen({
   */
   const { mode } = useMode()
   const team = mode === 'team'
+  /** Whether the search field has been asked for. Never on by default. */
+  const [searching, setSearching] = useState(false)
+  /** What was in the writing box when it was last closed, if anything. */
+  const draft = useDraft()
+
+  /*
+    How tall the bar at the top is, written straight onto the element as a
+    custom property rather than held in state.
+
+    The team's navigation sticks underneath this one and has to know where
+    "underneath" is. A number in state would be a render every time the
+    header changed size — including while somebody is typing their name
+    into it — and this app has already paid once for a layout that reacted
+    to its own relayout. A CSS variable is read by the browser and nothing
+    re-renders at all.
+  */
+  const header = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = header.current
+    if (!el) return
+    const measure = () => {
+      el.parentElement?.style.setProperty('--pad-header', `${Math.round(el.offsetHeight)}px`)
+    }
+    measure()
+    const watcher = new ResizeObserver(measure)
+    watcher.observe(el)
+    return () => watcher.disconnect()
+  }, [])
 
   const live = docs.filter((doc) => !doc.deletedAt)
   const favourites = live
@@ -262,8 +291,18 @@ export default function NotesScreen({
 
   return (
     <div className="min-h-dvh bg-[var(--color-paper)]">
-      {/* The bottom padding clears the bar, and a phone's home indicator. */}
-      <div className="mx-auto w-full max-w-3xl px-4 pb-32 sm:px-8 sm:pb-32">
+      {/*
+        The measure, and the one place it is not a measure.
+
+        Notes are read at a reading width, which is what the 3xl is for. A
+        chat is not: it is short lines with a name beside each one, and
+        holding it to the width of a paragraph leaves two thirds of a
+        laptop empty and wraps every message on a phone that did not need
+        wrapping. So the team takes the screen.
+      */}
+      <div
+        className={`mx-auto w-full px-4 pb-32 sm:px-8 sm:pb-32 ${team ? 'max-w-5xl' : 'max-w-3xl'}`}
+      >
         {/*
           The greeting, the search field and the tabs stay at the top while
           the notes scroll under them.
@@ -321,28 +360,36 @@ export default function NotesScreen({
           </div>
 
         {/*
-          A field rather than a magnifying glass in a corner.
+          The field that says what it searches, when it has been asked for.
 
-          It does not type here — pressing it opens the search panel, which
-          reads inside every note rather than filtering their names. Showing
-          what it searches is the point: "every word in every note" is the
-          thing people do not expect a notes app to do, and a 24-pixel icon
-          says none of it.
-
-          Not on the World, which searches everybody's notes and has a field
-          of its own saying so. Two search boxes on one screen searching two
-          different collections is the fastest way to make somebody distrust
-          both.
+          It used to be there all the time, across the top of every screen,
+          which spent the width of the page and the height of a row on a
+          thing most people press once a day. It is a button in the row of
+          tabs now, at the end of it beside the World — and pressing that
+          opens the field, which still says "every word in every note",
+          because that is the thing nobody expects a notes app to do and a
+          24-pixel icon says none of it. Escape or the × puts it away.
         */}
-        {!team && tab !== 'world' && (
-          <button
-            type="button"
-            onClick={onSearch}
-            className="mb-3 flex w-full items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
-          >
-            <Search size={17} />
-            Search every word in every note
-          </button>
+        {!team && searching && (
+          <div className="mt-2 mb-1 flex items-center gap-1">
+            <button
+              type="button"
+              autoFocus
+              onClick={onSearch}
+              className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full border border-[var(--color-accent)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)]"
+            >
+              <Search size={17} />
+              Search every word in every note
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearching(false)}
+              aria-label="Stop searching"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+            >
+              <X size={18} />
+            </button>
+          </div>
         )}
 
         {/*
@@ -358,7 +405,7 @@ export default function NotesScreen({
         {!team && (
         <div
           role="tablist"
-          aria-label="Pad"
+          aria-label="Places"
           className="flex items-stretch gap-1 border-b border-[var(--color-line)]"
         >
           <Tab id="notes" current={tab} onTab={onTab} icon={<Pencil size={14} />} label="Notes" />
@@ -370,6 +417,32 @@ export default function NotesScreen({
             label="Actions"
           />
           <Tab id="world" current={tab} onTab={onTab} icon={<Globe2 size={14} />} label="World" />
+          {/*
+            Search, at the end of the row and lined up with the World —
+            the only thing here that is not a place, so it is an icon
+            rather than a word with an underline under it.
+
+            Not on the World, which searches everybody's notes and has a
+            field of its own saying so. Two search boxes on one screen
+            searching two different collections is the fastest way to make
+            somebody distrust both.
+          */}
+          {tab !== 'world' && (
+          <button
+            type="button"
+            aria-label="Search every word in every note"
+            aria-expanded={searching}
+            title="Search every word in every note"
+            onClick={() => setSearching((on) => !on)}
+            className={`-mb-px ml-auto flex items-center justify-center border-b-2 px-3 py-2.5 ${
+              searching
+                ? 'border-[var(--color-accent)] text-[var(--color-ink)]'
+                : 'border-transparent text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+            }`}
+          >
+            <Search size={15} />
+          </button>
+          )}
         </div>
         )}
 
@@ -508,13 +581,25 @@ export default function NotesScreen({
       {!team && (
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[var(--color-line)] bg-[var(--color-paper)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex w-full max-w-3xl items-center gap-3 pr-16">
+          {/*
+            And if the box was closed with something in it, the bar says
+            so and opening it again has the words back. A pop-up can be
+            shut by every accident a phone has, and three lines lost that
+            way is the worst thing this app can do — see lib/draft.ts.
+          */}
           <button
             type="button"
             onClick={onCompose}
-            className="flex flex-1 items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
+            className={`flex flex-1 items-center gap-2.5 rounded-full border px-4 py-3 text-left text-[15px] hover:border-[var(--color-faint)] ${
+              draft
+                ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-ink)]'
+                : 'border-[var(--color-line)] bg-[var(--color-hover)] text-[var(--color-faint)]'
+            }`}
           >
-            <Pencil size={16} />
-            Write a note…
+            <Pencil size={16} className="shrink-0" />
+            <span className="min-w-0 truncate">
+              {draft ? draftLabel(draft) : 'Write a note…'}
+            </span>
           </button>
         </div>
       </div>

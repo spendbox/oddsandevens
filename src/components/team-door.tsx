@@ -3,7 +3,8 @@
 import { Eye, EyeOff, LoaderCircle, Users } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { openTeamNext } from '@/lib/mode'
+import { APP_NAME } from '@/lib/app'
+import { askForTeam, openTeamNext } from '@/lib/mode'
 import { getSupabase, isSyncConfigured } from '@/lib/supabase'
 
 /**
@@ -36,11 +37,7 @@ export default function TeamDoor({ teamId, name }: { teamId: string; name: strin
    * are in, or on the sentence saying they are in none.
    */
   const go = () => {
-    try {
-      localStorage.setItem('pad-mode', 'team')
-    } catch {
-      // The app opens on the notes instead, and the switch is at the top.
-    }
+    askForTeam()
     openTeamNext(teamId)
     router.push('/')
   }
@@ -52,7 +49,7 @@ export default function TeamDoor({ teamId, name }: { teamId: string; name: strin
     try {
       const db = await getSupabase()
       if (!db) {
-        setMessage('Sign-in is not set up on this copy of Pad.')
+        setMessage(`Sign-in is not set up on this copy of ${APP_NAME}.`)
         return
       }
       if (mode === 'up') {
@@ -77,7 +74,7 @@ export default function TeamDoor({ teamId, name }: { teamId: string; name: strin
       <div className="w-full max-w-sm">
         <p className="flex items-center gap-2 text-[13px] text-[var(--color-faint)]">
           <Users size={15} />
-          A team on Pad
+          A team on {APP_NAME}
         </p>
         <h1 className="pad-serif mt-1 text-[30px] leading-tight font-semibold tracking-tight">
           {name ?? 'This team'}
@@ -89,7 +86,7 @@ export default function TeamDoor({ teamId, name }: { teamId: string; name: strin
 
         {!isSyncConfigured() ? (
           <p className="mt-5 rounded-xl bg-[var(--color-hover)] p-3 text-[13px] text-[var(--color-muted)]">
-            Accounts are not set up on this copy of Pad, so there is nothing to sign in to.
+            Accounts are not set up on this copy of {APP_NAME}, so there is nothing to sign in to.
           </p>
         ) : (
           <form
@@ -154,9 +151,9 @@ export default function TeamDoor({ teamId, name }: { teamId: string; name: strin
         {notice && <p className="mt-2 text-[13px] text-[var(--color-muted)]">{notice}</p>}
 
         <p className="mt-6 text-[12px] leading-relaxed text-[var(--color-faint)]">
-          This link is a way in to Pad, not a way into the team: an admin still has to have added
-          your email address. Pad is also a place to write your own notes, which nobody else ever
-          sees.
+          This link is a way in to {APP_NAME}, not a way into the team: an admin still has to
+          have added your email address. {APP_NAME} is also a place to write your own notes,
+          which nobody else ever sees.
         </p>
       </div>
     </div>

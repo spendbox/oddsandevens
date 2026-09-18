@@ -1,12 +1,13 @@
 'use client'
 
-import { ListChecks, LoaderCircle, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ListChecks } from 'lucide-react'
+import { useState } from 'react'
 import { blocksFromPasted } from '@/lib/blocks'
 import { nextListPrefix, splitComposed, titleFrom } from '@/lib/compose'
+import { currentDraft, dropDraft, keepDraft } from '@/lib/draft'
 import { parsePastedText } from '@/lib/paste'
 import type { Block } from '@/lib/types'
-import { useKeyboardInset } from './keyboard'
+import ComposeSheet from './compose-sheet'
 
 /**
  * The text of a note, as the lines somebody actually typed.
@@ -42,6 +43,14 @@ function asLines(text: string) {
  * and none of them costs the note. That is the same bargain every other model
  * call in this app makes, and it is the reason the local path is written
  * first and the request second.
+ *
+ * ## Closing it does not throw it away
+ *
+ * A pop-up can be closed by every accident a phone has — the back gesture, a
+ * press that landed slightly outside, being switched away from. So what was
+ * in the box is kept as a draft, the bar says there is one, and opening the
+ * box again has the words still in it with the caret at the end. See
+ * `lib/draft.ts`. It is dropped the moment the note is actually saved.
  */
 export default function ComposeNote({
   open,
@@ -57,7 +66,13 @@ export default function ComposeNote({
       the Actions tab should read it. */
   onSave: (note: { title: string; blocks: Block[]; ignoreTasks?: boolean }) => void
 }) {
-  const [text, setText] = useState('')
+  /*
+    Whatever was being written when this was last closed. A lazy initial
+    state rather than an effect, so the box opens with the words already in
+    it instead of blank for a frame — and this component is never rendered
+    on the server, so reading storage here is safe.
+  */
+  const [text, setText] = useState(currentDraft)
   /*
     Whether this note is one the Actions tab reads.
 
@@ -71,22 +86,16 @@ export default function ComposeNote({
   const [findTasks, setFindTasks] = useState(true)
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const box = useRef<HTMLTextAreaElement>(null)
-  const keyboard = useKeyboardInset()
-
-  // The caret goes in the box, because there is nothing else on this screen to
-  // press. Opening a writing box and having to click it first is a small
-  // insult repeated every time.
-  useEffect(() => {
-    if (open) box.current?.focus()
-  }, [open])
-
-  /* Cleared between notes, so the box is never opened holding the last one. */
+  /*
+    Opened again: the draft comes back, and nothing else does. The problem
+    from last time is not this attempt's problem, and the switch starts on
+    for the same reason it does on a fresh note.
+  */
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      setText('')
+      setText(currentDraft())
       setProblem(null)
       setBusy(false)
       setFindTasks(true)
@@ -155,6 +164,7 @@ export default function ComposeNote({
 
     if (!aiReady) {
       onSave(asTyped)
+      dropDraft()
       onClose()
       return
     }
@@ -170,6 +180,7 @@ export default function ComposeNote({
       const data = (await response.json()) as { text?: string; error?: string }
       if (!response.ok || !data.text) {
         onSave(asTyped)
+        dropDraft()
         onClose()
         return
       }
@@ -179,10 +190,14 @@ export default function ComposeNote({
         blocks: body ? blocksFromPasted(asLines(body)) : asTyped.blocks,
         ...(findTasks ? {} : { ignoreTasks: true }),
       })
+      // It is a note now. A draft that outlives the thing it became is a
+      // second copy nobody asked for.
+      dropDraft()
       onClose()
     } catch {
       // Offline, or the request never arrived. The note is still the note.
       onSave(asTyped)
+      dropDraft()
       onClose()
     } finally {
       setBusy(false)
@@ -190,142 +205,76 @@ export default function ComposeNote({
   }
 
   return (
-    <>
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-        className="fixed inset-0 z-[60] bg-black/25"
-      />
-      <div
-        role="dialog"
-        aria-label="Write a note"
-        aria-modal="true"
-        /*
-          At the bottom on a phone, where the thumb already is; a panel in the
-          middle of the screen on a desktop. Centred by a flex parent rather
-          than by `left-1/2`, because an inline or higher-specificity
-          horizontal position is exactly what collapses a full-width sheet to
-          the width of its own text.
-
-          The padding is what keeps it above the keyboard. A phone does not
-          make the page shorter when the keys come up — it draws them over the
-          bottom of it — so a sheet pinned to the bottom is underneath them at
-          the exact moment somebody is typing into it. See keyboard.ts. It is
-          an inline style because it is a number that changes as the keyboard
-          opens, and it is zero on every screen that has no keyboard, so it
-          never fights the desktop layout.
-        */
-        style={{ paddingBottom: keyboard }}
-        className="fixed inset-x-0 bottom-0 z-[60] flex justify-center p-2 sm:inset-y-0 sm:items-center"
-      >
-        <div className="w-full max-w-xl rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] p-3 shadow-2xl">
-          <div className="mb-2 flex items-center gap-2">
-            <p className="text-[14px] font-medium">Write a note</p>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="ml-auto flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <textarea
-            ref={box}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={(event) => {
-              // Ctrl+Enter saves, which is what every box of this shape does.
-              // Enter on its own is a new line: this is a note, not a chat
-              // message, and losing a paragraph break to a stray keystroke is
-              // worse than one extra press.
-              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault()
-                void save()
-                return
-              }
-              if (event.key === 'Escape') {
-                onClose()
-                return
-              }
-              if (event.key === 'Enter' && !event.shiftKey) carryList(event)
-            }}
-            rows={5}
-            aria-label="What happened"
-            placeholder="Anything. Shorthand is fine — it gets written up."
-            className="pad-serif max-h-[40dvh] min-h-[7rem] w-full resize-none bg-transparent text-[16px] leading-relaxed outline-none placeholder:text-[var(--color-faint)]"
-          />
-
-          {problem && (
-            <p role="status" className="mb-1 text-[13px] text-[var(--color-danger)]">
-              {problem}
-            </p>
-          )}
-
+    <ComposeSheet
+      title="Write a note"
+      value={text}
+      onChange={setText}
+      /*
+        Closing keeps it. A pop-up can be shut by every accident a phone
+        has, and three lines lost that way is the worst thing this app can
+        do — so the words go to `lib/draft.ts`, the bar says there is a
+        draft, and opening the box again has them back.
+      */
+      onClose={(kept) => {
+        keepDraft(kept)
+        onClose()
+      }}
+      onSave={() => void save()}
+      saveLabel={busy ? 'Writing it up…' : 'Save'}
+      busy={busy}
+      label="What happened"
+      placeholder="Anything. Shorthand is fine — it gets written up."
+      /*
+        Return at the end of a list item carries the list on. The rule is
+        in `lib/compose.ts` and is a unit test; this is the part that needs
+        the textarea, which is why the shell offers first refusal on a key.
+      */
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && !event.shiftKey) carryList(event)
+      }}
+      beside={
+        <>
           {/*
-            Save, and one switch beside it.
-
-            There was a sentence here once explaining what saving would do —
-            true, and a paragraph of small print in a box somebody opened to
-            write three words in; that is gone and stays gone. This is not
-            that: it is a control, it is two words, and it answers the one
-            question about this note that only the person writing it can
-            answer — whether the app should go looking for things to do in it.
-            Off is quiet and plain rather than a warning, because leaving a
-            note out of the Actions tab is an ordinary choice and not a
-            mistake.
+            One switch, and it answers the one question about this note
+            that only the person writing it can answer: whether the app
+            should go looking for things to do in it. Off is quiet and
+            plain rather than a warning — leaving a note out of the Actions
+            tab is an ordinary choice, not a mistake.
           */}
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={findTasks}
-              /*
-                The keyboard stays up.
-
-                Pressing any button moves the focus off the textarea, and a
-                phone takes the keyboard down with it — so answering a
-                question about the note you are in the middle of writing
-                threw you out of writing it, and the box jumped half a screen
-                while the keyboard slid away. Preventing the default on
-                mousedown is what stops the focus moving at all; the click
-                still arrives, so the switch still works, and the caret never
-                leaves the words.
-              */
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => setFindTasks((on) => !on)}
-              className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] ${
+          <button
+            type="button"
+            role="switch"
+            aria-checked={findTasks}
+            /*
+              The keyboard stays up. Pressing any button moves the focus off
+              the textarea and a phone takes the keys down with it, so
+              answering a question about the note you are writing threw you
+              out of writing it. `preventDefault` on mousedown stops the
+              focus moving; the click still arrives.
+            */
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setFindTasks((on) => !on)}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+          >
+            <span
+              aria-hidden
+              className={`flex h-4 w-4 items-center justify-center rounded border ${
                 findTasks
-                  ? 'text-[var(--color-muted)] hover:bg-[var(--color-hover)]'
-                  : 'text-[var(--color-faint)] hover:bg-[var(--color-hover)]'
+                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-white'
+                  : 'border-[var(--color-line)]'
               }`}
             >
-              <span
-                aria-hidden
-                className={`flex h-4 w-4 items-center justify-center rounded border ${
-                  findTasks
-                    ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-white'
-                    : 'border-[var(--color-line)]'
-                }`}
-              >
-                {findTasks && <ListChecks size={11} />}
-              </span>
-              Find tasks in this note
-            </button>
-            <button
-              type="button"
-              onClick={() => void save()}
-              disabled={!text.trim() || busy}
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-accent)] px-5 text-[14px] font-medium text-white disabled:opacity-40"
-            >
-              {busy && <LoaderCircle size={15} className="animate-spin" />}
-              {busy ? 'Writing it up…' : 'Save'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
+              {findTasks && <ListChecks size={11} />}
+            </span>
+            Find tasks in this note
+          </button>
+          {problem && (
+            <span role="status" className="ml-2 text-[13px] text-[var(--color-danger)]">
+              {problem}
+            </span>
+          )}
+        </>
+      }
+    />
   )
 }

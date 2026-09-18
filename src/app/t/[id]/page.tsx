@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { APP_NAME } from '@/lib/app'
 import TeamDoor from '@/components/team-door'
 import { publicSupabase } from '@/lib/supabase-server'
 
@@ -39,8 +40,8 @@ export async function generateMetadata(props: PageProps<'/t/[id]'>): Promise<Met
   const { id } = await props.params
   const name = await nameOf(id)
   return {
-    title: name ? `Join ${name}` : 'A team on Pad',
-    description: 'Sign in to Pad to see your team.',
+    title: name ? `Join ${name}` : `A team on ${APP_NAME}`,
+    description: `Sign in to ${APP_NAME} to see your team.`,
     // An invitation is not something to leave in a search index.
     robots: { index: false, follow: false },
   }
