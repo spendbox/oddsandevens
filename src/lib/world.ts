@@ -50,6 +50,21 @@ export interface WorldStats {
   people: number
 }
 
+/**
+ * What one person has put into the World, and what came of it.
+ *
+ * Two numbers, on their own dashboard: how many of their notes are out there,
+ * and how many times somebody kept a copy. Not views, not likes, not
+ * followers — a save is somebody deciding the note was worth having, which is
+ * the whole of what this is for.
+ */
+export interface MyWorld {
+  /** How many of their notes are listed. */
+  shared: number
+  /** How many copies other people have taken of them, added up. */
+  saves: number
+}
+
 export interface WorldFeed {
   notes: WorldNote[]
   /** Whether there is another page behind this one. */
@@ -154,6 +169,53 @@ export async function worldStats(): Promise<WorldStats | null> {
     return { notes: Number(row.notes) || 0, people: Number(row.people) || 0 }
   } catch {
     return null
+  }
+}
+
+/**
+ * What this account has in the World.
+ *
+ * Their own rows, which the read policy lets them see whether or not they are
+ * listed — so this counts the listed ones here rather than asking the server
+ * for two aggregates. Null when it cannot be answered, which prints nothing
+ * rather than a zero that would be a lie.
+ */
+export async function myWorld(ownerId: string): Promise<MyWorld | null> {
+  const db = await getSupabase()
+  if (!db) return null
+  try {
+    const { data, error } = await db
+      .from('shared_docs')
+      .select('listed, saves')
+      .eq('owner', ownerId)
+    if (error || !data) return null
+    const mine = data as Array<{ listed?: boolean; saves?: number }>
+    const listed = mine.filter((row) => row.listed)
+    return {
+      shared: listed.length,
+      saves: listed.reduce((total, row) => total + (Number(row.saves) || 0), 0),
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Says that somebody kept a copy.
+ *
+ * Fire and forget, and deliberately not awaited by anything the reader is
+ * waiting on: the note is already in their notes by the time this is called,
+ * and a counter failing to go up must never look like a save that did not
+ * happen.
+ */
+export async function markSaved(id: string): Promise<void> {
+  const db = await getSupabase()
+  if (!db) return
+  try {
+    await db.rpc('world_saved', { share_id: id })
+  } catch {
+    // A database without 0006 yet, or no network. Neither is worth a word to
+    // the person who has just saved a note successfully.
   }
 }
 

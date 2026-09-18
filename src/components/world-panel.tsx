@@ -4,7 +4,14 @@ import { BookmarkCheck, BookmarkPlus, ExternalLink, LoaderCircle, Search } from 
 import { useEffect, useState } from 'react'
 import type { Block } from '@/lib/types'
 import { when } from '@/lib/when'
-import { worldFeed, worldNote, worldStats, type WorldNote, type WorldStats } from '@/lib/world'
+import {
+  markSaved,
+  worldFeed,
+  worldNote,
+  worldStats,
+  type WorldNote,
+  type WorldStats,
+} from '@/lib/world'
 
 /**
  * The World: what other people have left where anybody can read it.
@@ -121,6 +128,10 @@ export default function WorldPanel({
     if (full) {
       await onSave({ title: full.title || note.title, blocks: full.blocks })
       setSaved((all) => [...all, note.id])
+      // The one number the person who shared it gets back. Not awaited: the
+      // note is already theirs, and a counter that failed to go up must not
+      // look like a save that did not happen.
+      void markSaved(note.id)
     } else {
       setProblem('That note could not be fetched. It may have been taken down.')
     }

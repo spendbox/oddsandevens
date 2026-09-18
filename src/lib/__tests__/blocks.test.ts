@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { docLabel, docOpening, docPreview, makeBlock, shortcutFor } from '../blocks.ts'
-import { blockText, isTextish, type Doc } from '../types.ts'
+import {
+  docLabel,
+  docOpening,
+  docPreview,
+  makeBlock,
+  shortcutFor,
+  withBlocksBack,
+  withoutBlocks,
+} from '../blocks.ts'
+import { blockText, isTextish, type Block, type Doc } from '../types.ts'
 
 test('every block type can be made and is well formed', () => {
   const types = ['text', 'heading', 'bullet', 'quote', 'todo', 'divider'] as const
@@ -144,4 +152,67 @@ test('a note whose name was cut out of its first line does not print it twice', 
   const opening = docOpening(named)
   assert.match(opening, /break clause/)
   assert.ok(!opening.startsWith('Meeting with Sam'), opening)
+})
+
+/* ------------------------------------------- lines out of a note, and back */
+
+const line = (id: string, text = id): Block => ({ id, type: 'text', text })
+
+test('taking lines out says where each one was', () => {
+  const blocks = [line('a'), line('b'), line('c'), line('d')]
+  const { kept, removed } = withoutBlocks(blocks, ['b', 'd'])
+  assert.deepEqual(kept.map((block) => block.id), ['a', 'c'])
+  assert.deepEqual(
+    removed.map((entry) => [entry.index, entry.block.id]),
+    [[1, 'b'], [3, 'd']],
+  )
+})
+
+test('an id that is not there takes nothing out', () => {
+  const blocks = [line('a')]
+  const { kept, removed } = withoutBlocks(blocks, ['nope'])
+  assert.equal(kept.length, 1)
+  assert.equal(removed.length, 0)
+})
+
+test('putting them back puts them where they came from', () => {
+  const blocks = [line('a'), line('b'), line('c'), line('d')]
+  const { kept, removed } = withoutBlocks(blocks, ['b', 'd'])
+  assert.deepEqual(
+    withBlocksBack(kept, removed).map((block) => block.id),
+    ['a', 'b', 'c', 'd'],
+    'and in the right order, which needs the earlier ones back first',
+  )
+})
+
+test('three out of the middle come back as three, not as a heap at the end', () => {
+  const blocks = ['a', 'b', 'c', 'd', 'e'].map((id) => line(id))
+  const { kept, removed } = withoutBlocks(blocks, ['b', 'c', 'd'])
+  assert.deepEqual(kept.map((b) => b.id), ['a', 'e'])
+  assert.deepEqual(withBlocksBack(kept, removed).map((b) => b.id), ['a', 'b', 'c', 'd', 'e'])
+})
+
+test('a note emptied to one blank line is not left with the blank line', () => {
+  // Taking the last line out leaves a note with one empty paragraph in it,
+  // because a note with no lines at all cannot be typed into. Putting the
+  // lines back must not leave that stand-in above them.
+  const { removed } = withoutBlocks([line('only', 'the only line')], ['only'])
+  const emptied = [makeBlock('text')]
+  assert.deepEqual(
+    withBlocksBack(emptied, removed).map((block) => blockText(block)),
+    ['the only line'],
+  )
+})
+
+test('undoing twice does not leave the line twice', () => {
+  const { kept, removed } = withoutBlocks([line('a'), line('b')], ['b'])
+  const once = withBlocksBack(kept, removed)
+  assert.deepEqual(withBlocksBack(once, removed).map((b) => b.id), ['a', 'b'])
+})
+
+test('a note that changed underneath still takes the line back', () => {
+  // The index was recorded against a longer note. Somewhere in range beats
+  // refusing to put somebody's line back at all.
+  const { removed } = withoutBlocks([line('a'), line('b'), line('c')], ['c'])
+  assert.deepEqual(withBlocksBack([line('a')], removed).map((b) => b.id), ['a', 'c'])
 })

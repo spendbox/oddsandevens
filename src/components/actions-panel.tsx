@@ -7,11 +7,12 @@ import {
   Plus,
   Square,
   SquareCheck,
+  Undo2,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { byNote, digest, gatherActions, gatherDone, type ActionItem } from '@/lib/actions'
 import { dismissKey, useDismissed } from '@/lib/dismissed'
-import type { Doc } from '@/lib/types'
+import type { Doc, RemovedBlock } from '@/lib/types'
 import Confirm from './confirm'
 import SwipeAway from './swipe-away'
 
@@ -47,6 +48,15 @@ import SwipeAway from './swipe-away'
  * `lib/dismissed.ts` and simply stops being offered. A screen of guesses must
  * not be a way to lose writing.
  *
+ * ## Asked first, and undoable after
+ *
+ * Getting rid of a box takes that line out of the note, which is the one
+ * thing on this screen that is writing rather than a guess about writing. So
+ * it asks — naming the line — and then, for five seconds, offers to put it
+ * back exactly where it was. Both, not one: the question stops the swipe
+ * nobody meant, and the undo covers the "yes" that was pressed too quickly,
+ * which is the mistake a question cannot catch.
+ *
  * ## Done is folded away, not thrown away
  *
  * What is done is not what is to be done, so it is one quiet line that opens.
@@ -62,6 +72,26 @@ import SwipeAway from './swipe-away'
  * at it is a screen people stop opening.
  */
 
+/** How long an undo stays on offer. Long enough to notice, short enough that
+    the bar is not furniture. */
+const UNDO_SECONDS = 5
+
+/**
+ * What one undo can put back.
+ *
+ * Two shapes in one, because the two things this screen takes away are two
+ * different kinds of thing: `removed` is lines that came out of a note, and
+ * `keys` are suggestions that were turned down. A clear of a whole group can
+ * be both at once.
+ */
+interface Undoable {
+  /** What to call it on the bar. */
+  label: string
+  docId?: string
+  removed?: RemovedBlock[]
+  keys?: string[]
+}
+
 export default function ActionsPanel({
   docs,
   aiReady,
@@ -70,6 +100,7 @@ export default function ActionsPanel({
   onUntick,
   onMakeBox,
   onRemove,
+  onPutBack,
 }: {
   docs: Doc[]
   aiReady: boolean
@@ -80,8 +111,10 @@ export default function ActionsPanel({
   onUntick: (docId: string, blockId: string) => void
   /** Turns a line of prose into a box in the note it lives in. */
   onMakeBox: (docId: string, blockId: string) => void
-  /** Takes lines out of a note for good. */
-  onRemove: (docId: string, blockIds: string[]) => void
+  /** Takes lines out of a note. What comes back is where each one was. */
+  onRemove: (docId: string, blockIds: string[]) => Promise<RemovedBlock[]>
+  /** Puts them back there. */
+  onPutBack: (docId: string, removed: RemovedBlock[]) => void
 }) {
   /*
     Re-read whenever the notes change, which is what makes a tick here empty
@@ -92,7 +125,7 @@ export default function ActionsPanel({
   */
   const all = useMemo(() => gatherActions(docs), [docs])
   const done = useMemo(() => gatherDone(docs), [docs])
-  const { has: turnedDown, add: turnDown } = useDismissed()
+  const { has: turnedDown, add: turnDown, remove: offerAgain } = useDismissed()
 
   /*
     A suggestion somebody has already said no to is not offered again. Boxes
@@ -108,6 +141,45 @@ export default function ActionsPanel({
   /** Something asked about before it happens: a whole group, or the done list. */
   const [doomed, setDoomed] = useState<{ title: string; body: string; go: () => void } | null>(null)
   const [showDone, setShowDone] = useState(false)
+  /**
+   * What the undo bar is currently offering to put back, and how long is
+   * left of the five seconds.
+   *
+   * `left` is counted down by an interval rather than worked out from a
+   * timestamp on every frame: this is one number changing five times, and a
+   * running animation for it would be five seconds of work to say what one
+   * digit says.
+   */
+  const [undoable, setUndoable] = useState<Undoable | null>(null)
+  const [left, setLeft] = useState(UNDO_SECONDS)
+
+  const offer = (next: Undoable) => {
+    setUndoable(next)
+    setLeft(UNDO_SECONDS)
+  }
+
+  /*
+    The clock on the offer. Both timers live here, so the bar cannot outlive
+    its own countdown — and both are cleared when a second delete replaces
+    the first, which is what makes the five seconds start again rather than
+    the bar vanishing early.
+  */
+  useEffect(() => {
+    if (!undoable) return
+    const tick = setInterval(() => setLeft((n) => Math.max(0, n - 1)), 1000)
+    const over = setTimeout(() => setUndoable(null), UNDO_SECONDS * 1000)
+    return () => {
+      clearInterval(tick)
+      clearTimeout(over)
+    }
+  }, [undoable])
+
+  const undo = () => {
+    if (!undoable) return
+    if (undoable.removed?.length && undoable.docId) onPutBack(undoable.docId, undoable.removed)
+    if (undoable.keys?.length) offerAgain(undoable.keys)
+    setUndoable(null)
+  }
 
   const sharpen = async () => {
     if (reading || !live.length) return
@@ -136,14 +208,41 @@ export default function ActionsPanel({
   /**
    * Getting rid of one line.
    *
-   * A box is a line in a note, so it comes out of the note. A suggestion is
-   * this app's guess about a line, so only the guess goes. Nothing here asks
-   * first: a swipe is deliberate, one row is small, and a box that mattered is
-   * one Ctrl+Z away inside the note it came from.
+   * A box is a line in a note, so getting rid of it takes that line out of
+   * the note — which is writing, so it asks first and names the line. A
+   * suggestion is only this app's guess about a line, so nothing is deleted
+   * and nothing is asked; the no is remembered and the words stay exactly
+   * where they were.
+   *
+   * Both end up on the undo bar, because both take a row off the screen and
+   * a gesture on a phone is easy to make by accident.
    */
   const away = (item: ActionItem) => {
-    if (item.kind === 'box') onRemove(item.docId, [item.blockId])
-    else turnDown([dismissKey(item.docId, item.blockId)])
+    if (item.kind === 'box') {
+      setDoomed({
+        title: `Delete “${item.text}”?`,
+        body: 'The line comes out of the note it is in. You can undo it for a few seconds.',
+        go: () => void deleteBoxes(item.docId, [item.blockId], item.text),
+      })
+      return
+    }
+    const key = dismissKey(item.docId, item.blockId)
+    turnDown([key])
+    offer({ label: item.text, keys: [key] })
+  }
+
+  /**
+   * Takes boxes out of a note and puts the undo on offer.
+   *
+   * The lines are held here, in this component, for as long as the bar is up
+   * — not written anywhere and not kept past it. An undo that survived a
+   * reload would be a second, invisible copy of somebody's writing living
+   * somewhere they cannot see; five seconds is a mistake being corrected, and
+   * anything longer is the note's own Ctrl+Z, which has been there all along.
+   */
+  const deleteBoxes = async (docId: string, blockIds: string[], label: string) => {
+    const removed = await onRemove(docId, blockIds)
+    if (removed.length) offer({ label, docId, removed })
   }
 
   /*
@@ -154,28 +253,48 @@ export default function ActionsPanel({
   const clearGroup = (docId: string, docTitle: string, items: ActionItem[]) =>
     setDoomed({
       title: `Clear everything from “${docTitle}”?`,
-      body: `${items.length} ${items.length === 1 ? 'thing' : 'things'}. The ticked boxes come out of the note; the suggestions are only turned down, and nothing you wrote is touched.`,
+      body: `${items.length} ${items.length === 1 ? 'thing' : 'things'}. The ticked boxes come out of the note; the suggestions are only turned down, and nothing you wrote is touched. You can undo it for a few seconds.`,
       go: () => {
         const boxes = items.filter((item) => item.kind === 'box').map((item) => item.blockId)
         const lines = items
           .filter((item) => item.kind === 'line')
           .map((item) => dismissKey(item.docId, item.blockId))
-        if (boxes.length) onRemove(docId, boxes)
         if (lines.length) turnDown(lines)
+        void (async () => {
+          const removed = boxes.length ? await onRemove(docId, boxes) : []
+          // One offer for the whole group, because clearing a meeting is one
+          // action however many lines it took.
+          offer({ label: docTitle, docId, removed, keys: lines })
+        })()
       },
     })
 
   const clearDone = () =>
     setDoomed({
       title: `Clear ${done.length} finished ${done.length === 1 ? 'thing' : 'things'}?`,
-      body: 'Every ticked box comes out of the note it is in. The rest of the note is untouched.',
+      body: 'Every ticked box comes out of the note it is in. The rest of the note is untouched, and you can undo it for a few seconds.',
       go: () => {
-        for (const group of byNote(done)) {
-          onRemove(
-            group.docId,
-            group.items.map((item) => item.blockId),
-          )
-        }
+        void (async () => {
+          const groups = byNote(done)
+          /*
+            One note at a time, and only the last one is offered back.
+
+            An undo bar can hold one note's lines, because putting lines back
+            is a write per note and a bar with several notes on it would have
+            to say which — at which point it is a list, not an undo. The
+            honest version of that is the note's own Ctrl+Z, which has every
+            one of them.
+          */
+          for (const group of groups) {
+            const removed = await onRemove(
+              group.docId,
+              group.items.map((item) => item.blockId),
+            )
+            if (group === groups[groups.length - 1] && removed.length) {
+              offer({ label: `${done.length} finished`, docId: group.docId, removed })
+            }
+          }
+        })()
       },
     })
 
@@ -313,13 +432,43 @@ export default function ActionsPanel({
                 <Row
                   key={item.blockId}
                   item={item}
-                  onAway={() => onRemove(item.docId, [item.blockId])}
+                  onAway={() => away(item)}
                   onAct={() => onUntick(item.docId, item.blockId)}
                 />
               ))}
             </ul>
           )}
         </section>
+      )}
+
+      {/*
+        The undo, above the bar that writes a note.
+
+        Fixed, because the row it is about may be halfway up a list somebody
+        has since scrolled, and an undo you have to go and find is not an
+        undo. It says what went and how long is left, and it is the only
+        thing in this app that counts down — five seconds, so it is gone
+        before it becomes furniture.
+      */}
+      {undoable && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[4.75rem] z-30 px-4">
+          <div className="pointer-events-auto mx-auto flex w-full max-w-3xl items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] py-2 pr-2 pl-4 shadow-lg">
+            <p className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-muted)]">
+              Deleted “{undoable.label}”
+            </p>
+            <span aria-hidden className="shrink-0 text-[12px] text-[var(--color-faint)]">
+              {left}
+            </span>
+            <button
+              type="button"
+              onClick={undo}
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-[var(--color-accent)] hover:bg-[var(--color-hover)]"
+            >
+              <Undo2 size={14} />
+              Undo
+            </button>
+          </div>
+        </div>
       )}
 
       <Confirm

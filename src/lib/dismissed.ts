@@ -87,6 +87,8 @@ export function useDismissed(): {
   has: (docId: string, blockId: string) => boolean
   /** Turns down one line, or a whole note's worth in one go. */
   add: (keys: string[]) => void
+  /** Takes the no back, which is what an undo does with a swiped suggestion. */
+  remove: (keys: string[]) => void
 } {
   const text = useSyncExternalStore(subscribe, raw, none)
   const has = useCallback(
@@ -98,5 +100,10 @@ export function useDismissed(): {
     for (const key of keys) next.add(key)
     write(next)
   }, [])
-  return { has, add }
+  const remove = useCallback((keys: string[]) => {
+    const next = parse(raw())
+    for (const key of keys) next.delete(key)
+    write(next)
+  }, [])
+  return { has, add, remove }
 }

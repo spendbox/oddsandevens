@@ -610,6 +610,38 @@ a page.
   button asking to be trusted — which is where a notice goes when the design
   cannot make the point on its own. What is sent is in `digest`, and it is one
   function with the reason written above it.
+- **A way in that only appears after something else has been pressed is not a
+  way in.** Listing a note in the World was a tickbox inside the ⋯ that
+  appeared only once a link existed, so the route to the World began with a
+  row that does not mention the World — and nobody found it. Sharing is one
+  panel now, opened from a row that says what it does, and both answers are
+  in it whether or not either is on. The test for anything added here: can
+  somebody who wants it find it without already knowing where it is.
+- **A panel opened from the ⋯ is not drawn inside the ⋯.** The menu closes on
+  a press outside itself, so a panel rendered within it is unmounted by the
+  first press anywhere in it. The note owns the share panel; the menu asks
+  for it. Anything else opened from a menu goes the same way.
+- **A button pressed while somebody is typing must not take the focus.** Every
+  button steals it, and a phone takes the keyboard down with it — so the
+  switch in the writing box threw people out of the note they were writing
+  and moved the box half a screen. `preventDefault` on **mousedown** is what
+  stops the focus moving; the click still arrives. It applies to every control
+  that sits beside a field somebody is in the middle of using.
+- **Taking a line out of a note asks first, and is undoable for five
+  seconds.** Both, not one: the question stops the swipe nobody meant, the
+  undo covers the yes that was pressed too fast, and only the second of those
+  catches the commonest mistake. `withoutBlocks`/`withBlocksBack` in
+  `lib/blocks.ts` hold the ordering, the emptied-note case and the
+  put-it-back-twice case, with no React around them. The undo lives in the
+  component for as long as the bar is up and is never written anywhere: a
+  saved undo is a second, invisible copy of somebody's writing. Past five
+  seconds the answer is the note's own Ctrl+Z, which has had it all along.
+- **A save is the only number the World keeps.** Not views, not likes, not
+  followers, and no record of who saved what — the World is ordered by date
+  on purpose, so no counter decides what anybody sees. `world_saved()` adds
+  one and returns nothing, and it is called after the note is already safely
+  the reader's: a counter that failed must never look like a save that did
+  not happen.
 - **A link share and a World listing are two decisions, and one is never
   implied by the other.** `listed` on the shared row is the whole difference,
   it defaults to false, and publishing without it leaves a note exactly as
@@ -633,6 +665,12 @@ a page.
   thing that could not be made fast: it is a generated tsvector, a GIN index
   and a page of twenty rows carrying a stored two-line preview each. Never
   select `blocks` or `body` to draw a list.
+- **The dashboard's own numbers are local; the World's arrive late or not at
+  all.** What you have put into the World and how many copies were taken of it
+  are facts about a server and cannot be anything else, so they are their own
+  section, fetched after the page is already complete, and absent when they
+  cannot be had. A dashboard showing a spinner where a number should be looks
+  broken every time somebody opens it on a train.
 - **The dashboard is counted on the device, and every number is one the reader
   could check.** `lib/stats.ts`, pure, unit-tested, no network and no model —
   the same bargain as the icons and the kinds. Its boxes are every box in every

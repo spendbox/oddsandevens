@@ -4,7 +4,7 @@ import { BarChart3, Check, Globe2, ListChecks, Pencil, Search, Star } from 'luci
 import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import type { PastedBlock } from '@/lib/paste'
-import type { Block, Doc } from '@/lib/types'
+import type { Block, Doc, RemovedBlock } from '@/lib/types'
 import { byDay } from '@/lib/when'
 import { docLabel } from '@/lib/blocks'
 import { greeting, nameFromEmail } from '@/lib/name'
@@ -117,8 +117,13 @@ export interface NotesScreenProps {
   onUntick: (docId: string, blockId: string) => void
   /** Turns a line of prose into a box, in the note it lives in. */
   onMakeBox: (docId: string, blockId: string) => void
-  /** Takes lines out of a note for good, from the Actions tab. */
-  onRemove: (docId: string, blockIds: string[]) => void
+  /**
+   * Takes lines out of a note, from the Actions tab. What comes back is
+   * where each one was, so an undo can put it there.
+   */
+  onRemove: (docId: string, blockIds: string[]) => Promise<RemovedBlock[]>
+  /** Puts those lines back, which is what the undo does. */
+  onPutBack: (docId: string, removed: RemovedBlock[]) => void
   onRestore: (id: string) => void
   onPurge: (id: string) => void
   onEmptyTrash: () => void
@@ -152,6 +157,7 @@ export default function NotesScreen({
   onUntick,
   onMakeBox,
   onRemove,
+  onPutBack,
   onRestore,
   onPurge,
   onEmptyTrash,
@@ -347,11 +353,12 @@ export default function NotesScreen({
             onUntick={onUntick}
             onMakeBox={onMakeBox}
             onRemove={onRemove}
+            onPutBack={onPutBack}
           />
         ) : tab === 'world' ? (
           <WorldPanel onSave={onSaveFromWorld} />
         ) : view === 'dashboard' ? (
-          <DashboardPanel docs={live} />
+          <DashboardPanel docs={live} accountId={account?.id ?? null} />
         ) : listed.length === 0 ? (
           <p className="py-12 text-center text-[15px] text-[var(--color-faint)]">
             {view === 'favourites'

@@ -85,6 +85,19 @@ export interface DividerBlock {
 
 export type Block = TextishBlock | TodoBlock | DividerBlock
 
+/**
+ * A block taken out of a note, and where it was.
+ *
+ * The index is what makes an undo put a line back where it came from rather
+ * than at the end. It is recorded against the note as it was at the moment of
+ * the removal, which is why several of them are put back in ascending order —
+ * see `withBlocksBack` in lib/blocks.ts.
+ */
+export interface RemovedBlock {
+  index: number
+  block: Block
+}
+
 export interface Doc {
   id: string
   title: string
