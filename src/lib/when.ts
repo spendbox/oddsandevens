@@ -77,3 +77,53 @@ export function longStamp(at: number, now = Date.now()): string {
   if (day === time) return `Today, ${time}`
   return `${day}, ${time}`
 }
+
+/**
+ * The heading a note sits under in a list: Today, Yesterday, a weekday, or a
+ * date.
+ *
+ * A flat column of forty notes is forty timestamps somebody has to read one at
+ * a time. Days are how people actually remember writing something — "that was
+ * Tuesday" — so the list is broken into them, and the two that matter most get
+ * words rather than numbers. Inside the last week a weekday is more useful
+ * than a date, because "Thursday" is a thing you remember and "15 Sep" is a
+ * thing you work out.
+ */
+export function dayLabel(at: number, now = Date.now()): string {
+  const then = new Date(at)
+  const today = new Date(now)
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  // A note stamped slightly in the future — two devices with clocks a minute
+  // apart do this constantly — belongs to today, not to a day that has not
+  // happened.
+  const days = Math.round((startOf(today) - startOf(then)) / 86_400_000)
+  if (days <= 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return then.toLocaleDateString(undefined, { weekday: 'long' })
+  if (then.getFullYear() === today.getFullYear()) {
+    return then.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })
+  }
+  return then.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+/**
+ * A list of notes, broken into the days they were written on.
+ *
+ * Order is preserved exactly: the caller has already sorted, and a group is
+ * only ever a run of neighbours that share a heading. Nothing is re-sorted
+ * here, so a list sorted by "last written in" stays in that order and the
+ * headings simply mark where the day changes.
+ */
+export function byDay<T extends { updatedAt: number }>(
+  items: T[],
+  now = Date.now(),
+): Array<{ label: string; items: T[] }> {
+  const out: Array<{ label: string; items: T[] }> = []
+  for (const item of items) {
+    const label = dayLabel(item.updatedAt, now)
+    const last = out[out.length - 1]
+    if (last && last.label === label) last.items.push(item)
+    else out.push({ label, items: [item] })
+  }
+  return out
+}

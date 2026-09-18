@@ -175,6 +175,7 @@ export function blocksFromPasted(pasted: PastedBlock[]): Block[] {
       made.html = item.html
       made.indent = item.indent
     }
+    if (made.type === 'bullet' && item.ordered) made.ordered = true
     if (made.type === 'todo' && item.done) made.done = true
     return made
   })

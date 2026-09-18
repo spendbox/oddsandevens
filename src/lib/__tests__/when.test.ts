@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { longStamp, stamp, when } from '../when.ts'
+import { byDay, dayLabel, longStamp, stamp, when } from '../when.ts'
 
 const NOW = Date.UTC(2026, 1, 14, 12, 0, 0)
 const minute = 60_000
@@ -57,4 +57,40 @@ test('the line under a title says the day as well as the time', () => {
   const now = new Date('2026-09-17T16:32:00').getTime()
   assert.match(longStamp(new Date('2026-09-17T09:05:00').getTime(), now), /^Today, /)
   assert.match(longStamp(new Date('2026-09-16T09:05:00').getTime(), now), /^Yesterday, /)
+})
+
+test('a day is called what somebody would call it', () => {
+  const now = new Date('2026-09-18T16:32:00').getTime()
+  assert.equal(dayLabel(new Date('2026-09-18T09:05:00').getTime(), now), 'Today')
+  assert.equal(dayLabel(new Date('2026-09-17T23:59:00').getTime(), now), 'Yesterday')
+  // Inside the week, the weekday is what people remember.
+  assert.equal(dayLabel(new Date('2026-09-15T10:00:00').getTime(), now), 'Tuesday')
+  assert.match(dayLabel(new Date('2026-09-01T10:00:00').getTime(), now), /September/)
+  assert.match(dayLabel(new Date('2025-09-01T10:00:00').getTime(), now), /2025/)
+})
+
+test('a stamp from a device whose clock is ahead belongs to today', () => {
+  const now = new Date('2026-09-18T16:32:00').getTime()
+  assert.equal(dayLabel(now + 60_000, now), 'Today')
+})
+
+test('notes are grouped into days without being reordered', () => {
+  const now = new Date('2026-09-18T16:32:00').getTime()
+  const at = (iso: string) => ({ updatedAt: new Date(iso).getTime() })
+  const groups = byDay(
+    [
+      at('2026-09-18T15:00:00'),
+      at('2026-09-18T09:00:00'),
+      at('2026-09-17T20:00:00'),
+      at('2026-09-15T08:00:00'),
+    ],
+    now,
+  )
+  assert.deepEqual(groups.map((g) => g.label), ['Today', 'Yesterday', 'Tuesday'])
+  assert.deepEqual(groups.map((g) => g.items.length), [2, 1, 1])
+  assert.equal(groups[0].items[0].updatedAt > groups[0].items[1].updatedAt, true)
+})
+
+test('nothing in, nothing out', () => {
+  assert.deepEqual(byDay([]), [])
 })

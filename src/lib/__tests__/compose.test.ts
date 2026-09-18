@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { splitComposed, titleFrom, withoutTitleLine } from '../compose.ts'
+import { nextListPrefix, splitComposed, titleFrom, withoutTitleLine } from '../compose.ts'
 import { blockText } from '../types.ts'
 
 test('a reply in the shape it was asked for', () => {
@@ -82,4 +82,26 @@ test('a name nobody took from the writing leaves the writing alone', () => {
   const blocks = [{ id: '1', type: 'text' as const, text: 'Ring the landlord' }]
   assert.deepEqual(withoutTitleLine(blocks, 'Boiler'), blocks)
   assert.deepEqual(withoutTitleLine(blocks, ''), blocks)
+})
+
+test('Return in the box carries a list on', () => {
+  assert.equal(nextListPrefix('- milk'), '- ')
+  assert.equal(nextListPrefix('* milk'), '* ')
+  assert.equal(nextListPrefix('1. first'), '2. ')
+  assert.equal(nextListPrefix('9) ninth'), '10) ')
+  assert.equal(nextListPrefix('  - nested'), '  - ')
+  assert.equal(nextListPrefix('[] ring the bank'), '[ ] ')
+  assert.equal(nextListPrefix('[x] posted'), '[ ] ', 'a box carries on empty, never ticked')
+})
+
+test('an item with nothing in it ends the list instead of adding another', () => {
+  assert.equal(nextListPrefix('- '), '')
+  assert.equal(nextListPrefix('3. '), '')
+  assert.equal(nextListPrefix('[ ] '), '')
+})
+
+test('an ordinary line is not a list', () => {
+  assert.equal(nextListPrefix('Just a sentence.'), null)
+  assert.equal(nextListPrefix(''), null)
+  assert.equal(nextListPrefix('1.no space'), null)
 })

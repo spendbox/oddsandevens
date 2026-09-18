@@ -23,6 +23,14 @@ import { MAX_INDENT } from './smart-typing.ts'
 export interface PastedBlock {
   type: 'text' | 'heading' | 'bullet' | 'quote' | 'todo'
   text: string
+  /**
+   * A numbered item rather than a bulleted one.
+   *
+   * It was missing, and every "1. / 2. / 3." pasted or written in the box came
+   * out as bullets — the marker was read, the kind of list it meant was thrown
+   * away one line later.
+   */
+  ordered?: boolean
   /** Inline formatting, when the content had any worth keeping. */
   html?: string
   level?: 1 | 2 | 3
@@ -39,6 +47,7 @@ function finish(
   type: PastedBlock['type'],
   level: 1 | 2 | 3 | undefined,
   indent: number,
+  ordered = false,
 ): void {
   const clean = sanitizeInline(buffer)
   const text = htmlToPlain(clean).replace(/\s+/g, ' ').trim()
@@ -46,6 +55,7 @@ function finish(
   out.push({
     type,
     text,
+    ...(ordered && type === 'bullet' ? { ordered: true } : {}),
     ...(hasFormatting(clean, text) ? { html: clean } : {}),
     ...(level ? { level } : {}),
     ...(indent > 0 ? { indent } : {}),
@@ -58,10 +68,19 @@ export function parsePastedHtml(html: string): PastedBlock[] {
   let type: PastedBlock['type'] = 'text'
   let level: 1 | 2 | 3 | undefined
   let listDepth = 0
+  /** The list wrappers we are inside, so an <ol> item comes out numbered. */
+  const lists: string[] = []
   let last = 0
 
   const flush = () => {
-    finish(out, buffer, type, level, Math.max(0, Math.min(MAX_INDENT, listDepth - 1)))
+    finish(
+      out,
+      buffer,
+      type,
+      level,
+      Math.max(0, Math.min(MAX_INDENT, listDepth - 1)),
+      lists[lists.length - 1] === 'ol',
+    )
     buffer = ''
     type = 'text'
     level = undefined
@@ -80,6 +99,8 @@ export function parsePastedHtml(html: string): PastedBlock[] {
       // A list wrapper changes depth but is not itself a block of content.
       flush()
       listDepth = closing ? Math.max(0, listDepth - 1) : listDepth + 1
+      if (closing) lists.pop()
+      else lists.push(tag)
       continue
     }
 
@@ -171,7 +192,12 @@ export function parsePastedText(text: string): PastedBlock[] {
       }
       const bullet = /^([-*•‣▪]|\d+[.)])\s+(.*)$/.exec(body)
       if (bullet) {
-        out.push({ type: 'bullet', text: bullet[2], ...(indent ? { indent } : {}) })
+        out.push({
+          type: 'bullet',
+          text: bullet[2],
+          ...(/\d/.test(bullet[1]) ? { ordered: true } : {}),
+          ...(indent ? { indent } : {}),
+        })
         continue
       }
       out.push({ type: 'text', text: body, ...(indent ? { indent } : {}) })

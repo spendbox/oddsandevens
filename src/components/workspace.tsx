@@ -352,17 +352,21 @@ export default function Workspace() {
       await flushSave()
       const fresh = emptyDoc()
       fresh.title = note.title
-      let blocks = note.blocks
-      /*
-        Never demand a name. When nothing has given the note one, it is made
-        from the opening line — and that line is then taken out of the writing,
-        because a note dashed off in one sentence would otherwise show that
-        sentence twice: once as its name and once as its only line.
-      */
+      // Never demand a name: when nothing has given the note one, it is made
+      // from the opening line.
       if (!fresh.title.trim()) {
-        fresh.title = titleFrom(blocks.map(blockText).filter(Boolean).join('\n'))
-        blocks = withoutTitleLine(blocks, fresh.title)
+        fresh.title = titleFrom(note.blocks.map(blockText).filter(Boolean).join('\n'))
       }
+      /*
+        And the line a name was taken from is not left in the writing as well.
+
+        Always, not only when the name was worked out here: the box names a
+        note too, and when there is no key it names it from the first line in
+        exactly the same way. `withoutTitleLine` only takes a line that really
+        does start with the name, so a name the model wrote — which is a
+        summary rather than a prefix — leaves the writing untouched.
+      */
+      const blocks = withoutTitleLine(note.blocks, fresh.title)
       fresh.blocks = blocks.length ? blocks : [makeBlock('text')]
       setDocs((all) => [fresh, ...all])
       setHistory(emptyHistory())
@@ -496,6 +500,7 @@ export default function Workspace() {
           onCompose={() => setComposing(true)}
           onSearch={() => setSearching(true)}
           onFavorite={(id, favorite) => void setFavorite(id, favorite)}
+          onDelete={(id) => void deleteDoc(id)}
           onRestore={(id) => void restoreDoc(id)}
           onPurge={(id) => void purgeDoc(id)}
           onEmptyTrash={() => void emptyTrash()}

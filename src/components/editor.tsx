@@ -3,9 +3,10 @@
 import { ChevronLeft, Ellipsis } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { makeBlock } from '@/lib/blocks'
-import type { Block, Doc } from '@/lib/types'
-import { isTextish } from '@/lib/types'
+import { applyShape } from '@/lib/plain-doc'
+import { blockText, isTextish, type Block, type Doc, type TextishBlock } from '@/lib/types'
 import DictationButton from './dictation-button'
+import FormatToolbar, { type StyleChoice } from './format-toolbar'
 import { KindLine } from './note-kind'
 import NoteMenu from './note-menu'
 import PlainEditor from './plain-editor'
@@ -117,6 +118,43 @@ export default function Editor({
   )
 
   /*
+    The line the caret is in, as the selection bar cares about it: what kind of
+    line, so the style it already is reads as pressed.
+  */
+  const current = currentId ? (doc.blocks.find((b) => b.id === currentId) ?? null) : null
+  const styleTarget: StyleChoice | null = current
+    ? {
+        type: current.type,
+        level: (current as TextishBlock).level,
+        ordered: (current as TextishBlock).ordered,
+      }
+    : null
+
+  /**
+   * Changes the kind of the line the selection is in.
+   *
+   * The same route the beautifier takes when it reads "# " off a line somebody
+   * typed — one `applyShape`, then a repaint with the caret kept — because two
+   * ways of turning a paragraph into a heading is one of them behaving
+   * slightly differently.
+   */
+  const styleCurrent = (choice: StyleChoice) => {
+    const at = currentId ? doc.blocks.findIndex((b) => b.id === currentId) : -1
+    if (at === -1) return
+    const next = [...doc.blocks]
+    next[at] = applyShape(next[at], {
+      type: choice.type,
+      level: choice.level,
+      ordered: choice.ordered,
+      done: (next[at] as { done?: boolean }).done,
+      text: blockText(next[at]),
+      html: (next[at] as TextishBlock).html,
+    })
+    setBlocks(next)
+    setRevision((r) => r + 1)
+  }
+
+  /*
     Undo and redo, taken over from the browser.
 
     The browser keeps its own stack per editable element, which knows nothing
@@ -203,6 +241,12 @@ export default function Editor({
       </div>
 
       <div className="px-4 pt-5 pb-32 sm:px-12 sm:pt-8">
+        {/*
+          The only formatting controls in the app, and they are not on screen
+          until there is something selected for them to act on.
+        */}
+        <FormatToolbar scope={container} target={styleTarget} onStyle={styleCurrent} />
+
         {/*
           What this note is, and when it was last written in. Above the title
           because it is the sentence you read first — "a meeting, from this

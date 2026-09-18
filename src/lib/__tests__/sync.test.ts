@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { advanceCursor, FULL_EVERY_MS, OVERLAP_MS, pullSince, type Cursor } from '../sync.ts'
+import {
+  advanceCursor,
+  FULL_EVERY_MS,
+  OVERLAP_MS,
+  pullSince,
+  toDoc,
+  type Cursor,
+} from '../sync.ts'
 
 const NOW = 1_700_000_000_000
 
@@ -86,4 +93,43 @@ test('a row written while the cursor sat still is still fetched', () => {
 
   cursor = advanceCursor(cursor, [writtenByAnotherDevice], NOW + 1_000, false)
   assert.equal(cursor.at, NOW, 'and an older row does not drag the cursor back')
+})
+
+/* ------------------------------------------------- what a row means locally */
+
+const row = (over = {}) => ({
+  id: 'd1',
+  title: 'A note',
+  blocks: [{ id: 'b', type: 'text', text: 'hello' }],
+  created_at: 1,
+  updated_at: 2,
+  project_id: null,
+  favorited_at: null,
+  deleted_at: null,
+  ...over,
+})
+
+test('an ordinary row comes back as an ordinary note', () => {
+  const doc = toDoc(row() as never)
+  assert.equal(doc.title, 'A note')
+  assert.equal(doc.deletedAt, undefined)
+  assert.equal(doc.purgedAt, undefined)
+})
+
+test('a deleted row comes back in the trash', () => {
+  const doc = toDoc(row({ deleted_at: 99 }) as never)
+  assert.equal(doc.deletedAt, 99)
+  assert.equal(doc.purgedAt, undefined)
+})
+
+test('a row destroyed for good stays destroyed, with no column to say so', () => {
+  // A purge empties the row and keeps it. Without this, the other device put
+  // the empty note back in its trash and the note came back from the dead.
+  const doc = toDoc(row({ deleted_at: 99, title: '', blocks: [] }) as never)
+  assert.equal(doc.purgedAt, 99)
+})
+
+test('an empty note that was never deleted is not mistaken for a purge', () => {
+  const doc = toDoc(row({ title: '  ', blocks: [] }) as never)
+  assert.equal(doc.purgedAt, undefined)
 })

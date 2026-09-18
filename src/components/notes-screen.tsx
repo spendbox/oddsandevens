@@ -1,8 +1,10 @@
 'use client'
 
 import { Pencil, Search, Star } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import type { PastedBlock } from '@/lib/paste'
 import type { Doc } from '@/lib/types'
+import { byDay } from '@/lib/when'
 import AccountButton, { type Account } from './account'
 import DictationButton from './dictation-button'
 import NoteRow from './note-row'
@@ -30,6 +32,20 @@ import type { SyncState } from '@/lib/sync'
  * question nobody was asking. It is a *different list*: the handful you keep
  * coming back to, which is exactly what a tab is for.
  *
+ * ## Days, not a wall
+ *
+ * Forty rows in one column is forty timestamps somebody reads one at a time.
+ * Notes are grouped under the day they were last written in — Today,
+ * Yesterday, then the weekday, then the date — because "that was Tuesday" is
+ * how people actually remember writing something.
+ *
+ * ## Ten at a time
+ *
+ * Only the first page of rows is rendered, and the next ten arrive as the last
+ * one scrolls into view. Somebody with six hundred notes should not pay for
+ * five hundred and ninety of them to open their list, and the index that
+ * search is built from is already the expensive thing in this app.
+ *
  * ## What is not on it
  *
  * No sidebar, no Library, no folders, no tree. Everything the app can do is
@@ -37,6 +53,9 @@ import type { SyncState } from '@/lib/sync'
  * to search for it — which reads inside every note rather than filtering their
  * names.
  */
+
+/** How many rows are rendered at once, and how many more each time. */
+const PAGE = 10
 export type NotesTab = 'notes' | 'favourites'
 
 export interface NotesScreenProps {
@@ -48,6 +67,7 @@ export interface NotesScreenProps {
   onCompose: () => void
   onSearch: () => void
   onFavorite: (id: string, favorite: boolean) => void
+  onDelete: (id: string) => void
   onRestore: (id: string) => void
   onPurge: (id: string) => void
   onEmptyTrash: () => void
@@ -72,6 +92,7 @@ export default function NotesScreen({
   onCompose,
   onSearch,
   onFavorite,
+  onDelete,
   onRestore,
   onPurge,
   onEmptyTrash,
@@ -89,11 +110,61 @@ export default function NotesScreen({
     .sort((a, b) => (b.favoritedAt ?? 0) - (a.favoritedAt ?? 0))
   const listed = tab === 'favourites' ? favourites : live
 
+  /*
+    How many rows are on screen. Reset whenever the tab changes, because
+    scrolling four pages into your notes and then pressing Favourites should
+    not hand you four pages of favourites.
+  */
+  const [shown, setShown] = useState(PAGE)
+  const [seenTab, setSeenTab] = useState(tab)
+  if (tab !== seenTab) {
+    setSeenTab(tab)
+    setShown(PAGE)
+  }
+
+  const page = listed.slice(0, shown)
+  const more = listed.length > page.length
+  const sentinel = useRef<HTMLDivElement>(null)
+
+  /*
+    The next ten arrive when the bottom of the list comes into view. An
+    observer rather than a scroll handler: it fires once when it matters
+    instead of on every frame of a flick, and it costs nothing while the list
+    is sitting still.
+  */
+  useEffect(() => {
+    const el = sentinel.current
+    if (!el || !more) return
+    const watcher = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setShown((n) => n + PAGE)
+      },
+      // A screen ahead, so the rows are there before the scroll reaches them.
+      { rootMargin: '600px' },
+    )
+    watcher.observe(el)
+    return () => watcher.disconnect()
+  }, [more, shown])
+
+  const groups = byDay(page)
+
   return (
     <div className="min-h-dvh bg-[var(--color-paper)]">
       {/* The bottom padding clears the bar, and a phone's home indicator. */}
-      <div className="mx-auto w-full max-w-3xl px-4 pt-5 pb-32 sm:px-8 sm:py-8 sm:pb-32">
-        <header className="mb-4 flex items-center gap-2">
+      <div className="mx-auto w-full max-w-3xl px-4 pb-32 sm:px-8 sm:pb-32">
+        {/*
+          The name of the screen, the search field and the two tabs stay at the
+          top while the notes scroll under them.
+
+          They are one sticky block rather than three, because three things
+          that stick at three different offsets is three numbers to keep in
+          step — and because what they are is a header: the thing that says
+          where you are and what you can do from here. Opaque, never a blur: a
+          bar the page scrolls under has to be a surface, or the words show
+          through it.
+        */}
+        <header className="sticky top-0 z-20 bg-[var(--color-paper)] pt-5 sm:pt-8">
+          <div className="mb-4 flex items-center gap-2">
           <h1 className="pad-serif text-[30px] font-semibold tracking-tight sm:text-[34px]">
             Notes
           </h1>
@@ -114,7 +185,7 @@ export default function NotesScreen({
               onSyncNow={onSyncNow}
             />
           </div>
-        </header>
+          </div>
 
         {/*
           A field rather than a magnifying glass in a corner.
@@ -128,7 +199,7 @@ export default function NotesScreen({
         <button
           type="button"
           onClick={onSearch}
-          className="mb-5 flex w-full items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
+          className="mb-3 flex w-full items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
         >
           <Search size={17} />
           Search every word in every note
@@ -137,7 +208,7 @@ export default function NotesScreen({
         <div
           role="tablist"
           aria-label="Notes"
-          className="mb-2 flex items-stretch gap-1 border-b border-[var(--color-line)]"
+          className="flex items-stretch gap-1 border-b border-[var(--color-line)]"
         >
           <Tab id="notes" current={tab} onTab={onTab} icon={<Pencil size={14} />} label="Notes" />
           <Tab
@@ -149,6 +220,7 @@ export default function NotesScreen({
             count={favourites.length}
           />
         </div>
+        </header>
 
         {listed.length === 0 ? (
           <p className="py-12 text-center text-[15px] text-[var(--color-faint)]">
@@ -157,11 +229,37 @@ export default function NotesScreen({
               : 'Everything you write shows up here.'}
           </p>
         ) : (
-          <ul className="mt-1">
-            {listed.map((doc) => (
-              <NoteRow key={doc.id} doc={doc} onOpen={onOpen} onFavorite={onFavorite} />
+          <>
+            {groups.map((group) => (
+              <section key={group.label}>
+                {/*
+                  The day, and it sticks under the header while its own notes
+                  are on screen — so scrolling never leaves somebody looking at
+                  six rows with no idea which day they are in.
+                */}
+                <h2 className="pad-day-heading text-[12px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
+                  {group.label}
+                </h2>
+                <ul>
+                  {group.items.map((doc) => (
+                    <NoteRow
+                      key={doc.id}
+                      doc={doc}
+                      onOpen={onOpen}
+                      onFavorite={onFavorite}
+                      onDelete={onDelete}
+                    />
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+            {/*
+              What the next ten are waiting on. Rendered only while there are
+              more, so an observer is never watching an element that will never
+              matter again.
+            */}
+            {more && <div ref={sentinel} aria-hidden className="h-4" />}
+          </>
         )}
 
         {/*

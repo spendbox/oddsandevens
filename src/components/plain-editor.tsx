@@ -803,10 +803,22 @@ function lineMarkup(block: Block): string {
     const ticked = (block as { done?: boolean }).done ? ' checked' : ''
     // Named after the task, so a screen reader and a test both say which one.
     const label = escapeHtml(blockText(block) || 'Task')
+    /*
+      The box is painted in the margin, not laid out in the line.
+
+      It used to be an inline element at the front of the text, which put a
+      caret position *before* it: click at the start of a task, or press Home,
+      and the caret sat between the left edge and the box, where every
+      keystroke went in front of a control rather than at the start of the
+      words. Taking it out of the flow — absolute, in the padding the line
+      already leaves for a marker — means the first caret position on the line
+      is the first character, the way it is on every other line. The bullet
+      and the number are drawn in that same margin, and for the same reason.
+    */
     return (
       `<div data-block-id="${id}" class="${lineClass(block)}">` +
       `<input type="checkbox" contenteditable="false"${ticked} aria-label="${label}" ` +
-      `class="mr-2 h-[0.85em] w-[0.85em] translate-y-[0.1em] shrink-0 cursor-pointer accent-[var(--color-accent)]">` +
+      `class="pad-tick accent-[var(--color-accent)]">` +
       `${body}</div>`
     )
   }
@@ -841,7 +853,7 @@ function lineClass(block: Block): string {
   if (block.type === 'bullet') {
     return (shaped.ordered ? 'pad-ol py-0.5' : 'pad-ul py-0.5') + align + indent
   }
-  if (block.type === 'todo') return 'py-0.5' + align + indent
+  if (block.type === 'todo') return 'pad-todo py-0.5' + align + indent
   return 'py-1' + align + indent
 }
 

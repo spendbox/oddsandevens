@@ -162,6 +162,62 @@ log(
 )
 await page.screenshot({ path: `${SHOTS}/03-notes.png` })
 
+/* -------------------------------------------- the box: lists, and one button */
+
+{
+  await page.locator('button:has-text("Write a note…")').click()
+  await page.waitForTimeout(400)
+  const box = page.locator('[role="dialog"][aria-label="Write a note"]')
+  log(
+    'the box is one button and nothing beside it',
+    !/nothing is added|needs a key/i.test(await box.innerText()),
+    (await box.innerText()).replace(/\n+/g, ' / ').slice(0, 90),
+  )
+
+  /*
+    A list carries on in the box. Without this, every item after the first is
+    typed by hand — which is what "numbers and bullets are not working" meant.
+  */
+  // Named so nothing else in the suite shares a word with it: "Friday" was
+  // also in the lease note, and `has-text` took the first of the two.
+  await page.keyboard.type('Agent list')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('- ring the agent')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('send the figures')
+  await page.keyboard.press('Enter')
+  // An empty item ends the list rather than adding another.
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('1. first')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('second')
+  await page.waitForTimeout(200)
+  const typed = await page.locator('[aria-label="What happened"]').inputValue()
+  log(
+    'Return carries a bullet on, and an empty one ends the list',
+    typed.includes('- send the figures') && !/- 1\./.test(typed),
+    JSON.stringify(typed),
+  )
+  log('and a number carries on by counting', typed.includes('2. second'))
+
+  await page.locator('button:has-text("Save")').click()
+  await page.waitForTimeout(900)
+  await open('Agent list')
+  const shaped = await shapes()
+  log(
+    'the bullets are bullets and the numbers are numbered',
+    shaped.some((l) => /pad-ul/.test(l.cls) && /ring the agent/.test(l.text ?? '')) &&
+      shaped.some((l) => /pad-ol/.test(l.cls) && /first/.test(l.text ?? '')),
+    JSON.stringify(shaped.map((l) => [l.cls, l.text])),
+  )
+  log(
+    'and the name is not repeated as the first line of the note',
+    !shaped.some((l) => (l.text ?? '').trim() === 'Agent list'),
+  )
+  await page.screenshot({ path: `${SHOTS}/04-box-lists.png` })
+  await back()
+}
+
 /* ---------------------------------------------------- the box uses the model */
 
 {
@@ -203,7 +259,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     'a thing to do comes back as a box to tick',
     await page.evaluate(() => !!document.querySelector('[role="textbox"] input[type="checkbox"]')),
   )
-  await page.screenshot({ path: `${SHOTS}/04-written-up.png` })
+  await page.screenshot({ path: `${SHOTS}/05-written-up.png` })
   await back()
 
   // And when the model cannot be reached, the note is still the note.
@@ -317,6 +373,125 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   log(
     'Ctrl+Z takes back an edit the browser knows nothing about',
     !(await lines()).join(' ').includes('A line to take back'),
+  )
+  await back()
+}
+
+/* ------------------------------------------ a box to tick, and the caret */
+
+{
+  await open('Agent list')
+  await page.locator('[role="textbox"] [data-block-id]').last().click()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('[] post the forms')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(400)
+
+  /*
+    The caret used to be able to sit *before* the box: it was an inline element
+    at the front of the line, so the first caret position on the line was
+    between the left edge and the control, and everything typed there went in
+    front of it. The box is painted in the margin now.
+  */
+  log(
+    'the box on a task is painted in the margin, not laid out in the line',
+    await page.evaluate(() => {
+      const box = document.querySelector('[role="textbox"] input[type="checkbox"]')
+      return !!box && getComputedStyle(box).position === 'absolute'
+    }),
+  )
+  await page.evaluate(() => {
+    const line = [...document.querySelectorAll('[role="textbox"] [data-block-id]')].find((e) =>
+      /post the forms/.test(e.textContent ?? ''),
+    )
+    const range = document.createRange()
+    range.setStart(line, 0)
+    range.collapse(true)
+    const selection = window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+  })
+  await page.keyboard.type('X')
+  await page.waitForTimeout(400)
+  log(
+    'typing at the very start of a task goes into the task, not in front of it',
+    (await lines()).some((text) => (text ?? '').trim() === 'Xpost the forms'),
+    JSON.stringify(await lines()),
+  )
+  await page.screenshot({ path: `${SHOTS}/06-tick.png` })
+}
+
+/* ------------------------------------------- formatting, on a selection only */
+
+{
+  const bar = page.locator('[role="toolbar"][aria-label="Selection formatting"]')
+  log('there is no formatting toolbar until something is selected', (await bar.count()) === 0)
+
+  await page.evaluate(() => {
+    const line = [...document.querySelectorAll('[role="textbox"] [data-block-id]')].find((e) =>
+      /ring the agent/.test(e.textContent ?? ''),
+    )
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
+    const node = walker.nextNode()
+    const range = document.createRange()
+    range.setStart(node, 0)
+    range.setEnd(node, 4)
+    const selection = window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  await page.waitForTimeout(500)
+  log('selecting words brings it up, over the words', await bar.isVisible())
+  log(
+    'it carries the marks and the line styles',
+    (await bar.locator('button').count()) >= 10,
+    `${await bar.locator('button').count()} controls`,
+  )
+  log(
+    'and it stays on the screen rather than hanging off the edge',
+    await page.evaluate(() => {
+      const el = document.querySelector('[role="toolbar"][aria-label="Selection formatting"]')
+      if (!el) return false
+      const box = el.getBoundingClientRect()
+      return box.left >= 0 && box.right <= window.innerWidth + 1
+    }),
+  )
+  await page.screenshot({ path: `${SHOTS}/07-selection.png` })
+
+  await bar.locator('[aria-label="Bold"]').click()
+  await page.waitForTimeout(500)
+  log(
+    'bold from the bar applies to the selection',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('[role="textbox"] [data-block-id]')].some((e) =>
+        /<b>ring<\/b>/i.test(e.innerHTML),
+      ),
+    ),
+  )
+
+  await page.evaluate(() => {
+    const line = [...document.querySelectorAll('[role="textbox"] [data-block-id]')].find((e) =>
+      /send the figures/.test(e.textContent ?? ''),
+    )
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
+    const node = walker.nextNode()
+    const range = document.createRange()
+    range.setStart(node, 0)
+    range.setEnd(node, 4)
+    const selection = window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  await page.waitForTimeout(400)
+  await bar.locator('[aria-label="Heading"]').click()
+  await page.waitForTimeout(600)
+  log(
+    'and a line style from the bar changes the line',
+    (await shapes()).some((l) => /pad-h1/.test(l.cls) && /send the figures/.test(l.text ?? '')),
+    JSON.stringify((await shapes()).map((l) => l.cls)),
   )
   await back()
 }
@@ -502,6 +677,148 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   )
 }
 
+/* ------------------------------- days, a sticky header, and ten at a time */
+
+{
+  /*
+    Forty-five notes, written straight into the store. Making them through the
+    box would be forty-five model-less round trips and four minutes; what is
+    being tested here is the list, not the making.
+  */
+  await page.evaluate(async () => {
+    const open = indexedDB.open('pad')
+    await new Promise((resolve) => {
+      open.onsuccess = resolve
+    })
+    const db = open.result
+    const now = Date.now()
+    const day = 86_400_000
+    const tx = db.transaction('docs', 'readwrite')
+    for (let i = 0; i < 45; i++) {
+      tx.objectStore('docs').put({
+        id: `seed-${i}`,
+        title: `Seeded note ${i}`,
+        blocks: [{ id: `b${i}`, type: 'text', text: `Words in note ${i}` }],
+        createdAt: now - i * 1000,
+        updatedAt: now - Math.floor(i / 6) * day - i * 1000,
+      })
+    }
+    await new Promise((resolve) => {
+      tx.oncomplete = resolve
+    })
+  })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(1200)
+
+  const headings = await page.evaluate(() =>
+    [...document.querySelectorAll('h2')].map((h) => h.textContent),
+  )
+  log(
+    'notes are grouped under the day they were written',
+    headings[0] === 'Today' && headings[1] === 'Yesterday' && headings.length > 2,
+    JSON.stringify(headings),
+  )
+
+  const first = await page.evaluate(() => document.querySelectorAll('li').length)
+  log(
+    'not every note is rendered at once',
+    first > 0 && first < 45,
+    `${first} of 45 rows on first paint`,
+  )
+  await page.evaluate(() => window.scrollBy(0, 2000))
+  await page.waitForTimeout(600)
+  const after = await page.evaluate(() => document.querySelectorAll('li').length)
+  log('and more arrive as the list is scrolled', after > first, `${first} → ${after}`)
+
+  log(
+    'the header, the search field and the tabs stay put while it scrolls',
+    await page.evaluate(() => {
+      const header = document.querySelector('header')
+      if (!header) return false
+      const box = header.getBoundingClientRect()
+      const tabs = document.querySelector('[role="tablist"]')?.getBoundingClientRect()
+      return box.top <= 1 && !!tabs && tabs.bottom > 0 && tabs.bottom < 260
+    }),
+  )
+  log(
+    'and the day a run of notes belongs to sticks with them',
+    await page.evaluate(() => {
+      const heading = [...document.querySelectorAll('h2')].find(
+        (h) => h.getBoundingClientRect().top > 0,
+      )
+      return !!heading
+    }),
+  )
+  await page.screenshot({ path: `${SHOTS}/08-days.png` })
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.waitForTimeout(400)
+
+  /*
+    Swiping a row away. A pointer gesture rather than a touch one, so this is
+    the same code a thumb runs — and the same code a trackpad runs.
+  */
+  const row = page.locator('li').first()
+  const name = (await row.innerText()).split('\n')[0]
+  const box = await row.boundingBox()
+  const y = box.y + 20
+  await page.mouse.move(box.x + 300, y)
+  await page.mouse.down()
+  for (let x = 20; x <= 60; x += 20) {
+    await page.mouse.move(box.x + 300 - x, y)
+    await page.waitForTimeout(30)
+  }
+  log(
+    'dragging a row shows what letting go will do',
+    /delete/i.test(await row.innerText()),
+    (await row.innerText()).replace(/\n+/g, ' / '),
+  )
+  await page.screenshot({ path: `${SHOTS}/09-swiping.png` })
+  for (let x = 80; x <= 160; x += 20) {
+    await page.mouse.move(box.x + 300 - x, y)
+    await page.waitForTimeout(30)
+  }
+  await page.mouse.up()
+  await page.waitForTimeout(900)
+  log(
+    'and letting go past the line deletes it',
+    !(await page.locator('ul').first().innerText()).includes(name),
+    name,
+  )
+
+  // A short drag is not a delete, and is not a tap either.
+  const second = page.locator('li').first()
+  const stays = (await second.innerText()).split('\n')[0]
+  const secondBox = await second.boundingBox()
+  await page.mouse.move(secondBox.x + 300, secondBox.y + 20)
+  await page.mouse.down()
+  for (let x = 20; x <= 40; x += 20) {
+    await page.mouse.move(secondBox.x + 300 - x, secondBox.y + 20)
+    await page.waitForTimeout(30)
+  }
+  await page.mouse.up()
+  await page.waitForTimeout(700)
+  log(
+    'a short drag puts the row back rather than deleting it',
+    (await page.locator('ul').first().innerText()).includes(stays),
+    stays,
+  )
+  log(
+    'and it does not open the note either',
+    (await page.locator('[aria-label="Back to notes"]').count()) === 0,
+  )
+
+  // The button, for everybody who never discovers a gesture.
+  const third = page.locator('li').first()
+  const doomed = (await third.innerText()).split('\n')[0]
+  await third.locator('[aria-label^="Delete"]').click()
+  await page.waitForTimeout(800)
+  log(
+    'the same delete is a button on the row',
+    !(await page.locator('ul').first().innerText()).includes(doomed),
+    doomed,
+  )
+}
+
 /* ------------------------------------------------------------- on a phone */
 
 {
@@ -539,8 +856,47 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     bar ? `${Math.round(bar.height)}px tall` : 'missing',
   )
   await mobile.screenshot({ path: `${SHOTS}/10-mobile-note.png` })
-  await mobile.locator('[aria-label="Back to notes"]').click()
+
+  /*
+    Deleting for good, on a touch screen.
+
+    The controls in the trash were hover-only, which on a phone is a control
+    that does not exist: "delete for good" could not be pressed at all, and the
+    note somebody was trying to destroy stayed exactly where it was.
+  */
+  await mobile.locator('[aria-label="More"]').click()
+  await mobile.waitForTimeout(300)
+  await mobile.locator('[role="menu"] button:has-text("Delete this note")').click()
+  await mobile.waitForTimeout(250)
+  await mobile.locator('[role="menu"] button:has-text("Delete")').last().click()
+  await mobile.waitForTimeout(900)
+  await mobile.locator('button[aria-expanded]', { hasText: 'Trash' }).first().click()
   await mobile.waitForTimeout(500)
+  log(
+    'the controls in the trash are reachable on a phone, with no hover to give them',
+    await mobile.evaluate(() => {
+      const el = document.querySelector('[aria-label*="permanently"]')
+      if (!el) return false
+      const box = el.getBoundingClientRect()
+      return Number(getComputedStyle(el).opacity) > 0.9 && box.width >= 28 && box.height >= 28
+    }),
+  )
+  await mobile.locator('[aria-label*="permanently"]').first().click()
+  await mobile.waitForTimeout(300)
+  await mobile
+    .locator('div')
+    .filter({ hasText: /^Delete for good\?/ })
+    .last()
+    .locator('button:has-text("Delete")')
+    .first()
+    .click()
+  await mobile.waitForTimeout(900)
+  await mobile.reload({ waitUntil: 'networkidle' })
+  await mobile.waitForTimeout(1100)
+  log(
+    'and a note destroyed there is gone after a reload',
+    !/written on a phone/i.test(await mobile.evaluate(() => document.body.innerText)),
+  )
   await mobile.close()
 }
 

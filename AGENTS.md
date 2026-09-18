@@ -444,6 +444,65 @@ a page.
   few hundred words behind it; the kind is a word on the line above a note's
   title, where a word is the right shape for it.
 
+- **A control that only appears on hover does not exist on a phone.** The trash
+  had two: putting a note back and destroying it for good were `opacity-0`
+  until a pointer was over them, so on a touch screen "delete for good" could
+  not be pressed at all — and the note somebody was trying to destroy stayed
+  exactly where it was, which is what "permanently deleted notes are not
+  actually deleting" turned out to mean. Hover may *reveal* a control on a
+  desktop; below `sm` it is simply there.
+- **A purge has to survive the wire, and it does it by being recognisable.**
+  Emptying the row and keeping it is what stops another device pushing its copy
+  back — but for a while nothing carried that fact across, so the other device
+  pulled a row that was merely "deleted" and put the empty note back in its
+  trash. `toDoc` reads it off the row instead: deleted, with nothing left in
+  it, is what a purge looks like. No column, no migration, and nothing that can
+  get out of step with the data because it *is* the data.
+- **A control inside a line of text is a caret position.** The box on a task
+  was an inline element at the front of the line, so the first place a caret
+  could go was between the left edge and the box, and everything typed there
+  went in front of a control rather than into the task. It is painted in the
+  margin now — absolute, in the padding the line already leaves — exactly like
+  the bullet and the number, which were drawn that way for the same reason.
+- **A sheet pinned to the bottom of the window ends up under the keyboard.** A
+  phone does not make the page shorter when the keys come up; it draws them
+  over the bottom of it, and `100dvh` is the same viewport. `components/
+  keyboard.ts` reads the difference between the two viewports and the box is
+  lifted by it — plus `interactiveWidget: 'resizes-content'` for the browsers
+  that will do it properly.
+- **Formatting appears with a selection and is nowhere otherwise.** Bold is
+  something you do to words you have already written; a bar of controls across
+  the top of a page is in the way on every line and useful on one in fifty.
+  `format-toolbar.tsx` is the only formatting surface in the app. Its marks go
+  through `execCommand`, which is the only API that edits a contenteditable
+  and keeps the browser's undo; its line styles cannot, because the kind of a
+  line is a property of the block, so those are handed up and applied exactly
+  the way typing "# " is.
+- **A list carries on in the box, or every item after the first is typed by
+  hand.** `nextListPrefix` is the rule and it is a unit test. Inserting the
+  marker goes through `execCommand` to keep undo; *removing* one uses
+  `setRangeText`, because asking execCommand to insert an empty string deletes
+  by implication and it deleted one character more than was selected — the line
+  break above it — so the next thing typed joined the line before.
+- **A pasted or written "1." is a numbered list, not a bulleted one.**
+  `PastedBlock.ordered` exists because the marker was being read and the kind
+  of list it meant thrown away one line later. An `<ol>` from the clipboard
+  says the same thing, and both end up on the block.
+- **Notes are grouped by the day they were written, and the list renders a page
+  at a time.** Days because "that was Tuesday" is how people remember writing
+  something, and forty timestamps in a column is forty things to read. Ten at a
+  time because somebody with six hundred notes should not pay for five hundred
+  and ninety of them to open their list — the next ten arrive from an
+  `IntersectionObserver`, not a scroll handler, so nothing runs while the list
+  is sitting still.
+- **A swipe is never the only way to do something.** Dragging a row to the left
+  deletes it, because that is the gesture every list on a phone has and the one
+  people try first — and the same delete is a button on the row and a row in
+  the note's own ⋯, because a gesture nobody discovers is a feature nobody has.
+  The drag takes the pointer only after it has moved sideways past a threshold:
+  capturing on pointerdown kills every button inside the row, and a drag that
+  starts vertical belongs to the scroller.
+
 ## Checking work
 
 `npm test` covers the line beautifier, the compose parsing, the search index,
