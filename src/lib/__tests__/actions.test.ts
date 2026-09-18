@@ -134,3 +134,34 @@ test('a group keeps its boxes above its suggestions', () => {
 test('grouping an empty list is an empty list, not a group with nothing in it', () => {
   assert.deepEqual(byNote([]), [])
 })
+
+/* -------------------------------------------- a note that is left out of it */
+
+test('a note marked to be ignored contributes nothing to either list', () => {
+  const kept = note('Meeting', [todo('Ring the bank'), todo('Posted', true)])
+  const left = { ...note('Diary', [todo('Ring the bank'), todo('Posted', true)]), ignoreTasks: true }
+
+  const outstanding = gatherActions([kept, left])
+  assert.deepEqual(
+    outstanding.map((item) => item.docTitle),
+    ['Meeting'],
+    'only the note nobody excluded is read',
+  )
+
+  const finished = gatherDone([kept, left])
+  assert.deepEqual(
+    finished.map((item) => item.docTitle),
+    ['Meeting'],
+    'and a note left out is left out of what is done as well',
+  )
+})
+
+test('the same line in an ignored note does not hide it in a read one', () => {
+  // The de-duplicator keeps the first of two identical lines. If an ignored
+  // note were still read, its copy could be the one kept — and the line would
+  // vanish from a note that never asked to be left out.
+  const ignored = { ...note('Diary', [todo('Ring the bank')], 99), ignoreTasks: true }
+  const read = note('Meeting', [todo('Ring the bank')], 1)
+  const found = gatherActions([ignored, read])
+  assert.deepEqual(found.map((item) => item.docTitle), ['Meeting'])
+})

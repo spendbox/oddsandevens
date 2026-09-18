@@ -569,33 +569,102 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
 /* ------------------------------------------------------------- favourites */
 
 {
-  log('favourites is a tab of its own', (await page.locator('[role="tab"]').count()) === 3)
+  /*
+    Three places across the top — your notes, what is outstanding, everybody
+    else's — and underneath them the ways of looking at your own notes.
+    Favourites is one of those: the same notes with most of them hidden, not
+    somewhere else to go.
+  */
+  log(
+    'there are three places, and Favourites is not one of them',
+    (await page.locator('[role="tablist"]').first().locator('[role="tab"]').count()) === 3 &&
+      (await page.locator('[role="tablist"]').first().locator('[role="tab"]:has-text("Favourites")').count()) === 0,
+  )
+  log(
+    'it is a way of looking at your notes, beside All and the dashboard',
+    (await page.locator('[role="tablist"][aria-label="Your notes"] [role="tab"]').count()) === 3,
+  )
   await page.locator('[role="tab"]:has-text("Favourites")').click()
   await page.waitForTimeout(400)
   log(
     'and it says so when there is nothing in it',
     /star a note/i.test(await page.evaluate(() => document.body.innerText)),
   )
-  await page.locator('[role="tab"]:has-text("Notes")').click()
+  await page.locator('[role="tab"]:has-text("All")').click()
   await page.waitForTimeout(400)
 
   await page.locator('li [aria-label^="Add"]').first().click()
   await page.waitForTimeout(700)
   await page.locator('[role="tab"]:has-text("Favourites")').click()
   await page.waitForTimeout(500)
-  log('starring a note puts it in the Favourites tab', (await rows().count()) === 1)
-  log('and the tab says how many', /1/.test(await page.locator('[role="tab"]:has-text("Favourites")').innerText()))
+  log('starring a note puts it in Favourites', (await rows().count()) === 1)
+  log('and it says how many', /1/.test(await page.locator('[role="tab"]:has-text("Favourites")').innerText()))
   await page.screenshot({ path: `${SHOTS}/06-favourites.png` })
 
   await page.reload({ waitUntil: 'networkidle' })
   await page.waitForTimeout(1000)
+  log(
+    'a reload opens on the notes themselves, not on where you were looking',
+    (await page.locator('[role="tab"][aria-selected="true"]:has-text("All")').count()) === 1,
+  )
   await page.locator('[role="tab"]:has-text("Favourites")').click()
   await page.waitForTimeout(500)
   log('a favourite survives a reload', (await rows().count()) === 1)
   await page.locator('li [aria-label^="Remove"]').first().click()
   await page.waitForTimeout(600)
   log('and can be taken off again', (await rows().count()) === 0)
+  await page.locator('[role="tab"]:has-text("All")').click()
+  await page.waitForTimeout(400)
+}
+
+/* -------------------------------------------------------------- the world */
+
+{
+  await page.locator('[role="tab"]:has-text("World")').click()
+  await page.waitForTimeout(900)
+  const text = await page.evaluate(() => document.body.innerText)
+  log(
+    'the World is a place of its own, with a search of its own',
+    (await page.locator('[aria-label="Search the World"]').count()) === 1,
+  )
+  log(
+    'and one search box, not two',
+    (await page.locator('button:has-text("Search every word in every note")').count()) === 0,
+  )
+  /*
+    No Supabase in this run, so there is nothing out there to read. What it
+    must not do is fail: it says why, and everything of theirs is untouched
+    behind it.
+  */
+  log(
+    'with no account set up it says so rather than breaking',
+    /needs an account|could not reach|migration/i.test(text),
+    text.split('\n').slice(0, 8).join(' / '),
+  )
+  await page.screenshot({ path: `${SHOTS}/06b-world.png` })
   await page.locator('[role="tab"]:has-text("Notes")').click()
+  await page.waitForTimeout(400)
+}
+
+/* ---------------------------------------------------------- the dashboard */
+
+{
+  await page.locator('[role="tab"]:has-text("Dashboard")').click()
+  await page.waitForTimeout(800)
+  const text = await page.evaluate(() => document.body.innerText)
+  log(
+    'the dashboard counts what has been written',
+    /notes/i.test(text) && /words/i.test(text) && /fortnight/i.test(text),
+    text.split('\n').slice(0, 10).join(' / '),
+  )
+  log(
+    'and it costs no request at all',
+    await page.evaluate(
+      () => performance.getEntriesByType('resource').filter((r) => /\/api\/ai/.test(r.name)).length <= 1,
+    ),
+  )
+  await page.screenshot({ path: `${SHOTS}/06c-dashboard.png` })
+  await page.locator('[role="tab"]:has-text("All")').click()
   await page.waitForTimeout(400)
 }
 
@@ -802,6 +871,77 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     }
   }
 
+  await page.locator('[role="tab"]:has-text("Notes")').click()
+  await page.waitForTimeout(400)
+}
+
+/* ------------------------------------ a note that is not read for tasks */
+
+{
+  /*
+    The question is asked while the note is being written, because that is
+    the one moment somebody knows what kind of note this is. Turned off, the
+    note is saved exactly as it would have been and simply never appears in
+    Actions — nothing in it is changed, hidden or moved.
+  */
+  await page.locator('button:has-text("Write a note…")').click()
+  await page.waitForTimeout(400)
+  await page
+    .locator('[aria-label="What happened"]')
+    .fill('Quotes I liked\nI need to call the framer on Friday')
+  const toggle = page.locator('[role="switch"]')
+  log(
+    'the box asks whether to look for tasks, and starts by saying yes',
+    (await toggle.count()) === 1 && (await toggle.getAttribute('aria-checked')) === 'true',
+  )
+  await toggle.click()
+  await page.waitForTimeout(200)
+  log('and it can be turned off before the note is saved', (await toggle.getAttribute('aria-checked')) === 'false')
+  await page.locator('[role="dialog"] button:has-text("Save")').click()
+  await page.waitForTimeout(1200)
+
+  log(
+    'the note itself is saved like any other',
+    /quotes i liked/i.test(await page.evaluate(() => document.body.innerText)),
+  )
+
+  await page.locator('[role="tab"]:has-text("Actions")').click()
+  await page.waitForTimeout(700)
+  log(
+    'but nothing from it is on the Actions list',
+    !/call the framer/i.test(await page.evaluate(() => document.body.innerText)),
+  )
+  /*
+    And the two changes to what that screen says about itself: no small print
+    about what is sent, and no sparkle on the button — a sparkle says "this is
+    the AI bit", which is a fact about how it was built rather than about what
+    it does.
+  */
+  log(
+    'the Actions tab no longer explains itself in small print',
+    !/only these lines are sent/i.test(await page.evaluate(() => document.body.innerText)),
+  )
+  await page.screenshot({ path: `${SHOTS}/07c-actions-ignored.png` })
+  await page.locator('[role="tab"]:has-text("Notes")').click()
+  await page.waitForTimeout(400)
+
+  // And it can be changed afterwards, from the note's own menu.
+  await open('Quotes I liked')
+  await openMenu()
+  log(
+    'the note’s own menu can put it back',
+    /find tasks in this note/i.test(await page.locator('[role="menu"]').innerText()),
+    (await page.locator('[role="menu"]').innerText()).replace(/\n+/g, ' / ').slice(0, 120),
+  )
+  await page.locator('[role="menu"] button:has-text("Find tasks in this note")').click()
+  await page.waitForTimeout(900)
+  await back()
+  await page.locator('[role="tab"]:has-text("Actions")').click()
+  await page.waitForTimeout(800)
+  log(
+    'and then it is read like every other note',
+    /call the framer/i.test(await page.evaluate(() => document.body.innerText)),
+  )
   await page.locator('[role="tab"]:has-text("Notes")').click()
   await page.waitForTimeout(400)
 }
@@ -1371,6 +1511,41 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     'the sign-in client is not in the first download',
     !bundle.includes('supabase.auth.token'),
   )
+
+  /*
+    And neither are the two screens nobody has opened.
+
+    Measured on a page that has never pressed either tab, because pressing
+    one fetches its chunk and adds it to the document — which is exactly the
+    behaviour being checked, and would hide it if this ran on `page`.
+  */
+  const cold = await (await browser.newContext()).newPage()
+  await cold.goto(URL, { waitUntil: 'networkidle' })
+  await cold.waitForTimeout(600)
+  const coldScripts = await cold.evaluate(() =>
+    [...document.querySelectorAll('script[src]')].map((s) => s.getAttribute('src') ?? ''),
+  )
+  const coldBundle = (
+    await Promise.all(
+      coldScripts.map(async (src) => {
+        try {
+          const response = await fetch(new globalThis.URL(src, URL))
+          return await response.text()
+        } catch {
+          return ''
+        }
+      }),
+    )
+  ).join('')
+  log(
+    'the World is not in the first download either',
+    !coldBundle.includes('Search notes people have shared'),
+  )
+  log(
+    'nor is the dashboard',
+    !coldBundle.includes('The last fortnight'),
+  )
+  await cold.context().close()
 }
 
 const manifest = await page.evaluate(async () => {

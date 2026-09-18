@@ -35,6 +35,16 @@ import type { Doc } from './types.ts'
  * Every rule in here runs on the device: no key, no network, no cost, and the
  * same answer every time. The model can sharpen it — see the Actions tab —
  * and it is pressed, never automatic, and the list is complete without it.
+ *
+ * ## A note may say no
+ *
+ * Reading every note for commitments is right for most notes and wrong for
+ * some: a diary, a draft, a page of quotes from a book. `ignoreTasks` on the
+ * note is that answer, asked when the note is written and changeable
+ * afterwards, and a note carrying it is passed over here — by both lists, so
+ * a note left out is left out of what is done as well as what is outstanding.
+ * Nothing about the note changes; it simply stops being one of the notes this
+ * question is asked of.
  */
 
 export interface ActionItem {
@@ -83,6 +93,20 @@ const PER_NOTE = 6
 const LIMIT = 60
 
 /**
+ * The notes this question is asked of, newest first.
+ *
+ * Deleted and destroyed notes are not read, and neither is a note whose owner
+ * said not to — see `ignoreTasks` on the note. One place decides, so the
+ * outstanding list and the finished list can never disagree about which notes
+ * are in scope.
+ */
+function readable(docs: Doc[]): Doc[] {
+  return docs
+    .filter((doc) => !doc.deletedAt && !doc.purgedAt && !doc.ignoreTasks)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+/**
  * Everything still to do, newest note first, boxes before suggestions.
  *
  * Boxes first because they are certain: somebody drew them. A suggestion is
@@ -93,9 +117,7 @@ export function gatherActions(docs: Doc[], limit = LIMIT): ActionItem[] {
   const boxes: ActionItem[] = []
   const lines: ActionItem[] = []
 
-  const live = docs
-    .filter((doc) => !doc.deletedAt && !doc.purgedAt)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+  const live = readable(docs)
 
   for (const doc of live) {
     const docTitle = docLabel(doc)
@@ -164,9 +186,7 @@ export function gatherActions(docs: Doc[], limit = LIMIT): ActionItem[] {
  */
 export function gatherDone(docs: Doc[], limit = LIMIT): ActionItem[] {
   const out: ActionItem[] = []
-  const live = docs
-    .filter((doc) => !doc.deletedAt && !doc.purgedAt)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+  const live = readable(docs)
 
   for (const doc of live) {
     const docTitle = docLabel(doc)

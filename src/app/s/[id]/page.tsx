@@ -17,8 +17,37 @@ interface Shared {
   title: string
   blocks: Block[]
   updated_at: number
+  /** Whether it is also in the World, which decides what this page says. */
+  listed: boolean
 }
 
+function shape(data: {
+  title?: unknown
+  blocks?: unknown
+  updated_at?: unknown
+  listed?: unknown
+}): Shared {
+  return {
+    title: String(data.title ?? ''),
+    blocks: Array.isArray(data.blocks) ? (data.blocks as Block[]) : [],
+    updated_at: Number(data.updated_at) || 0,
+    listed: !!data.listed,
+  }
+}
+
+/**
+ * One shared note, by the id in its link.
+ *
+ * Through `shared_doc()` rather than a select, because reading `shared_docs`
+ * directly is now limited to what is listed in the World — see
+ * 0005_world.sql, which closed the hole where one unfiltered query returned
+ * every link-shared note in the table. The function takes the id, which is
+ * the same secret the link always was, and can return that row and no other.
+ *
+ * The plain select is still tried if the function is not there, so a database
+ * that has run 0002 and not 0005 goes on serving the links it already gave
+ * out. A missing migration must not break somebody else's link.
+ */
 async function fetchShared(id: string): Promise<Shared | null> {
   const db = publicSupabase()
   if (!db) return null
@@ -26,17 +55,18 @@ async function fetchShared(id: string): Promise<Shared | null> {
   // makes it error rather than return nothing.
   if (!/^[0-9a-f-]{32,36}$/i.test(id)) return null
   try {
-    const { data, error } = await db
+    const { data, error } = await db.rpc('shared_doc', { share_id: id })
+    if (!error) {
+      const row = Array.isArray(data) ? data[0] : data
+      return row ? shape(row) : null
+    }
+    const fallback = await db
       .from('shared_docs')
       .select('title, blocks, updated_at')
       .eq('id', id)
       .maybeSingle()
-    if (error || !data) return null
-    return {
-      title: String(data.title ?? ''),
-      blocks: Array.isArray(data.blocks) ? (data.blocks as Block[]) : [],
-      updated_at: Number(data.updated_at) || 0,
-    }
+    if (fallback.error || !fallback.data) return null
+    return shape(fallback.data)
   } catch {
     return null
   }
@@ -51,9 +81,13 @@ export async function generateMetadata(
   return {
     title,
     description: 'Shared from Pad.',
-    // A shared link should not end up in search results; whoever published it
-    // chose to send it to particular people, not to the whole web.
-    robots: { index: false, follow: false },
+    /*
+      A link share should not end up in search results: whoever published it
+      chose to send it to particular people, not to the whole web. A note
+      listed in the World is the opposite decision, said in as many words, so
+      that one may be indexed.
+    */
+    robots: shared?.listed ? { index: true, follow: true } : { index: false, follow: false },
   }
 }
 

@@ -43,6 +43,7 @@ export interface Row {
   deleted_at: number | null
   project_id: string | null
   favorited_at: number | null
+  ignore_tasks: boolean | null
 }
 
 interface ProjectRow {
@@ -80,6 +81,10 @@ export function toDoc(row: Row): Doc {
     // Absent rather than zero, so a note nobody has starred is stored exactly
     // as one written before favourites existed.
     ...(row.favorited_at ? { favoritedAt: Number(row.favorited_at) } : {}),
+    // Absent unless it is true, for the same reason: a note nobody has left
+    // out of the Actions tab is stored exactly as one written before the
+    // question could be asked.
+    ...(row.ignore_tasks ? { ignoreTasks: true } : {}),
     ...(deletedAt ? { deletedAt } : {}),
     ...(deletedAt && emptied ? { purgedAt: deletedAt } : {}),
   }
@@ -118,6 +123,7 @@ function toRow(doc: Doc, userId: string): Row {
     updated_at: doc.updatedAt,
     project_id: doc.projectId ?? null,
     favorited_at: doc.favoritedAt ?? null,
+    ignore_tasks: doc.ignoreTasks ?? null,
     deleted_at: doc.deletedAt ?? null,
   }
 }

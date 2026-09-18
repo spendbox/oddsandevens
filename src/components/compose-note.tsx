@@ -1,6 +1,6 @@
 'use client'
 
-import { LoaderCircle, X } from 'lucide-react'
+import { ListChecks, LoaderCircle, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { blocksFromPasted } from '@/lib/blocks'
 import { nextListPrefix, splitComposed, titleFrom } from '@/lib/compose'
@@ -53,10 +53,22 @@ export default function ComposeNote({
   /** Whether a key is configured. Decides whether writing up is offered. */
   aiReady: boolean
   onClose: () => void
-  /** Hands over the finished note: what it is called, and its lines. */
-  onSave: (note: { title: string; blocks: Block[] }) => void
+  /** Hands over the finished note: what it is called, its lines, and whether
+      the Actions tab should read it. */
+  onSave: (note: { title: string; blocks: Block[]; ignoreTasks?: boolean }) => void
 }) {
   const [text, setText] = useState('')
+  /*
+    Whether this note is one the Actions tab reads.
+
+    On, because it is right for most notes and because a question answered
+    before it is asked is a question nobody has to think about. Off is for the
+    notes where it is plainly wrong — a diary, a page of quotes, a draft of
+    something — and it is asked here, while the note is being written, because
+    that is the one moment somebody knows what kind of note this is. It is not
+    a final answer either way: the note's own menu can change it afterwards.
+  */
+  const [findTasks, setFindTasks] = useState(true)
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const box = useRef<HTMLTextAreaElement>(null)
@@ -77,6 +89,7 @@ export default function ComposeNote({
       setText('')
       setProblem(null)
       setBusy(false)
+      setFindTasks(true)
     }
   }
 
@@ -131,7 +144,14 @@ export default function ComposeNote({
       network. If the request fails, this is what is saved — so the failure
       path is not an error message, it is a slightly less tidy note.
     */
-    const asTyped = { title: titleFrom(typed), blocks: blocksFromPasted(asLines(typed)) }
+    const asTyped = {
+      title: titleFrom(typed),
+      blocks: blocksFromPasted(asLines(typed)),
+      // Absent rather than false when it is on, which is how every optional
+      // field on a note is written: a note nobody said anything about looks
+      // exactly like one written before the question existed.
+      ...(findTasks ? {} : { ignoreTasks: true }),
+    }
 
     if (!aiReady) {
       onSave(asTyped)
@@ -157,6 +177,7 @@ export default function ComposeNote({
       onSave({
         title: title || asTyped.title,
         blocks: body ? blocksFromPasted(asLines(body)) : asTyped.blocks,
+        ...(findTasks ? {} : { ignoreTasks: true }),
       })
       onClose()
     } catch {
@@ -244,14 +265,42 @@ export default function ComposeNote({
           )}
 
           {/*
-            One button, and nothing beside it.
+            Save, and one switch beside it.
 
-            There was a sentence explaining what saving would do — true, and a
-            paragraph of small print in a box somebody opened to write three
-            words in. What the box does is the box's business; the person
-            pressing Save is not reading a notice about it.
+            There was a sentence here once explaining what saving would do —
+            true, and a paragraph of small print in a box somebody opened to
+            write three words in; that is gone and stays gone. This is not
+            that: it is a control, it is two words, and it answers the one
+            question about this note that only the person writing it can
+            answer — whether the app should go looking for things to do in it.
+            Off is quiet and plain rather than a warning, because leaving a
+            note out of the Actions tab is an ordinary choice and not a
+            mistake.
           */}
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={findTasks}
+              onClick={() => setFindTasks((on) => !on)}
+              className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] ${
+                findTasks
+                  ? 'text-[var(--color-muted)] hover:bg-[var(--color-hover)]'
+                  : 'text-[var(--color-faint)] hover:bg-[var(--color-hover)]'
+              }`}
+            >
+              <span
+                aria-hidden
+                className={`flex h-4 w-4 items-center justify-center rounded border ${
+                  findTasks
+                    ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-white'
+                    : 'border-[var(--color-line)]'
+                }`}
+              >
+                {findTasks && <ListChecks size={11} />}
+              </span>
+              Find tasks in this note
+            </button>
             <button
               type="button"
               onClick={() => void save()}

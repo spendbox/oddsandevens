@@ -45,6 +45,7 @@ export default function Editor({
   aiReady,
   onBack,
   onFavorite,
+  onIgnoreTasks,
   onDelete,
   accountId,
   saving,
@@ -68,6 +69,8 @@ export default function Editor({
   /** Back to the notes. */
   onBack: () => void
   onFavorite: (favorite: boolean) => void
+  /** Whether this note is left out of the Actions tab. */
+  onIgnoreTasks: (ignore: boolean) => void
   onDelete: () => void
   /** Null when nobody is signed in, which is what sharing requires. */
   accountId: string | null
@@ -233,6 +236,7 @@ export default function Editor({
               doc={doc}
               accountId={accountId}
               onFavorite={onFavorite}
+              onIgnoreTasks={onIgnoreTasks}
               onDelete={onDelete}
               onClose={() => setMenu(false)}
             />
