@@ -758,11 +758,17 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   log(
     'everything is grouped under the note it came from, once',
     await page.evaluate(() => {
-      // The first button in a group's header is the note's name; the last is
-      // "Clear". A note may not head two groups, or the grouping did nothing.
+      /*
+        A group's header is: the note's icon, then a column holding its
+        name and how long ago it was written, then the count, then Clear.
+        The name is the button inside that column — the Done section at
+        the foot has no such column, so it drops out on its own.
+
+        A note may not head two groups, or the grouping did nothing.
+      */
       const names = [...document.querySelectorAll('section')]
-        .map((section) => section.querySelector(':scope > div > button'))
-        .filter((b) => b && (b.textContent ?? '').trim() !== 'Done')
+        .map((section) => section.querySelector(':scope > div > span > button'))
+        .filter((b) => b !== null)
         .map((b) => b.textContent.trim())
       return names.length > 0 && new Set(names).size === names.length
     }),
@@ -2279,13 +2285,41 @@ log(
   manifest?.theme_color === '#ffffff',
   String(manifest?.theme_color),
 )
+/*
+  And one tag, saying what the page actually resolved to.
+
+  A light/dark pair answers what the *system* is set to, and this app lets
+  somebody pick a theme for itself — so the two disagree the moment anybody
+  uses that setting, and the bar carrying the clock ends up white above a
+  near-black app. The check that matters is the one a media query cannot
+  pass: force the opposite theme inside the app and see the bar follow.
+*/
 log(
-  'and the dark theme has its own, matching --color-paper',
+  'exactly one theme-colour tag, and it matches the page',
   await page.evaluate(() => {
     const metas = [...document.querySelectorAll('meta[name="theme-color"]')]
-    const dark = metas.find((m) => /dark/.test(m.getAttribute('media') ?? ''))
-    const light = metas.find((m) => /light/.test(m.getAttribute('media') ?? ''))
-    return dark?.getAttribute('content') === '#161719' && light?.getAttribute('content') === '#ffffff'
+    const paper = getComputedStyle(document.documentElement).getPropertyValue('--color-paper').trim()
+    return metas.length === 1 && metas[0].getAttribute('content') === paper
+  }),
+)
+log(
+  'and it follows the theme chosen in the app, not the one the system is on',
+  await page.evaluate(async () => {
+    const root = document.documentElement
+    const was = root.getAttribute('data-theme')
+    const read = () =>
+      document.querySelector('meta[name="theme-color"]')?.getAttribute('content')
+    const settle = () => new Promise((done) => setTimeout(done, 60))
+    root.setAttribute('data-theme', 'dark')
+    await settle()
+    const dark = read()
+    root.setAttribute('data-theme', 'light')
+    await settle()
+    const light = read()
+    if (was) root.setAttribute('data-theme', was)
+    else root.removeAttribute('data-theme')
+    await settle()
+    return dark === '#161719' && light === '#fff'
   }),
 )
 const swRegistered = await page.evaluate(async () => {

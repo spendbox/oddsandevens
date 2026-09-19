@@ -103,9 +103,16 @@ import Sheet from './sheet'
 const POLL_MS = 10_000
 /** How long an undo stays on offer, the same as it is on your own Actions. */
 const UNDO_SECONDS = 5
-/** How much of a long message a card shows before it offers the rest. */
-const CLAMP_LINES = 6
-const CLAMP_CHARS = 420
+/**
+ * How much of a long message a card shows before it offers the rest.
+ *
+ * Three lines, which is where every chat app that has thought about this
+ * lands. Six was still most of a phone screen for one message, which is
+ * the complaint: the point of folding is that the next person's answer is
+ * visible without scrolling, and that needs the fold to be short.
+ */
+const CLAMP_LINES = 3
+const CLAMP_CHARS = 200
 
 export default function TeamsPanel({
   me,
@@ -1398,7 +1405,7 @@ function Chat({
                   which is a rule this app has paid for twice.
                 */}
                 {editing?.id !== message.id && (
-                  <p className="mt-0.5 flex items-center gap-2 text-[12px] text-[var(--color-faint)] sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+                  <p className="mt-2 flex items-center gap-3 text-[12px] text-[var(--color-faint)] sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                     <button
                       type="button"
                       onClick={() => setReplying(message)}
@@ -1604,13 +1611,24 @@ function Said({ body, onOpen }: { body: string; onOpen: () => void }) {
     )
   }
 
+  /*
+    The whole fold is one press, and it does not look like the row under it.
+
+    "Read more" was a small accent line directly above Reply, Edit and
+    Delete — four short links stacked two pixels apart, all of them
+    pressable, and no way to tell at a glance which belonged to the
+    message and which acted on it. It is part of the message now: the same
+    text size as the words above it, weighted, with the whole block
+    tappable, and the actions are pushed clear underneath.
+  */
   return (
     <button type="button" onClick={onOpen} className="block w-full text-left">
-      <span className="pad-serif line-clamp-6 block text-[15px] leading-relaxed whitespace-pre-wrap">
+      <span className="pad-serif line-clamp-3 block text-[15px] leading-relaxed whitespace-pre-wrap">
         {body}
       </span>
-      <span className="mt-0.5 block text-[12px] font-medium text-[var(--color-accent)]">
-        Read all of it
+      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-[var(--color-paper)] px-2.5 py-1 text-[13px] font-medium text-[var(--color-accent)]">
+        <ChevronDown size={13} />
+        Read more
       </span>
     </button>
   )

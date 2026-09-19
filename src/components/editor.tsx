@@ -205,7 +205,10 @@ export default function Editor({
         // Opaque, not 95% with a blur behind it: the page scrolls underneath
         // this and the words showed through, which on a bar that never moves
         // reads as a rendering fault rather than as a material.
-        className="sticky top-0 z-20 flex items-center gap-1 border-b border-[var(--color-line)] bg-[var(--color-paper)] px-1.5 py-1.5 sm:px-2"
+        // The notch, the same way the notes screen carries it: this bar is
+        // the top of the app when a note is open, so its own background is
+        // what has to fill the strip the clock sits in.
+        className="sticky top-0 z-20 flex items-center gap-1 border-b border-[var(--color-line)] bg-[var(--color-paper)] px-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))] pb-1.5 sm:px-2"
       >
         <button
           type="button"

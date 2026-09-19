@@ -1105,12 +1105,26 @@ a page.
   `--pad-header`, which a `ResizeObserver` writes off the bar itself. Two
   numbers in a stylesheet cannot be kept in step with a layout that
   changes.
-- **The phone's own bar is part of the app, not a frame around it.**
-  `theme_color` paints the strip with the time and the battery in an
-  installed app, and it was the accent green above a white page — which
-  reads as an app in a green box. It is `--color-paper` now, in both
-  themes: the manifest carries the light one, the `themeColor` meta pair in
-  `layout.tsx` carries both and wins where a browser reads it.
+- **The phone's own bar is painted from the theme the page resolved, by
+  one tag, and never by a media query.** `theme-color` colours the strip
+  with the clock and the battery in an installed app. A light/dark meta
+  pair answers what the *system* is set to — and this app lets somebody
+  choose a theme for itself, so the two disagree the moment anybody uses
+  that setting and the bar ends up white above a near-black app. A manifest
+  is worse again: one colour for every theme there will ever be. So
+  `PREFS_SCRIPT` reads `--color-paper` back out of the stylesheet and
+  writes the tag, before first paint, on a `MutationObserver` for
+  `data-theme` and on the system scheme changing. Nothing else may declare
+  one: a static tag is appended after that script has run and is the one
+  some browsers pick.
+- **An app that paints to the top of the screen has to carry the notch.**
+  `viewport-fit: cover` is what makes an installed app reach the top rather
+  than sit in a browser's box, and it puts the first inch of the page
+  underneath the clock. Every bar that can be the top of the app — the
+  notes header, the editor's — adds `env(safe-area-inset-top)` to its own
+  top padding, so its opaque background fills the strip and its contents
+  sit below it. Padding rather than a spacer, because `offsetHeight` counts
+  padding and `--pad-header` then grows with it for nothing.
 - **An installed app is checked often, because it is never closed.** Every
   ten minutes, on becoming visible, on the window taking focus, and on
   coming back online — the last two because `visibilitychange` does not
@@ -1121,10 +1135,18 @@ a page.
   is a conditional GET for a file the browser already has.
 - **A chat truncates; a note does not.** A chat is a record you scroll
   through, so one person pasting four hundred words took the whole screen
-  and pushed everybody else's two-line answers off it. Six lines and "read
-  all of it", which opens the sheet everything else opens in — never an
-  expand-in-place, which pushes every message below it down the screen and
-  is the thing being fixed.
+  and pushed everybody else's two-line answers off it. Three lines, which
+  is where every chat app that has thought about this lands — six was
+  still most of a phone screen, and the point of folding is that the next
+  answer is visible without scrolling. It opens the sheet everything else
+  opens in, never an expand-in-place, which pushes every message below it
+  down the screen and is the thing being fixed.
+- **What opens a message and what acts on it must not look alike.** "Read
+  more" was a small accent line two pixels above Reply, Edit and Delete —
+  four short pressable links in a stack, with nothing to say which belonged
+  to the words and which did something to them. The fold is part of the
+  message now: the same size as the text, weighted, the whole block
+  tappable; the actions are pushed clear underneath and stay faint.
 - **The room at the foot of the page belongs to what floats over it.** The
   container's `pb-32` clears the bar that writes a note and the recorder in
   the corner; Team has neither, and all that padding did there was put
@@ -1138,7 +1160,10 @@ a page.
   own — inventing one would mean a field per block, in storage and over the
   wire, to date something the note already dates. The group heading carries
   the note's time instead, which is true, and is not dressed up as more
-  precise than it is.
+  precise than it is. It sits *under* the note's name rather than beside
+  it: that row already holds a name, a count and a Clear, and a fourth
+  thing along it only made the name truncate for the least important of
+  them.
 - **The mark is one pad with one bar through it.** It was a text cursor
   between two serifs, in indigo, which said "a field you can type in" and
   belonged to a different name. A silhouette rather than an outline, because
