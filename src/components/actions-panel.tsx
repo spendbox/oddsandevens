@@ -337,7 +337,7 @@ export default function ActionsPanel({
       ) : (
         groups.map((group) => (
           <section key={group.docId} className="mt-5">
-            <div className="mb-1 flex items-center gap-2">
+            <div className="mb-1 flex items-start gap-2">
               {/*
                 The note's name is the heading and the way into it. The note is
                 the context, and a task read without it is a line somebody has
@@ -355,37 +355,49 @@ export default function ActionsPanel({
                 <DocIcon
                   doc={noteFor(group.docId)!}
                   size={14}
-                  className="shrink-0 text-[var(--color-faint)]"
+                  className="mt-0.5 shrink-0 text-[var(--color-faint)]"
                 />
               )}
-              <button
-                type="button"
-                onClick={() => onOpen(group.docId)}
-                className="min-w-0 truncate text-left text-[13px] font-semibold text-[var(--color-ink)] underline-offset-2 hover:underline"
-              >
-                {group.docTitle}
-              </button>
+              {/*
+                The name on its line and the time under it.
+
+                They were side by side, which put a grey timestamp in the
+                middle of a row that already had a name, a count and a
+                Clear in it — four things competing along one line, and the
+                name truncating to make room for the least important of
+                them. Underneath, the time is a caption on the heading,
+                which is what it is.
+              */}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <button
+                  type="button"
+                  onClick={() => onOpen(group.docId)}
+                  className="min-w-0 truncate text-left text-[13px] font-semibold text-[var(--color-ink)] underline-offset-2 hover:underline"
+                >
+                  {group.docTitle}
+                </button>
+                {/*
+                  When these turned up — as honestly as this side of the
+                  app can say it.
+
+                  A team's task is a row with a `created_at`, so its board
+                  says exactly when it was added. A box in your own notes
+                  is a *line*, and a line has no timestamp of its own:
+                  adding one would mean a field per block, in storage and
+                  over the wire, to date something the note already dates.
+                  So the heading carries the note's own time, which is the
+                  true answer to "how old is this lot" and is not dressed
+                  up as anything more precise than it is.
+                */}
+                {group.updatedAt > 0 && (
+                  <span className="text-[12px] text-[var(--color-faint)]">
+                    {when(group.updatedAt)}
+                  </span>
+                )}
+              </span>
               <span className="shrink-0 text-[12px] text-[var(--color-faint)]">
                 {group.items.length}
               </span>
-              {/*
-                When these turned up — as honestly as this side of the app
-                can say it.
-
-                A team's task is a row with a `created_at`, so its board
-                says exactly when it was added. A box in your own notes is
-                a *line*, and a line has no timestamp of its own: adding
-                one would mean a field per block, in storage and over the
-                wire, to date something the note already dates. So the
-                heading carries the note's own time, which is the true
-                answer to "how old is this lot" and is not dressed up as
-                anything more precise than it is.
-              */}
-              {group.updatedAt > 0 && (
-                <span className="shrink-0 text-[12px] text-[var(--color-faint)]">
-                  {when(group.updatedAt)}
-                </span>
-              )}
               <button
                 type="button"
                 onClick={() => clearGroup(group.docId, group.docTitle, group.items)}

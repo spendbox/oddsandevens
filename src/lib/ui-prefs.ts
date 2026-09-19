@@ -48,7 +48,43 @@ export const TEXT = {
  * The script that applies the saved preferences before anything is painted.
  * Kept here, next to the keys it reads, so the two cannot drift apart.
  */
-export const PREFS_SCRIPT = `(function(){try{var p=[['pad-theme','theme'],['pad-sidebar','sidebar'],['pad-width','width'],['pad-text','text']];for(var i=0;i<p.length;i++){var v=localStorage.getItem(p[i][0]);if(v){document.documentElement.setAttribute('data-'+p[i][1],v)}}}catch(e){}})()`
+/**
+ * The preferences, applied before the first paint — and the phone's own bar
+ * painted to match.
+ *
+ * ## Why the bar cannot be a media query
+ *
+ * `<meta name="theme-color" media="(prefers-color-scheme: dark)">` answers
+ * what the *system* is set to. This app lets somebody choose light or dark
+ * for itself, so the two disagree the moment anybody uses that setting: a
+ * white strip carrying the time and the battery above a near-black app, or
+ * the other way round. A manifest is worse again — it holds one colour for
+ * every theme there will ever be, and an installed app takes its launch
+ * colour from it.
+ *
+ * So the bar is painted from the value the stylesheet actually resolved.
+ * `--color-paper` is defined once in globals.css, for both themes and for
+ * the in-app override, and reading it back means there is no second copy of
+ * those two hex values to keep in step.
+ *
+ * Every matching tag is written, not the first one. The framework renders a
+ * static default of its own, this runs before it is parsed and adds one, and
+ * a browser takes whichever of them it sees first — so the only safe answer
+ * is that they all say the same thing. Any `media` on them comes off for the
+ * same reason: a tag that only applies half the time is a tag that disagrees
+ * with this the other half.
+ *
+ * ## Why a MutationObserver rather than a call from the theme setter
+ *
+ * Because the attribute is the thing that decides, and it is written from
+ * two places already — this script, and `usePref` below. Watching the
+ * attribute means neither of them has to remember, and a third way of
+ * changing it in a year is covered for free.
+ */
+export const PREFS_SCRIPT = `(function(){try{var p=[['pad-theme','theme'],['pad-sidebar','sidebar'],['pad-width','width'],['pad-text','text']];for(var i=0;i<p.length;i++){var v=localStorage.getItem(p[i][0]);if(v){document.documentElement.setAttribute('data-'+p[i][1],v)}}}catch(e){}
+function paint(){try{var c=getComputedStyle(document.documentElement).getPropertyValue('--color-paper').trim();if(!c)return;var m=document.querySelectorAll('meta[name="theme-color"]');if(!m.length){var n=document.createElement('meta');n.setAttribute('name','theme-color');n.setAttribute('content',c);document.head.appendChild(n);return}for(var i=0;i<m.length;i++){m[i].removeAttribute('media');m[i].setAttribute('content',c)}}catch(e){}}
+paint();
+try{if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',paint)}window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',paint);new MutationObserver(paint).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']})}catch(e){}})()`
 
 const listeners = new Set<() => void>()
 

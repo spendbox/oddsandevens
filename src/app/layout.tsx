@@ -28,15 +28,21 @@ export const viewport: Viewport = {
   */
   interactiveWidget: 'resizes-content',
   /*
+    No `themeColor` here on purpose.
+
     The strip at the top of a phone — the time, the battery, the signal —
-    takes this colour when the app is installed. It is exactly
-    `--color-paper` from globals.css in both themes, so the bar and the page
-    under it are one surface rather than a frame around one.
+    takes that colour when the app is installed, and there is no static
+    value that is right: a light/dark pair answers what the *system* is set
+    to, and this app lets somebody choose a theme for itself, so the two
+    disagree the moment anybody uses that setting. The result was a white
+    bar above a near-black app.
+
+    `PREFS_SCRIPT` writes the tag instead, from the `--color-paper` the
+    stylesheet actually resolved, before the first paint and again whenever
+    the theme changes either way. A value declared here would be appended
+    to the head after that script has run and would be the one some
+    browsers picked — one tag, written by the thing that knows.
   */
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#161719' },
-  ],
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

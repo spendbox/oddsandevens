@@ -402,7 +402,24 @@ export default function NotesScreen({
           the second one directly underneath the first. A measurement
           nothing is measuring is the quietest kind of wrong.
         */}
-        <header ref={header} className="sticky top-0 z-20 bg-[var(--color-paper)] pt-5 sm:pt-8">
+        {/*
+          The top padding carries the notch, and that is what stops the
+          "weird line" at the top of an installed app.
+
+          `viewport-fit: cover` lets the app paint all the way to the top of
+          the screen, which is what makes it feel like an app rather than a
+          page in a browser — and it means the first twenty pixels of this
+          bar are underneath the clock and the battery unless something
+          allows for them. `env(safe-area-inset-top)` is exactly that
+          measurement, it is zero on every screen with nothing to avoid, and
+          adding it as padding rather than as a spacer above means this
+          bar's own opaque background fills the strip. `--pad-header` grows
+          with it for free, because `offsetHeight` counts padding.
+        */}
+        <header
+          ref={header}
+          className="sticky top-0 z-20 bg-[var(--color-paper)] pt-[calc(1.25rem+env(safe-area-inset-top))] sm:pt-[calc(2rem+env(safe-area-inset-top))]"
+        >
           {/*
             Padding, not a margin, and that is load-bearing.
 
