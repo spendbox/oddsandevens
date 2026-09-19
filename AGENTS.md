@@ -1139,12 +1139,14 @@ a page.
   wire, to date something the note already dates. The group heading carries
   the note's time instead, which is true, and is not dressed up as more
   precise than it is.
-- **The mark is one pad with a 1 on it.** It was a text cursor between two
-  serifs, in indigo, which said "a field you can type in" and belonged to a
-  different name. A silhouette rather than an outline, because a one-pixel
-  stroke disappears at sixteen pixels on a home screen, and two colours in
-  total. `scripts/make-icons.py` draws the PNGs from the same numbers as
-  `src/app/icon.svg` — change one, run the other.
+- **The mark is one pad with one bar through it.** It was a text cursor
+  between two serifs, in indigo, which said "a field you can type in" and
+  belonged to a different name. A silhouette rather than an outline, because
+  a one-pixel stroke disappears at sixteen pixels on a home screen, and two
+  colours in total — and the rounded white shape with a bar through it reads
+  as a stylised O. A numeral 1 was tried and taken out again: more literal,
+  and less of a mark. `scripts/make-icons.py` draws the PNGs from the same
+  numbers as `src/app/icon.svg` — change one, run the other.
 
 ## Checking work
 

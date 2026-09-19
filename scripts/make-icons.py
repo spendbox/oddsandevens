@@ -25,13 +25,10 @@ GRAD_FROM = (0x2A, 0x93, 0x67)
 GRAD_TO = (0x17, 0x60, 0x3F)
 # The pad itself, and the one line written on it.
 PAD = (17, 12, 47, 52, 5)  # x0, y0, x1, y1, corner radius, in the 64-unit box
-# A numeral one, drawn on the pad: the flag, the stem, and the foot.
-MARK = [
-    (28.5, 25.5, 32.5, 21.5),
-    (32.5, 21.5, 32.5, 42),
-    (26.5, 42, 38.5, 42),
-]
-LINE_WIDTH = 4.2
+# One bar across the sheet. With the rounded white shape around it the mark
+# reads as a stylised O, which is the letter the name starts with.
+LINE = (25, 32, 39, 32)
+LINE_WIDTH = 4.5
 
 # Supersampling factor. The glyph is thin strokes with round caps, and without
 # this the edges stair-step badly at 192px.
@@ -67,7 +64,7 @@ def render(size):
     stroke = (LINE_WIDTH * scale) / 2.0  # half-width, measured from the centre line
 
     pad = tuple(v * scale for v in PAD)
-    mark = [tuple(v * scale for v in seg) for seg in MARK]
+    line = tuple(v * scale for v in LINE)
 
     rows = []
     for py in range(size):
@@ -93,7 +90,7 @@ def render(size):
                     # that order for the same reason the SVG stacks them.
                     if in_rounded_rect(x, y, *pad):
                         cr = cg = cb = 255.0
-                        if any(seg_distance(x, y, *seg) <= stroke for seg in mark):
+                        if seg_distance(x, y, *line) <= stroke:
                             cr, cg, cb = GRAD_TO
 
                     r_acc += cr

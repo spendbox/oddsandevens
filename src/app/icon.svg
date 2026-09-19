@@ -7,24 +7,21 @@
   </defs>
   <rect width="64" height="64" rx="15" fill="url(#g)"/>
   <!--
-    One pad, which is the name and the whole idea: everything goes on the same
-    one, so there is a single sheet here rather than a stack, a folder or a
-    tree — and a 1 written on it, because that is the word the name starts
-    with. It was a text cursor between two serifs in indigo, which said "a
-    field you can type in" and belonged to a different name.
+    One pad: everything goes on the same one, so there is a single sheet here
+    rather than a stack, a folder or a tree. It was a text cursor between two
+    serifs, in indigo, which said "a field you can type in" and belonged to a
+    different name.
 
-    The sheet is a silhouette rather than an outline: at sixteen pixels on a
-    home screen a one-pixel stroke disappears and a solid shape does not. The
-    numeral is cut out of it in the darker end of the same green, so the mark
-    is two colours in total and survives being shrunk.
+    The sheet is a silhouette rather than an outline, because a one-pixel
+    stroke disappears at sixteen pixels on a home screen and a solid shape
+    does not — and the rounded white shape with one bar through it reads as a
+    stylised O, which is the letter the name starts with. A numeral 1 was
+    tried here and is deliberately not what this is: it was more literal and
+    less of a mark.
 
     scripts/make-icons.py draws the PNGs from these same numbers. Change one,
     run the other.
   -->
   <rect x="17" y="12" width="30" height="40" rx="5" fill="#fff"/>
-  <g stroke="#17603f" stroke-width="4.2" stroke-linecap="round" fill="none">
-    <path d="M28.5 25.5 32.5 21.5"/>
-    <path d="M32.5 21.5V42"/>
-    <path d="M26.5 42h12"/>
-  </g>
+  <path d="M25 32h14" stroke="#17603f" stroke-width="4.5" stroke-linecap="round" fill="none"/>
 </svg>
