@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
-import { ABOUT_APP } from '@/lib/about'
 import { APP_NAME } from '@/lib/app'
 
 /**
@@ -54,17 +53,28 @@ import { APP_NAME } from '@/lib/app'
  * a fraction, and it is also the faster of the two, which matters because it
  * is the one somebody is sitting and waiting for. Deciding what a question is
  * really asking is a judgement — so `effort: 'high'` is what moves the request
- * up to the middle model. Almost nothing here asks for the largest one: no
- * call in this app is agentic, none of them use tools, and paying top rates to
- * tidy speech is money for nothing.
- *
- * The exception is `effort: 'max'`, which exists for exactly one caller.
- * Brainstorm is asked to write the email rather than to describe it, from a
- * page of somebody's own notes, once, after they have deliberately chosen the
- * thing and answered questions about it. That is the one request here where a
- * better model is a different outcome rather than a nicer sentence.
+ * up to the middle model. Nothing here asks for the largest one: no call in
+ * this app is agentic, none of them use tools, and paying top rates to tidy
+ * speech is money for nothing.
  */
 const MODEL = 'gpt-4o'
+/**
+ * What reads a team's chat message for the work stated in it.
+ *
+ * The one job here that was asked for by name, and the one where the
+ * difference shows: pulling the tasks out of "can you chase the agent and
+ * @ada will do the lift, Friday either way" is a reading task, but it is a
+ * reading task with somebody else's name attached to the answer, and a
+ * better model gets the boundaries between two jobs right more often.
+ *
+ * `OPENAI_TEAM_MODEL` overrides it, because a model name is a guess about
+ * somebody else's account: this one is not in every account and the
+ * naming changes faster than a deployment does. An account that does not
+ * have it falls back to `MODEL` automatically — see `complete` below. The
+ * cost of the wrong name here is a slightly blunter reading, never a
+ * board that stops filling.
+ */
+const TEAM_MODEL = process.env.OPENAI_TEAM_MODEL?.trim() || 'gpt-5.6'
 /**
  * What actually listens to the audio, when there is audio to listen to.
  *
@@ -86,23 +96,6 @@ const TRANSCRIBE_FALLBACK = 'whisper-1'
 const FALLBACK_MODEL = 'claude-haiku-4-5-20251001'
 /** And for the ones that are a judgement rather than a reading. */
 const FALLBACK_THINKING_MODEL = 'claude-sonnet-5'
-/**
- * And for the one job in this app that is neither reading nor judging.
- *
- * Brainstorm is asked to *produce* something — the email written out, the
- * plan drafted, the outline done — from somebody's notes and their answers
- * to three questions. It is the only place here where the difference
- * between a good model and a very good one is the difference between
- * something worth sending and something worth deleting, which is exactly
- * when paying for the largest is the cheap option: a solution nobody uses
- * cost the whole request.
- *
- * It is also the only place that could not be pressed by accident. One
- * item, chosen deliberately, after answering questions — so a page of
- * notes cannot quietly run up a bill on the largest model the way an
- * automatic tab would.
- */
-const BIGGEST_MODEL = 'claude-opus-5'
 
 export const runtime = 'nodejs'
 /** Never cached: every request is different and none should be stored. */
@@ -315,35 +308,48 @@ async function complete(options: {
    *
    * `low` is the default and nearly everything: punctuating speech,
    * expanding "mtg", reading a chat line for the task in it. `high` is the
-   * two judgements — what a question is really asking, and what out of
-   * forty lines matters first. `max` is Brainstorm, and only Brainstorm.
+   * one judgement — what a question of the notes is really asking.
    */
-  effort?: 'low' | 'medium' | 'high' | 'max'
+  effort?: 'low' | 'medium' | 'high'
+  /**
+   * A particular OpenAI model for this job, where the default is not the
+   * right one. Only the team's task reading uses it — see `TEAM_MODEL`.
+   * Ignored by the Anthropic fallback, which picks by `effort`.
+   */
+  model?: string
 }): Promise<string> {
   const openai = openAiKey()
-  /*
-    OpenAI wins, except for the one job that asks for the largest model.
-
-    Everywhere else this app runs on GPT-4o, because that is the key most
-    people already have and the small, quick model is the right one for
-    reading tasks. But GPT-4o is not a large model, and Brainstorm's whole
-    value is the quality of what comes back — so where there is an
-    Anthropic key as well, that one request goes to Opus and everything
-    else carries on going to OpenAI. With only an OpenAI key it is GPT-4o,
-    which is a real answer rather than a broken screen; with only an
-    Anthropic key it was always going this way anyway.
-  */
-  const biggest = options.effort === 'max' && anthropicKey() !== null
-  if (openai && !biggest) {
+  if (openai) {
     const client = new OpenAI({ apiKey: openai })
-    const answer = await client.chat.completions.create({
-      model: MODEL,
-      max_tokens: options.maxTokens,
-      messages: [
-        { role: 'system', content: options.system },
-        { role: 'user', content: options.user },
-      ],
-    })
+    const askFor = (model: string) =>
+      client.chat.completions.create({
+        model,
+        max_tokens: options.maxTokens,
+        messages: [
+          { role: 'system', content: options.system },
+          { role: 'user', content: options.user },
+        ],
+      })
+
+    let answer
+    try {
+      answer = await askFor(options.model ?? MODEL)
+    } catch (error) {
+      /*
+        A model this account does not have falls back rather than failing.
+
+        The same shape as the transcriber's fallback above and for the same
+        reason: a named model is a guess about somebody else's account, and
+        the wrong guess must cost the sharper answer rather than the
+        feature. Only for a model that was asked for by name — a 404 on the
+        default is a real fault and is reported as one.
+      */
+      const unknown =
+        error instanceof OpenAI.NotFoundError ||
+        (error instanceof OpenAI.APIError && /model/i.test(error.message ?? ''))
+      if (!options.model || options.model === MODEL || !unknown) throw error
+      answer = await askFor(MODEL)
+    }
     const choice = answer.choices[0]
     // A policy decline arrives as an ordinary 200 with the text in its own
     // field, so it has to be checked before the content is read.
@@ -367,20 +373,14 @@ async function complete(options: {
     cheap model does the cheap jobs" into "writing help stopped working".
   */
   /*
-    The job decides the model. `output_config` goes only to the middle one:
-    it is what moves a mid-sized model up to a judgement, and the largest
-    model does not need telling to think. Sending a parameter to a model
-    that does not understand it is a 400 back, which would turn "the big
-    job uses the big model" into "Brainstorm stopped working".
+    The job decides the model, and `output_config` goes only to the one that
+    understands it: sending it to a model that does not is a 400 back, which
+    would turn "the cheap model does the cheap jobs" into "writing help
+    stopped working".
   */
   const thinking = options.effort === 'high'
   const stream = client.messages.stream({
-    model:
-      options.effort === 'max'
-        ? BIGGEST_MODEL
-        : thinking
-          ? FALLBACK_THINKING_MODEL
-          : FALLBACK_MODEL,
+    model: thinking ? FALLBACK_THINKING_MODEL : FALLBACK_MODEL,
     max_tokens: options.maxTokens,
     ...(thinking ? { output_config: { effort: 'high' as const } } : {}),
     system: options.system,
@@ -568,6 +568,7 @@ async function chatTasks(message: string, names: string) {
       (names ? `The people in this team: ${names}.\n\n` : '') +
       `The message:\n\n${message}`,
     maxTokens: 800,
+    model: TEAM_MODEL,
     /*
       A reading, not a judgement — which is the cheap model's job, and it is
       also the one somebody is sitting and watching a chat for.
@@ -600,173 +601,6 @@ async function chatTasks(message: string, names: string) {
   } catch {
     return NextResponse.json({ tasks: [] })
   }
-}
-
-/* ------------------------------------------------------------ brainstorm */
-
-/**
- * Brainstorm, which is two requests and deliberately not one.
- *
- * ## What it is
- *
- * The Actions tab had a button that answered "which of these first". It was
- * a fair question and a thin one — the answer re-ordered a list already on
- * the screen, and nobody read it twice. The question people actually have
- * about a line on that list is the next one along: *how do I do this*. So
- * this takes one item, reads what the notes say about it, asks the handful
- * of things only that person knows, and then produces the work: the email
- * written out, the plan drafted, the outline done.
- *
- * ## Why the questions are their own request, on the cheap model
- *
- * Because the notes never carry half of it. "Chase the landlord" has a
- * history that is not written down: what has already been said, whether
- * this is a first ask or a fourth, what would actually count as done. A
- * model that guesses at those writes a confident letter about the wrong
- * thing.
- *
- * Working out what is missing from a page is a reading task, and the cheap
- * model does it as well as the expensive one and faster — which matters,
- * because this is the half somebody sits and waits for. Writing the thing
- * afterwards is not a reading task, and it is the only request in this app
- * that asks for the largest model.
- *
- * ## The rule both halves are written against
- *
- * Nothing invented. Every fact, name, figure and date has to come from the
- * notes or from the answers, and where one is needed and missing the reply
- * leaves a marked blank rather than filling it in. A drafted email that
- * quotes a number nobody gave is worse than no draft, because it is the one
- * that gets sent.
- *
- * ## And it is allowed to say no
- *
- * A model asked to solve "sort out the thing" will produce a page of
- * plausible structure rather than admit there is nothing to work from, and
- * that page costs a read to discover it is empty. `CANNOT:` is a
- * first-class answer here, the prompt asks for it in as many words, and the
- * screen prints it as the answer rather than as a fault.
- */
-const BRAINSTORM_QUESTIONS_SYSTEM =
-  'Somebody keeps notes in an app and has picked one outstanding thing out of them to think ' +
-  'through. Before anything is drafted, you ask them what the notes do not say.\n\n' +
-  'Return ONLY the questions, one per line. EXACTLY THREE of them, always — not two, not four. ' +
-  'No numbering, no preamble, no heading, no closing remark.\n\n' +
-  'Rules, in order of importance:\n' +
-  '1. Ask only what the extracts do not already answer. A question whose answer is in the ' +
-  'notes wastes the one chance you have to ask.\n' +
-  '2. Ask only what would change what you write for them. If the answer makes no difference ' +
-  'to the draft, it is not worth asking.\n' +
-  '3. Each question must be answerable in a sentence by somebody who has not prepared. No ' +
-  'questions in parts, no questions asking them to go and look something up.\n' +
-  '4. Prefer: what has already been tried or said, who it is really for, what would count as ' +
-  'this being done, and what the actual constraint is.\n' +
-  '5. Never ask for a password, a card number, a bank detail or anything else nobody should ' +
-  'type into a box.\n' +
-  '6. Keep the language the notes are written in.\n' +
-  '7. Every line you return must end in a question mark, and there must be three of them. If ' +
-  'the notes already answer most of what you would ask, ask the three that are still worth ' +
-  'asking rather than returning fewer.'
-
-const BRAINSTORM_SOLUTION_SYSTEM =
-  'Somebody keeps notes in an app. They have picked one outstanding thing out of them, you ' +
-  'have been given the passages of their notes that bear on it, the other things outstanding, ' +
-  'and their answers to your questions. You do the work.\n\n' +
-  'Return ONLY markdown. No preamble, no "here is what I would suggest", no closing offer of ' +
-  'further help.\n\n' +
-  'What to return:\n' +
-  '- A short "## " heading for each part of the answer.\n' +
-  '- Where the task is a thing that can be written — an email, a message, an agenda, an ' +
-  'outline, a checklist, a script, a plan, a chapter — WRITE IT OUT IN FULL under its own ' +
-  'heading, finished and ready to use. Do not describe what it should contain. This is the ' +
-  'whole point: the draft is the answer.\n' +
-  '- Then the steps to take, in order, each one a thing somebody does rather than a topic.\n' +
-  '- Where something else outstanding is plainly part of the same piece of work, say so in ' +
-  'one line and say what it changes.\n' +
-  '- End with "## What I could not know" and one bullet per thing you had to leave open, ' +
-  'only if there were any.\n\n' +
-  'Rules, in order of importance:\n' +
-  '1. Invent nothing. Every fact, name, figure, date, price, address and commitment must come ' +
-  'from the notes or from their answers. Where the draft needs one you were not given, leave ' +
-  'a marked blank like [the date] rather than filling it in. A drafted email carrying a made-' +
-  'up number is worse than no draft, because it is the one that gets sent.\n' +
-  '2. If you cannot do anything honest and useful with what you were given, reply with ONE ' +
-  'line and nothing else: "CANNOT: " followed by one sentence saying what is missing. Do that ' +
-  'rather than returning a page of generic structure. Saying so is a good answer; padding is ' +
-  'not.\n' +
-  '3. Be specific to them. Anything you could have written without reading their notes should ' +
-  'not be in the reply.\n' +
-  '4. No encouragement, no assessment of how much they have on, no restating of the task.\n' +
-  '5. Keep the language their notes are written in.'
-
-/**
- * Everything both halves are told, before the task itself.
- *
- * Built here rather than in the browser so that what is sent is decided in
- * one place and can be read in one place. Three parts: what this app is,
- * the passages of their own notes that bear on the thing, and the other
- * lines outstanding.
- *
- * The description of the app is here because the work is so often about
- * the app itself — "write the announcement", "how do I get this in front
- * of people" — and a model that has never heard of it answers with a
- * paragraph of plausible software said with total confidence. See
- * `lib/about.ts`, which is kept in step with the app by a test.
- *
- * The notes themselves never come. Retrieval happens on the device against
- * the local index and only the matching passages are sent, exactly as it
- * works for a question — so the cost of this does not grow with how much
- * somebody has written, and the collection stays on the machine.
- */
-function brainstormContext(sources: Source[], list: string): string {
-  return (
-    'About the app these notes are kept in. Use it when the work is about the app itself, ' +
-    'and do not credit it with anything this does not say it has:\n\n' +
-    `${ABOUT_APP}\n\n` +
-    `Extracts from their notes:\n\n${sourceBlock(sources)}\n\n` +
-    (list ? `Everything else outstanding across their notes:\n${list}\n` : '')
-  )
-}
-
-/** The questions to ask before anything is drafted. */
-async function brainstormQuestions(task: string, context: string) {
-  const text = await complete({
-    system: BRAINSTORM_QUESTIONS_SYSTEM,
-    user: `Today is ${new Date().toISOString().slice(0, 10)}.\n\n${context}\n\nThe thing they picked: ${task}`,
-    maxTokens: 500,
-    /*
-      Working out what a page does not say is a reading task, and this is
-      the half somebody is sitting and waiting for with a dialog open. The
-      cheap model does it as well and does it faster.
-    */
-    effort: 'low',
-  })
-  return NextResponse.json({ text })
-}
-
-/** And the work itself. The one request in this app that asks for the most. */
-async function brainstormSolution(task: string, context: string, answers: string) {
-  const text = await complete({
-    system: BRAINSTORM_SOLUTION_SYSTEM,
-    user:
-      `Today is ${new Date().toISOString().slice(0, 10)}.\n\n${context}\n\n` +
-      `The thing they picked: ${task}\n\n` +
-      (answers ? `What they told me:\n${answers}` : 'They skipped the questions.'),
-    /*
-      A drafted email, an outline and the steps under it.
-
-      Short enough that a model cannot pad its way out of having nothing to
-      say — and short enough to come back inside the time a request is
-      allowed. Four thousand tokens is a minute of writing on the largest
-      model, which is the wrong side of every serverless limit there is.
-    */
-    maxTokens: 2000,
-    effort: 'max',
-  })
-  if (!text) {
-    return NextResponse.json({ error: 'Nothing came back. Try again.' }, { status: 502 })
-  }
-  return NextResponse.json({ text })
 }
 
 /**
@@ -901,12 +735,6 @@ export async function POST(request: Request) {
     text?: string
     title?: string
     question?: string
-    /** The one outstanding thing being thought through, when it is a brainstorm. */
-    task?: string
-    /** The questions and what was typed back, when a brainstorm is being solved. */
-    answers?: string
-    /** The other things outstanding, when it is a brainstorm. */
-    list?: string
     /** Who is in the team, when the action is 'chat-tasks'. */
     names?: string
     sources?: Source[]
@@ -944,32 +772,6 @@ export async function POST(request: Request) {
     }
     try {
       return await ask(question, sources)
-    } catch (error) {
-      return failure(error)
-    }
-  }
-
-  /*
-    One outstanding thing, thought through. Two actions because it is two
-    requests on two models: the questions are a reading and go to the cheap
-    one, the solution is the work and is the only thing here that asks for
-    the largest. See BRAINSTORM_QUESTIONS_SYSTEM above.
-  */
-  if (body.action === 'brainstorm-questions' || body.action === 'brainstorm-solution') {
-    const task = (body.task ?? '').trim()
-    const sources = Array.isArray(body.sources) ? body.sources : []
-    if (!task) {
-      return NextResponse.json({ error: 'Pick something to think about first.' }, { status: 400 })
-    }
-    const size = sources.reduce((total, source) => total + (source.text?.length ?? 0), 0)
-    if (size > MAX_INPUT_CHARS) {
-      return NextResponse.json({ error: 'Too much context at once.' }, { status: 413 })
-    }
-    const context = brainstormContext(sources, (body.list ?? '').slice(0, 4_000))
-    try {
-      return body.action === 'brainstorm-questions'
-        ? await brainstormQuestions(task, context)
-        : await brainstormSolution(task, context, (body.answers ?? '').slice(0, 4_000))
     } catch (error) {
       return failure(error)
     }

@@ -8,6 +8,7 @@ import {
   toDoc,
   type Cursor,
 } from '../sync.ts'
+import { stillOwed } from '../store.ts'
 
 const NOW = 1_700_000_000_000
 
@@ -140,4 +141,28 @@ test('a row destroyed for good stays destroyed, with no column to say so', () =>
 test('an empty note that was never deleted is not mistaken for a purge', () => {
   const doc = toDoc(row({ title: '  ', blocks: [] }) as never)
   assert.equal(doc.purgedAt, undefined)
+})
+
+/* ------------------------------------------- what is still owed after a push */
+
+test('a note nobody touched during the upload is no longer owed', () => {
+  assert.equal(stillOwed(NOW, NOW), false)
+})
+
+test('a note typed into while the upload was in flight is still owed', () => {
+  // The bug this exists for: the push read the note, uploaded it, and
+  // cleared the mark — throwing away the words typed in between. The note
+  // then looked synced and the server had the older copy.
+  assert.equal(stillOwed(NOW + 1, NOW), true)
+})
+
+test('a mark that is already gone is not owed', () => {
+  assert.equal(stillOwed(undefined, NOW), false)
+  assert.equal(stillOwed(null, NOW), false)
+})
+
+test('a clock that went backwards does not strand a note in the outbox', () => {
+  // Two devices, or one device after a time change. An older mark than the
+  // version that went is not a newer edit, so the mark clears.
+  assert.equal(stillOwed(NOW - 5_000, NOW), false)
 })

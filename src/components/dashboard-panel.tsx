@@ -115,7 +115,9 @@ export default function DashboardPanel({
       */}
       <section className="mt-5 rounded-xl border border-[var(--color-line)] p-3">
         <h3 className="text-[12px] font-semibold tracking-wide text-[var(--color-faint)] uppercase">
-          The last fortnight
+          {/* "Fortnight" is a word half the people reading this do not use.
+              Two weeks is the same span and needs no translating. */}
+          The last two weeks
         </h3>
         <div className="mt-3 flex items-end gap-1" aria-hidden>
           {summary.days.map((day) => (

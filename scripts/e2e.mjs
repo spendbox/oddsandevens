@@ -638,6 +638,23 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await page.locator('li [aria-label^="Remove"]').first().click()
   await page.waitForTimeout(600)
   log('and can be taken off again', (await rows().count()) === 0)
+
+  /*
+    And leaving your notes and coming back puts you on All.
+
+    Favourites and the dashboard are places you go to deliberately and
+    come back from; arriving at your notes and being shown four of them,
+    because that is where you were an hour ago, is the app second-guessing
+    what you came for.
+  */
+  await page.locator('[role="tab"]:has-text("Actions")').click()
+  await page.waitForTimeout(400)
+  await page.locator('[role="tab"]:has-text("Notes")').click()
+  await page.waitForTimeout(400)
+  log(
+    'and coming back to Notes lands on All, not wherever you were',
+    (await page.locator('[role="tab"][aria-selected="true"]:has-text("All")').count()) === 1,
+  )
   await page.locator('[role="tab"]:has-text("All")').click()
   await page.waitForTimeout(400)
 }
@@ -679,7 +696,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   const text = await page.evaluate(() => document.body.innerText)
   log(
     'the dashboard counts what has been written',
-    /notes/i.test(text) && /words/i.test(text) && /fortnight/i.test(text),
+    /notes/i.test(text) && /words/i.test(text) && /last two weeks/i.test(text),
     text.split('\n').slice(0, 10).join(' / '),
   )
   log(
@@ -1048,341 +1065,6 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     'and then it is read like every other note',
     /call the framer/i.test(await page.evaluate(() => document.body.innerText)),
   )
-  await page.locator('[role="tab"]:has-text("Notes")').click()
-  await page.waitForTimeout(400)
-}
-
-/* ------------------------------------------------------------- brainstorm */
-
-{
-  /*
-    One outstanding thing, thought through — and the two things that make it
-    worth having rather than a longer sentence on a button: it can be put
-    down while it runs, and it is allowed to say it cannot help.
-
-    The route is stubbed. What is being tested is what the screen does with
-    an answer, a refusal and a request that has not come back yet.
-  */
-  let held = null
-  await page.route('**/api/ai', async (route) => {
-    const request = route.request()
-    if (request.method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ configured: true }),
-      })
-    }
-    const body = request.postDataJSON()
-    if (body.action === 'brainstorm-questions') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          text: 'What have you already said to them?\nWhen does this actually need doing?',
-        }),
-      })
-    }
-    if (body.action === 'brainstorm-solution') {
-      // Held open on purpose, so the "put it down" path can be driven.
-      if (held === 'wait') {
-        await new Promise((resolve) => setTimeout(resolve, 4000))
-      }
-      /*
-        What a request that outlived the platform's limit actually looks
-        like: a 504 carrying an HTML error page, not JSON. It is the
-        failure that made Brainstorm look like it never worked, so it is
-        the one worth having a test for.
-      */
-      if (held === 'timeout') {
-        return route.fulfill({ status: 504, contentType: 'text/html', body: '<html>upstream timeout</html>' })
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          text:
-            held === 'refuse'
-              ? 'CANNOT: the note says only that something needs sorting.'
-              : '## The email\n\nDear Sam,\n\nAbout the service charge figures.\n\n## Then\n\n- Send it today',
-        }),
-      })
-    }
-    return route.fallback()
-  })
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(900)
-  await page.locator('[role="tab"]:has-text("Actions")').click()
-  await page.waitForTimeout(700)
-
-  const page_text = () => page.evaluate(() => document.body.innerText)
-
-  log(
-    'the tab wears how much is outstanding',
-    /Actions\s*\d+/.test(
-      await page.locator('[role="tab"]:has-text("Actions")').innerText(),
-    ),
-    (await page.locator('[role="tab"]:has-text("Actions")').innerText()).replace(/\n/g, ' '),
-  )
-  log(
-    'the button that re-ordered the list is gone',
-    !/what should i do first/i.test(await page_text()),
-  )
-  log('and Brainstorm is in its place', await page.locator('button:has-text("Brainstorm")').first().isVisible())
-
-  await page.locator('button:has-text("Brainstorm")').first().click()
-  await page.waitForTimeout(300)
-  const sheet = page.locator('[role="dialog"][aria-label="Brainstorm"]')
-  log('it opens by asking which one thing', await sheet.isVisible())
-  log(
-    'and says so in one line rather than a paragraph',
-    /let.s solve it together/i.test(await sheet.innerText()) &&
-      !/what to actually do/i.test(await page_text()),
-  )
-  log(
-    'the things to choose from are ruled off from each other',
-    await page.evaluate(() => {
-      const list = document.querySelector('[role="dialog"][aria-label="Brainstorm"] ul')
-      if (!list || list.children.length < 2) return false
-      // A rule between them and not under the last one, which is what
-      // `divide-y` draws: a bottom border on everything but the last.
-      const rows = [...list.children].map((row) => getComputedStyle(row).borderBottomWidth)
-      return rows.slice(0, -1).every((width) => width !== '0px') && rows[rows.length - 1] === '0px'
-    }),
-  )
-  /*
-    A modal stops the page behind it. Both halves of that: the document
-    cannot scroll, and the recorder — a portal on document.body, painted
-    after everything the app draws — is not sitting on top of the dialog.
-  */
-  log(
-    'the page behind a modal does not scroll',
-    (await page.evaluate(() => getComputedStyle(document.body).overflow)) === 'hidden',
-  )
-  log(
-    'and the recorder is not on top of it',
-    (await page.locator('[aria-label*="ecord"]').count()) === 0,
-  )
-
-  // Pick the first thing on the list it offers.
-  const first = sheet.locator('ul button').first()
-  const picked = (await first.innerText()).split('\n')[0].trim()
-  await first.click()
-  await page.waitForTimeout(800)
-  log(
-    'and then asks what the notes do not say',
-    (await sheet.locator('textarea').count()) === 2,
-    picked,
-  )
-  await sheet.locator('textarea').first().fill('Nothing yet, this is the first ask.')
-  await page.screenshot({ path: `${SHOTS}/07e-brainstorm-questions.png` })
-
-  await sheet.locator('button:has-text("Work it out")').click()
-  await page.waitForTimeout(1500)
-  log(
-    'the answer is the thing itself, written out',
-    /Dear Sam/.test(await sheet.innerText()),
-    (await sheet.innerText()).split('\n').slice(0, 6).join(' / '),
-  )
-  log(
-    'and it can be kept as a note of its own',
-    await sheet.locator('button:has-text("Keep it as a note")').isVisible(),
-  )
-  await page.screenshot({ path: `${SHOTS}/07f-brainstorm-solution.png` })
-  await sheet.locator('[aria-label="Close"]').last().click()
-  await page.waitForTimeout(400)
-
-  log(
-    'the page scrolls again once it is closed',
-    (await page.evaluate(() => getComputedStyle(document.body).overflow)) !== 'hidden',
-  )
-  log(
-    'afterwards the row it was about says a solution exists',
-    (await page.locator('button:has-text("Solution")').count()) >= 1,
-  )
-
-  /*
-    And pressing the line opens what is known about it rather than doing
-    anything to it — which is the other half of why a row is tappable at
-    all.
-  */
-  await page.locator(`[aria-label="Open “${picked.replace(/"/g, '\\"')}”"]`).first().click()
-  await page.waitForTimeout(400)
-  const detail = page.locator('[role="dialog"]').last()
-  log('pressing the line opens it', await detail.isVisible())
-  log(
-    'and the solution is in there with it',
-    /Dear Sam/.test(await detail.innerText()),
-  )
-  log(
-    'and it says which note the line lives in before it offers to change it',
-    /corrects it there/i.test(await detail.innerText()),
-    (await detail.innerText()).split('\n').slice(0, 4).join(' / '),
-  )
-  /*
-    And a press on the dark area closes it and does nothing else.
-
-    It used to close on pointerdown, so the panel was gone before the
-    finger lifted and the click that followed landed on whatever was now
-    underneath — a note row, a tab, a caret in the page. Pressing the
-    overlay where a tab sits behind it is the test: the sheet goes, and
-    the tab does not change.
-  */
-  {
-    const tabWas = await page.locator('[role="tab"][aria-selected="true"]').innerText()
-    const box = await page.locator('[role="tab"][aria-selected="true"]').boundingBox()
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
-    await page.waitForTimeout(500)
-    log(
-      'pressing outside closes it',
-      (await page.locator('[role="dialog"]').count()) === 0,
-    )
-    log(
-      'and does not press what was behind it',
-      (await page.locator('[role="tab"][aria-selected="true"]').innerText()) === tabWas,
-      tabWas.replace(/\n/g, ' '),
-    )
-    await page.locator(`[aria-label="Open “${picked.replace(/"/g, '\\"')}”"]`).first().click()
-    await page.waitForTimeout(400)
-  }
-
-  // Correcting the wording writes into the note, because the line is the task.
-  const fixed = `${picked} (properly)`
-  await detail.locator('textarea').first().fill(fixed)
-  await detail.locator('button:has-text("Save")').click()
-  await page.waitForTimeout(1200)
-  log('correcting the wording changes the line in the note', /\(properly\)/.test(await page_text()))
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(900)
-  await page.locator('[role="tab"]:has-text("Actions")').click()
-  await page.waitForTimeout(700)
-  log(
-    'and it is written there, so a reload agrees',
-    /\(properly\)/.test(await page_text()),
-  )
-
-  /*
-    A request the platform killed says so, on a screen of its own. It used
-    to put a red line at the bottom of a scrolled box and send the reader
-    back to the questions, which on a phone is indistinguishable from
-    nothing having happened at all.
-  */
-  held = 'timeout'
-  await page.locator('button:has-text("Brainstorm")').first().click()
-  await page.waitForTimeout(300)
-  await page.locator('[role="dialog"][aria-label="Brainstorm"] ul button').first().click()
-  await page.waitForTimeout(800)
-  await page
-    .locator('[role="dialog"][aria-label="Brainstorm"] button:has-text("Work it out")')
-    .click()
-  await page.waitForTimeout(1200)
-  log(
-    'a request that ran out of time says that, rather than blaming the network',
-    /took too long/i.test(
-      await page.locator('[role="dialog"][aria-label="Brainstorm"]').innerText(),
-    ),
-  )
-  log(
-    'and offers to try it again',
-    await page
-      .locator('[role="dialog"][aria-label="Brainstorm"] button:has-text("Try it again")')
-      .isVisible(),
-  )
-  await page.locator('[role="dialog"][aria-label="Brainstorm"] [aria-label="Close"]').last().click()
-  await page.waitForTimeout(400)
-
-  // A refusal is an answer, and is printed as one.
-  held = 'refuse'
-  await page.locator('button:has-text("Brainstorm")').first().click()
-  await page.waitForTimeout(300)
-  await page.locator('[role="dialog"][aria-label="Brainstorm"] ul button').first().click()
-  await page.waitForTimeout(800)
-  await page
-    .locator('[role="dialog"][aria-label="Brainstorm"] button:has-text("Work it out")')
-    .click()
-  await page.waitForTimeout(1500)
-  log(
-    'and when it cannot help it says so instead of padding',
-    /could not work this one out/i.test(
-      await page.locator('[role="dialog"][aria-label="Brainstorm"]').innerText(),
-    ),
-  )
-  await page.locator('[role="dialog"][aria-label="Brainstorm"] [aria-label="Close"]').last().click()
-  await page.waitForTimeout(400)
-
-  // Put down while it runs: the dialog goes, the request does not.
-  held = 'wait'
-  await page.locator('button:has-text("Brainstorm")').first().click()
-  await page.waitForTimeout(300)
-  await page.locator('[role="dialog"][aria-label="Brainstorm"] ul button').first().click()
-  await page.waitForTimeout(800)
-  await page
-    .locator('[role="dialog"][aria-label="Brainstorm"] button:has-text("Work it out")')
-    .click()
-  await page.waitForTimeout(500)
-  await page.locator('button:has-text("Put it down")').click()
-  await page.waitForTimeout(300)
-  log(
-    'it can be put down while it thinks',
-    (await page.locator('[role="dialog"][aria-label="Brainstorm"]').count()) === 0,
-  )
-  log(
-    'and the row it is about says so',
-    (await page.locator('button:has-text("Working on it")').count()) === 1,
-  )
-  await page.screenshot({ path: `${SHOTS}/07g-brainstorm-put-down.png` })
-  await page.waitForTimeout(5000)
-  log(
-    'and when it comes back the row says there is a solution',
-    (await page.locator('button:has-text("Working on it")').count()) === 0 &&
-      (await page.locator('button:has-text("Solution")').count()) >= 1,
-  )
-
-  /*
-    Ticking is the third thing on this screen that takes a row off the
-    list, and until now the only one you could not take back — which
-    made it the easiest mistake on a screen of small boxes under a
-    thumb.
-  */
-  {
-    const box = page.locator('[aria-label^="Tick"]').first()
-    if (await box.count()) {
-      const what = await box.getAttribute('aria-label')
-      await box.click()
-      await page.waitForTimeout(900)
-      log(
-        'ticking something offers five seconds to say it was the wrong one',
-        (await page.locator('button:has-text("Undo")').count()) === 1,
-      )
-      log(
-        'and the bar says it was ticked rather than deleted',
-        /ticked/i.test(await page.locator('button:has-text("Undo")').locator('..').innerText()),
-      )
-      await page.locator('button:has-text("Undo")').click()
-      await page.waitForTimeout(1000)
-      log(
-        'and undoing it puts it back outstanding',
-        (await page.locator(`[aria-label="${what}"]`).count()) === 1,
-        what,
-      )
-    }
-  }
-
-  // The note each group came from wears its own picture, the same one its
-  // row in the list has.
-  log(
-    'each group of actions is headed by its note’s own icon',
-    await page.evaluate(() =>
-      [...document.querySelectorAll('section')].some((section) => {
-        const head = section.querySelector(':scope > div')
-        return !!head && !!head.querySelector('svg') && !!head.querySelector('button')
-      }),
-    ),
-  )
-
-  await page.unroute('**/api/ai')
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.waitForTimeout(900)
   await page.locator('[role="tab"]:has-text("Notes")').click()
   await page.waitForTimeout(400)
 }
@@ -2203,6 +1885,9 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     }),
   )
 
+  const widthInMe = await page.evaluate(
+    () => document.querySelector('header')?.parentElement?.getBoundingClientRect().width ?? 0,
+  )
   await toggle.click()
   await page.waitForTimeout(900)
   const teamText = await page.evaluate(() => document.body.innerText)
@@ -2218,6 +1903,48 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   log(
     'and neither is the box for writing a note — the chat has its own',
     (await page.locator('button:has-text("Write a note…")').count()) === 0,
+  )
+  /*
+    The measurement the team's own bar sticks at.
+
+    This is the one worth a test rather than a look: the `ref` that writes
+    `--pad-header` was missing for two versions, the property was never
+    set, and the team's bar fell back to sticking at zero — underneath an
+    opaque bar of the same height with a higher z-index. Its name, its ⚙
+    and its tabs were invisible and unpressable the moment the page
+    scrolled, which is what "I cannot edit or delete a team" turned out to
+    mean. Nothing about the look of the page says whether the number is
+    there, so the number is what is checked.
+  */
+  log(
+    'the app’s own bar is measured, so the team’s can stick under it',
+    await page.evaluate(() => {
+      const header = document.querySelector('header')
+      const box = header?.parentElement
+      if (!header || !box) return false
+      const written = Number.parseInt(box.style.getPropertyValue('--pad-header'), 10)
+      return (
+        Number.isFinite(written) &&
+        Math.abs(written - Math.round(header.getBoundingClientRect().height)) <= 1
+      )
+    }),
+    await page.evaluate(
+      () => document.querySelector('header')?.parentElement?.style.getPropertyValue('--pad-header') ?? '(unset)',
+    ),
+  )
+  /*
+    The team used to be wider than your own notes, so flipping the card
+    resized the whole app. A note is read at a measure; a list of rows is
+    not, and both sides of the switch are lists.
+  */
+  log(
+    'and both halves of the app are the same width',
+    Math.abs(
+      (await page.evaluate(
+        () => document.querySelector('header')?.parentElement?.getBoundingClientRect().width ?? 0,
+      )) - widthInMe,
+    ) < 1,
+    `${Math.round(widthInMe)}px`,
   )
   await page.screenshot({ path: `${SHOTS}/14-team.png` })
 
@@ -2358,7 +2085,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await page2.goto(`${URL}/t/11111111-1111-1111-1111-111111111111`, { waitUntil: 'networkidle' })
   await page2.waitForTimeout(700)
   const text2 = await page2.evaluate(() => document.body.innerText)
-  log('a team link opens a page of its own', /a team on jotter/i.test(text2), text2.split('\n').slice(0, 5).join(' / '))
+  log('a team link opens a page of its own', /a team on onepad/i.test(text2), text2.split('\n').slice(0, 5).join(' / '))
   log(
     'and it says plainly that it is not a way into the team',
     /not a way into the team/i.test(text2),
@@ -2403,7 +2130,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   )
   log(
     'and it opens in its own window, under its own name',
-    mf?.display === 'standalone' && mf?.start_url === '/' && /Jotter/.test(mf?.name ?? ''),
+    mf?.display === 'standalone' && mf?.start_url === '/' && /Onepad/.test(mf?.name ?? ''),
     `${mf?.display} ${mf?.name}`,
   )
   log(
@@ -2418,7 +2145,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   */
   log(
     'no install button until the browser offers one',
-    (await page.locator('[aria-label="Install Jotter as an app"]').count()) === 0,
+    (await page.locator('[aria-label="Install Onepad as an app"]').count()) === 0,
   )
   await page.evaluate(() => {
     const offer = new Event('beforeinstallprompt')
@@ -2429,12 +2156,12 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     window.dispatchEvent(offer)
   })
   await page.waitForTimeout(400)
-  const install = page.locator('[aria-label="Install Jotter as an app"]')
+  const install = page.locator('[aria-label="Install Onepad as an app"]')
   log('and one as soon as it does', await install.isVisible())
   log(
     'it sits at the top, beside the account',
     await page.evaluate(() => {
-      const button = document.querySelector('[aria-label="Install Jotter as an app"]')
+      const button = document.querySelector('[aria-label="Install Onepad as an app"]')
       return !!button && button.getBoundingClientRect().top < 120
     }),
   )
@@ -2444,7 +2171,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   log('pressing it asks the browser to install', await page.evaluate(() => window.__prompted === true))
   log(
     'and it is gone once that is answered, rather than sitting there forever',
-    (await page.locator('[aria-label="Install Jotter as an app"]').count()) === 0,
+    (await page.locator('[aria-label="Install Onepad as an app"]').count()) === 0,
   )
 }
 
@@ -2502,7 +2229,7 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   )
   log(
     'nor is the dashboard',
-    !coldBundle.includes('The last fortnight'),
+    !coldBundle.includes('The last two weeks'),
   )
   log(
     'nor is the team, which most people never press',
@@ -2515,7 +2242,7 @@ const manifest = await page.evaluate(async () => {
   const r = await fetch('/manifest.webmanifest')
   return r.ok ? await r.json() : null
 })
-log('web manifest serves', !!manifest && manifest.name?.includes('Jotter'))
+log('web manifest serves', !!manifest && manifest.name?.includes('Onepad'))
 const swRegistered = await page.evaluate(async () => {
   const regs = await navigator.serviceWorker.getRegistrations()
   return regs.length > 0

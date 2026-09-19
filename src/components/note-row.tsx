@@ -4,7 +4,7 @@ import { Star, Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { docLabel, docOpening } from '@/lib/blocks'
 import { blockText, type Doc } from '@/lib/types'
-import { stamp } from '@/lib/when'
+import { when } from '@/lib/when'
 import { KindTile } from './note-kind'
 
 /**
@@ -206,7 +206,19 @@ export default function NoteRow({
                 make it two rows tall.
               */}
               <span className="shrink-0 text-[12px] text-[var(--color-faint)] tabular-nums">
-                {stamp(doc.updatedAt, now)}
+                {/*
+                  How long ago, not what time it was.
+
+                  This said "14:32" for anything written today and
+                  "Yesterday" for anything before it, which is the form a
+                  mail client uses — and it answers the wrong question
+                  here. A note you touched twenty minutes ago and one you
+                  touched at breakfast are different things, and a clock
+                  time makes you do that arithmetic yourself. `when` says
+                  "20 minutes ago" up close and falls back to a date once
+                  the number stops meaning anything.
+                */}
+                {when(doc.updatedAt, now)}
               </span>
             </span>
             {/*
