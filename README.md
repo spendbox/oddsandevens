@@ -201,7 +201,13 @@ all editable in there, by anybody in the team: half of these are typed into a
 chat at speed and have a wrong word or a missing name in them, and a job with
 your name on it that only the person who typed it can fix is a job that stays
 wrong. What none of it touches is the message it came from — the chat is the
-record of what was said, and a task is a reading of it.
+record of what was said, and a task is a reading of it. Ticking one is
+undoable for five seconds, the same as it is on your own Actions.
+
+**Searching a team** is the magnifying glass at the end of Chat and Actions.
+It looks in whichever of the two you are on — everything anybody has said, or
+everything on the board — and it happens on your device, because both are
+already here.
 
 **Who can do what.** Whoever made the team is an admin and can never be removed
 from it. Admins add and remove people, hand out admin, and rename or delete the
@@ -272,6 +278,11 @@ changes nothing. Correcting the wording in there does change the note — in
 your own notes the task *is* the line, so there is nowhere else for a
 correction to live — and it says so above the box before you type in it.
 
+**Ticking something is undoable for five seconds**, the same as deleting it
+is. Nothing is lost either way — a ticked box is in the note and under Done —
+but the row vanishes in exactly the way a deleted one does, and on a phone
+that happens about as often. The bar says *Ticked*, not *Deleted*.
+
 Any day or date is kept in the words you wrote it in. "Friday" is not turned
 into a date, because which Friday was meant is not something this app knows.
 
@@ -294,9 +305,9 @@ thing off this list and works it out properly.
 
 Pick the thing. It reads your own notes for what bears on it — the local
 index finds them and only the matching passages are sent, never the
-collection — and then **asks you two or three things the notes do not say**:
-what you have already said to them, what would actually count as this being
-done, what the real constraint is. Answer in a sentence each, or skip them.
+collection — and then **asks you three things the notes do not say**: what
+you have already said to them, what would actually count as this being done,
+what the real constraint is. Answer in a sentence each, or skip them.
 
 Then it does the work. Where the task is something that can be written — an
 email, a message, an agenda, an outline, a plan, a script — **it writes it
@@ -308,7 +319,14 @@ at the end says what it could not know.
 
 **It is allowed to say it cannot.** If there is nothing honest to do with
 what it was given it says that in one sentence instead of returning a page
-of plausible structure. That is a real answer, and it is printed as one.
+of plausible structure. That is a real answer, and it is printed as one. So
+is a failure: if the request runs out of time, the screen says so and offers
+to try again, rather than leaving you looking at a page that seems to have
+done nothing.
+
+This is the one thing here that takes real time — it is writing, not
+reading — so if you are running it yourself on a host with a short request
+limit, that limit is what to raise. It asks for sixty seconds.
 
 **You can put it down while it thinks.** The dialog closes, the row it is
 about says *Working on it…*, and when the answer arrives it says *Solution*.
@@ -558,6 +576,8 @@ src/lib/actions.ts      everything outstanding, gathered from every note
 src/lib/name.ts         a first name out of an email address, or nothing
 src/lib/dismissed.ts    the suggestions you have already said no to
 src/lib/brainstorm.ts   reading a solution back, and keeping it on the device
+src/components/modal.ts what it means to be a modal: the page locked, the
+                        corner cleared, Escape, and a press outside
 src/lib/about.ts        what this app is, written for the model to read
 src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
 src/lib/recorder.ts     keeping the audio, in pieces, with a level meter

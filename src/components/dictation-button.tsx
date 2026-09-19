@@ -3,6 +3,7 @@
 import { LoaderCircle, Mic, Square } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
+import { useModalIsOpen } from './modal'
 import {
   chunkTranscript,
   elapsed,
@@ -473,7 +474,21 @@ export default function DictationButton({
     }
   }, [])
 
+  const modal = useModalIsOpen()
+
   if (!supported) return null
+  /*
+    And it gets out of the way of a modal.
+
+    This is a portal on `document.body`, so it is painted after everything
+    the app draws — including a sheet's overlay. It sat on top of every
+    dialog in the app: a black round button over a question about deleting
+    a note, doing something other than what it looked like, and tappable
+    through a screen that was meant to have stopped the page. It is hidden
+    while a modal is up unless it is the thing actually recording, which
+    must never be silently taken off screen with the microphone still open.
+  */
+  if (modal && state === 'idle') return null
 
   const listening = state === 'listening'
   /** Whether the audio is being kept, which decides whether there is a meter. */

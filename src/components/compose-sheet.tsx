@@ -3,6 +3,7 @@
 import { LoaderCircle, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useKeyboardInset } from './keyboard'
+import { useModal } from './modal'
 
 /** How far above the keyboard the box sits, so it is not resting on it. */
 const GAP = 16
@@ -75,6 +76,12 @@ export default function ComposeSheet({
 }) {
   const box = useRef<HTMLTextAreaElement>(null)
   const keyboard = useKeyboardInset()
+  /*
+    The page behind is locked and anything pinned to a corner gets out of
+    the way — see modal.ts. Escape is handled in the textarea below rather
+    than here, because closing has to hand the caller what was typed.
+  */
+  useModal(() => onClose(value))
 
   /*
     The caret goes in the box. Opening a writing box and having to press it
@@ -117,6 +124,10 @@ export default function ComposeSheet({
           solve a problem that screen does not have.
         */
         style={{ paddingBottom: keyboard ? keyboard + GAP : undefined }}
+        /* Outside the box but on top of the overlay — see sheet.tsx. */
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onClose(value)
+        }}
         className="fixed inset-x-0 bottom-0 z-[60] flex justify-center p-2 sm:inset-y-0 sm:items-center"
       >
         <div

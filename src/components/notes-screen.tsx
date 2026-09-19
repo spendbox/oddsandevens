@@ -267,7 +267,16 @@ export default function NotesScreen({
     this is on screen.
   */
   const { has: turnedDown } = useDismissed()
-  const gathered = useMemo(() => (team ? [] : gatherActions(live)), [live, team])
+  /*
+    Memoised on `docs` and not on `live`, which is a fresh array every
+    render and so memoised nothing at all — this read every block of every
+    note on every keystroke in the greeting. The filter it was skipping is
+    one pass over a list; the gather is the expensive half.
+  */
+  const gathered = useMemo(
+    () => (team ? [] : gatherActions(docs.filter((doc) => !doc.deletedAt))),
+    [docs, team],
+  )
   const outstanding = gathered.filter(
     (item) => item.kind === 'box' || !turnedDown(item.docId, item.blockId),
   )
@@ -362,8 +371,29 @@ export default function NotesScreen({
           long a name wraps it. Which team you are in and who you are are
           both things worth keeping on screen while a chat scrolls.
         */}
-        <header className="sticky top-0 z-20 bg-[var(--color-paper)] pt-5 sm:pt-8">
-          <div className="mb-4 flex items-center gap-2">
+        {/*
+          The ref is what makes the paragraph above true, and it was
+          missing from the day the measuring was written. Nothing broke
+          while the greeting did not stick in Team — the team's own bar
+          fell back to `top: 0`, which was where it wanted to be anyway —
+          and the moment this bar started sticking too, the fallback put
+          the second one directly underneath the first. A measurement
+          nothing is measuring is the quietest kind of wrong.
+        */}
+        <header ref={header} className="sticky top-0 z-20 bg-[var(--color-paper)] pt-5 sm:pt-8">
+          {/*
+            Padding, not a margin, and that is load-bearing.
+
+            The gap under the greeting was `mb-4`. In Team there is nothing
+            after it inside this header — the tabs belong to your own notes
+            — so it was the last child's bottom margin with no padding or
+            border below it, which means it collapsed straight through the
+            header and out. `offsetHeight` does not count a margin that has
+            escaped, so `--pad-header` came out sixteen pixels short and the
+            team's own bar stuck that far too high, overlapping the name it
+            was supposed to sit under. Padding cannot collapse.
+          */}
+          <div className="flex items-center gap-2 pb-4">
             <Greeting name={name} onName={setName} />
           {/*
             Signing in, where it can be found.
@@ -628,13 +658,26 @@ export default function NotesScreen({
             shut by every accident a phone has, and three lines lost that
             way is the worst thing this app can do — see lib/draft.ts.
           */}
+          {/*
+            Dark, because it is the one thing on this screen somebody came
+            here to press.
+
+            It was a pale pill on pale paper, the same weight as the search
+            field and the row of tabs, sitting in a bar of its own at the
+            bottom of the screen and reading as part of the furniture. The
+            ink colour is the only strong value this app has that is not
+            already spoken for — green says what kind of note something is,
+            yellow marks a searched word — and it inverts with the theme
+            for free, because both of these are the same two variables the
+            page itself is made of.
+          */}
           <button
             type="button"
             onClick={onCompose}
-            className={`flex flex-1 items-center gap-2.5 rounded-full border px-4 py-3 text-left text-[15px] hover:border-[var(--color-faint)] ${
+            className={`flex flex-1 items-center gap-2.5 rounded-full px-4 py-3 text-left text-[15px] ${
               draft
-                ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-ink)]'
-                : 'border-[var(--color-line)] bg-[var(--color-hover)] text-[var(--color-faint)]'
+                ? 'bg-[var(--color-accent)] text-white'
+                : 'bg-[var(--color-ink)] text-[var(--color-paper)] hover:opacity-90'
             }`}
           >
             <Pencil size={16} className="shrink-0" />

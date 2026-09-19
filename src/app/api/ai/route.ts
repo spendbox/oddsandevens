@@ -107,6 +107,23 @@ const BIGGEST_MODEL = 'claude-opus-5'
 export const runtime = 'nodejs'
 /** Never cached: every request is different and none should be stored. */
 export const dynamic = 'force-dynamic'
+/**
+ * How long a request here is allowed to take.
+ *
+ * Everything else in this file answers in a second or two, so the default
+ * was never noticed. Brainstorm does not: it asks the largest model to
+ * write an email out in full from a page of somebody's notes, and that is
+ * routinely twenty to sixty seconds. A serverless function's default limit
+ * is ten — so the platform killed the request, returned an HTML error page
+ * the browser could not parse as JSON, and the screen reported a network
+ * problem for something that was working perfectly and simply not finished.
+ * That is the whole of "no solution ever appears".
+ *
+ * Sixty is the ceiling on the free tier and enough for every request here.
+ * The client also reads a non-JSON reply as a timeout rather than as a dead
+ * network, because a limit lower than this one is somebody else's to set.
+ */
+export const maxDuration = 60
 
 /**
  * A crude per-address limit.
@@ -633,8 +650,8 @@ async function chatTasks(message: string, names: string) {
 const BRAINSTORM_QUESTIONS_SYSTEM =
   'Somebody keeps notes in an app and has picked one outstanding thing out of them to think ' +
   'through. Before anything is drafted, you ask them what the notes do not say.\n\n' +
-  'Return ONLY the questions, one per line, two to four of them. No numbering, no preamble, ' +
-  'no heading, no closing remark.\n\n' +
+  'Return ONLY the questions, one per line. EXACTLY THREE of them, always — not two, not four. ' +
+  'No numbering, no preamble, no heading, no closing remark.\n\n' +
   'Rules, in order of importance:\n' +
   '1. Ask only what the extracts do not already answer. A question whose answer is in the ' +
   'notes wastes the one chance you have to ask.\n' +
@@ -646,7 +663,10 @@ const BRAINSTORM_QUESTIONS_SYSTEM =
   'this being done, and what the actual constraint is.\n' +
   '5. Never ask for a password, a card number, a bank detail or anything else nobody should ' +
   'type into a box.\n' +
-  '6. Keep the language the notes are written in.'
+  '6. Keep the language the notes are written in.\n' +
+  '7. Every line you return must end in a question mark, and there must be three of them. If ' +
+  'the notes already answer most of what you would ask, ask the three that are still worth ' +
+  'asking rather than returning fewer.'
 
 const BRAINSTORM_SOLUTION_SYSTEM =
   'Somebody keeps notes in an app. They have picked one outstanding thing out of them, you ' +
@@ -732,9 +752,15 @@ async function brainstormSolution(task: string, context: string, answers: string
       `Today is ${new Date().toISOString().slice(0, 10)}.\n\n${context}\n\n` +
       `The thing they picked: ${task}\n\n` +
       (answers ? `What they told me:\n${answers}` : 'They skipped the questions.'),
-    // A drafted email, an outline and the steps under it. Short enough that
-    // a model cannot pad its way out of having nothing to say.
-    maxTokens: 4000,
+    /*
+      A drafted email, an outline and the steps under it.
+
+      Short enough that a model cannot pad its way out of having nothing to
+      say — and short enough to come back inside the time a request is
+      allowed. Four thousand tokens is a minute of writing on the largest
+      model, which is the wrong side of every serverless limit there is.
+    */
+    maxTokens: 2000,
     effort: 'max',
   })
   if (!text) {

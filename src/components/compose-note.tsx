@@ -223,7 +223,7 @@ export default function ComposeNote({
       saveLabel={busy ? 'Writing it up…' : 'Save'}
       busy={busy}
       label="What happened"
-      placeholder="Anything. Shorthand is fine — it gets written up."
+      placeholder="Start typing… we’d beautify it automatically…"
       /*
         Return at the end of a list item carries the list on. The rule is
         in `lib/compose.ts` and is a unit test; this is the part that needs

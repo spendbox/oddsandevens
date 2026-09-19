@@ -26,6 +26,7 @@ import {
 import { parsePastedText } from '@/lib/paste'
 import type { Block, Doc } from '@/lib/types'
 import { useKeyboardInset } from './keyboard'
+import { useModal } from './modal'
 
 /**
  * One outstanding thing, thought through properly.
@@ -83,7 +84,17 @@ import { useKeyboardInset } from './keyboard'
  * open this again.
  */
 
-type Stage = 'pick' | 'asking' | 'answering' | 'working' | 'done'
+/**
+ * Where it has got to.
+ *
+ * `failed` is its own stage rather than a message under the questions, and
+ * that is not tidiness. A failed request used to put the reader back on the
+ * question screen with a red line at the bottom of a box they had scrolled
+ * — which on a phone is off the screen entirely, so a request that died
+ * looked exactly like one that produced nothing. What went wrong is the
+ * whole content of the screen when something has.
+ */
+type Stage = 'pick' | 'asking' | 'answering' | 'working' | 'done' | 'failed'
 
 /** How many notes to read for one thing, and how much of them to send. */
 const MAX_DOCS = 6
@@ -125,6 +136,13 @@ export default function Brainstorm({
   const [kept, setKept] = useState(false)
   const [copied, setCopied] = useState(false)
   const keyboard = useKeyboardInset()
+  /*
+    The page behind is locked, Escape closes, and the recorder gets out of
+    the way — but only while this is actually on screen. Put down, it is
+    still mounted, because that is what keeps the request alive, and a
+    mounted invisible dialog must not be holding the page. See modal.ts.
+  */
+  useModal(onClose, !minimised)
 
   /*
     Everything the two requests read, as it is right now, and none of it a
@@ -230,11 +248,18 @@ export default function Brainstorm({
               .join('\n\n'),
           }),
         })
-        const data = (await response.json()) as { text?: string; error?: string }
+        /*
+          Read defensively. A request that outlived the platform's limit
+          comes back as an HTML error page, not JSON, and `response.json()`
+          throwing on it reported "could not reach the writing service" —
+          which is not what happened and sends somebody to check their
+          network instead of their timeout.
+        */
+        const data = await readReply(response)
         if (cancelled) return
         if (!response.ok || !data.text) {
           setProblem(data.error ?? 'Nothing came back. Try again.')
-          setStage('answering')
+          setStage('failed')
           sayWorking(null)
           return
         }
@@ -257,7 +282,7 @@ export default function Brainstorm({
       } catch {
         if (cancelled) return
         setProblem('Could not reach the writing service. Nothing in your notes changed.')
-        setStage('answering')
+        setStage('failed')
         sayWorking(null)
       }
     })()
@@ -311,13 +336,29 @@ export default function Brainstorm({
         // Above the keyboard, and with a gap, exactly as the writing box
         // is — see compose-sheet.tsx, which has the whole reason.
         style={{ paddingBottom: keyboard ? keyboard + 16 : undefined }}
+        /* Outside the panel but on top of the overlay — see sheet.tsx. */
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onClose()
+        }}
         className="fixed inset-x-0 bottom-0 z-[60] flex justify-center p-2 sm:inset-y-0 sm:items-center"
       >
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Brainstorm"
-          className="flex max-h-[85dvh] w-full max-w-xl flex-col rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] p-3 shadow-2xl"
+          /*
+            A tall sheet on a phone and a panel on a desktop.
+
+            A floor as well as a ceiling. This box changes what is in it
+            four times — a list, three questions, a spinner, a page of
+            answer — and a box that resizes under a thumb between each of
+            those is half of the "weird scroll" people report; the other
+            half was the page behind it moving, which `useModal` now
+            stops. The floor keeps it roughly one size across the four
+            stages without leaving an empty half-screen under a two-line
+            answer.
+          */
+          className="flex max-h-[88dvh] min-h-[46dvh] w-full max-w-xl flex-col rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] p-3 shadow-2xl sm:min-h-0 sm:max-h-[85dvh]"
         >
           <div className="mb-2 flex shrink-0 items-center gap-1.5">
             {chosen && stage !== 'working' && (
@@ -364,7 +405,9 @@ export default function Brainstorm({
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* One scrolling region, and a flick that reaches its end does
+              not carry on into the page behind. */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
             {stage === 'pick' && (
               <Pick items={items} onPick={(item) => {
                 setChosen(item)
@@ -422,7 +465,48 @@ export default function Brainstorm({
               />
             )}
 
-            {problem && stage !== 'working' && (
+            {/*
+              What went wrong, as the whole screen rather than a red line
+              under something else. A request that died and a request that
+              produced nothing looked identical before this, because the
+              line saying which was below the fold.
+            */}
+            {stage === 'failed' && (
+              <div className="py-4">
+                <p className="text-[15px] leading-relaxed">
+                  {problem ?? 'That did not work.'}
+                </p>
+                <p className="mt-2 text-[13px] text-[var(--color-faint)]">
+                  Nothing in your notes changed. Writing one of these takes the biggest model a
+                  while, so a long one can run out of time on a small server.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProblem(null)
+                      setStage('working')
+                    }}
+                    className="flex items-center gap-1.5 rounded-full bg-[var(--color-accent)] px-4 py-2 text-[14px] font-medium text-white"
+                  >
+                    <RotateCcw size={14} />
+                    Try it again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProblem(null)
+                      setStage('answering')
+                    }}
+                    className="rounded-full px-3 py-2 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+                  >
+                    Back to the questions
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {problem && stage === 'answering' && (
               <p className="mt-3 text-[13px] text-[var(--color-danger)]">{problem}</p>
             )}
           </div>
@@ -484,7 +568,21 @@ function sourcesFor(item: ActionItem, docs: Doc[]): Source[] {
   })
 }
 
-/** Which one. The list, with the note each came from under it. */
+/**
+ * Which one.
+ *
+ * The line of explanation is one line. It was three, describing the whole
+ * mechanism — reads your notes, asks what they do not say, writes the
+ * email — above a list somebody had already decided to look at, and a
+ * paragraph of sales copy at the top of a chooser is a paragraph nobody
+ * reads twice.
+ *
+ * The rows are separated by a rule rather than floating, because they are
+ * sentences of similar length and without one the list reads as a
+ * paragraph. And the field that narrows them does not scroll away with
+ * them: it is pinned above the list, so a long list scrolls under the
+ * thing that shortens it.
+ */
 function Pick({ items, onPick }: { items: ActionItem[]; onPick: (item: ActionItem) => void }) {
   const [query, setQuery] = useState('')
   const wanted = query.trim().toLowerCase()
@@ -494,36 +592,37 @@ function Pick({ items, onPick }: { items: ActionItem[]; onPick: (item: ActionIte
 
   return (
     <>
-      <p className="mb-2 text-[13px] text-[var(--color-muted)]">
-        Pick one thing. It reads your notes for what bears on it, asks you what they do not say,
-        and then writes whatever would actually help — the email, the plan, the outline.
-      </p>
-      {items.length > 8 && (
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Which one?"
-          aria-label="Find something outstanding"
-          className="mb-1 w-full rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-2 text-[14px] outline-none"
-        />
-      )}
+      <div className="shrink-0">
+        <p className="mb-2 text-[14px] text-[var(--color-muted)]">
+          Choose a task and let&rsquo;s solve it together.
+        </p>
+        {items.length > 8 && (
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Which one?"
+            aria-label="Find something outstanding"
+            className="mb-1 w-full rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-3.5 py-2 text-[14px] outline-none focus:border-[var(--color-faint)]"
+          />
+        )}
+      </div>
       {shown.length === 0 ? (
         <p className="py-8 text-center text-[14px] text-[var(--color-faint)]">
           Nothing here matches that.
         </p>
       ) : (
-        <ul>
+        <ul className="divide-y divide-[var(--color-line)] border-t border-[var(--color-line)]">
           {shown.map((item) => (
             <li key={item.blockId}>
               <button
                 type="button"
                 onClick={() => onPick(item)}
-                className="w-full rounded-lg px-2 py-2.5 text-left hover:bg-[var(--color-hover)]"
+                className="w-full px-1 py-3 text-left hover:bg-[var(--color-hover)]"
               >
-                <span className="block text-[14px] leading-snug">{item.text}</span>
+                <span className="block text-[15px] leading-snug">{item.text}</span>
                 <span className="mt-0.5 block truncate text-[12px] text-[var(--color-faint)]">
                   {item.docTitle}
-                  {item.due ? ` · ${item.due}` : ''}
+                  {item.due ? ` \u00b7 ${item.due}` : ''}
                 </span>
               </button>
             </li>
@@ -532,6 +631,28 @@ function Pick({ items, onPick }: { items: ActionItem[]; onPick: (item: ActionIte
       )}
     </>
   )
+}
+
+/**
+ * A reply, read without assuming it is JSON.
+ *
+ * A request that outlived the platform's limit comes back as an HTML error
+ * page. `response.json()` throws on it, which the caller was reporting as
+ * "could not reach the writing service" — sending somebody to check their
+ * network for a timeout. Anything unreadable is reported as what it
+ * actually was: the request not finishing in time.
+ */
+async function readReply(response: Response): Promise<{ text?: string; error?: string }> {
+  try {
+    return (await response.json()) as { text?: string; error?: string }
+  } catch {
+    return {
+      error:
+        response.status === 504 || response.status === 408
+          ? 'That took too long and the server gave up on it.'
+          : `The writing service answered with something unreadable (${response.status}).`,
+    }
+  }
 }
 
 /** The questions, and room to answer them. */

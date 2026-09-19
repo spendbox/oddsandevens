@@ -11,9 +11,11 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  Search,
   Settings2,
   Star,
   Trash2,
+  Undo2,
   UserPlus,
   Users,
   X,
@@ -99,6 +101,8 @@ import Sheet from './sheet'
 
 /** How often the chat and the board look for what other people have done. */
 const POLL_MS = 10_000
+/** How long an undo stays on offer, the same as it is on your own Actions. */
+const UNDO_SECONDS = 5
 
 export default function TeamsPanel({
   me,
@@ -112,6 +116,18 @@ export default function TeamsPanel({
   const [messages, setMessages] = useState<TeamMessage[]>([])
   const [tasks, setTasks] = useState<TeamTask[]>([])
   const [view, setView] = useState<'chat' | 'actions'>('chat')
+  /**
+   * Looking for something somebody said, or something on the board.
+   *
+   * On the device, over what is already here, which is the whole of it: a
+   * team's chat and its board are both already in memory — they are
+   * polled every ten seconds — so asking the server to search them would
+   * be a round trip for an answer sitting in a variable. It is the same
+   * bargain the notes make, and the same shape: a button at the end of
+   * the row of tabs rather than a field taking a row of every screen.
+   */
+  const [searching, setSearching] = useState(false)
+  const [query, setQuery] = useState('')
   const [problem, setProblem] = useState<string | undefined>()
   const [loading, setLoading] = useState(true)
   /** Which of the panels is open: all teams, all members, or one member. */
@@ -304,7 +320,62 @@ export default function TeamsPanel({
             label="Actions"
             count={outstanding.length}
           />
+          {/*
+            Searching, at the end of the row and lined up the way it is on
+            your own notes. It looks in whichever of the two you are in —
+            one box that searches two collections is the fastest way to
+            make somebody distrust both, and here the tab you are on is
+            what says which.
+          */}
+          <button
+            type="button"
+            aria-label={view === 'chat' ? 'Search this chat' : 'Search the board'}
+            aria-expanded={searching}
+            onClick={() => {
+              setSearching((on) => !on)
+              setQuery('')
+            }}
+            className={`-mb-px ml-auto flex items-center justify-center border-b-2 px-3 py-2.5 ${
+              searching
+                ? 'border-[var(--color-accent)] text-[var(--color-ink)]'
+                : 'border-transparent text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+            }`}
+          >
+            <Search size={15} />
+          </button>
         </div>
+
+        {searching && (
+          <div className="flex items-center gap-1 py-2">
+            <input
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setSearching(false)
+                  setQuery('')
+                }
+              }}
+              placeholder={
+                view === 'chat' ? 'Everything anybody has said' : 'Everything on the board'
+              }
+              aria-label={view === 'chat' ? 'Search this chat' : 'Search the board'}
+              className="min-w-0 flex-1 rounded-full border border-[var(--color-accent)] bg-[var(--color-hover)] px-4 py-2.5 text-[15px] outline-none placeholder:text-[var(--color-faint)]"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setSearching(false)
+                setQuery('')
+              }}
+              aria-label="Stop searching"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
       </div>
 
       {view === 'chat' ? (
@@ -314,6 +385,7 @@ export default function TeamsPanel({
           admin={admin}
           members={members}
           messages={messages}
+          query={searching ? query : ''}
           onChanged={() => void refresh()}
           onMembers={() => setSheet('members')}
           onWho={setWho}
@@ -324,6 +396,7 @@ export default function TeamsPanel({
           teamId={team.id}
           members={members}
           tasks={tasks}
+          query={searching ? query : ''}
           onChanged={() => void refresh()}
         />
       )}
@@ -1013,6 +1086,7 @@ function Chat({
   admin,
   members,
   messages,
+  query,
   onChanged,
   onMembers,
   onWho,
@@ -1022,6 +1096,8 @@ function Chat({
   admin: boolean
   members: Member[]
   messages: TeamMessage[]
+  /** What is being looked for, or empty. Filtered here, on the device. */
+  query: string
   onChanged: () => void
   onMembers: () => void
   onWho: (member: Member) => void
@@ -1142,6 +1218,19 @@ function Chat({
 
   const byId = (id: string) => messages.find((message) => message.id === id)
 
+  /*
+    What is being looked for, matched against what was said and who said
+    it. A reply is still quoted by the message it answers even when that
+    message is filtered out, because `byId` reads the whole list — the
+    thing you searched for keeps its context.
+  */
+  const wanted = query.trim().toLowerCase()
+  const shown = wanted
+    ? messages.filter((message) =>
+        `${message.body} ${message.authorName}`.toLowerCase().includes(wanted),
+      )
+    : messages
+
   return (
     <div>
       {/* Who is in it. A press opens the list; the + adds somebody. */}
@@ -1195,12 +1284,14 @@ function Chat({
         forty outlined boxes is a form.
       */}
       <ul className="mt-3 space-y-1.5">
-        {messages.length === 0 && (
+        {shown.length === 0 && (
           <li className="py-8 text-center text-[14px] text-[var(--color-faint)]">
-            Nothing said yet. Type what needs doing and it turns into work below.
+            {wanted
+              ? 'Nobody has said anything matching that.'
+              : 'Nothing said yet. Type what needs doing and it turns into work below.'}
           </li>
         )}
-        {messages.map((message) => {
+        {shown.map((message) => {
           const mine = message.author === me.id
           const answered = message.replyTo ? byId(message.replyTo) : null
           return (
@@ -1344,10 +1435,13 @@ function Chat({
             </button>
           </p>
         )}
+        {/* Dark, like the bar that writes a note on the other side of the
+            switch, and for the same reason: it is the one thing on this
+            screen somebody came here to press. */}
         <button
           type="button"
           onClick={() => setWriting(true)}
-          className="flex w-full items-center gap-2.5 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-4 py-3 text-left text-[15px] text-[var(--color-faint)] hover:border-[var(--color-faint)]"
+          className="flex w-full items-center gap-2.5 rounded-full bg-[var(--color-ink)] px-4 py-3 text-left text-[15px] text-[var(--color-paper)] hover:opacity-90"
         >
           <MessageSquare size={16} />
           {text.trim()
@@ -1419,12 +1513,15 @@ function Board({
   teamId,
   members,
   tasks,
+  query,
   onChanged,
 }: {
   me: { id: string; email: string; name: string }
   teamId: string
   members: Member[]
   tasks: TeamTask[]
+  /** What is being looked for, or empty. Filtered here, on the device. */
+  query: string
   onChanged: () => void
 }) {
   const [adding, setAdding] = useState(false)
@@ -1442,8 +1539,37 @@ function Board({
   const [open, setOpen] = useState<string | null>(null)
   const opened = tasks.find((task) => task.id === open) ?? null
 
-  const outstanding = tasks.filter((task) => !task.done)
-  const done = tasks.filter((task) => task.done)
+  /**
+   * What was just ticked, and how long is left to say it was the wrong one.
+   *
+   * A tick takes a row off the list it was on, which on a phone is the
+   * same disappearance a delete causes and happens about as often: small
+   * boxes, a scrolling thumb, a shared board where the row somebody else
+   * was looking at has now moved. Nothing is lost — it is under Done —
+   * but "where did that go" is a question five seconds answers and a
+   * search does not. Held here and never written anywhere, exactly as the
+   * undo on your own Actions is.
+   */
+  const [undone, setUndone] = useState<{ id: string; text: string } | null>(null)
+  const [left, setLeft] = useState(UNDO_SECONDS)
+
+  useEffect(() => {
+    if (!undone) return
+    const beat = setInterval(() => setLeft((n) => Math.max(0, n - 1)), 1000)
+    const over = setTimeout(() => setUndone(null), UNDO_SECONDS * 1000)
+    return () => {
+      clearInterval(beat)
+      clearTimeout(over)
+    }
+  }, [undone])
+
+  const wanted = query.trim().toLowerCase()
+  const matches = (task: TeamTask) =>
+    !wanted ||
+    `${task.text} ${task.assigneeName} ${task.due}`.toLowerCase().includes(wanted)
+
+  const outstanding = tasks.filter((task) => !task.done && matches(task))
+  const done = tasks.filter((task) => task.done && matches(task))
   const listed = showing === 'open' ? outstanding : done
 
   /*
@@ -1506,9 +1632,11 @@ function Board({
 
       {listed.length === 0 ? (
         <p className="py-10 text-center text-[15px] text-[var(--color-faint)]">
-          {showing === 'open'
-            ? 'Nothing outstanding. Say what needs doing in the chat and it turns up here.'
-            : 'Nothing finished yet.'}
+          {wanted
+            ? 'Nothing here matches that.'
+            : showing === 'open'
+              ? 'Nothing outstanding. Say what needs doing in the chat and it turns up here.'
+              : 'Nothing finished yet.'}
         </p>
       ) : (
         <ul className="mt-2 border-t border-[var(--color-line)]">
@@ -1518,9 +1646,43 @@ function Board({
               task={task}
               onChanged={onChanged}
               onOpen={() => setOpen(task.id)}
+              onTicked={() => {
+                setUndone({ id: task.id, text: task.text })
+                setLeft(UNDO_SECONDS)
+              }}
             />
           ))}
         </ul>
+      )}
+
+      {/*
+        The undo, above the box that says something. The same bar, the
+        same five seconds and the same countdown as the one on your own
+        Actions, because it is the same mistake.
+      */}
+      {undone && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[4.75rem] z-30 px-4">
+          <div className="pointer-events-auto mx-auto flex w-full max-w-5xl items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] py-2 pr-2 pl-4 shadow-lg">
+            <p className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-muted)]">
+              Ticked “{undone.text}”
+            </p>
+            <span aria-hidden className="shrink-0 text-[12px] text-[var(--color-faint)]">
+              {left}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const id = undone.id
+                setUndone(null)
+                void setTaskDone(id, false).then(onChanged)
+              }}
+              className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-[var(--color-accent)] hover:bg-[var(--color-hover)]"
+            >
+              <Undo2 size={14} />
+              Undo
+            </button>
+          </div>
+        </div>
       )}
 
       {opened && (
@@ -1606,12 +1768,14 @@ function TaskDetail({
 
   return (
     <div>
+      {/* Room to write in. See the same field on the Me side: a box the
+          height of the line it holds is one every correction scrolls in. */}
       <textarea
         value={text}
         onChange={(event) => setText(event.target.value)}
-        rows={2}
+        rows={4}
         aria-label="What needs doing"
-        className="pad-serif w-full resize-none rounded-lg border border-[var(--color-line)] bg-[var(--color-hover)] px-2.5 py-2 text-[15px] leading-snug outline-none focus:border-[var(--color-faint)]"
+        className="pad-serif min-h-[6rem] w-full resize-y rounded-lg border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-2.5 text-[16px] leading-relaxed outline-none focus:border-[var(--color-faint)]"
       />
 
       <label className="mt-2 block">
@@ -1715,13 +1879,6 @@ function TaskDetail({
         </button>
       )}
 
-      {/* Where it came from, said rather than linked: the chat is the
-          record, and this is a reading of one line of it. */}
-      <p className="mt-2 text-[12px] text-[var(--color-faint)]">
-        {task.sourceMessage ? 'Read out of a message in the chat.' : 'Added by hand.'} Correcting
-        it here does not change what was said.
-      </p>
-
       {problem && <p className="mt-2 text-[12px] text-[var(--color-danger)]">{problem}</p>}
     </div>
   )
@@ -1739,11 +1896,14 @@ function Row({
   task,
   onChanged,
   onOpen,
+  onTicked,
 }: {
   task: TeamTask
   onChanged: () => void
   /** Opens the detail. Changes nothing by itself. */
   onOpen: () => void
+  /** Ticked, so the board can offer to put it back. */
+  onTicked: () => void
 }) {
   const [busy, setBusy] = useState(false)
   const [asking, setAsking] = useState(false)
@@ -1760,7 +1920,10 @@ function Row({
     <li className="flex items-start gap-2.5 border-b border-[var(--color-line)] py-2.5 last:border-b-0">
       <button
         type="button"
-        onClick={() => void run(() => setTaskDone(task.id, !task.done))}
+        onClick={() => {
+          if (!task.done) onTicked()
+          void run(() => setTaskDone(task.id, !task.done))
+        }}
         aria-label={task.done ? `Put “${task.text}” back` : `Tick “${task.text}”`}
         className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--color-faint)] hover:bg-[var(--color-hover)] hover:text-[var(--color-accent)]"
       >
