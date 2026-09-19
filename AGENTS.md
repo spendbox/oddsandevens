@@ -13,11 +13,12 @@ cannot be imported is `public/sw.js`, which is served as a plain file.
 **Everything the reader sees is called a note.** Not a document, not a file.
 Two lines or twenty pages, the same word for both.
 
-Four things in it talk to a model, all of them on purpose and all of them
+Five things in it talk to a model, all of them on purpose and all of them
 optional: the box that writes a note up, the recorder that writes down what was
-said, the question you can ask of your own notes, and the button that puts
-everything outstanding in an order. Nothing else does, and nothing runs without
-being pressed.
+said, the question you can ask of your own notes, a team's chat message read
+for the work stated in it, and Brainstorm — one outstanding thing thought
+through and whatever would help with it drafted. Nothing else does, and nothing
+runs without being pressed.
 
 There is one writing surface and it is a page. Lines finish themselves as the
 caret leaves them, with no model involved.
@@ -260,16 +261,18 @@ a page.
   the signature says so rather than pretending both providers have the same
   controls.
 - **The cheap model is the default, and the job picks the expensive one.**
-  Nothing in this app is agentic and nothing uses tools, so nothing asks for the
-  largest model. Punctuating a dictated paragraph and expanding "mtg" to
-  "meeting" are reading tasks: the small model does them as well as the large
-  one, costs a fraction, and is the faster of the two — which matters because it
-  is the one somebody is sitting and waiting for. `effort: 'high'` is the only
-  thing that moves a request up, and only two callers set it: answering a
-  question about the notes, and ordering what is outstanding. Both are a
-  judgement rather than a reading. `output_config` goes only to the model that
-  understands it, because a 400 back would turn "the cheap model does the cheap
-  jobs" into "writing help stopped working".
+  Nothing in this app is agentic and nothing uses tools, so almost nothing asks
+  for the largest model. Punctuating a dictated paragraph, expanding "mtg" to
+  "meeting" and reading a chat line for the task in it are reading tasks: the
+  small model does them as well as the large one, costs a fraction, and is the
+  faster of the two — which matters because it is the one somebody is sitting
+  and waiting for. `effort: 'high'` moves a request up to the middle model and
+  is set by the one caller that is a judgement rather than a reading: answering
+  a question about the notes. `effort: 'max'` is Brainstorm's solution and
+  nothing else — see the rules on it further down. `output_config` goes only to
+  the middle model, because a 400 back from one that does not understand it
+  would turn "the cheap model does the cheap jobs" into "writing help stopped
+  working".
 - **Search is one thing, not two.** A box that filters the list of file names
   and a box that searches inside documents behave differently and teach people
   to distrust both. `src/lib/search.ts` is a BM25 index over everything, built
@@ -591,9 +594,10 @@ a page.
   task without its context is a line somebody has to go and re-read anyway.
 - **The Actions tab is complete before the model is asked anything.** The list
   is built on the device, offline, free and identical every time. The model is
-  one button that puts it in an order, it is pressed and never automatic, and
-  it is given only the lines and the note names — never the notes. A screen
-  that spends money when somebody glances at it is a screen they stop opening.
+  one button — Brainstorm — it takes one item at a time, it is pressed and
+  never automatic, and it is given the passages that bear on that item plus the
+  other lines and the note names, never the collection. A screen that spends
+  money when somebody glances at it is a screen they stop opening.
 - **Actions are grouped by note, and a group goes at once.** Six lines from
   Tuesday's meeting are one piece of work with one set of names and one reason
   for existing; scattered through a flat list of forty they are six separate

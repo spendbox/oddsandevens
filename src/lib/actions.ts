@@ -33,8 +33,9 @@ import type { Doc } from './types.ts'
  * ## Why it costs nothing
  *
  * Every rule in here runs on the device: no key, no network, no cost, and the
- * same answer every time. The model can sharpen it — see the Actions tab —
- * and it is pressed, never automatic, and the list is complete without it.
+ * same answer every time. The model is offered one item at a time from this
+ * list — see Brainstorm on the Actions tab — and it is pressed, never
+ * automatic, and the list is complete without it.
  *
  * ## A note may say no
  *
