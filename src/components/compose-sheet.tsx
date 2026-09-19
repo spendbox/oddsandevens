@@ -4,6 +4,9 @@ import { LoaderCircle, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useKeyboardInset } from './keyboard'
 
+/** How far above the keyboard the box sits, so it is not resting on it. */
+const GAP = 16
+
 /**
  * The pop-up you write in.
  *
@@ -104,10 +107,16 @@ export default function ComposeSheet({
           the bottom of it — so a sheet pinned to the bottom is underneath
           them at the exact moment somebody is typing into it. See
           keyboard.ts. An inline style because it is a number that changes
-          as the keyboard opens, and it is zero on every screen that has
-          none.
+          as the keyboard opens.
+
+          Plus a gap, so it sits above the keys rather than against them. A
+          box resting exactly on the top row of a phone keyboard reads as
+          part of it, and the Send button ends up a thumb's width from the
+          Return key. Only when there is a keyboard: on a desktop the sheet
+          is centred, and bottom padding there would push it off centre to
+          solve a problem that screen does not have.
         */
-        style={{ paddingBottom: keyboard }}
+        style={{ paddingBottom: keyboard ? keyboard + GAP : undefined }}
         className="fixed inset-x-0 bottom-0 z-[60] flex justify-center p-2 sm:inset-y-0 sm:items-center"
       >
         <div

@@ -66,18 +66,28 @@ export default function WorldPanel({
     that fires one per letter is six requests to answer a six-letter word. A
     third of a second is long enough that a typed word is one request and
     short enough that nobody waits for it.
+
+    And it only asks when the question has actually changed. That guard is
+    not an optimisation — it is the whole of a bug this screen had from the
+    day it was written. The timer runs once on opening, with an empty field
+    and an empty `asked`, and turned the spinner back on for a search that
+    was never made: nothing downstream changed, so nothing ever turned it
+    off, and the World opened with a wheel spinning beside the search box
+    for as long as anybody left it there.
   */
   useEffect(() => {
+    const wanted = query.trim()
+    if (wanted === asked) return
     const timer = setTimeout(() => {
       // Both in the timer, which is a callback and not the effect's body:
       // the spinner turning on is part of "a new search has started", and
       // setting state synchronously inside an effect is the one thing this
       // codebase's lint rule will not have.
-      setAsked(query.trim())
+      setAsked(wanted)
       setBusy(true)
     }, 300)
     return () => clearTimeout(timer)
-  }, [query])
+  }, [query, asked])
 
   /*
     The first page of whatever is being asked for.

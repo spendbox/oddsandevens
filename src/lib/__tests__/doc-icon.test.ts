@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { iconFor, iconForText } from '../doc-icon.ts'
+import { iconFor, iconForTeam, iconForText } from '../doc-icon.ts'
 import type { Block, Doc } from '../types.ts'
 
 let counter = 0
@@ -70,4 +70,21 @@ test('a heading at the top names the document when the title field is empty', ()
     text('This agreement is made between…'),
   ])
   assert.equal(iconFor(headed), 'contract')
+})
+
+/* --------------------------------------------------------------- a team */
+
+test('a team is named the same way a note is, out of the same table', () => {
+  assert.equal(iconForTeam('Finance'), 'money')
+  assert.equal(iconForTeam('Hiring'), 'people')
+  assert.equal(iconForTeam('The boiler'), 'home')
+  assert.equal(iconForTeam('Marketing'), 'campaign')
+})
+
+test('a team whose name says nothing in particular is a team', () => {
+  // Never a blank and never a sheet of paper: a team is people, which is
+  // the honest default for a name that is somebody's surname or a joke.
+  assert.equal(iconForTeam('Ogunlesi'), 'people')
+  assert.equal(iconForTeam(''), 'people')
+  assert.equal(iconForTeam('   '), 'people')
 })

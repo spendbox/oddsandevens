@@ -25,7 +25,7 @@ import {
   Plane,
   ListChecks,
 } from 'lucide-react'
-import { iconFor, type DocIcon as IconName } from '@/lib/doc-icon'
+import { iconFor, iconForTeam, type DocIcon as IconName } from '@/lib/doc-icon'
 import type { Doc } from '@/lib/types'
 
 /**
@@ -60,6 +60,26 @@ const GLYPHS: Record<IconName, React.ComponentType<{ size?: number; className?: 
   celebration: Gift,
   music: Music,
   fitness: Dumbbell,
+}
+
+/**
+ * The picture for a team, from its name.
+ *
+ * It lives here rather than in the team screen so there is one map from a
+ * name to a glyph in the whole app. Which icon a team gets is decided in
+ * `lib/doc-icon.ts`, where it is data and has a test.
+ */
+export function TeamIcon({
+  name,
+  size = 15,
+  className,
+}: {
+  name: string
+  size?: number
+  className?: string
+}) {
+  const Glyph = GLYPHS[iconForTeam(name)] ?? Users
+  return <Glyph size={size} className={className} />
 }
 
 export default function DocIcon({

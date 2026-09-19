@@ -44,7 +44,10 @@ import {
   renameTeam,
   sendMessage,
   setMemberRole,
+  setTaskAssignee,
   setTaskDone,
+  setTaskDue,
+  setTaskText,
   teamMembers,
   teamMessages,
   teamPulse,
@@ -56,6 +59,7 @@ import {
 } from '@/lib/teams'
 import { stamp } from '@/lib/when'
 import ComposeSheet from './compose-sheet'
+import { TeamIcon } from './doc-icon'
 import { useDismiss } from './dismiss'
 import MentionField from './mention-field'
 import Sheet from './sheet'
@@ -259,9 +263,15 @@ export default function TeamsPanel({
               setSheet('teams')
               void teamPulse().then(setPulses)
             }}
-            className="flex min-w-0 items-center gap-1.5 rounded-full px-2 py-1.5 text-[15px] font-medium hover:bg-[var(--color-hover)]"
+            className="flex min-w-0 items-center gap-1.5 rounded-full px-2 py-1.5 text-[15px] font-semibold hover:bg-[var(--color-hover)]"
           >
-            <Users size={15} className="shrink-0 text-[var(--color-faint)]" />
+            {/*
+              The team's own picture, worked out from its name the same way
+              a note's is worked out from its title — a table of words, no
+              model, the same answer every time. With three teams in the
+              list it is what tells them apart before the name is read.
+            */}
+            <TeamIcon name={team.name} size={15} className="shrink-0 text-[var(--color-accent)]" />
             <span className="truncate">{team.name}</span>
             <ChevronDown size={14} className="shrink-0 text-[var(--color-faint)]" />
           </button>
@@ -400,15 +410,37 @@ function NoTeamYet({
   onMade: (team: Team) => void
 }) {
   return (
-    <div className="mt-6 rounded-xl border border-[var(--color-line)] p-4">
-      <h2 className="text-[15px] font-medium">Start a team</h2>
-      <p className="mt-1 text-[13px] leading-relaxed text-[var(--color-muted)]">
-        A team is a chat and the work that comes out of it. Type what needs doing the way you
-        would say it — <span className="text-[var(--color-ink)]">@ada send the figures by
-        Friday</span> — and it appears on the board with her name and the day against it. Add
-        people by their email address; your own notes are not shared with anybody.
+    /*
+      The one screen in this app that has to sell something, so it is
+      allowed to be the one screen that raises its voice.
+
+      Everything else here is a list somebody already wanted to look at.
+      This is a person who has pressed Team and has no team, and every
+      word of it was set in the same quiet grey as a timestamp — a
+      paragraph nobody reads above a button nobody is sure about. The
+      heading is a heading now and the sentence that says what a team is
+      is set in the ink the notes are set in, with the small print kept
+      small and kept underneath.
+    */
+    <div className="mt-6 rounded-xl border border-[var(--color-line)] p-5">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-accent-soft)]">
+        <Users size={19} className="text-[var(--color-accent)]" />
+      </span>
+      <h2 className="pad-serif mt-3 text-[22px] font-semibold tracking-tight">Start a team</h2>
+      <p className="mt-1.5 text-[15px] leading-relaxed font-medium text-[var(--color-ink)]">
+        A team is a chat, and the work that comes out of it.
       </p>
-      <div className="mt-3">
+      <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--color-muted)]">
+        Type what needs doing the way you would say it —{' '}
+        <span className="font-semibold text-[var(--color-ink)]">
+          @ada send the figures by Friday
+        </span>{' '}
+        — and it turns up on the board with her name and the day against it.
+      </p>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--color-faint)]">
+        People are added by their email address. Your own notes are not shared with anybody.
+      </p>
+      <div className="mt-4">
         <NewTeam me={me} onMade={onMade} primary />
       </div>
     </div>
@@ -460,8 +492,8 @@ function NewTeam({
         onClick={() => setNaming(true)}
         className={
           primary
-            ? 'rounded-full bg-[var(--color-accent)] px-4 py-2 text-[14px] font-medium text-white'
-            : 'flex w-full items-center gap-1.5 rounded-lg px-2 py-2 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]'
+            ? 'rounded-full bg-[var(--color-accent)] px-5 py-2.5 text-[15px] font-semibold text-white'
+            : 'flex w-full items-center gap-1.5 rounded-lg px-2 py-2 text-[14px] font-medium text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]'
         }
       >
         {!primary && <Plus size={14} />}
@@ -472,6 +504,17 @@ function NewTeam({
 
   return (
     <span ref={field} className="flex items-center gap-1">
+      {/*
+        The icon changes as the name is typed, which is the whole of the
+        introduction this idea needs: call it Finance and it is a
+        banknote before the team exists. It is a table of words in
+        `lib/doc-icon.ts`, so it costs nothing and is never waited for.
+      */}
+      <TeamIcon
+        name={name}
+        size={16}
+        className={`shrink-0 ${name.trim() ? 'text-[var(--color-accent)]' : 'text-[var(--color-faint)]'}`}
+      />
       <input
         autoFocus
         value={name}
@@ -483,13 +526,13 @@ function NewTeam({
         placeholder="What is it called?"
         aria-label="Team name"
         maxLength={40}
-        className="min-w-0 flex-1 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-1.5 text-[13px] outline-none"
+        className="min-w-0 flex-1 rounded-full border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-1.5 text-[14px] font-medium outline-none"
       />
       <button
         type="button"
         onClick={() => void make()}
         disabled={busy}
-        className="shrink-0 rounded-full bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-white disabled:opacity-50"
+        className="shrink-0 rounded-full bg-[var(--color-accent)] px-3.5 py-1.5 text-[14px] font-semibold text-white disabled:opacity-50"
       >
         {busy ? '…' : 'Make it'}
       </button>
@@ -539,9 +582,14 @@ function AllTeams({
                   unread.has(team.id) ? 'bg-[var(--color-accent)]' : 'bg-transparent'
                 }`}
               />
+              <TeamIcon
+                name={team.name}
+                size={15}
+                className="shrink-0 text-[var(--color-faint)]"
+              />
               <span
                 className={`min-w-0 flex-1 truncate text-[14px] ${
-                  unread.has(team.id) ? 'font-medium' : ''
+                  unread.has(team.id) ? 'font-semibold' : ''
                 }`}
               >
                 {team.name}
@@ -1136,7 +1184,17 @@ function Chat({
         )}
       </div>
 
-      <ul className="mt-3 space-y-3">
+      {/*
+        Each message on its own quiet card.
+
+        They were bare lines with a name above them, three of them in a
+        row from the same person reading as one long paragraph with the
+        odd timestamp through it. A card is the smallest thing that says
+        where one stops and the next starts — a faint fill and a corner,
+        no border and no colour, because a chat is a page of writing and
+        forty outlined boxes is a form.
+      */}
+      <ul className="mt-3 space-y-1.5">
         {messages.length === 0 && (
           <li className="py-8 text-center text-[14px] text-[var(--color-faint)]">
             Nothing said yet. Type what needs doing and it turns into work below.
@@ -1146,8 +1204,13 @@ function Chat({
           const mine = message.author === me.id
           const answered = message.replyTo ? byId(message.replyTo) : null
           return (
-            <li key={message.id} className="group flex gap-2.5">
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-hover)] text-[11px] font-medium text-[var(--color-muted)]">
+            <li
+              key={message.id}
+              className="group flex gap-2.5 rounded-xl bg-[var(--color-hover)] px-2.5 py-2"
+            >
+              {/* The initial sits on the paper colour, or it disappears
+                  into the card it is standing on. */}
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-paper)] text-[11px] font-medium text-[var(--color-muted)]">
                 {(message.authorName || '?').trim().charAt(0).toUpperCase()}
               </span>
               <div className="min-w-0 flex-1">
@@ -1174,7 +1237,7 @@ function Chat({
                         if (event.key === 'Escape') setEditing(null)
                       }}
                       aria-label="Correct this message"
-                      className="min-w-0 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-hover)] px-2 py-1.5 text-[14px] outline-none"
+                      className="min-w-0 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-[14px] outline-none"
                     />
                     <button
                       type="button"
@@ -1315,12 +1378,18 @@ function Chat({
           saveLabel={busy ? 'Sending…' : 'Send'}
           busy={busy}
           label="Say what needs doing"
+          /*
+            No line of small print under the button.
+
+            It said "anything you ask for here turns into work on the
+            board", which is a screen explaining itself — and a notice
+            like that goes in when the design cannot make the point on
+            its own. This one can: the placeholder says what to type, and
+            the answer arrives as the tasks themselves, listed under the
+            message the moment they are made. Being shown is better than
+            being told, and it is one less line above a phone keyboard.
+          */
           placeholder="What needs doing? Use @ to give it to somebody."
-          beside={
-            <span className="text-[12px] text-[var(--color-faint)]">
-              Anything you ask for here turns into work on the board.
-            </span>
-          }
         >
           {replying && (
             <p className="mb-1 flex items-center gap-1.5 text-[12px] text-[var(--color-faint)]">
@@ -1363,6 +1432,15 @@ function Board({
   const [busy, setBusy] = useState(false)
   /** Which list is on. Side by side, because both are the same question. */
   const [showing, setShowing] = useState<'open' | 'done'>('open')
+  /**
+   * The task whose detail is open, if any.
+   *
+   * Held by the board rather than by the row so there is one of these on
+   * screen at a time, and so it survives the list being re-read under it —
+   * which it is, every ten seconds.
+   */
+  const [open, setOpen] = useState<string | null>(null)
+  const opened = tasks.find((task) => task.id === open) ?? null
 
   const outstanding = tasks.filter((task) => !task.done)
   const done = tasks.filter((task) => task.done)
@@ -1435,10 +1513,216 @@ function Board({
       ) : (
         <ul className="mt-2 border-t border-[var(--color-line)]">
           {listed.map((task) => (
-            <Row key={task.id} task={task} onChanged={onChanged} />
+            <Row
+              key={task.id}
+              task={task}
+              onChanged={onChanged}
+              onOpen={() => setOpen(task.id)}
+            />
           ))}
         </ul>
       )}
+
+      {opened && (
+        <Sheet title="This task" onClose={() => setOpen(null)}>
+          <TaskDetail
+            task={opened}
+            members={members}
+            onChanged={onChanged}
+            onClose={() => setOpen(null)}
+          />
+        </Sheet>
+      )}
+    </div>
+  )
+}
+
+/**
+ * One task, opened.
+ *
+ * ## Why a task can be corrected at all, and by anybody in the team
+ *
+ * Because it was typed into a chat at speed, and half of them have a
+ * wrong word, a missing name or a date somebody said out loud and nobody
+ * wrote down. A job with your name on it that only the person who typed it
+ * can fix is a job that stays wrong until they are free — so the policy in
+ * 0007 lets any member change any task, which is the same permission that
+ * already let anybody tick one.
+ *
+ * ## What it does not touch
+ *
+ * The message it came from. The chat is the record of what was actually
+ * said and a task is a reading of it: correcting the reading must never
+ * rewrite the sentence. Every task keeps the message it came out of for
+ * exactly that reason — so there is always something to check it against.
+ *
+ * ## Why the date is still words
+ *
+ * "Friday" is not turned into a date here any more than it is anywhere
+ * else in this app. Which Friday was meant is not something this knows,
+ * and a wrong date on another person's task is worse than a vague one.
+ */
+function TaskDetail({
+  task,
+  members,
+  onChanged,
+  onClose,
+}: {
+  task: TeamTask
+  members: Member[]
+  onChanged: () => void
+  onClose: () => void
+}) {
+  const [text, setText] = useState(task.text)
+  const [due, setDue] = useState(task.due)
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | undefined>()
+  const [asking, setAsking] = useState(false)
+
+  const changed = (text.trim() !== task.text && !!text.trim()) || due.trim() !== task.due
+
+  const run = async (what: () => Promise<string | undefined>, close = false) => {
+    if (busy) return
+    setBusy(true)
+    const why = await what()
+    setBusy(false)
+    if (why) {
+      setProblem(why)
+      return
+    }
+    onChanged()
+    if (close) onClose()
+  }
+
+  const save = () =>
+    void run(async () => {
+      if (text.trim() !== task.text) {
+        const why = await setTaskText(task.id, text)
+        if (why) return why
+      }
+      if (due.trim() !== task.due) return setTaskDue(task.id, due)
+      return undefined
+    }, true)
+
+  return (
+    <div>
+      <textarea
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        rows={2}
+        aria-label="What needs doing"
+        className="pad-serif w-full resize-none rounded-lg border border-[var(--color-line)] bg-[var(--color-hover)] px-2.5 py-2 text-[15px] leading-snug outline-none focus:border-[var(--color-faint)]"
+      />
+
+      <label className="mt-2 block">
+        <span className="text-[12px] text-[var(--color-faint)]">
+          When, in your own words — “Friday”, “end of the month”
+        </span>
+        <input
+          value={due}
+          onChange={(event) => setDue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && changed) save()
+          }}
+          aria-label="When it is for"
+          className="mt-1 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-hover)] px-2.5 py-1.5 text-[14px] outline-none focus:border-[var(--color-faint)]"
+        />
+      </label>
+
+      <div className="mt-3">
+        <p className="text-[12px] text-[var(--color-faint)]">Whose it is</p>
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {members.map((member) => {
+            const mine = task.assigneeName === member.name
+            return (
+              <button
+                key={member.email}
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void run(() =>
+                    mine
+                      ? setTaskAssignee(task.id, null, '')
+                      : setTaskAssignee(task.id, member.userId, member.name),
+                  )
+                }
+                className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[13px] ${
+                  mine
+                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] font-medium text-[var(--color-ink)]'
+                    : 'border-[var(--color-line)] text-[var(--color-muted)] hover:border-[var(--color-faint)]'
+                }`}
+              >
+                {member.name}
+                {mine && <Check size={12} />}
+              </button>
+            )
+          })}
+          {!task.assigneeName && (
+            <span className="self-center text-[12px] text-[var(--color-faint)]">Nobody yet</span>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 border-t border-[var(--color-line)] pt-3">
+        <button
+          type="button"
+          onClick={() => void run(() => setTaskDone(task.id, !task.done))}
+          disabled={busy}
+          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[14px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)] disabled:opacity-50"
+        >
+          {task.done ? <Circle size={15} /> : <CircleCheck size={15} />}
+          {task.done ? 'Not done after all' : 'Done'}
+        </button>
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy || !changed}
+          className="ml-auto shrink-0 rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-[14px] font-medium text-white disabled:opacity-40"
+        >
+          Save
+        </button>
+      </div>
+
+      {asking ? (
+        <div className="mt-2 rounded-lg bg-[var(--color-hover)] p-2.5">
+          <p className="text-[13px]">Delete this task? It comes off the board for everybody.</p>
+          <div className="mt-2 flex gap-1.5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void run(() => deleteTask(task.id), true)}
+              className="rounded-md bg-[var(--color-danger)] px-2.5 py-1.5 text-[13px] text-white disabled:opacity-50"
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={() => setAsking(false)}
+              className="rounded-md px-2.5 py-1.5 text-[13px] text-[var(--color-muted)]"
+            >
+              Keep it
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAsking(true)}
+          className="mt-1 flex items-center gap-2 rounded-lg px-2 py-2 text-[14px] text-[var(--color-danger)] hover:bg-[var(--color-hover)]"
+        >
+          <Trash2 size={15} />
+          Delete this task
+        </button>
+      )}
+
+      {/* Where it came from, said rather than linked: the chat is the
+          record, and this is a reading of one line of it. */}
+      <p className="mt-2 text-[12px] text-[var(--color-faint)]">
+        {task.sourceMessage ? 'Read out of a message in the chat.' : 'Added by hand.'} Correcting
+        it here does not change what was said.
+      </p>
+
+      {problem && <p className="mt-2 text-[12px] text-[var(--color-danger)]">{problem}</p>}
     </div>
   )
 }
@@ -1451,7 +1735,16 @@ function Board({
  * knows, and a wrong date on somebody else's task is worse than a vague
  * one.
  */
-function Row({ task, onChanged }: { task: TeamTask; onChanged: () => void }) {
+function Row({
+  task,
+  onChanged,
+  onOpen,
+}: {
+  task: TeamTask
+  onChanged: () => void
+  /** Opens the detail. Changes nothing by itself. */
+  onOpen: () => void
+}) {
   const [busy, setBusy] = useState(false)
   const [asking, setAsking] = useState(false)
 
@@ -1473,17 +1766,27 @@ function Row({ task, onChanged }: { task: TeamTask; onChanged: () => void }) {
       >
         {task.done ? <CircleCheck size={16} /> : <Circle size={16} />}
       </button>
-      <div className="min-w-0 flex-1">
-        <p className={`text-[15px] leading-snug ${task.done ? 'text-[var(--color-faint)] line-through' : ''}`}>
+      {/*
+        The words open it. A task typed into a chat at speed has a wrong
+        one in it often enough that "tap it to fix it" is the first thing
+        anybody tries, and until now nothing happened.
+      */}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Open “${task.text}”`}
+        className="min-w-0 flex-1 text-left"
+      >
+        <span className={`block text-[15px] leading-snug ${task.done ? 'text-[var(--color-faint)] line-through' : ''}`}>
           {task.text}
-        </p>
+        </span>
         {(task.assigneeName || task.due) && (
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-[var(--color-muted)]">
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-[var(--color-muted)]">
             {task.assigneeName && <span>{task.assigneeName}</span>}
             {task.due && <span>{task.due}</span>}
-          </p>
+          </span>
         )}
-      </div>
+      </button>
       {asking ? (
         <span className="flex shrink-0 items-center gap-1">
           <button

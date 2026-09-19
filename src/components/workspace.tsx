@@ -555,6 +555,43 @@ export default function Workspace() {
   )
 
   /**
+   * Corrects the wording of one line, from the Actions tab.
+   *
+   * ## Why this writes into the note, and says so
+   *
+   * Because in your own notes the task *is* the line. "Ring the landlord
+   * about the boiler" is not a record of a line somewhere else — it is that
+   * line, in that note, and there is nowhere else for a correction to it to
+   * live. Keeping an edited copy beside the note would be a second version
+   * of somebody's writing that the note itself disagrees with, which is the
+   * one thing this app does not do with anything: a favourite is one field
+   * on the note, a tick is the box itself, a delete takes the line out.
+   *
+   * So the sheet that offers this says which note the line is in and says
+   * plainly that correcting it here corrects it there. What it does *not*
+   * do is anything else to the note: the line stays where it was, keeps its
+   * kind, and nothing around it moves.
+   *
+   * The painting goes with the old words. `html` was a span-by-span
+   * rendering of a sentence that no longer exists, and carrying it over
+   * would put somebody's bold in the middle of a word they have just
+   * rewritten.
+   */
+  const retextBlock = useCallback(
+    (docId: string, blockId: string, text: string) =>
+      void changeBlock(docId, blockId, (block) => {
+        const wanted = text.trim()
+        if (!wanted) return null
+        if (!isTextish(block) && block.type !== 'todo') return null
+        if (block.text === wanted) return null
+        const next = { ...block, text: wanted }
+        delete (next as { html?: string }).html
+        return next
+      }),
+    [changeBlock],
+  )
+
+  /**
    * Takes lines out of a note for good, from the Actions tab.
    *
    * Several at once, because clearing a note's worth of finished boxes is one
@@ -616,16 +653,18 @@ export default function Workspace() {
   )
 
   /**
-   * A note out of the World, copied into your own.
+   * Words from somewhere else, kept as a note of your own.
    *
-   * A copy, and nothing more: fresh ids, your own note, saved on the device
-   * like anything else you wrote. It is deliberately not a link back to the
-   * original — a row in somebody's list that another person can edit or take
-   * down is not a thing a notes app should have — and it deliberately does
-   * not open, because saving several while reading is one gesture and being
-   * thrown into the editor after each one is not.
+   * Two callers, and the same bargain for both: a note out of the World,
+   * and a solution Brainstorm wrote about something outstanding. A copy and
+   * nothing more — fresh ids, your own note, saved on the device like
+   * anything else you wrote. It is deliberately not a link back to wherever
+   * it came from, because a row in somebody's list that another person can
+   * edit or take down is not a thing a notes app should have, and it
+   * deliberately does not open: keeping two while reading is one gesture
+   * and being thrown into the editor after each one is not.
    */
-  const saveFromWorld = useCallback(
+  const noteFrom = useCallback(
     async (note: { title: string; blocks: Block[] }) => {
       const blocks = note.blocks.map((block) => ({ ...block, id: newId() }))
       await addNote({ title: note.title, blocks: blocks.length ? blocks : [makeBlock('text')] })
@@ -778,6 +817,7 @@ export default function Workspace() {
           onTick={tickBox}
           onUntick={untickBox}
           onMakeBox={makeBox}
+          onRetext={retextBlock}
           onRemove={removeBlocks}
           onPutBack={(docId, removed) => void putBackBlocks(docId, removed)}
           onRestore={(id) => void restoreDoc(id)}
@@ -786,7 +826,7 @@ export default function Workspace() {
           onRecord={recordNote}
           aiReady={aiReady}
           transcribes={transcribes}
-          onSaveFromWorld={saveFromWorld}
+          onNewNote={noteFrom}
           account={account}
           syncState={syncState}
           onSignedIn={(next) => void signIn(next)}
