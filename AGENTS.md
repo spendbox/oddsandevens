@@ -1035,6 +1035,83 @@ a page.
   does not grow with how much has been written. The solution names the notes
   it was written from, for the same reason an answer carries its sources.
 
+- **A modal is three things, and `modal.ts` is all three.** The page behind
+  it does not scroll — a `fixed` sheet leaves the document scrollable, and
+  on a phone focusing a field inside one makes the browser scroll the page
+  underneath, which slides about behind a box that does not move and reads
+  as a rendering fault. Nothing behind it can be pressed — an overlay covers
+  everything the app draws, but not the recorder, which is a portal on
+  `document.body` and was therefore painted on top of every dialog in the
+  app. And Escape closes it. Anything pinned to a corner asks
+  `useModalIsOpen` and gets out of the way; the count is a count, because a
+  confirmation can open over a sheet.
+- **A modal closes on the overlay's click; a menu closes on pointerdown.**
+  `useDismiss` fires on **pointerdown**, which is right for a dropdown — the
+  trigger has to be able to toggle it — and wrong for a sheet: the panel is
+  gone before the finger lifts, so the `click` that follows lands on
+  whatever is now underneath. Tapping the dark area to dismiss a sheet was
+  pressing a note row behind it. A modal's overlay is a real element
+  covering the screen, so its own `onClick` is the whole of the dismissal,
+  and a click happens on the way up, on the overlay, and goes nowhere else.
+- **A ref that is never attached is the quietest kind of wrong.**
+  `--pad-header` is measured off the app's bar by a `ResizeObserver` and the
+  team's own bar sticks at it — and for two versions the `ref` was not on
+  the `<header>`, so the property was never written and the fallback,
+  `0px`, was silently in use. Nothing looked broken while the greeting did
+  not stick in Team, because `top: 0` was where the team's bar wanted to be
+  anyway. The moment both bars stuck, the second one was drawn under the
+  first. When a measurement has a fallback, test the measurement, not the
+  look of it.
+- **Padding, not a margin, under anything that gets measured.** The gap
+  below the greeting was `mb-4`, and in Team there is nothing after it
+  inside the header — so it was a last child's bottom margin with no
+  padding or border below it, and it collapsed straight through and out.
+  `offsetHeight` does not count a margin that has escaped, so the bar
+  measured sixteen pixels short.
+- **A long request needs `maxDuration`, and the reply may not be JSON.**
+  Everything else in `api/ai` answers in a second or two; Brainstorm asks
+  the largest model to write an email out in full and takes twenty to
+  sixty. A serverless function's default limit is ten, so the platform
+  killed the request and returned an HTML error page — `response.json()`
+  threw on it, and the screen reported a dead network for something that
+  was working perfectly and simply not finished. That was the whole of "no
+  solution ever appears". `maxDuration = 60`, a `maxTokens` low enough to
+  come back inside it, and a reader that treats an unparseable reply as the
+  timeout it is rather than as a network fault.
+- **A failure is a screen, not a line under something else.** A request
+  that died used to put the reader back on the questions with a red line at
+  the bottom of a box they had scrolled — off the screen entirely on a
+  phone — so a request that failed and a request that produced nothing
+  looked identical. What went wrong is the whole content of the screen when
+  something has, with the way to try again on it.
+- **A number of questions is a number, not a range.** "Two to four" got two
+  one time and four the next, which reads as the thing being unreliable
+  rather than as it having less to ask. Three, always, said twice in the
+  prompt.
+- **Ticking is undoable for five seconds, like everything else that takes a
+  row off a list.** A tick loses nothing — it is written into the note, or
+  onto the team's board, and it is under Done — but the row disappears in
+  exactly the way a delete's does, and on a phone it happens about as often:
+  small boxes, a scrolling thumb. The same bar, the same countdown, and it
+  says "Ticked" rather than "Deleted", because a bar that called it a delete
+  would read as data loss for the one action here that loses nothing.
+- **The bar you write in is dark.** It is the one thing on either screen
+  somebody came there to press, and it was a pale pill on pale paper at the
+  same weight as the search field and the tabs. Ink on paper inverts with
+  the theme for free, because both are the variables the page is already
+  made of — and it is not a third colour, which the rule about green and
+  yellow would not allow.
+- **A field that narrows a list does not scroll away with it.** Brainstorm's
+  chooser pins the "which one?" box above the list, and the rows are ruled
+  off from each other: they are sentences of similar length, and without a
+  line between them a list of them reads as a paragraph.
+- **A team is searched the same way the notes are**, and on the device for
+  the same reason: the chat and the board are already in memory, polled
+  every ten seconds, so asking the server would be a round trip for an
+  answer sitting in a variable. A button at the end of the row of tabs, and
+  it looks in whichever of the two you are on — one box searching both is
+  how somebody learns to distrust it.
+
 ## Checking work
 
 `npm test` covers the line beautifier, the compose parsing, the search index,

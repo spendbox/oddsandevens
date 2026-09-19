@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useModal } from './modal'
 
 /**
  * A question, asked once, before something that cannot be taken back by
@@ -37,19 +38,42 @@ export default function Confirm({
 
   /*
     The safe answer takes the focus, so Return does the harmless thing and the
-    keyboard can reach both. Escape cancels, which is what Escape means.
+    keyboard can reach both.
   */
   useEffect(() => {
-    if (!open) return
-    keep.current?.focus()
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onCancel])
+    if (!open) keep.current?.blur()
+    else keep.current?.focus()
+  }, [open])
 
   if (!open) return null
+  return <Asking keep={keep} title={title} body={body} confirmLabel={confirmLabel} onConfirm={onConfirm} onCancel={onCancel} />
+}
+
+/**
+ * The question itself, as its own component so the modal rules are hooks.
+ *
+ * `Confirm` takes an `open` flag rather than being mounted and unmounted by
+ * its caller — every one of them keeps the thing being asked about in state
+ * — and a hook cannot be called conditionally. So the inside is a component
+ * that exists only while the question does, and `useModal` locks the page
+ * and binds Escape for exactly that long.
+ */
+function Asking({
+  keep,
+  title,
+  body,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  keep: React.RefObject<HTMLButtonElement | null>
+  title: string
+  body?: string
+  confirmLabel: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useModal(onCancel)
 
   return (
     <>

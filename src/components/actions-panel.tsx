@@ -20,6 +20,7 @@ import { brainstormKey, dropSolution, useSolutions, type Solution } from '@/lib/
 import { dismissKey, useDismissed } from '@/lib/dismissed'
 import type { Block, Doc, RemovedBlock } from '@/lib/types'
 import Confirm from './confirm'
+import DocIcon from './doc-icon'
 import Sheet from './sheet'
 import SwipeAway from './swipe-away'
 
@@ -117,11 +118,22 @@ const UNDO_SECONDS = 5
  * be both at once.
  */
 interface Undoable {
-  /** What to call it on the bar. */
+  /** What to call it on the bar, as the bar will say it. */
   label: string
   docId?: string
   removed?: RemovedBlock[]
   keys?: string[]
+  /**
+   * Anything else that putting it back means.
+   *
+   * Ticking is the third thing this screen does that takes a row off the
+   * list, and the only one that was not undoable — which made it the
+   * easiest mistake on a screen of small boxes under a thumb. It is not a
+   * delete, so there is nothing to put back: the undo is simply the
+   * opposite action, and it goes on the same bar as the other two rather
+   * than inventing a second one.
+   */
+  put?: () => void
 }
 
 export default function ActionsPanel({
@@ -223,8 +235,31 @@ export default function ActionsPanel({
     if (!undoable) return
     if (undoable.removed?.length && undoable.docId) onPutBack(undoable.docId, undoable.removed)
     if (undoable.keys?.length) offerAgain(undoable.keys)
+    undoable.put?.()
     setUndoable(null)
   }
+
+  /**
+   * Ticking something, with five seconds to say it was the wrong one.
+   *
+   * A tick takes the row off the list, which on a phone is the same
+   * disappearance a delete causes and happens by accident about as often:
+   * the boxes are small, they are under a scrolling thumb, and the row
+   * that was there a moment ago is now somewhere in a fold at the bottom
+   * of the screen. Nothing is lost either way — it is written into the
+   * note and can be found under Done — but "where did that go" is a
+   * question the undo bar answers in the second it is asked.
+   */
+  const tick = (item: ActionItem) => {
+    onTick(item.docId, item.blockId)
+    offer({
+      label: item.text,
+      put: () => onUntick(item.docId, item.blockId),
+    })
+  }
+
+  /** The note a group came from, for the picture beside its name. */
+  const noteFor = (docId: string) => docs.find((doc) => doc.id === docId)
 
   /**
    * Getting rid of one line.
@@ -344,13 +379,11 @@ export default function ActionsPanel({
               an idea about one thing, so it wears the picture of one.
             */}
             <Lightbulb size={16} className="shrink-0 text-[var(--color-accent)]" />
-            <span className="min-w-0">
-              <span className="block text-[14px] font-medium text-[var(--color-ink)]">
-                Brainstorm
-              </span>
-              <span className="block text-[12px] text-[var(--color-faint)]">
-                Pick one of these and it works out what to actually do — and drafts it.
-              </span>
+            {/* One word. What it does is explained by the screen it opens,
+                which asks a question in a sentence — a paragraph of it here
+                is a paragraph above a button nobody has pressed yet. */}
+            <span className="min-w-0 text-[14px] font-medium text-[var(--color-ink)]">
+              Brainstorm
             </span>
           </button>
         </section>
@@ -371,6 +404,21 @@ export default function ActionsPanel({
                 the context, and a task read without it is a line somebody has
                 to go and re-read anyway.
               */}
+              {/*
+                The note's own picture, the same one its row in the list
+                wears. A column of six group headings in identical grey is
+                six things to read one at a time; the icon is what makes
+                "that was the meeting one" findable without reading. It
+                costs nothing — a table of words in lib/doc-icon.ts — and
+                it is the same answer here as on the note.
+              */}
+              {noteFor(group.docId) && (
+                <DocIcon
+                  doc={noteFor(group.docId)!}
+                  size={14}
+                  className="shrink-0 text-[var(--color-faint)]"
+                />
+              )}
               <button
                 type="button"
                 onClick={() => onOpen(group.docId)}
@@ -400,9 +448,7 @@ export default function ActionsPanel({
                   onOpen={() => setOpen(item)}
                   onAway={() => away(item)}
                   onAct={() =>
-                    item.kind === 'box'
-                      ? onTick(item.docId, item.blockId)
-                      : onMakeBox(item.docId, item.blockId)
+                    item.kind === 'box' ? tick(item) : onMakeBox(item.docId, item.blockId)
                   }
                 />
               ))}
@@ -474,7 +520,10 @@ export default function ActionsPanel({
         <div className="pointer-events-none fixed inset-x-0 bottom-[4.75rem] z-30 px-4">
           <div className="pointer-events-auto mx-auto flex w-full max-w-3xl items-center gap-2 rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] py-2 pr-2 pl-4 shadow-lg">
             <p className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-muted)]">
-              Deleted “{undoable.label}”
+              {/* A tick is not a delete, and a bar that says it is would
+                  read as data loss for the one action here that loses
+                  nothing at all. */}
+              {undoable.put ? 'Ticked' : 'Deleted'} “{undoable.label}”
             </p>
             <span aria-hidden className="shrink-0 text-[12px] text-[var(--color-faint)]">
               {left}
@@ -699,12 +748,21 @@ function Detail({
 
   return (
     <div>
+      {/*
+        Room to write in, not a slot to correct a typo in.
+
+        It was two lines high, which is the height of the line it holds and
+        therefore the height at which every correction longer than the
+        original scrolls inside a box the size of a stamp. This is a field
+        somebody rewrites a sentence in, so it is the size of a few
+        sentences.
+      */}
       <textarea
         value={text}
         onChange={(event) => setText(event.target.value)}
-        rows={2}
+        rows={4}
         aria-label="The words of this line"
-        className="pad-serif w-full resize-none rounded-lg border border-[var(--color-line)] bg-[var(--color-hover)] px-2.5 py-2 text-[15px] leading-snug outline-none focus:border-[var(--color-faint)]"
+        className="pad-serif min-h-[6rem] w-full resize-y rounded-lg border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-2.5 text-[16px] leading-relaxed outline-none focus:border-[var(--color-faint)]"
       />
       <div className="mt-1.5 flex items-center gap-2">
         <p className="min-w-0 flex-1 text-[12px] text-[var(--color-faint)]">

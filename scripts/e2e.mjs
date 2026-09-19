@@ -52,11 +52,14 @@ const errors = []
 page.on('pageerror', (e) => errors.push(String(e)))
 page.on('console', (m) => {
   /*
-    A request this suite aborted on purpose — the "the model cannot be
-    reached" case — is reported by the browser as a failed resource. It is the
-    thing being tested, not a fault, and it is the only one allowed through.
+    Two things this suite does on purpose are reported by the browser as
+    errors: a request it aborted — the "the model cannot be reached" case —
+    and a request it answers with a 504, which is what a platform killing a
+    long one looks like. Both are the thing being tested, not a fault, and
+    they are the only two allowed through.
   */
-  if (m.type() === 'error' && !/ERR_FAILED/.test(m.text())) errors.push('console: ' + m.text())
+  const deliberate = /ERR_FAILED/.test(m.text()) || /status of 504/.test(m.text())
+  if (m.type() === 'error' && !deliberate) errors.push('console: ' + m.text())
 })
 
 /* ------------------------------------------------------------------ helpers */
@@ -1085,6 +1088,15 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
       if (held === 'wait') {
         await new Promise((resolve) => setTimeout(resolve, 4000))
       }
+      /*
+        What a request that outlived the platform's limit actually looks
+        like: a 504 carrying an HTML error page, not JSON. It is the
+        failure that made Brainstorm look like it never worked, so it is
+        the one worth having a test for.
+      */
+      if (held === 'timeout') {
+        return route.fulfill({ status: 504, contentType: 'text/html', body: '<html>upstream timeout</html>' })
+      }
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -1122,6 +1134,35 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await page.waitForTimeout(300)
   const sheet = page.locator('[role="dialog"][aria-label="Brainstorm"]')
   log('it opens by asking which one thing', await sheet.isVisible())
+  log(
+    'and says so in one line rather than a paragraph',
+    /let.s solve it together/i.test(await sheet.innerText()) &&
+      !/what to actually do/i.test(await page_text()),
+  )
+  log(
+    'the things to choose from are ruled off from each other',
+    await page.evaluate(() => {
+      const list = document.querySelector('[role="dialog"][aria-label="Brainstorm"] ul')
+      if (!list || list.children.length < 2) return false
+      // A rule between them and not under the last one, which is what
+      // `divide-y` draws: a bottom border on everything but the last.
+      const rows = [...list.children].map((row) => getComputedStyle(row).borderBottomWidth)
+      return rows.slice(0, -1).every((width) => width !== '0px') && rows[rows.length - 1] === '0px'
+    }),
+  )
+  /*
+    A modal stops the page behind it. Both halves of that: the document
+    cannot scroll, and the recorder — a portal on document.body, painted
+    after everything the app draws — is not sitting on top of the dialog.
+  */
+  log(
+    'the page behind a modal does not scroll',
+    (await page.evaluate(() => getComputedStyle(document.body).overflow)) === 'hidden',
+  )
+  log(
+    'and the recorder is not on top of it',
+    (await page.locator('[aria-label*="ecord"]').count()) === 0,
+  )
 
   // Pick the first thing on the list it offers.
   const first = sheet.locator('ul button').first()
@@ -1152,6 +1193,10 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await page.waitForTimeout(400)
 
   log(
+    'the page scrolls again once it is closed',
+    (await page.evaluate(() => getComputedStyle(document.body).overflow)) !== 'hidden',
+  )
+  log(
     'afterwards the row it was about says a solution exists',
     (await page.locator('button:has-text("Solution")').count()) >= 1,
   )
@@ -1174,6 +1219,32 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     /corrects it there/i.test(await detail.innerText()),
     (await detail.innerText()).split('\n').slice(0, 4).join(' / '),
   )
+  /*
+    And a press on the dark area closes it and does nothing else.
+
+    It used to close on pointerdown, so the panel was gone before the
+    finger lifted and the click that followed landed on whatever was now
+    underneath — a note row, a tab, a caret in the page. Pressing the
+    overlay where a tab sits behind it is the test: the sheet goes, and
+    the tab does not change.
+  */
+  {
+    const tabWas = await page.locator('[role="tab"][aria-selected="true"]').innerText()
+    const box = await page.locator('[role="tab"][aria-selected="true"]').boundingBox()
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+    await page.waitForTimeout(500)
+    log(
+      'pressing outside closes it',
+      (await page.locator('[role="dialog"]').count()) === 0,
+    )
+    log(
+      'and does not press what was behind it',
+      (await page.locator('[role="tab"][aria-selected="true"]').innerText()) === tabWas,
+      tabWas.replace(/\n/g, ' '),
+    )
+    await page.locator(`[aria-label="Open “${picked.replace(/"/g, '\\"')}”"]`).first().click()
+    await page.waitForTimeout(400)
+  }
 
   // Correcting the wording writes into the note, because the line is the task.
   const fixed = `${picked} (properly)`
@@ -1189,6 +1260,36 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     'and it is written there, so a reload agrees',
     /\(properly\)/.test(await page_text()),
   )
+
+  /*
+    A request the platform killed says so, on a screen of its own. It used
+    to put a red line at the bottom of a scrolled box and send the reader
+    back to the questions, which on a phone is indistinguishable from
+    nothing having happened at all.
+  */
+  held = 'timeout'
+  await page.locator('button:has-text("Brainstorm")').first().click()
+  await page.waitForTimeout(300)
+  await page.locator('[role="dialog"][aria-label="Brainstorm"] ul button').first().click()
+  await page.waitForTimeout(800)
+  await page
+    .locator('[role="dialog"][aria-label="Brainstorm"] button:has-text("Work it out")')
+    .click()
+  await page.waitForTimeout(1200)
+  log(
+    'a request that ran out of time says that, rather than blaming the network',
+    /took too long/i.test(
+      await page.locator('[role="dialog"][aria-label="Brainstorm"]').innerText(),
+    ),
+  )
+  log(
+    'and offers to try it again',
+    await page
+      .locator('[role="dialog"][aria-label="Brainstorm"] button:has-text("Try it again")')
+      .isVisible(),
+  )
+  await page.locator('[role="dialog"][aria-label="Brainstorm"] [aria-label="Close"]').last().click()
+  await page.waitForTimeout(400)
 
   // A refusal is an answer, and is printed as one.
   held = 'refuse'
@@ -1235,6 +1336,48 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
     'and when it comes back the row says there is a solution',
     (await page.locator('button:has-text("Working on it")').count()) === 0 &&
       (await page.locator('button:has-text("Solution")').count()) >= 1,
+  )
+
+  /*
+    Ticking is the third thing on this screen that takes a row off the
+    list, and until now the only one you could not take back — which
+    made it the easiest mistake on a screen of small boxes under a
+    thumb.
+  */
+  {
+    const box = page.locator('[aria-label^="Tick"]').first()
+    if (await box.count()) {
+      const what = await box.getAttribute('aria-label')
+      await box.click()
+      await page.waitForTimeout(900)
+      log(
+        'ticking something offers five seconds to say it was the wrong one',
+        (await page.locator('button:has-text("Undo")').count()) === 1,
+      )
+      log(
+        'and the bar says it was ticked rather than deleted',
+        /ticked/i.test(await page.locator('button:has-text("Undo")').locator('..').innerText()),
+      )
+      await page.locator('button:has-text("Undo")').click()
+      await page.waitForTimeout(1000)
+      log(
+        'and undoing it puts it back outstanding',
+        (await page.locator(`[aria-label="${what}"]`).count()) === 1,
+        what,
+      )
+    }
+  }
+
+  // The note each group came from wears its own picture, the same one its
+  // row in the list has.
+  log(
+    'each group of actions is headed by its note’s own icon',
+    await page.evaluate(() =>
+      [...document.querySelectorAll('section')].some((section) => {
+        const head = section.querySelector(':scope > div')
+        return !!head && !!head.querySelector('svg') && !!head.querySelector('button')
+      }),
+    ),
   )
 
   await page.unroute('**/api/ai')
