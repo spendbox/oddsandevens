@@ -35,10 +35,27 @@ import { useSyncExternalStore } from 'react'
  * reads the answer.
  */
 
-/** How often to ask, while the app is open. */
-const EVERY_MS = 30 * 60_000
-/** How long away is long enough that coming back is worth a check. */
-const STALE_MS = 15 * 60_000
+/**
+ * How often to ask, while the app is open.
+ *
+ * Every ten minutes rather than every thirty. The check is one conditional
+ * request for a file the browser already has cached — a few hundred bytes
+ * when nothing has changed — and the thing it is competing against is an
+ * installed app running a version from three deploys ago because nobody
+ * closed the tab. Cheap enough to do often, and doing it often is the whole
+ * point of having it.
+ */
+const EVERY_MS = 10 * 60_000
+/**
+ * How long away is long enough that coming back is worth a check.
+ *
+ * Two minutes. Coming back to a phone after lunch is the single most likely
+ * moment for a deploy to have happened since you last looked, and fifteen
+ * minutes was long enough that the commonest way of using an installed app
+ * — open it, do a thing, put it down, pick it up again — never triggered
+ * one at all.
+ */
+const STALE_MS = 2 * 60_000
 
 let ready = false
 let last = 0
@@ -107,11 +124,27 @@ export function watchForUpdates() {
   else window.addEventListener('load', register, { once: true })
 
   setInterval(check, EVERY_MS)
-  document.addEventListener('visibilitychange', () => {
+  const ifStale = () => {
     // Coming back after a while is when an app on a phone is most likely to
     // have missed a deploy. Coming back after ten seconds is not.
-    if (document.visibilityState === 'visible' && Date.now() - last > STALE_MS) check()
+    if (Date.now() - last > STALE_MS) check()
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') ifStale()
   })
+  /*
+    And on the other two ways back into an app that was left open.
+
+    `visibilitychange` covers switching apps on a phone and switching tabs
+    on a desktop. It does not fire for a window that was behind another
+    window and has been clicked on, and it does not fire when a laptop wakes
+    with the tab already in front — both of which are somebody returning to
+    an app that has been sitting there for hours. `focus` and coming back
+    online catch those, and the staleness check means none of the three
+    costs anything when they overlap.
+  */
+  window.addEventListener('focus', ifStale)
+  window.addEventListener('online', ifStale)
 }
 
 function subscribe(listener: () => void): () => void {

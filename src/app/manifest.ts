@@ -43,10 +43,20 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: 'en',
     dir: 'ltr',
     background_color: '#ffffff',
-    // The app's own green, the same one in globals.css. It was indigo, from
-    // an earlier life, and it painted the phone's status bar the wrong colour
-    // for anybody who installed it.
-    theme_color: '#1f7a52',
+    /*
+      The paper colour, because this is what paints the phone's status bar.
+
+      It was the app's green, which is right for a button and wrong for the
+      strip at the top of the screen: installed, the app had a green band
+      above it carrying the time and the battery, and the page underneath was
+      white. An installed app should reach the top of the screen and be one
+      surface; the bar is part of the app, not a frame around it.
+
+      A manifest cannot answer two colours, so this is the light one and the
+      `themeColor` meta pair in layout.tsx — which a browser prefers over
+      this — carries the dark.
+    */
+    theme_color: '#ffffff',
     categories: ['productivity', 'utilities'],
     icons: [
       { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

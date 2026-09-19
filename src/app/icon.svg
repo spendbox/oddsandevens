@@ -1,16 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6366f1"/>
-      <stop offset="1" stop-color="#4f46e5"/>
+      <stop offset="0" stop-color="#2a9367"/>
+      <stop offset="1" stop-color="#17603f"/>
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="15" fill="url(#g)"/>
-  <!-- A text cursor between two serifs: the app's whole promise is that this
-       is blinking and ready the moment the page opens. -->
-  <g stroke="#fff" stroke-width="4.5" stroke-linecap="round" fill="none">
-    <path d="M25 19h14"/>
-    <path d="M32 19v26"/>
-    <path d="M25 45h14"/>
-  </g>
+  <!--
+    One pad: everything goes on the same one, so there is a single sheet here
+    rather than a stack, a folder or a tree. It was a text cursor between two
+    serifs, in indigo, which said "a field you can type in" and belonged to a
+    different name.
+
+    The sheet is a silhouette rather than an outline, because a one-pixel
+    stroke disappears at sixteen pixels on a home screen and a solid shape
+    does not — and the rounded white shape with one bar through it reads as a
+    stylised O, which is the letter the name starts with. A numeral 1 was
+    tried here and is deliberately not what this is: it was more literal and
+    less of a mark.
+
+    scripts/make-icons.py draws the PNGs from these same numbers. Change one,
+    run the other.
+  -->
+  <rect x="17" y="12" width="30" height="40" rx="5" fill="#fff"/>
+  <path d="M25 32h14" stroke="#17603f" stroke-width="4.5" stroke-linecap="round" fill="none"/>
 </svg>

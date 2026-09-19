@@ -355,7 +355,20 @@ export default function NotesScreen({
         next. Flipping between Me and Team resized the whole app. The list
         is a list on both sides and it takes the same room.
       */}
-      <div className="mx-auto w-full max-w-5xl px-4 pb-32 sm:px-8 sm:pb-32">
+      {/*
+        The room at the foot of the page is for the things floating over it,
+        and Team has none of them.
+
+        Eight rems of padding is what keeps the last note clear of the bar
+        that writes one and the recorder in the corner. In Team there is
+        neither: the chat's own box is `sticky bottom-0` inside the page, so
+        all that padding did was put eight rems of nothing underneath it —
+        the box stopped following the bottom of the screen and left a gap
+        below itself as soon as you scrolled up.
+      */}
+      <div
+        className={`mx-auto w-full max-w-5xl px-4 sm:px-8 ${team ? 'pb-0' : 'pb-32 sm:pb-32'}`}
+      >
         {/*
           The greeting, the search field and the tabs stay at the top while
           the notes scroll under them.

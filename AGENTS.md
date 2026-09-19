@@ -1097,6 +1097,57 @@ a page.
   comes back with all of them; do not leave the tier behind for a caller
   that no longer exists.
 
+- **A sticky offset is measured, never written down.** The day headings in
+  the notes stuck at `8.6rem`, and `9.8rem` on a wider screen — right on
+  the day somebody measured them, and wrong as soon as the greeting shrank
+  and the tabs grew a count: "Today" began sticking half-hidden behind the
+  row of pills above it. Every sticky thing in this app now reads
+  `--pad-header`, which a `ResizeObserver` writes off the bar itself. Two
+  numbers in a stylesheet cannot be kept in step with a layout that
+  changes.
+- **The phone's own bar is part of the app, not a frame around it.**
+  `theme_color` paints the strip with the time and the battery in an
+  installed app, and it was the accent green above a white page — which
+  reads as an app in a green box. It is `--color-paper` now, in both
+  themes: the manifest carries the light one, the `themeColor` meta pair in
+  `layout.tsx` carries both and wins where a browser reads it.
+- **An installed app is checked often, because it is never closed.** Every
+  ten minutes, on becoming visible, on the window taking focus, and on
+  coming back online — the last two because `visibilitychange` does not
+  fire for a window that was merely behind another one, or for a laptop
+  waking with the tab already in front, and both of those are somebody
+  returning to an app that has sat there for hours. A staleness check means
+  the four overlapping never costs more than one request, and the request
+  is a conditional GET for a file the browser already has.
+- **A chat truncates; a note does not.** A chat is a record you scroll
+  through, so one person pasting four hundred words took the whole screen
+  and pushed everybody else's two-line answers off it. Six lines and "read
+  all of it", which opens the sheet everything else opens in — never an
+  expand-in-place, which pushes every message below it down the screen and
+  is the thing being fixed.
+- **The room at the foot of the page belongs to what floats over it.** The
+  container's `pb-32` clears the bar that writes a note and the recorder in
+  the corner; Team has neither, and all that padding did there was put
+  eight rems of nothing under a `sticky bottom-0` chat box — which then
+  stopped following the bottom of the screen and left a gap below itself.
+  Padding for a fixed thing goes on in the mode the fixed thing exists in.
+- **A team's task says when it was added; a box in a note cannot.** The
+  board has a real `created_at`, and on a shared list "added three days
+  ago" is what says whether you are reading this morning or last month. A
+  box in your own notes is a *line*, and a line has no timestamp of its
+  own — inventing one would mean a field per block, in storage and over the
+  wire, to date something the note already dates. The group heading carries
+  the note's time instead, which is true, and is not dressed up as more
+  precise than it is.
+- **The mark is one pad with one bar through it.** It was a text cursor
+  between two serifs, in indigo, which said "a field you can type in" and
+  belonged to a different name. A silhouette rather than an outline, because
+  a one-pixel stroke disappears at sixteen pixels on a home screen, and two
+  colours in total — and the rounded white shape with a bar through it reads
+  as a stylised O. A numeral 1 was tried and taken out again: more literal,
+  and less of a mark. `scripts/make-icons.py` draws the PNGs from the same
+  numbers as `src/app/icon.svg` — change one, run the other.
+
 ## Checking work
 
 `npm test` covers the line beautifier, the compose parsing, the search index,

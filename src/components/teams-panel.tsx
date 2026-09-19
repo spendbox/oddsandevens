@@ -59,7 +59,7 @@ import {
   type TeamMessage,
   type TeamTask,
 } from '@/lib/teams'
-import { stamp } from '@/lib/when'
+import { stamp, when } from '@/lib/when'
 import ComposeSheet from './compose-sheet'
 import { TeamIcon } from './doc-icon'
 import { useDismiss } from './dismiss'
@@ -103,6 +103,9 @@ import Sheet from './sheet'
 const POLL_MS = 10_000
 /** How long an undo stays on offer, the same as it is on your own Actions. */
 const UNDO_SECONDS = 5
+/** How much of a long message a card shows before it offers the rest. */
+const CLAMP_LINES = 6
+const CLAMP_CHARS = 420
 
 export default function TeamsPanel({
   me,
@@ -1123,6 +1126,8 @@ function Chat({
   const [problem, setProblem] = useState<string | undefined>()
   /** What is being answered, and what is being corrected. One at a time. */
   const [replying, setReplying] = useState<TeamMessage | null>(null)
+  /** A long message opened in full, because the card only shows the top of it. */
+  const [reading, setReading] = useState<TeamMessage | null>(null)
   /** Whether the box is open. The bar below is what opens it. */
   const [writing, setWriting] = useState(false)
   const [editing, setEditing] = useState<TeamMessage | null>(null)
@@ -1384,9 +1389,7 @@ function Chat({
                     </div>
                   </div>
                 ) : (
-                  <p className="pad-serif text-[15px] leading-relaxed whitespace-pre-wrap">
-                    {message.body}
-                  </p>
+                  <Said body={message.body} onOpen={() => setReading(message)} />
                 )}
 
                 {/*
@@ -1435,6 +1438,18 @@ function Chat({
         })}
         <div ref={foot} />
       </ul>
+
+      {reading && (
+        <Sheet title={reading.authorName || 'Somebody'} onClose={() => setReading(null)}>
+          <p className="mb-2 text-[12px] text-[var(--color-faint)]">
+            {stamp(reading.createdAt)}
+            {reading.editedAt ? ' · edited' : ''}
+          </p>
+          <p className="pad-serif text-[16px] leading-relaxed whitespace-pre-wrap">
+            {reading.body}
+          </p>
+        </Sheet>
+      )}
 
       {made && made.length > 0 && (
         <p className="mt-3 rounded-xl bg-[var(--color-accent-soft)] px-3 py-2 text-[13px] text-[var(--color-ink)]">
@@ -1540,6 +1555,64 @@ function Chat({
         </ComposeSheet>
       )}
     </div>
+  )
+}
+
+/**
+ * What somebody said, cut off if it is long.
+ *
+ * ## Why a chat truncates and a note does not
+ *
+ * Because a chat is a record you scroll through and a note is a thing you
+ * sat down to read. One person pasting four hundred words into a team's
+ * chat took the entire screen and pushed every other message out of it —
+ * and nobody scrolls back up through somebody else's essay to find the
+ * two-line answer underneath it. The card shows the top of it and says
+ * there is more.
+ *
+ * ## Why the cut is a line count and not a character count
+ *
+ * `line-clamp` cuts where the text actually wraps, so a message of short
+ * lines and a message of long ones both stop at the same height. Counting
+ * characters gets that wrong in both directions and puts the ellipsis in
+ * the middle of a word.
+ *
+ * ## Why the whole thing opens in a sheet
+ *
+ * It is the panel everything else in this app opens in: it scrolls, it
+ * stops at the height of the window, it closes on a press outside, and it
+ * locks the page behind it. An "expand in place" would push every message
+ * below it down the screen, which is the thing being fixed.
+ */
+function Said({ body, onOpen }: { body: string; onOpen: () => void }) {
+  /*
+    Long enough to be worth cutting, measured the cheap way.
+
+    Either more lines than the clamp will show, or more characters than
+    that many lines can hold at this width. Neither is exact — the real
+    answer is whether the painted element overflows — but a `ResizeObserver`
+    per message in a list that repaints every ten seconds is a great deal
+    of work to decide whether to draw four words. Erring towards offering
+    the sheet costs a press that was not needed; erring the other way hides
+    the end of a message.
+  */
+  const long = body.split('\n').length > CLAMP_LINES || body.length > CLAMP_CHARS
+
+  if (!long) {
+    return (
+      <p className="pad-serif text-[15px] leading-relaxed whitespace-pre-wrap">{body}</p>
+    )
+  }
+
+  return (
+    <button type="button" onClick={onOpen} className="block w-full text-left">
+      <span className="pad-serif line-clamp-6 block text-[15px] leading-relaxed whitespace-pre-wrap">
+        {body}
+      </span>
+      <span className="mt-0.5 block text-[12px] font-medium text-[var(--color-accent)]">
+        Read all of it
+      </span>
+    </button>
   )
 }
 
@@ -1980,12 +2053,24 @@ function Row({
         <span className={`block text-[15px] leading-snug ${task.done ? 'text-[var(--color-faint)] line-through' : ''}`}>
           {task.text}
         </span>
-        {(task.assigneeName || task.due) && (
-          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-[var(--color-muted)]">
-            {task.assigneeName && <span>{task.assigneeName}</span>}
-            {task.due && <span>{task.due}</span>}
-          </span>
-        )}
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-[var(--color-muted)]">
+          {task.assigneeName && <span>{task.assigneeName}</span>}
+          {task.due && <span>{task.due}</span>}
+          {/*
+            When it turned up on the board.
+
+            Not the same question as `due`, which is when it is *for* and
+            is whatever words somebody wrote. This is a fact the database
+            knows exactly, and on a shared board it is the one that says
+            whether you are looking at this morning's list or last month's
+            — "chase the agent" reads completely differently at two days
+            old. Relative, because "three days ago" is the form that
+            answers it without arithmetic.
+          */}
+          {task.createdAt > 0 && (
+            <span className="text-[var(--color-faint)]">added {when(task.createdAt)}</span>
+          )}
+        </span>
       </button>
       {asking ? (
         <span className="flex shrink-0 items-center gap-1">

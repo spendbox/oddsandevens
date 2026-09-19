@@ -27,9 +27,15 @@ export const viewport: Viewport = {
     keyboard.ts, for the browsers that ignore this.
   */
   interactiveWidget: 'resizes-content',
+  /*
+    The strip at the top of a phone — the time, the battery, the signal —
+    takes this colour when the app is installed. It is exactly
+    `--color-paper` from globals.css in both themes, so the bar and the page
+    under it are one surface rather than a frame around one.
+  */
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#191a1d' },
+    { media: '(prefers-color-scheme: dark)', color: '#161719' },
   ],
 }
 

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { byNote, gatherDone, type ActionItem } from '@/lib/actions'
+import { when } from '@/lib/when'
 import { dismissKey, useDismissed } from '@/lib/dismissed'
 import type { Doc, RemovedBlock } from '@/lib/types'
 import Confirm from './confirm'
@@ -367,6 +368,24 @@ export default function ActionsPanel({
               <span className="shrink-0 text-[12px] text-[var(--color-faint)]">
                 {group.items.length}
               </span>
+              {/*
+                When these turned up — as honestly as this side of the app
+                can say it.
+
+                A team's task is a row with a `created_at`, so its board
+                says exactly when it was added. A box in your own notes is
+                a *line*, and a line has no timestamp of its own: adding
+                one would mean a field per block, in storage and over the
+                wire, to date something the note already dates. So the
+                heading carries the note's own time, which is the true
+                answer to "how old is this lot" and is not dressed up as
+                anything more precise than it is.
+              */}
+              {group.updatedAt > 0 && (
+                <span className="shrink-0 text-[12px] text-[var(--color-faint)]">
+                  {when(group.updatedAt)}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => clearGroup(group.docId, group.docTitle, group.items)}
