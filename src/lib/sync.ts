@@ -208,7 +208,15 @@ export async function runSync(userId: string): Promise<{ ok: boolean; changed: b
       if (docs.length) {
         const { error } = await db.from('docs').upsert(docs.map((d) => toRow(d, userId)))
         if (error) return { ok: false, changed: false }
-        await Promise.all(docs.map((d) => clearPending(d.id)))
+        /*
+          Cleared for the version that was sent, not for the note.
+
+          Somebody typing while this upload was in flight has already
+          re-marked the note with newer words, and clearing the mark
+          outright threw that away — the note looked synced and the server
+          had the older copy. See `clearPending`.
+        */
+        await Promise.all(docs.map((d) => clearPending(d.id, d.updatedAt)))
       }
     }
 
@@ -225,7 +233,9 @@ export async function runSync(userId: string): Promise<{ ok: boolean; changed: b
           .upsert(projects.map((p) => toProjectRow(p, userId)))
         // A missing `projects` table means migration 0003 has not been run.
         // That must not stop documents syncing, so it is not fatal here.
-        if (!error) await Promise.all(projects.map((p) => clearPendingProject(p.id)))
+        if (!error) {
+          await Promise.all(projects.map((p) => clearPendingProject(p.id, p.updatedAt)))
+        }
       }
     }
 
@@ -303,14 +313,14 @@ export async function pushAll(userId: string): Promise<boolean> {
       const { error } = await db
         .from('projects')
         .upsert(projects.map((p) => toProjectRow(p, userId)))
-      if (!error) await Promise.all(projects.map((p) => clearPendingProject(p.id)))
+      if (!error) await Promise.all(projects.map((p) => clearPendingProject(p.id, p.updatedAt)))
     }
 
     const docs = await allDocsRaw()
     if (!docs.length) return true
     const { error } = await db.from('docs').upsert(docs.map((d) => toRow(d, userId)))
     if (error) return false
-    await Promise.all(docs.map((d) => clearPending(d.id)))
+    await Promise.all(docs.map((d) => clearPending(d.id, d.updatedAt)))
     return true
   } catch {
     return false

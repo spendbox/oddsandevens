@@ -1,15 +1,15 @@
 /**
  * What this app is called.
  *
- * ## Jotter
+ * ## Onepad
  *
- * It had no name, only the word "Pad" left over from the first week, which
- * described a blank surface and nothing about what happens on it. A jotter
- * is the cheap notebook people actually carry: you jot in it, you do not
- * compose in it, and nobody is precious about a jotter — which is the whole
- * posture of this app. It says what it is in one plain English word, it is
- * a noun and a verb at once, and it is the same register as everything else
- * written here.
+ * One pad. Everything you write goes on the same one — no folders, no
+ * notebooks to choose between, no filing before you can start. That is the
+ * whole design in the name, and it is the thing this app has that the ones
+ * with a sidebar do not.
+ *
+ * It was "Pad" for a week, then "Jotter" for a while. Both were fine and
+ * neither said the part that matters.
  *
  * ## Why it is a constant and not a string in fourteen files
  *
@@ -23,7 +23,7 @@
  * a plain file rather than compiled; the name appears there once, in the
  * sentence an offline browser shows.
  */
-export const APP_NAME = 'Jotter'
+export const APP_NAME = 'Onepad'
 
 /** The line under the name on an install prompt and in a search result. */
 export const APP_TAGLINE = 'Notes for people who take notes for a living'

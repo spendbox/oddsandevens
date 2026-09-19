@@ -1,4 +1,4 @@
-# Jotter
+# Onepad
 
 A note-taking app for people who take notes for a living. Two screens: the
 notes, and a note.
@@ -13,12 +13,11 @@ cannot be imported is `public/sw.js`, which is served as a plain file.
 **Everything the reader sees is called a note.** Not a document, not a file.
 Two lines or twenty pages, the same word for both.
 
-Five things in it talk to a model, all of them on purpose and all of them
+Four things in it talk to a model, all of them on purpose and all of them
 optional: the box that writes a note up, the recorder that writes down what was
-said, the question you can ask of your own notes, a team's chat message read
-for the work stated in it, and Brainstorm — one outstanding thing thought
-through and whatever would help with it drafted. Nothing else does, and nothing
-runs without being pressed.
+said, the question you can ask of your own notes, and a team's chat message
+read for the work stated in it. Nothing else does, and nothing runs without
+being pressed.
 
 There is one writing surface and it is a page. Lines finish themselves as the
 caret leaves them, with no model involved.
@@ -268,11 +267,9 @@ a page.
   faster of the two — which matters because it is the one somebody is sitting
   and waiting for. `effort: 'high'` moves a request up to the middle model and
   is set by the one caller that is a judgement rather than a reading: answering
-  a question about the notes. `effort: 'max'` is Brainstorm's solution and
-  nothing else — see the rules on it further down. `output_config` goes only to
-  the middle model, because a 400 back from one that does not understand it
-  would turn "the cheap model does the cheap jobs" into "writing help stopped
-  working".
+  a question about the notes. `output_config` goes only to the middle model,
+  because a 400 back from one that does not understand it would turn "the cheap
+  model does the cheap jobs" into "writing help stopped working".
 - **Search is one thing, not two.** A box that filters the list of file names
   and a box that searches inside documents behave differently and teach people
   to distrust both. `src/lib/search.ts` is a BM25 index over everything, built
@@ -592,12 +589,12 @@ a page.
   thing offered is turning it into a box. Nothing is moved, nothing is copied
   into a second list, and the note it came from is named on the row, because a
   task without its context is a line somebody has to go and re-read anyway.
-- **The Actions tab is complete before the model is asked anything.** The list
-  is built on the device, offline, free and identical every time. The model is
-  one button — Brainstorm — it takes one item at a time, it is pressed and
-  never automatic, and it is given the passages that bear on that item plus the
-  other lines and the note names, never the collection. A screen that spends
-  money when somebody glances at it is a screen they stop opening.
+- **The Actions tab costs nothing and asks nothing.** The list is built on the
+  device, offline, free and identical every time, and no model is involved at
+  any point. It had a button once that re-ordered it, and then one that thought
+  a single item through and drafted it; both are gone. A screen that spends
+  money when somebody glances at it is a screen they stop opening, and this one
+  now cannot.
 - **Actions are grouped by note, and a group goes at once.** Six lines from
   Tuesday's meeting are one piece of work with one set of names and one reason
   for existing; scattered through a flat list of forty they are six separate
@@ -634,15 +631,13 @@ a page.
   is two places to disagree.
 - **A sparkle is not a picture of anything.** It is the badge every app now
   puts on whatever a model touched, and it says "this is the AI bit" — a fact
-  about how the thing was built rather than about what it does. Brainstorm
-  wears a lamp, because what it does is have an idea about one thing. The same
-  test applies to anything added later: draw the job, not the implementation.
+  about how the thing was built rather than about what it does. The same test
+  applies to anything added later: draw the job, not the implementation.
 - **The screen does not explain its own privacy in small print.** "Only these
   lines are sent, never your notes" was true, and it was a footnote under a
   button asking to be trusted — which is where a notice goes when the design
-  cannot make the point on its own. What is sent is in `digest` and in
-  `brainstormContext`, each one function with the reason written above it.
-  The same went for "anything you ask for here turns into work on the board"
+  cannot make the point on its own. What is sent is in `digest`, one function
+  with the reason written above it. The same went for "anything you ask for here turns into work on the board"
   under the team's send button: the placeholder says what to type and the
   tasks appear under the message, and being shown beats being told.
 - **A way in that only appears after something else has been pressed is not a
@@ -979,61 +974,6 @@ a page.
   message it came from: the chat is the record of what was said and a task
   is a reading of it, so correcting the reading must never rewrite the
   sentence.
-- **Brainstorm took the place of "what should I do first?", and the
-  difference is the whole of it.** That button re-ordered a list already on
-  the screen: a fair question, a thin answer, and nobody pressed it twice.
-  The question people actually have about a line in that list is the next
-  one along — *how do I do this* — and answering it means reading their
-  notes, asking what the notes do not say, and then writing the thing. One
-  item at a time, pressed, never automatic.
-- **The questions are the reason the answer is worth anything.** "Chase the
-  landlord" has a history that was never written down: what was already
-  said, whether this is a first ask or a fourth, what would count as done. A
-  model that guesses at those writes a confident letter about the wrong
-  thing, which is worse than no letter. They are skippable — a question
-  nobody wants to answer must never be a gate — and skipping says so in the
-  reply's own "what I could not know".
-- **Two requests, two models, and `effort` is what picks.** Working out what
-  a page does not say is a reading task and goes to the cheap model, which
-  is also the fast one — and that is the half somebody sits and waits for.
-  Writing the thing is not a reading task: `effort: 'max'` is the only place
-  in this app that asks for the largest model, and it prefers Anthropic even
-  when OpenAI is configured, because GPT-4o is the quick model everything
-  else here runs on and this is the one request where a better model is a
-  different outcome rather than a nicer sentence. `output_config` still goes
-  only to the middle model.
-- **A refusal is an answer and is printed as one.** A model asked to solve
-  "sort out the thing" will produce a page of plausible structure rather
-  than admit there is nothing to work from, and a page that costs a read to
-  discover it is empty is how somebody learns not to open this again. The
-  prompt asks for `CANNOT: <one sentence>`; `readSolution` reads it
-  forgivingly and the screen says it in the same voice as a solution. Never
-  turn a refusal into an error.
-- **A solution is a working note, so it lives on the device.** localStorage
-  beside the theme, the folds and the suggestions turned down — twenty of
-  them, newest kept, each capped, and forgotten with everything else when
-  the device changes hands, because it is written out of another person's
-  notes. Which also settles what happens to one in flight when the tab
-  closes: it is lost, and nothing pretends otherwise. A row saying "working
-  on it" for something nothing is working on is worse than starting again.
-- **Putting it down is not stopping it.** The dialog renders nothing while
-  it is minimised and stays mounted, which is what keeps the request and
-  everything typed into it alive; the state moves to the row it is about —
-  "Working on it…", then "Solution". A dialog somebody has to sit in front
-  of for twenty seconds is a dialog they cancel.
-- **`lib/about.ts` is the app's account of itself, and a test keeps it
-  true.** Brainstorm is asked about somebody's work and the work is often
-  this app, so a model that has never heard of it answers with a paragraph
-  of plausible software said with total confidence. Add a feature, add its
-  sentence, add its word to `FEATURES` — a screen with no sentence fails
-  `about.test.ts` rather than quietly becoming something the model invents.
-  Never describe anything that is only planned: a model told about a screen
-  that does not exist will tell somebody to go and press it.
-- **Retrieval for Brainstorm is the same bargain as a question.** The local
-  index picks the notes, `gatherSources` cuts out the passages, and only
-  those go — never the collection, so the cost of thinking about one thing
-  does not grow with how much has been written. The solution names the notes
-  it was written from, for the same reason an answer carries its sources.
 
 - **A modal is three things, and `modal.ts` is all three.** The page behind
   it does not scroll — a `fixed` sheet leaves the document scrollable, and
@@ -1068,26 +1008,21 @@ a page.
   padding or border below it, and it collapsed straight through and out.
   `offsetHeight` does not count a margin that has escaped, so the bar
   measured sixteen pixels short.
-- **A long request needs `maxDuration`, and the reply may not be JSON.**
-  Everything else in `api/ai` answers in a second or two; Brainstorm asks
-  the largest model to write an email out in full and takes twenty to
-  sixty. A serverless function's default limit is ten, so the platform
-  killed the request and returned an HTML error page — `response.json()`
-  threw on it, and the screen reported a dead network for something that
-  was working perfectly and simply not finished. That was the whole of "no
-  solution ever appears". `maxDuration = 60`, a `maxTokens` low enough to
-  come back inside it, and a reader that treats an unparseable reply as the
-  timeout it is rather than as a network fault.
+- **A long request needs `maxDuration`, and the reply may not be JSON.** A
+  serverless function's default limit is ten seconds. Anything here that can
+  outlive it — a long transcript, a model asked to write rather than to read —
+  gets killed by the platform, which returns an HTML error page;
+  `response.json()` throws on that, and the screen reports a dead network for
+  something that was working perfectly and simply not finished. That was the
+  whole of one feature appearing never to work at all. `maxDuration = 60`, a
+  `maxTokens` low enough to come back inside it, and callers that treat an
+  unparseable reply as the timeout it is rather than as a network fault.
 - **A failure is a screen, not a line under something else.** A request
   that died used to put the reader back on the questions with a red line at
   the bottom of a box they had scrolled — off the screen entirely on a
   phone — so a request that failed and a request that produced nothing
   looked identical. What went wrong is the whole content of the screen when
   something has, with the way to try again on it.
-- **A number of questions is a number, not a range.** "Two to four" got two
-  one time and four the next, which reads as the thing being unreliable
-  rather than as it having less to ask. Three, always, said twice in the
-  prompt.
 - **Ticking is undoable for five seconds, like everything else that takes a
   row off a list.** A tick loses nothing — it is written into the note, or
   onto the team's board, and it is under Done — but the row disappears in
@@ -1101,16 +1036,66 @@ a page.
   the theme for free, because both are the variables the page is already
   made of — and it is not a third colour, which the rule about green and
   yellow would not allow.
-- **A field that narrows a list does not scroll away with it.** Brainstorm's
-  chooser pins the "which one?" box above the list, and the rows are ruled
-  off from each other: they are sentences of similar length, and without a
-  line between them a list of them reads as a paragraph.
 - **A team is searched the same way the notes are**, and on the device for
   the same reason: the chat and the board are already in memory, polled
   every ten seconds, so asking the server would be a round trip for an
   answer sitting in a variable. A button at the end of the row of tabs, and
   it looks in whichever of the two you are on — one box searching both is
   how somebody learns to distrust it.
+
+- **The outbox mark is cleared for a version, not for a note.** This is the
+  bug behind "notes don't sync well sometimes", and it is a race anybody
+  typing on a slow connection will hit: the push read the note, uploaded
+  it, and cleared its mark — but a keystroke during the upload had already
+  re-marked it with newer words, and the clear threw that away. The note
+  then sat on the device looking saved and synced while the server had the
+  older copy, until something else happened to touch it, which might be
+  never. The outbox already stores the `updatedAt` it was marked with, so
+  `stillOwed` is a comparison and a unit test. Anything that clears a queue
+  after doing the work has this shape; clear the entry you handled, never
+  the key.
+- **A CSS fallback that hides a thing is worse than one that misplaces it.**
+  The team's bar sticks at `var(--pad-header, …)`, and while the
+  measurement was broken the `0px` fallback put it directly under an opaque
+  bar of the same height with a higher z-index: invisible and unpressable
+  the moment the page scrolled, which in a chat is always. The fallback is
+  roughly the right height now, so a failed measurement costs a bar sitting
+  slightly low rather than a screen with no way out of it.
+- **One width, both sides of the switch.** Team used to be wider than your
+  own notes, on the argument that a chat is short lines and notes are read
+  at a measure. That is true of a *note*, which has its own measure on its
+  own page — it is not true of a list of rows, and applying it here just
+  meant the whole app resized when the card turned over.
+- **A list row says how long ago, not what time it was.** It printed a
+  clock time for today and "Yesterday" for the day before, which is the
+  form a mail client uses and answers the wrong question: a note touched
+  twenty minutes ago and one touched at breakfast are different things, and
+  a clock time makes the reader do that arithmetic. `when` says "20 minutes
+  ago" up close and falls back to a date once the number stops meaning
+  anything. `stamp` is still there for anywhere that wants the other
+  answer.
+- **Pressing Notes lands on All.** Favourites and the dashboard are places
+  you go to deliberately and come back from. Arriving at your own notes and
+  being shown four of them, because that is where you were on Tuesday, is
+  the app second-guessing what you came for.
+- **A field you correct a paragraph in is not one line tall.** Both task
+  editors and the chat's own correction box were single lines wedged
+  between two buttons, inside a card already indented past an avatar — a
+  third of a phone screen to fix something written as a paragraph. Full
+  width, a few lines tall, buttons underneath.
+- **The team's task reading is the one job named by model, and the name is
+  a guess about somebody else's account.** `OPENAI_TEAM_MODEL` overrides
+  it, and a model the account does not have falls back to `MODEL`
+  automatically — the same shape as the transcriber's fallback and for the
+  same reason. The cost of a wrong name is a blunter reading of a chat
+  line, never a board that stops filling.
+- **Brainstorm was here and is gone.** One item at a time, questions, then
+  a drafted email — it worked, and it was the only thing in the app that
+  spent real money per press and the only one that needed the largest
+  model. Taking it out took `lib/brainstorm.ts`, `lib/about.ts`, the
+  `effort: 'max'` tier and the Opus path with it. If it comes back, it
+  comes back with all of them; do not leave the tier behind for a caller
+  that no longer exists.
 
 ## Checking work
 

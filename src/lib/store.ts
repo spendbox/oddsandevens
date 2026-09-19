@@ -128,8 +128,51 @@ export async function pendingIds(): Promise<string[]> {
   return (keys ?? []).map(String)
 }
 
-export async function clearPending(id: string): Promise<void> {
+/**
+ * Marks a document as no longer owed to the server — but only if it has
+ * not been written again since.
+ *
+ * This is the bug that made sync look unreliable. A push read the document,
+ * uploaded it, and then cleared its mark; anything typed while that upload
+ * was in flight had already re-marked it with newer words, and the clear
+ * wiped that mark. The note then sat on the device looking saved and
+ * synced, and the server had the older copy — until something else
+ * happened to touch it, which might be never.
+ *
+ * The outbox already stores the `updatedAt` it was marked with, so the
+ * check costs nothing: clear the mark for the version that was actually
+ * sent, and leave it alone for any version that arrived after.
+ */
+export async function clearPending(id: string, at?: number): Promise<void> {
+  if (at !== undefined) {
+    const marked = await run<number>(OUTBOX, 'readonly', (s) => s.get(id))
+    if (stillOwed(marked, at)) return
+  }
   await run(OUTBOX, 'readwrite', (s) => s.delete(id))
+}
+
+/**
+ * Whether a document is still owed to the server after a push of it.
+ *
+ * The rule behind the bug that made sync look unreliable. A push read the
+ * document, uploaded it, and cleared its outbox mark — but anything typed
+ * while that upload was in flight had already re-marked it with newer
+ * words, and clearing the mark outright threw those away. The note then
+ * sat on the device looking saved and synced while the server had the
+ * older copy, until something else happened to touch it, which might be
+ * never.
+ *
+ * `marked` is what the outbox says the note was last written at, `sent` is
+ * the version that actually went. Newer means somebody typed during the
+ * upload and it is still owed.
+ *
+ * Pure and exported so the awkward cases — no mark at all, the same
+ * millisecond, a clock that went backwards — are a test rather than
+ * something to reproduce by typing fast on a slow connection.
+ */
+export function stillOwed(marked: number | null | undefined, sent: number): boolean {
+  if (marked === null || marked === undefined) return false
+  return marked > sent
 }
 
 /* ------------------------------------------------------------------ projects */
@@ -156,7 +199,12 @@ export async function pendingProjectIds(): Promise<string[]> {
   return (keys ?? []).map(String)
 }
 
-export async function clearPendingProject(id: string): Promise<void> {
+/** The same guard as `clearPending`, for the same reason. */
+export async function clearPendingProject(id: string, at?: number): Promise<void> {
+  if (at !== undefined) {
+    const marked = await run<number>(PROJECT_OUTBOX, 'readonly', (s) => s.get(id))
+    if (stillOwed(marked, at)) return
+  }
   await run(PROJECT_OUTBOX, 'readwrite', (s) => s.delete(id))
 }
 

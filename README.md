@@ -1,4 +1,4 @@
-# Jotter
+# Onepad
 
 A note-taking app for people who take notes for a living.
 
@@ -14,8 +14,9 @@ you wrote never reads like a field in a form.
 
 **Your notes.** One column, newest first, grouped under the day they were
 written — Today, Yesterday, then the weekday, then the date. Each row has a
-small green tile saying what the note is about, its name, the first two lines of
-it and the time it was last written in. Swipe a row to the left to delete it; on
+small green tile saying what the note is about, its name, the first two lines
+of it and how long ago you last wrote in it — "20 minutes ago", "3 hours ago",
+then a date once the number stops meaning anything. Swipe a row to the left to delete it; on
 a computer there is also a bin on the row when you hover it, and on a phone
 there is not — a bin on forty rows under a scrolling thumb is forty small
 mistakes waiting to happen. Either way it asks first, and names the note it is
@@ -273,7 +274,7 @@ Inside a group there are two kinds of thing:
   and not one word of what you wrote is touched.
 
 **Press the line itself** and it opens: the words, which note they are in,
-when it is for, and whatever Brainstorm has worked out about it. Opening it
+when it is for. Opening it
 changes nothing. Correcting the wording in there does change the note — in
 your own notes the task *is* the line, so there is nowhere else for a
 correction to live — and it says so above the box before you type in it.
@@ -297,46 +298,6 @@ you are writing it, whether the app should look for tasks in it — on unless yo
 say otherwise. A diary, a page of quotes, a draft: turn it off and that note
 never appears here. Nothing in it is changed, hidden or moved, and a note's **⋯**
 changes its mind either way afterwards.
-
-### Brainstorm
-
-With a model configured, and only when you press it, **Brainstorm** takes one
-thing off this list and works it out properly.
-
-Pick the thing. It reads your own notes for what bears on it — the local
-index finds them and only the matching passages are sent, never the
-collection — and then **asks you three things the notes do not say**: what
-you have already said to them, what would actually count as this being done,
-what the real constraint is. Answer in a sentence each, or skip them.
-
-Then it does the work. Where the task is something that can be written — an
-email, a message, an agenda, an outline, a plan, a script — **it writes it
-out in full**, ready to send, rather than describing what it should contain.
-Under that are the steps to take, and where another outstanding line is
-plainly part of the same job it says so. Anything it needed and was not given
-is left as a marked blank like `[the date]` rather than made up, and a list
-at the end says what it could not know.
-
-**It is allowed to say it cannot.** If there is nothing honest to do with
-what it was given it says that in one sentence instead of returning a page
-of plausible structure. That is a real answer, and it is printed as one. So
-is a failure: if the request runs out of time, the screen says so and offers
-to try again, rather than leaving you looking at a page that seems to have
-done nothing.
-
-This is the one thing here that takes real time — it is writing, not
-reading — so if you are running it yourself on a host with a short request
-limit, that limit is what to raise. It asks for sixty seconds.
-
-**You can put it down while it thinks.** The dialog closes, the row it is
-about says *Working on it…*, and when the answer arrives it says *Solution*.
-Press the row to read it. **Keep it as a note** makes it a note of your own.
-
-It also knows what this app is, so "write the announcement for this" or "how
-do I get this in front of people" gets an answer about the app you are
-actually using rather than a paragraph of plausible software.
-
-The list itself is complete without any of this.
 
 ## The World
 
@@ -422,7 +383,7 @@ end of the address bar. On an iPhone there is no button to press: the Install
 button shows you the two steps instead, which are **Share → Add to Home
 Screen**.
 
-Installed, it opens from your dock or home screen as **Jotter**, in its own
+Installed, it opens from your dock or home screen as **Onepad**, in its own
 window with no address bar, and starts with no internet connection at all.
 
 **Updates.** An installed app is resumed rather than reopened, so it can go on
@@ -451,10 +412,9 @@ configuration beyond pointing it at this repository.
 
 A handful of things use it, and nothing else: writing up a note from the box,
 transcribing a recording, writing up what you dictate, answering a question
-about your notes, reading a team's chat message for the work stated in it, and
-Brainstorm. Every one of them works without it — more roughly, or on your
-device, or not at all in Brainstorm's case, which simply is not offered — and
-none of them runs unless you press something.
+about your notes, and reading a team's chat message for the work stated in it.
+Every one of them works without it — more roughly, or on your device — and none
+of them runs unless you press something.
 
 It is **GPT-4o** for the writing, because it is what most people already have a
 key for and it is inside the free allowance on a new account, and
@@ -481,10 +441,16 @@ so a running server will not pick up a new key. On Vercel it goes in **Project �
 Settings → Environment Variables** under the same name, and the project has to
 be redeployed afterwards for the same reason.
 
-If both keys are set, **OpenAI wins** everywhere except Brainstorm:
-`ANTHROPIC_API_KEY` is read only when `OPENAI_API_KEY` is empty, so if the
-rest of it still seems to be using Anthropic, the OpenAI key is either
-missing, misspelt, or was added after the server started.
+If both keys are set, **OpenAI wins**: `ANTHROPIC_API_KEY` is read only when
+`OPENAI_API_KEY` is empty, so if it still seems to be using Anthropic, the
+OpenAI key is either missing, misspelt, or was added after the server started.
+
+**Reading a team's chat for tasks** is the one job asked for by model name,
+because it is the one where a better model gets the boundary between two jobs
+in one sentence right more often. It asks for `gpt-5.6`; set
+`OPENAI_TEAM_MODEL` to change it, and an account that does not have that model
+falls back to GPT-4o on its own. The cost of a name your account does not have
+is a slightly blunter reading, never a board that stops filling.
 
 **Which model, and what it costs.** Almost nothing here is agentic and nothing
 uses tools, so almost nothing asks for a large model. On the Anthropic side the
@@ -492,18 +458,6 @@ job picks: the small, quick one punctuates dictation, writes up a note from the
 box and reads a chat line for the task in it; the middle one is used for the
 things that are a judgement rather than a reading, like answering a question
 about your notes.
-
-**Brainstorm is the exception, and it is deliberate.** Its questions come from
-the cheap, fast model, because working out what a page does not say is a
-reading task and it is the half you sit and wait for. The solution comes from
-the largest — **Opus** — because that request is asked to write the email
-rather than describe it, and there the difference between a good model and a
-very good one is the difference between something worth sending and something
-worth deleting. It is the one thing here that prefers Anthropic even when an
-OpenAI key is set, so **to get Opus, set `ANTHROPIC_API_KEY` as well**; with
-only an OpenAI key, Brainstorm uses GPT-4o and still works. It is also the one
-thing that cannot be triggered by accident: one item, chosen deliberately,
-after answering questions.
 
 The key stays on the server and is never sent to the browser — that is why this
 is the one feature with a server route behind it. Requests are limited to 20 a
@@ -575,10 +529,8 @@ src/lib/tasks.ts        prose that reads like a commitment, by string rules
 src/lib/actions.ts      everything outstanding, gathered from every note
 src/lib/name.ts         a first name out of an email address, or nothing
 src/lib/dismissed.ts    the suggestions you have already said no to
-src/lib/brainstorm.ts   reading a solution back, and keeping it on the device
 src/components/modal.ts what it means to be a modal: the page locked, the
                         corner cleared, Escape, and a press outside
-src/lib/about.ts        what this app is, written for the model to read
 src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
 src/lib/recorder.ts     keeping the audio, in pieces, with a level meter
 src/lib/transcribe.ts   sending those pieces to be transcribed properly
@@ -604,7 +556,7 @@ src/lib/export.ts       turning a note into markdown or plain text
 src/lib/docx.ts         Word files out, built on zip.ts
 src/lib/when.ts         "3 minutes ago", and the stamp a list prints
 src/app/api/ai/         the one server route: compose, speech, questions,
-                        reading a chat line, and Brainstorm
+                        and reading a chat line for the work in it
 src/components/         the notes screen, the note, and the box
 src/app/s/[id]/         the public page a shared link opens
 src/app/t/[id]/         the page a team's link opens: a name and a way in
@@ -641,18 +593,9 @@ These are real and worth knowing before you rely on them:
   is tested against a stubbed route, but a real write-up from a real model is
   not. Try it once before relying on it.
 - **Writing up a note is a model call**, and so is stopping a recording, asking
-  a question, and Brainstorm. Nothing else in the app costs anything: the names,
-  the pictures, the kinds, the search and the line rules are all worked out on
-  your device.
-- **Brainstorm is the one thing here that uses the largest model**, so it is the
-  one thing with a real per-press cost — one item at a time, pressed
-  deliberately, never automatic, and never in the background. It is also the
-  only part of the app that is simply not offered when there is no key.
-- **A solution that is being worked out does not survive the page closing.**
-  It lives in the tab that asked for it. Closing the browser loses it and the
-  row stops saying anything; pick the thing again and ask. Solutions that have
-  already come back are kept on the device — the newest twenty of them — and
-  are cleared when somebody else signs in, like everything else about you.
+  a question, and reading a chat message for the work in it. Nothing else in
+  the app costs anything: the names, the pictures, the kinds, the search and
+  the line rules are all worked out on your device.
 - **The line rules are rules, not understanding.** They read notation and two
   narrow shapes, so a line that meant to be a list and did not say so stays a
   paragraph. That is deliberate: a guess that is right nine times in ten is a

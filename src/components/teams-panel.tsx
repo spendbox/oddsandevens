@@ -269,7 +269,22 @@ export default function TeamsPanel({
           it stays right when a long name wraps the greeting onto two
           lines; the fallback is for the one render before it is measured.
         */
-        style={{ top: 'var(--pad-header, 0px)' }}
+        /*
+          The fallback is deliberately not zero.
+
+          `--pad-header` is measured off the app's own bar, and when the
+          measurement failed — which it did, for two versions, because the
+          ref was never attached — this stuck at `0px`: directly under a
+          sticky bar with a higher z-index, opaque, and the same height.
+          The team's name, its ⚙ and the Chat/Actions tabs were invisible
+          and unpressable the moment the page was scrolled at all, which
+          in a chat is always. That is what "I cannot edit or delete a
+          team" looked like.
+          A fallback that is roughly right leaves the bar slightly too low
+          if it is ever used; a fallback of zero hides it completely, and
+          hiding it is the failure nobody can see the cause of.
+        */
+        style={{ top: 'var(--pad-header, 4.5rem)' }}
         className="sticky z-10 -mx-4 bg-[var(--color-paper)] px-4 pt-2 sm:-mx-8 sm:px-8"
       >
         <div className="flex items-center gap-1.5">
@@ -1318,33 +1333,55 @@ function Chat({
                   </p>
                 )}
                 {editing?.id === message.id ? (
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <input
+                  /*
+                    A box the size of the message, not a slot beside two
+                    buttons.
+
+                    It was a single-line input squeezed between Save and a
+                    ×, inside a card that is already indented past an
+                    avatar — about a third of the screen on a phone, for
+                    correcting something that was typed as a paragraph.
+                    Most messages here are several lines; an editor that
+                    shows one of them is one you cannot read what you are
+                    fixing in. Full width, a few lines tall, and the
+                    buttons underneath where there is room for them.
+                  */
+                  <div className="mt-1">
+                    <textarea
                       autoFocus
+                      rows={3}
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
                       onKeyDown={(event) => {
-                        if (event.key === 'Enter') void saveEdit()
+                        // Ctrl+Enter saves, as it does in the writing box.
+                        // Enter on its own is a new line: these are
+                        // paragraphs, and losing a break to a stray
+                        // keystroke is worse than one extra press.
+                        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                          event.preventDefault()
+                          void saveEdit()
+                        }
                         if (event.key === 'Escape') setEditing(null)
                       }}
                       aria-label="Correct this message"
-                      className="min-w-0 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-[14px] outline-none"
+                      className="pad-serif min-h-[5rem] w-full resize-y rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2 text-[15px] leading-relaxed outline-none focus:border-[var(--color-faint)]"
                     />
-                    <button
-                      type="button"
-                      onClick={() => void saveEdit()}
-                      className="shrink-0 rounded-md px-2 py-1 text-[13px] text-[var(--color-accent)]"
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditing(null)}
-                      aria-label="Stop correcting"
-                      className="shrink-0 rounded-md p-1 text-[var(--color-muted)]"
-                    >
-                      <X size={14} />
-                    </button>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => void saveEdit()}
+                        className="rounded-full bg-[var(--color-accent)] px-3.5 py-1.5 text-[13px] font-medium text-white"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(null)}
+                        className="rounded-full px-3 py-1.5 text-[13px] text-[var(--color-muted)] hover:bg-[var(--color-hover)]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <p className="pad-serif text-[15px] leading-relaxed whitespace-pre-wrap">
@@ -1448,7 +1485,7 @@ function Chat({
             ? `Carry on: ${text.trim().slice(0, 40)}${text.trim().length > 40 ? '…' : ''}`
             : replying
               ? `Answer ${replying.authorName}…`
-              : 'Say what needs doing…'}
+              : 'Start a chat…'}
         </button>
       </div>
 
@@ -1471,7 +1508,7 @@ function Chat({
           onSave={() => void send()}
           saveLabel={busy ? 'Sending…' : 'Send'}
           busy={busy}
-          label="Say what needs doing"
+          label="Start a chat"
           /*
             No line of small print under the button.
 

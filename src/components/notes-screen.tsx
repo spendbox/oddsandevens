@@ -344,9 +344,18 @@ export default function NotesScreen({
         laptop empty and wraps every message on a phone that did not need
         wrapping. So the team takes the screen.
       */}
-      <div
-        className={`mx-auto w-full px-4 pb-32 sm:px-8 sm:pb-32 ${team ? 'max-w-5xl' : 'max-w-3xl'}`}
-      >
+      {/*
+        One width, both sides of the switch.
+
+        The team was wider than your own notes, on the argument that a chat
+        is short lines with a name beside each one while notes are read at a
+        reading measure. That is true of a *note*, which has its own measure
+        on its own page — and it was being applied here, to a list of rows,
+        where it only meant the same list was narrower on one tab than the
+        next. Flipping between Me and Team resized the whole app. The list
+        is a list on both sides and it takes the same room.
+      */}
+      <div className="mx-auto w-full max-w-5xl px-4 pb-32 sm:px-8 sm:pb-32">
         {/*
           The greeting, the search field and the tabs stay at the top while
           the notes scroll under them.
@@ -567,9 +576,7 @@ export default function NotesScreen({
           <ActionsPanel
             docs={live}
             items={outstanding}
-            aiReady={aiReady}
             onOpen={onOpen}
-            onNewNote={onNewNote}
             onTick={onTick}
             onUntick={onUntick}
             onMakeBox={onMakeBox}
@@ -651,7 +658,7 @@ export default function NotesScreen({
       */}
       {!team && (
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[var(--color-line)] bg-[var(--color-paper)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 pr-16">
+        <div className="mx-auto flex w-full max-w-5xl items-center gap-3 pr-16">
           {/*
             And if the box was closed with something in it, the bar says
             so and opening it again has the words back. A pop-up can be

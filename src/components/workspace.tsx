@@ -806,7 +806,17 @@ export default function Workspace() {
           docs={docs}
           trashed={trashed}
           tab={tab}
-          onTab={setTab}
+          /*
+            Pressing Notes lands on All, whichever way of looking at them
+            was left on last time. Favourites and the dashboard are things
+            you go to deliberately and come back from; arriving at your
+            notes and being shown four of them, because that is where you
+            were on Tuesday, is the app second-guessing what you came for.
+          */
+          onTab={(next) => {
+            setTab(next)
+            if (next === 'notes') setView('all')
+          }}
           view={view}
           onView={setView}
           onOpen={(id) => void openDoc(id)}
