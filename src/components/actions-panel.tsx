@@ -1,20 +1,40 @@
 'use client'
 
 import {
-  ArrowDownNarrowWide,
   ChevronRight,
+  FileText,
+  Lightbulb,
   LoaderCircle,
   Plus,
   Square,
   SquareCheck,
+  Trash2,
   Undo2,
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useState } from 'react'
-import { byNote, digest, gatherActions, gatherDone, type ActionItem } from '@/lib/actions'
+import { byNote, gatherDone, type ActionItem } from '@/lib/actions'
+import { blocksFromPasted } from '@/lib/blocks'
+import { parsePastedText } from '@/lib/paste'
+import { brainstormKey, dropSolution, useSolutions, type Solution } from '@/lib/brainstorm'
 import { dismissKey, useDismissed } from '@/lib/dismissed'
-import type { Doc, RemovedBlock } from '@/lib/types'
+import type { Block, Doc, RemovedBlock } from '@/lib/types'
 import Confirm from './confirm'
+import Sheet from './sheet'
 import SwipeAway from './swipe-away'
+
+/*
+  Brainstorm is not in the first download.
+
+  It is the largest thing on this screen and it is pressed by a minority of
+  the people who open the tab — the same bargain the World, the dashboard,
+  the team and the PDF reader all make. Nothing about the list below waits
+  for it.
+*/
+const Brainstorm = dynamic(() => import('./brainstorm'), { ssr: false })
+const SolutionText = dynamic(() => import('./brainstorm').then((m) => m.SolutionText), {
+  ssr: false,
+})
 
 /**
  * Everything still to be done, read out of every note at once.
@@ -48,6 +68,18 @@ import SwipeAway from './swipe-away'
  * `lib/dismissed.ts` and simply stops being offered. A screen of guesses must
  * not be a way to lose writing.
  *
+ * ## A row opens; it does not act
+ *
+ * Pressing the line opens what is known about it: the words, which note they
+ * are in, when it is for, and whatever Brainstorm has worked out. Nothing
+ * about the note changes by opening it, and nothing about the note changes by
+ * closing it either. The two controls that *do* change something — the tick
+ * and the swipe — are where they were.
+ *
+ * Correcting the wording from in there does write into the note, because in
+ * your own notes the task *is* the line and there is nowhere else for a
+ * correction to live. The sheet says so, in those words, above the field.
+ *
  * ## Asked first, and undoable after
  *
  * Getting rid of a box takes that line out of the note, which is the one
@@ -67,9 +99,9 @@ import SwipeAway from './swipe-away'
  * ## Where the model comes in, and where it does not
  *
  * The list is complete without it: built on the device, offline, free, and
- * identical every time. The model is one button that puts it in an order —
- * pressed, never automatic, because a screen that spends money when you glance
- * at it is a screen people stop opening.
+ * identical every time. The model is one button — Brainstorm — and it takes
+ * one item at a time, pressed, never automatic, because a screen that spends
+ * money when you glance at it is a screen people stop opening.
  */
 
 /** How long an undo stays on offer. Long enough to notice, short enough that
@@ -94,15 +126,27 @@ interface Undoable {
 
 export default function ActionsPanel({
   docs,
+  items,
   aiReady,
   onOpen,
   onTick,
   onUntick,
   onMakeBox,
+  onRetext,
   onRemove,
   onPutBack,
+  onNewNote,
 }: {
   docs: Doc[]
+  /**
+   * Everything outstanding, gathered once by the screen above.
+   *
+   * It is read there rather than here because the tab has to wear the
+   * number whether or not it is the tab you are on — and two places
+   * reading every block of every note is the same expensive answer worked
+   * out twice, with nothing stopping them disagreeing.
+   */
+  items: ActionItem[]
   aiReady: boolean
   onOpen: (id: string) => void
   /** Ticks a box in the note it lives in. */
@@ -111,36 +155,37 @@ export default function ActionsPanel({
   onUntick: (docId: string, blockId: string) => void
   /** Turns a line of prose into a box in the note it lives in. */
   onMakeBox: (docId: string, blockId: string) => void
+  /** Corrects the wording of the line, in the note it lives in. */
+  onRetext: (docId: string, blockId: string, text: string) => void
   /** Takes lines out of a note. What comes back is where each one was. */
   onRemove: (docId: string, blockIds: string[]) => Promise<RemovedBlock[]>
   /** Puts them back there. */
   onPutBack: (docId: string, removed: RemovedBlock[]) => void
+  /** Keeps a solution as a note of its own. */
+  onNewNote: (note: { title: string; blocks: Block[] }) => Promise<void>
 }) {
   /*
-    Re-read whenever the notes change, which is what makes a tick here empty
-    the row: the note is written, the note comes back changed, and the box is
-    no longer outstanding a render later. Memoised because this reads every
-    block of every note, and a tab on screen re-renders for reasons that have
-    nothing to do with the notes.
+    What is finished is read here, because nothing else wants it: it is only
+    ever drawn behind the fold at the bottom of this screen. Memoised because
+    it reads every block of every note, and this tab re-renders for reasons
+    that have nothing to do with the notes.
   */
-  const all = useMemo(() => gatherActions(docs), [docs])
   const done = useMemo(() => gatherDone(docs), [docs])
-  const { has: turnedDown, add: turnDown, remove: offerAgain } = useDismissed()
+  const { add: turnDown, remove: offerAgain } = useDismissed()
+  const solutions = useSolutions()
 
-  /*
-    A suggestion somebody has already said no to is not offered again. Boxes
-    are never filtered: a box is a fact about the note, and the only way to be
-    rid of one is to take the line out.
-  */
-  const live = all.filter((item) => item.kind === 'box' || !turnedDown(item.docId, item.blockId))
-  const groups = byNote(live)
+  const groups = byNote(items)
 
-  const [read, setRead] = useState<string[] | null>(null)
-  const [reading, setReading] = useState(false)
-  const [problem, setProblem] = useState<string | null>(null)
   /** Something asked about before it happens: a whole group, or the done list. */
   const [doomed, setDoomed] = useState<{ title: string; body: string; go: () => void } | null>(null)
   const [showDone, setShowDone] = useState(false)
+  /** Which row is open, if any. Opening one changes nothing about the note. */
+  const [open, setOpen] = useState<ActionItem | null>(null)
+  /** Whether Brainstorm is up, what it was opened about, and whether it is put down. */
+  const [thinking, setThinking] = useState<{ item: ActionItem | null } | null>(null)
+  const [minimised, setMinimised] = useState(false)
+  /** The one line something is being worked out for, so its row can say so. */
+  const [working, setWorking] = useState<string | null>(null)
   /**
    * What the undo bar is currently offering to put back, and how long is
    * left of the five seconds.
@@ -179,30 +224,6 @@ export default function ActionsPanel({
     if (undoable.removed?.length && undoable.docId) onPutBack(undoable.docId, undoable.removed)
     if (undoable.keys?.length) offerAgain(undoable.keys)
     setUndoable(null)
-  }
-
-  const sharpen = async () => {
-    if (reading || !live.length) return
-    setReading(true)
-    setProblem(null)
-    try {
-      const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'actions', list: digest(live) }),
-      })
-      const data = (await response.json()) as { text?: string; error?: string }
-      if (!response.ok || !data.text) {
-        setProblem(data.error ?? 'That did not work. Try again.')
-        return
-      }
-      setRead(bullets(data.text))
-    } catch {
-      // The list below is untouched by this failing, and that is the point.
-      setProblem('Could not reach the writing service. Your list is all here.')
-    } finally {
-      setReading(false)
-    }
   }
 
   /**
@@ -250,13 +271,13 @@ export default function ActionsPanel({
     meeting. This one asks, because it is several lines and some of them are
     writing rather than boxes.
   */
-  const clearGroup = (docId: string, docTitle: string, items: ActionItem[]) =>
+  const clearGroup = (docId: string, docTitle: string, group: ActionItem[]) =>
     setDoomed({
       title: `Clear everything from “${docTitle}”?`,
-      body: `${items.length} ${items.length === 1 ? 'thing' : 'things'}. The ticked boxes come out of the note; the suggestions are only turned down, and nothing you wrote is touched. You can undo it for a few seconds.`,
+      body: `${group.length} ${group.length === 1 ? 'thing' : 'things'}. The ticked boxes come out of the note; the suggestions are only turned down, and nothing you wrote is touched. You can undo it for a few seconds.`,
       go: () => {
-        const boxes = items.filter((item) => item.kind === 'box').map((item) => item.blockId)
-        const lines = items
+        const boxes = group.filter((item) => item.kind === 'box').map((item) => item.blockId)
+        const lines = group
           .filter((item) => item.kind === 'line')
           .map((item) => dismissKey(item.docId, item.blockId))
         if (lines.length) turnDown(lines)
@@ -301,46 +322,37 @@ export default function ActionsPanel({
   return (
     <div className="pb-4">
       {/*
-        What matters most, when there is enough of a list for the question to
-        mean anything. Below five items the order is already obvious and this
-        would be a button that spends money to say what is on the screen.
+        One thing, thought through — and only where there is a model and
+        something to think about. It takes the place of a button that used
+        to re-order this list: see brainstorm.tsx for why that question was
+        the thinner of the two.
       */}
-      {aiReady && live.length >= 5 && (
-        <section className="mt-4 rounded-xl border border-[var(--color-line)] bg-[var(--color-hover)] p-3">
+      {aiReady && items.length > 0 && (
+        <section className="mt-4">
           <button
             type="button"
-            onClick={() => void sharpen()}
-            disabled={reading}
-            className="flex items-center gap-2 text-[14px] font-medium text-[var(--color-accent)] disabled:opacity-60"
+            onClick={() => {
+              setThinking({ item: null })
+              setMinimised(false)
+            }}
+            className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--color-line)] bg-[var(--color-hover)] px-3 py-2.5 text-left hover:border-[var(--color-faint)]"
           >
             {/*
-              An arrow putting a list in order, not a sparkle.
-
-              A sparkle is the badge every app in the world now puts on
-              anything a model touched, and it says nothing about what the
-              button does — it says "this is the AI bit", which is a fact
-              about how it was built rather than about what it is for. What
-              this button does is put the list in an order, so it wears the
-              picture of a list being put in an order.
+              A lamp, not a sparkle. A sparkle is the badge every app puts
+              on whatever a model touched and says only "this is the AI
+              bit" — a fact about how it was built. What this does is have
+              an idea about one thing, so it wears the picture of one.
             */}
-            {reading ? (
-              <LoaderCircle size={15} className="animate-spin" />
-            ) : (
-              <ArrowDownNarrowWide size={15} />
-            )}
-            {reading ? 'Reading your list…' : read ? 'Read it again' : 'What should I do first?'}
+            <Lightbulb size={16} className="shrink-0 text-[var(--color-accent)]" />
+            <span className="min-w-0">
+              <span className="block text-[14px] font-medium text-[var(--color-ink)]">
+                Brainstorm
+              </span>
+              <span className="block text-[12px] text-[var(--color-faint)]">
+                Pick one of these and it works out what to actually do — and drafts it.
+              </span>
+            </span>
           </button>
-          {problem && <p className="mt-2 text-[13px] text-[var(--color-danger)]">{problem}</p>}
-          {read && read.length > 0 && (
-            <ul className="mt-3 space-y-1.5">
-              {read.map((line, i) => (
-                <li key={i} className="flex gap-2 text-[14px] leading-relaxed">
-                  <span className="text-[var(--color-accent)]">•</span>
-                  <span className="min-w-0">{line}</span>
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
       )}
 
@@ -382,6 +394,10 @@ export default function ActionsPanel({
                 <Row
                   key={item.blockId}
                   item={item}
+                  solution={solutions[brainstormKey(item.docId, item.blockId)]}
+                  working={working === brainstormKey(item.docId, item.blockId)}
+                  onResume={() => setMinimised(false)}
+                  onOpen={() => setOpen(item)}
                   onAway={() => away(item)}
                   onAct={() =>
                     item.kind === 'box'
@@ -432,6 +448,10 @@ export default function ActionsPanel({
                 <Row
                   key={item.blockId}
                   item={item}
+                  solution={solutions[brainstormKey(item.docId, item.blockId)]}
+                  working={false}
+                  onResume={() => setMinimised(false)}
+                  onOpen={() => setOpen(item)}
                   onAway={() => away(item)}
                   onAct={() => onUntick(item.docId, item.blockId)}
                 />
@@ -471,6 +491,52 @@ export default function ActionsPanel({
         </div>
       )}
 
+      {open && (
+        <Sheet title={open.kind === 'box' ? 'This task' : 'This line'} onClose={() => setOpen(null)}>
+          <Detail
+            item={open}
+            solution={solutions[brainstormKey(open.docId, open.blockId)]}
+            working={working === brainstormKey(open.docId, open.blockId)}
+            aiReady={aiReady}
+            onRetext={(text) => {
+              onRetext(open.docId, open.blockId, text)
+              setOpen(null)
+            }}
+            onOpenNote={() => {
+              setOpen(null)
+              onOpen(open.docId)
+            }}
+            onBrainstorm={() => {
+              setOpen(null)
+              setThinking({ item: open })
+              setMinimised(false)
+            }}
+            onForget={() => dropSolution(brainstormKey(open.docId, open.blockId))}
+            onKeep={onNewNote}
+            onAway={() => {
+              setOpen(null)
+              away(open)
+            }}
+          />
+        </Sheet>
+      )}
+
+      {thinking && (
+        <Brainstorm
+          items={items}
+          docs={docs}
+          startWith={thinking.item}
+          minimised={minimised}
+          onMinimise={() => setMinimised(true)}
+          onClose={() => {
+            setThinking(null)
+            setMinimised(false)
+          }}
+          onWorking={setWorking}
+          onKeep={onNewNote}
+        />
+      )}
+
       <Confirm
         open={!!doomed}
         title={doomed?.title ?? ''}
@@ -493,17 +559,33 @@ export default function ActionsPanel({
  * The note is not named on the row any more — the group above it says so, and
  * printing the same note's name six times in a column is six lines of noise
  * where one heading does the job.
+ *
+ * Pressing the line opens it rather than doing anything to it. That is the
+ * distinction the whole row is arranged around: the tick and the swipe change
+ * the note, and everything else on here only shows you more.
  */
 function Row({
   item,
+  solution,
+  working,
   onAct,
   onAway,
+  onOpen,
+  onResume,
 }: {
   item: ActionItem
+  /** What Brainstorm worked out about it, if anything. */
+  solution?: Solution
+  /** Whether something is being worked out for it right now. */
+  working: boolean
   /** Tick it, untick it, or turn a line into a box. */
   onAct: () => void
   /** Swiped off: out of the note if it is a box, turned down if it is a guess. */
   onAway: () => void
+  /** Opens what is known about it. Changes nothing. */
+  onOpen: () => void
+  /** Puts the put-down Brainstorm back up. */
+  onResume: () => void
 }) {
   const label = item.done
     ? `Put “${item.text}” back`
@@ -524,23 +606,55 @@ function Row({
           >
             {item.done ? <SquareCheck size={16} /> : item.kind === 'box' ? <Square size={16} /> : <Plus size={16} />}
           </button>
-          <div className="min-w-0 flex-1">
-            <p
-              className={`text-[15px] leading-snug ${
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={`Open “${item.text}”`}
+            className="min-w-0 flex-1 text-left"
+          >
+            <span
+              className={`block text-[15px] leading-snug ${
                 item.done ? 'text-[var(--color-faint)] line-through' : ''
               }`}
             >
               {item.text}
-            </p>
+            </span>
             {(item.due || item.reason) && (
-              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-[var(--color-faint)]">
+              <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-[var(--color-faint)]">
                 {item.due && <span className="text-[var(--color-muted)]">{item.due}</span>}
                 {/* Why a guess was made, next to the guess. A suggestion whose
                     reasoning is hidden is one nobody can disagree with usefully. */}
                 {item.reason && <span>{item.reason}</span>}
-              </p>
+              </span>
             )}
-          </div>
+          </button>
+          {/*
+            What Brainstorm is doing about this one, on the row it is about.
+
+            This is the whole of "put it down and carry on": the state is
+            not in a dialog somebody closed, it is under the line it
+            belongs to. Pressing it while it is running puts the dialog
+            back up; pressing it afterwards opens what came back.
+          */}
+          {working ? (
+            <button
+              type="button"
+              onClick={onResume}
+              className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[12px] text-[var(--color-accent)] hover:bg-[var(--color-hover)]"
+            >
+              <LoaderCircle size={12} className="animate-spin" />
+              Working on it…
+            </button>
+          ) : solution ? (
+            <button
+              type="button"
+              onClick={onOpen}
+              className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[12px] text-[var(--color-accent)] hover:bg-[var(--color-hover)]"
+            >
+              <Lightbulb size={12} />
+              {solution.refusal ? 'No answer' : 'Solution'}
+            </button>
+          ) : null}
         </div>
       </SwipeAway>
     </li>
@@ -548,19 +662,171 @@ function Row({
 }
 
 /**
- * The model's answer, as lines.
+ * Everything known about one line, and the one thing that changes it.
  *
- * It is asked for markdown bullets and it usually returns them, but "usually"
- * is not a thing to build a screen on: anything that is not a bullet is kept
- * as its own line rather than dropped, for the same reason `lib/compose.ts`
- * reads a reply forgivingly. Losing an answer to a stray "Sure —" is worse
- * than showing one line with no dash in front of it.
+ * Opening this does nothing to the note. Correcting the wording does, and
+ * says so: in your own notes the task *is* the line, so there is nowhere
+ * else for a correction to go, and a second edited copy of somebody's
+ * writing living beside a note that disagrees with it is not a trade this
+ * app makes anywhere else.
  */
-function bullets(text: string): string[] {
-  return text
-    .split('\n')
-    .map((line) => line.replace(/^\s*[-*•]\s+/, '').replace(/^\s*\d+[.)]\s+/, '').trim())
-    // Markdown emphasis is notation here, not painting: this is read as text.
-    .map((line) => line.replace(/\*\*(.+?)\*\*/g, '$1').replace(/(?<!\*)\*(?!\*)/g, ''))
-    .filter(Boolean)
+function Detail({
+  item,
+  solution,
+  working,
+  aiReady,
+  onRetext,
+  onOpenNote,
+  onBrainstorm,
+  onForget,
+  onKeep,
+  onAway,
+}: {
+  item: ActionItem
+  solution?: Solution
+  working: boolean
+  aiReady: boolean
+  onRetext: (text: string) => void
+  onOpenNote: () => void
+  onBrainstorm: () => void
+  onForget: () => void
+  onKeep: (note: { title: string; blocks: Block[] }) => Promise<void>
+  onAway: () => void
+}) {
+  const [text, setText] = useState(item.text)
+  const [kept, setKept] = useState(false)
+  const changed = text.trim() !== item.text && !!text.trim()
+
+  return (
+    <div>
+      <textarea
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        rows={2}
+        aria-label="The words of this line"
+        className="pad-serif w-full resize-none rounded-lg border border-[var(--color-line)] bg-[var(--color-hover)] px-2.5 py-2 text-[15px] leading-snug outline-none focus:border-[var(--color-faint)]"
+      />
+      <div className="mt-1.5 flex items-center gap-2">
+        <p className="min-w-0 flex-1 text-[12px] text-[var(--color-faint)]">
+          {/* Said before it happens, not after. */}
+          This is a line in “{item.docTitle}”. Correcting it here corrects it there.
+        </p>
+        <button
+          type="button"
+          onClick={() => onRetext(text)}
+          disabled={!changed}
+          className="shrink-0 rounded-full bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-white disabled:opacity-40"
+        >
+          Save
+        </button>
+      </div>
+
+      {(item.due || item.reason) && (
+        <p className="mt-2 flex flex-wrap gap-x-2 text-[12px] text-[var(--color-muted)]">
+          {item.due && <span>{item.due}</span>}
+          {item.reason && <span className="text-[var(--color-faint)]">{item.reason}</span>}
+        </p>
+      )}
+
+      <div className="mt-3 space-y-1 border-t border-[var(--color-line)] pt-2">
+        <button
+          type="button"
+          onClick={onOpenNote}
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[14px] hover:bg-[var(--color-hover)]"
+        >
+          <FileText size={15} className="shrink-0 text-[var(--color-muted)]" />
+          <span className="min-w-0 truncate">Open “{item.docTitle}”</span>
+        </button>
+        <button
+          type="button"
+          onClick={onAway}
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[14px] text-[var(--color-danger)] hover:bg-[var(--color-hover)]"
+        >
+          <Trash2 size={15} className="shrink-0" />
+          {item.kind === 'box' ? 'Take this line out of the note' : 'Not a task'}
+        </button>
+      </div>
+
+      {/* And what has been thought about it, which is the other half of why
+          a row opens at all. */}
+      <div className="mt-3 border-t border-[var(--color-line)] pt-3">
+        {working ? (
+          <p className="flex items-center gap-2 text-[13px] text-[var(--color-muted)]">
+            <LoaderCircle size={14} className="animate-spin" />
+            Working out a solution…
+          </p>
+        ) : solution ? (
+          <>
+            {/*
+              A solution written about words that have since been changed
+              is an answer to a question nobody is asking any more, and
+              saying so is cheaper than pretending otherwise.
+            */}
+            {solution.task !== item.text && (
+              <p className="mb-2 text-[12px] text-[var(--color-faint)]">
+                Worked out when this line said “{solution.task}”.
+              </p>
+            )}
+            {solution.refusal ? (
+              <p className="text-[14px] leading-relaxed text-[var(--color-muted)]">
+                It could not work this one out. {solution.refusal}
+              </p>
+            ) : (
+              <SolutionText text={solution.text} />
+            )}
+            {solution.notes.length > 0 && !solution.refusal && (
+              <p className="mt-2 text-[12px] text-[var(--color-faint)]">
+                Written from: {solution.notes.join(', ')}
+              </p>
+            )}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {!solution.refusal && (
+                <button
+                  type="button"
+                  disabled={kept}
+                  onClick={() => {
+                    void (async () => {
+                      await onKeep({
+                        title: item.text,
+                        blocks: blocksFromPasted(parsePastedText(solution.text)),
+                      })
+                      setKept(true)
+                    })()
+                  }}
+                  className="rounded-full bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-white disabled:opacity-50"
+                >
+                  {kept ? 'Kept as a note' : 'Keep it as a note'}
+                </button>
+              )}
+              {aiReady && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onForget()
+                    onBrainstorm()
+                  }}
+                  className="rounded-full px-3 py-1.5 text-[13px] text-[var(--color-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-ink)]"
+                >
+                  Think again
+                </button>
+              )}
+            </div>
+          </>
+        ) : aiReady ? (
+          <button
+            type="button"
+            onClick={onBrainstorm}
+            className="flex items-center gap-1.5 text-[14px] font-medium text-[var(--color-accent)]"
+          >
+            <Lightbulb size={15} />
+            Brainstorm this
+          </button>
+        ) : (
+          <p className="text-[12px] text-[var(--color-faint)]">
+            Brainstorm needs a key. Everything else on this screen works without one.
+          </p>
+        )}
+      </div>
+    </div>
+  )
 }

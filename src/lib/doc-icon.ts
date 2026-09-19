@@ -127,6 +127,23 @@ export function iconForText(text: string): DocIcon | null {
   return null
 }
 
+/**
+ * The picture for a team, taken from what the team is called.
+ *
+ * The same bargain as a note's icon and the same table of words, because
+ * two lists of words about the same thing is one of them quietly
+ * disagreeing — the rule `kind.ts` already follows. "Finance" is a
+ * banknote, "Hiring" is a group of people, "The Boiler Project" is a
+ * house. A name that says nothing in particular falls back to a group of
+ * people, which is what a team is.
+ *
+ * Instant, offline, free, identical every time, and a unit test rather
+ * than something to notice by eye. No model has an opinion about it.
+ */
+export function iconForTeam(name: string): DocIcon {
+  return iconForText(name) ?? 'people'
+}
+
 /** How much of a document has to be one kind of block for that to say what it is. */
 const MAJORITY = 0.5
 /** How far into a document to read when it has no title worth matching. */

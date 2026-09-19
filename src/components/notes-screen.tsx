@@ -2,11 +2,13 @@
 
 import { BarChart3, Check, Globe2, ListChecks, Pencil, Search, Star, X } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PastedBlock } from '@/lib/paste'
 import type { Block, Doc, RemovedBlock } from '@/lib/types'
 import { byDay } from '@/lib/when'
 import { docLabel } from '@/lib/blocks'
+import { gatherActions } from '@/lib/actions'
+import { useDismissed } from '@/lib/dismissed'
 import { greeting, nameFromEmail } from '@/lib/name'
 import { draftLabel, useDraft } from '@/lib/draft'
 import { useMode } from '@/lib/mode'
@@ -137,6 +139,13 @@ export interface NotesScreenProps {
   /** Turns a line of prose into a box, in the note it lives in. */
   onMakeBox: (docId: string, blockId: string) => void
   /**
+   * Corrects the wording of one line, in the note it lives in.
+   *
+   * There is nowhere else for it to go: in your own notes the task *is*
+   * the line. The sheet that offers it says so before it is pressed.
+   */
+  onRetext: (docId: string, blockId: string, text: string) => void
+  /**
    * Takes lines out of a note, from the Actions tab. What comes back is
    * where each one was, so an undo can put it there.
    */
@@ -152,8 +161,12 @@ export interface NotesScreenProps {
   aiReady: boolean
   /** Whether the recording itself can be transcribed properly. */
   transcribes: boolean
-  /** A note copied out of the World, which becomes a note of your own. */
-  onSaveFromWorld: (note: { title: string; blocks: Block[] }) => Promise<void>
+  /**
+   * Makes a new note of your own out of words from somewhere else: a copy
+   * taken from the World, or a solution Brainstorm wrote. One callback,
+   * because both are the same act — words in, a note in your list out.
+   */
+  onNewNote: (note: { title: string; blocks: Block[] }) => Promise<void>
   /* Signing in, which is on this screen because this is where people are. */
   account: Account | null
   syncState: SyncState
@@ -177,6 +190,7 @@ export default function NotesScreen({
   onTick,
   onUntick,
   onMakeBox,
+  onRetext,
   onRemove,
   onPutBack,
   onRestore,
@@ -185,7 +199,7 @@ export default function NotesScreen({
   onRecord,
   aiReady,
   transcribes,
-  onSaveFromWorld,
+  onNewNote,
   account,
   syncState,
   onSignedIn,
@@ -237,6 +251,27 @@ export default function NotesScreen({
   }, [])
 
   const live = docs.filter((doc) => !doc.deletedAt)
+
+  /*
+    Everything outstanding, read here rather than inside the Actions tab.
+
+    It is here because the tab has to wear the number whether or not it is
+    the tab you are on — a count that only appears once you have pressed
+    Actions is a count nobody needed. Reading every block of every note is
+    the expensive thing in this app after the search index, so it is
+    memoised on the notes and computed exactly once: the panel is handed
+    the list rather than gathering its own, or the number on the tab and
+    the rows under it would be two answers to one question.
+
+    And not at all in Team, where there is no tab to wear it and none of
+    this is on screen.
+  */
+  const { has: turnedDown } = useDismissed()
+  const gathered = useMemo(() => (team ? [] : gatherActions(live)), [live, team])
+  const outstanding = gathered.filter(
+    (item) => item.kind === 'box' || !turnedDown(item.docId, item.blockId),
+  )
+
   const favourites = live
     .filter((doc) => doc.favoritedAt)
     .sort((a, b) => (b.favoritedAt ?? 0) - (a.favoritedAt ?? 0))
@@ -315,17 +350,19 @@ export default function NotesScreen({
           through it.
         */}
         {/*
-          The greeting sticks in Me, and does not in Team.
+          It sticks on both sides of the switch, and the team's own bar
+          sticks underneath it.
 
-          Two sticky bars at the same offset is one of them drawn over the
-          other, and the team's own header — which team, chat or actions —
-          is the one worth keeping on screen once you are in a chat. So
-          this one scrolls away there rather than being stacked against by
-          arithmetic that breaks the moment a name wraps.
+          For a while it did not stick in Team, because two sticky bars at
+          one offset is one of them drawn over the other and there was no
+          honest way to say how tall this one was. There is now:
+          `--pad-header` is measured off this element by the observer
+          below and written straight onto its parent, so the team's
+          navigation sticks at exactly the bottom edge of this bar however
+          long a name wraps it. Which team you are in and who you are are
+          both things worth keeping on screen while a chat scrolls.
         */}
-        <header
-          className={`z-20 bg-[var(--color-paper)] pt-5 sm:pt-8 ${team ? '' : 'sticky top-0'}`}
-        >
+        <header className="sticky top-0 z-20 bg-[var(--color-paper)] pt-5 sm:pt-8">
           <div className="mb-4 flex items-center gap-2">
             <Greeting name={name} onName={setName} />
           {/*
@@ -415,6 +452,7 @@ export default function NotesScreen({
             onTab={onTab}
             icon={<ListChecks size={14} />}
             label="Actions"
+            count={outstanding.length}
           />
           <Tab id="world" current={tab} onTab={onTab} icon={<Globe2 size={14} />} label="World" />
           {/*
@@ -498,16 +536,19 @@ export default function NotesScreen({
         ) : tab === 'actions' ? (
           <ActionsPanel
             docs={live}
+            items={outstanding}
             aiReady={aiReady}
             onOpen={onOpen}
+            onNewNote={onNewNote}
             onTick={onTick}
             onUntick={onUntick}
             onMakeBox={onMakeBox}
+            onRetext={onRetext}
             onRemove={onRemove}
             onPutBack={onPutBack}
           />
         ) : tab === 'world' ? (
-          <WorldPanel onSave={onSaveFromWorld} />
+          <WorldPanel onSave={onNewNote} />
         ) : view === 'dashboard' ? (
           <DashboardPanel docs={live} accountId={account?.id ?? null} />
         ) : listed.length === 0 ? (
@@ -670,7 +711,7 @@ function Greeting({ name, onName }: { name: string; onName: (name: string) => vo
           aria-label="Your name"
           placeholder="Your name"
           maxLength={24}
-          className="pad-serif min-w-0 flex-1 border-b border-[var(--color-accent)] bg-transparent text-[30px] font-semibold tracking-tight outline-none sm:text-[34px]"
+          className="pad-serif min-w-0 flex-1 border-b border-[var(--color-accent)] bg-transparent text-[21px] font-semibold tracking-tight outline-none sm:text-[24px]"
         />
         <button
           type="button"
@@ -686,7 +727,16 @@ function Greeting({ name, onName }: { name: string; onName: (name: string) => vo
 
   return (
     <span className="flex min-w-0 items-center gap-1">
-      <h1 className="pad-serif min-w-0 truncate text-[30px] font-semibold tracking-tight sm:text-[34px]">
+      {/*
+        Smaller than it was, on purpose and in both halves of the app.
+
+        It was set at the size of a page's title, which is what it looked
+        like: a headline saying your own name, above the thing you actually
+        came to read. It is a greeting — the smallest thing on the screen
+        that is still plainly a greeting — and the bar it sits in is sticky,
+        so every pixel of it is a pixel of notes nobody can see.
+      */}
+      <h1 className="pad-serif min-w-0 truncate text-[21px] font-semibold tracking-tight sm:text-[24px]">
         {greeting(name)}
       </h1>
       <button
@@ -708,12 +758,15 @@ function Tab({
   onTab,
   icon,
   label,
+  count,
 }: {
   id: NotesTab
   current: NotesTab
   onTab: (tab: NotesTab) => void
   icon: React.ReactNode
   label: string
+  /** How much is waiting behind this tab, where that is worth saying. */
+  count?: number
 }) {
   const on = current === id
   return (
@@ -730,6 +783,17 @@ function Tab({
     >
       {icon}
       {label}
+      {/*
+        How many things are outstanding, on the tab rather than behind it.
+
+        The Actions tab is the one place in this app where the answer to
+        "is it worth looking" is a number, and it was only ever visible to
+        somebody who had already looked. Nothing when it is nothing: a
+        grey zero beside Actions is a reminder of an empty list.
+      */}
+      {count !== undefined && count > 0 && (
+        <span className="text-[12px] text-[var(--color-faint)]">{count}</span>
+      )}
     </button>
   )
 }
@@ -764,10 +828,20 @@ function View({
       role="tab"
       aria-selected={on}
       onClick={() => onView(id)}
-      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] ${
+      /*
+        The one that is on is the only one that is really there.
+
+        These three are a way of looking at the same notes rather than
+        three places to go, so at a glance the row should read as one
+        word with two alternatives beside it — not as three equal
+        choices competing with the list underneath. The unselected pair
+        fade most of the way out and come back on hover and on focus, so
+        nothing is hidden from anybody navigating by keyboard.
+      */
+      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] transition-opacity ${
         on
           ? 'bg-[var(--color-hover)] font-medium text-[var(--color-ink)]'
-          : 'text-[var(--color-muted)] hover:text-[var(--color-ink)]'
+          : 'text-[var(--color-muted)] opacity-40 hover:opacity-100 hover:text-[var(--color-ink)] focus-visible:opacity-100'
       }`}
     >
       {icon}

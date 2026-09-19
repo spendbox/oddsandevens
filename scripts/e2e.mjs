@@ -1049,6 +1049,201 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
   await page.waitForTimeout(400)
 }
 
+/* ------------------------------------------------------------- brainstorm */
+
+{
+  /*
+    One outstanding thing, thought through — and the two things that make it
+    worth having rather than a longer sentence on a button: it can be put
+    down while it runs, and it is allowed to say it cannot help.
+
+    The route is stubbed. What is being tested is what the screen does with
+    an answer, a refusal and a request that has not come back yet.
+  */
+  let held = null
+  await page.route('**/api/ai', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ configured: true }),
+      })
+    }
+    const body = request.postDataJSON()
+    if (body.action === 'brainstorm-questions') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          text: 'What have you already said to them?\nWhen does this actually need doing?',
+        }),
+      })
+    }
+    if (body.action === 'brainstorm-solution') {
+      // Held open on purpose, so the "put it down" path can be driven.
+      if (held === 'wait') {
+        await new Promise((resolve) => setTimeout(resolve, 4000))
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          text:
+            held === 'refuse'
+              ? 'CANNOT: the note says only that something needs sorting.'
+              : '## The email\n\nDear Sam,\n\nAbout the service charge figures.\n\n## Then\n\n- Send it today',
+        }),
+      })
+    }
+    return route.fallback()
+  })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+  await page.locator('[role="tab"]:has-text("Actions")').click()
+  await page.waitForTimeout(700)
+
+  const page_text = () => page.evaluate(() => document.body.innerText)
+
+  log(
+    'the tab wears how much is outstanding',
+    /Actions\s*\d+/.test(
+      await page.locator('[role="tab"]:has-text("Actions")').innerText(),
+    ),
+    (await page.locator('[role="tab"]:has-text("Actions")').innerText()).replace(/\n/g, ' '),
+  )
+  log(
+    'the button that re-ordered the list is gone',
+    !/what should i do first/i.test(await page_text()),
+  )
+  log('and Brainstorm is in its place', await page.locator('button:has-text("Brainstorm")').first().isVisible())
+
+  await page.locator('button:has-text("Brainstorm")').first().click()
+  await page.waitForTimeout(300)
+  const sheet = page.locator('[role="dialog"][aria-label="Brainstorm"]')
+  log('it opens by asking which one thing', await sheet.isVisible())
+
+  // Pick the first thing on the list it offers.
+  const first = sheet.locator('ul button').first()
+  const picked = (await first.innerText()).split('\n')[0].trim()
+  await first.click()
+  await page.waitForTimeout(800)
+  log(
+    'and then asks what the notes do not say',
+    (await sheet.locator('textarea').count()) === 2,
+    picked,
+  )
+  await sheet.locator('textarea').first().fill('Nothing yet, this is the first ask.')
+  await page.screenshot({ path: `${SHOTS}/07e-brainstorm-questions.png` })
+
+  await sheet.locator('button:has-text("Work it out")').click()
+  await page.waitForTimeout(1500)
+  log(
+    'the answer is the thing itself, written out',
+    /Dear Sam/.test(await sheet.innerText()),
+    (await sheet.innerText()).split('\n').slice(0, 6).join(' / '),
+  )
+  log(
+    'and it can be kept as a note of its own',
+    await sheet.locator('button:has-text("Keep it as a note")').isVisible(),
+  )
+  await page.screenshot({ path: `${SHOTS}/07f-brainstorm-solution.png` })
+  await sheet.locator('[aria-label="Close"]').last().click()
+  await page.waitForTimeout(400)
+
+  log(
+    'afterwards the row it was about says a solution exists',
+    (await page.locator('button:has-text("Solution")').count()) >= 1,
+  )
+
+  /*
+    And pressing the line opens what is known about it rather than doing
+    anything to it — which is the other half of why a row is tappable at
+    all.
+  */
+  await page.locator(`[aria-label="Open “${picked.replace(/"/g, '\\"')}”"]`).first().click()
+  await page.waitForTimeout(400)
+  const detail = page.locator('[role="dialog"]').last()
+  log('pressing the line opens it', await detail.isVisible())
+  log(
+    'and the solution is in there with it',
+    /Dear Sam/.test(await detail.innerText()),
+  )
+  log(
+    'and it says which note the line lives in before it offers to change it',
+    /corrects it there/i.test(await detail.innerText()),
+    (await detail.innerText()).split('\n').slice(0, 4).join(' / '),
+  )
+
+  // Correcting the wording writes into the note, because the line is the task.
+  const fixed = `${picked} (properly)`
+  await detail.locator('textarea').first().fill(fixed)
+  await detail.locator('button:has-text("Save")').click()
+  await page.waitForTimeout(1200)
+  log('correcting the wording changes the line in the note', /\(properly\)/.test(await page_text()))
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+  await page.locator('[role="tab"]:has-text("Actions")').click()
+  await page.waitForTimeout(700)
+  log(
+    'and it is written there, so a reload agrees',
+    /\(properly\)/.test(await page_text()),
+  )
+
+  // A refusal is an answer, and is printed as one.
+  held = 'refuse'
+  await page.locator('button:has-text("Brainstorm")').first().click()
+  await page.waitForTimeout(300)
+  await page.locator('[role="dialog"][aria-label="Brainstorm"] ul button').first().click()
+  await page.waitForTimeout(800)
+  await page
+    .locator('[role="dialog"][aria-label="Brainstorm"] button:has-text("Work it out")')
+    .click()
+  await page.waitForTimeout(1500)
+  log(
+    'and when it cannot help it says so instead of padding',
+    /could not work this one out/i.test(
+      await page.locator('[role="dialog"][aria-label="Brainstorm"]').innerText(),
+    ),
+  )
+  await page.locator('[role="dialog"][aria-label="Brainstorm"] [aria-label="Close"]').last().click()
+  await page.waitForTimeout(400)
+
+  // Put down while it runs: the dialog goes, the request does not.
+  held = 'wait'
+  await page.locator('button:has-text("Brainstorm")').first().click()
+  await page.waitForTimeout(300)
+  await page.locator('[role="dialog"][aria-label="Brainstorm"] ul button').first().click()
+  await page.waitForTimeout(800)
+  await page
+    .locator('[role="dialog"][aria-label="Brainstorm"] button:has-text("Work it out")')
+    .click()
+  await page.waitForTimeout(500)
+  await page.locator('button:has-text("Put it down")').click()
+  await page.waitForTimeout(300)
+  log(
+    'it can be put down while it thinks',
+    (await page.locator('[role="dialog"][aria-label="Brainstorm"]').count()) === 0,
+  )
+  log(
+    'and the row it is about says so',
+    (await page.locator('button:has-text("Working on it")').count()) === 1,
+  )
+  await page.screenshot({ path: `${SHOTS}/07g-brainstorm-put-down.png` })
+  await page.waitForTimeout(5000)
+  log(
+    'and when it comes back the row says there is a solution',
+    (await page.locator('button:has-text("Working on it")').count()) === 0 &&
+      (await page.locator('button:has-text("Solution")').count()) >= 1,
+  )
+
+  await page.unroute('**/api/ai')
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.waitForTimeout(900)
+  await page.locator('[role="tab"]:has-text("Notes")').click()
+  await page.waitForTimeout(400)
+}
+
 /* ---------------------------------------------------------------- search */
 
 {

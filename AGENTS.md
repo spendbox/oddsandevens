@@ -13,11 +13,12 @@ cannot be imported is `public/sw.js`, which is served as a plain file.
 **Everything the reader sees is called a note.** Not a document, not a file.
 Two lines or twenty pages, the same word for both.
 
-Four things in it talk to a model, all of them on purpose and all of them
+Five things in it talk to a model, all of them on purpose and all of them
 optional: the box that writes a note up, the recorder that writes down what was
-said, the question you can ask of your own notes, and the button that puts
-everything outstanding in an order. Nothing else does, and nothing runs without
-being pressed.
+said, the question you can ask of your own notes, a team's chat message read
+for the work stated in it, and Brainstorm — one outstanding thing thought
+through and whatever would help with it drafted. Nothing else does, and nothing
+runs without being pressed.
 
 There is one writing surface and it is a page. Lines finish themselves as the
 caret leaves them, with no model involved.
@@ -260,16 +261,18 @@ a page.
   the signature says so rather than pretending both providers have the same
   controls.
 - **The cheap model is the default, and the job picks the expensive one.**
-  Nothing in this app is agentic and nothing uses tools, so nothing asks for the
-  largest model. Punctuating a dictated paragraph and expanding "mtg" to
-  "meeting" are reading tasks: the small model does them as well as the large
-  one, costs a fraction, and is the faster of the two — which matters because it
-  is the one somebody is sitting and waiting for. `effort: 'high'` is the only
-  thing that moves a request up, and only two callers set it: answering a
-  question about the notes, and ordering what is outstanding. Both are a
-  judgement rather than a reading. `output_config` goes only to the model that
-  understands it, because a 400 back would turn "the cheap model does the cheap
-  jobs" into "writing help stopped working".
+  Nothing in this app is agentic and nothing uses tools, so almost nothing asks
+  for the largest model. Punctuating a dictated paragraph, expanding "mtg" to
+  "meeting" and reading a chat line for the task in it are reading tasks: the
+  small model does them as well as the large one, costs a fraction, and is the
+  faster of the two — which matters because it is the one somebody is sitting
+  and waiting for. `effort: 'high'` moves a request up to the middle model and
+  is set by the one caller that is a judgement rather than a reading: answering
+  a question about the notes. `effort: 'max'` is Brainstorm's solution and
+  nothing else — see the rules on it further down. `output_config` goes only to
+  the middle model, because a 400 back from one that does not understand it
+  would turn "the cheap model does the cheap jobs" into "writing help stopped
+  working".
 - **Search is one thing, not two.** A box that filters the list of file names
   and a box that searches inside documents behave differently and teach people
   to distrust both. `src/lib/search.ts` is a BM25 index over everything, built
@@ -591,9 +594,10 @@ a page.
   task without its context is a line somebody has to go and re-read anyway.
 - **The Actions tab is complete before the model is asked anything.** The list
   is built on the device, offline, free and identical every time. The model is
-  one button that puts it in an order, it is pressed and never automatic, and
-  it is given only the lines and the note names — never the notes. A screen
-  that spends money when somebody glances at it is a screen they stop opening.
+  one button — Brainstorm — it takes one item at a time, it is pressed and
+  never automatic, and it is given the passages that bear on that item plus the
+  other lines and the note names, never the collection. A screen that spends
+  money when somebody glances at it is a screen they stop opening.
 - **Actions are grouped by note, and a group goes at once.** Six lines from
   Tuesday's meeting are one piece of work with one set of names and one reason
   for existing; scattered through a flat list of forty they are six separate
@@ -630,14 +634,17 @@ a page.
   is two places to disagree.
 - **A sparkle is not a picture of anything.** It is the badge every app now
   puts on whatever a model touched, and it says "this is the AI bit" — a fact
-  about how the thing was built rather than about what it does. The button that
-  orders the Actions list wears an arrow ordering a list. The same test applies
-  to anything added later: draw the job, not the implementation.
+  about how the thing was built rather than about what it does. Brainstorm
+  wears a lamp, because what it does is have an idea about one thing. The same
+  test applies to anything added later: draw the job, not the implementation.
 - **The screen does not explain its own privacy in small print.** "Only these
   lines are sent, never your notes" was true, and it was a footnote under a
   button asking to be trusted — which is where a notice goes when the design
-  cannot make the point on its own. What is sent is in `digest`, and it is one
-  function with the reason written above it.
+  cannot make the point on its own. What is sent is in `digest` and in
+  `brainstormContext`, each one function with the reason written above it.
+  The same went for "anything you ask for here turns into work on the board"
+  under the team's send button: the placeholder says what to type and the
+  tasks appear under the message, and being shown beats being told.
 - **A way in that only appears after something else has been pressed is not a
   way in.** Listing a note in the World was a tickbox inside the ⋯ that
   appeared only once a link existed, so the route to the World began with a
@@ -823,11 +830,14 @@ a page.
   the screen entirely. `sticky bottom-0` is in the page, so it sits at the
   bottom of what is visible and the browser does the arithmetic. Prefer it
   for anything that follows a scrolling list.
-- **Two sticky bars at the same offset is one drawn over the other.** In
-  Team mode the greeting does not stick and the team's own header does,
-  rather than stacking them with an offset that breaks the moment a name
-  wraps. Whichever bar is the one you need while scrolling is the one that
-  sticks; the other scrolls away.
+- **Two sticky bars at the same offset is one drawn over the other**, so
+  they are stacked by measuring rather than by one of them giving way. For
+  a while the greeting simply did not stick in Team, because there was no
+  honest way to say how tall it was; `--pad-header` is that number now — a
+  `ResizeObserver` writes it straight onto the element — and both bars
+  stick, the team's own at exactly the bottom edge of the app's. Never
+  stack two with a guessed offset: it breaks the first time a long name
+  wraps the greeting onto a second line.
 - **`@` means the same thing in every field or it means nothing.** It
   worked in the chat box and not in the box on the board, a tab away —
   `mention-field.tsx` is both of them now. A rule that holds in one field
@@ -909,6 +919,121 @@ a page.
   is a gesture nobody trusts. `note-row.tsx` keeps its own copy because it is
   welded into the one list this app is built around; everything after it uses
   this.
+
+- **A debounce that fires on mount must compare before it sets.** The
+  World's search timer ran once on opening with an empty field, turned the
+  spinner on for a search nothing downstream could see had changed, and
+  nothing ever turned it off — so the screen opened with a wheel spinning
+  beside the box forever. The guard is `if (wanted === asked) return`, and
+  the rule is general: a timer that starts a piece of work must first check
+  there is work.
+- **The writing box sits above the keyboard with a gap, not against it.** A
+  box resting exactly on the top row of a phone keyboard reads as part of
+  it, and the Send button ends up a thumb's width from Return. The gap is
+  added only when there *is* a keyboard: on a desktop the sheet is centred,
+  and bottom padding there pushes it off centre to fix a problem that
+  screen does not have.
+- **The greeting is a greeting, not a headline.** It was set at the size of
+  a page title, which is what it looked like — your own name in a headline
+  above the thing you came to read — and the bar it lives in is sticky, so
+  every pixel of it is a pixel of notes nobody can see. Both halves of the
+  app read it from one component, so there is one size to be wrong about.
+- **The way of looking that is on is the only one that is really there.**
+  All, Favourites and Dashboard are one row of the same notes seen three
+  ways, so the two that are off fade most of the way out rather than
+  competing with the list underneath — and come back on hover and on focus,
+  because nothing may be hidden from somebody navigating by keyboard.
+- **A count on a tab is gathered once, above the tab.** Actions wears how
+  much is outstanding, which means reading every block of every note whether
+  or not that tab is the one on screen. It is memoised in `notes-screen.tsx`
+  and the list is handed down, because the alternative is the same expensive
+  answer worked out twice with nothing stopping the number and the rows
+  disagreeing.
+- **Each chat message sits on its own quiet card.** Three messages in a row
+  from one person read as one long paragraph with the odd timestamp through
+  it. A faint fill and a corner is the smallest thing that says where one
+  stops; no border and no colour, because a chat is a page of writing and
+  forty outlined boxes is a form. Anything drawn *on* a card takes the paper
+  colour, or it disappears into what it is standing on.
+- **A team gets its picture from the same table a note does.**
+  `iconForTeam` is `iconForText` with "people" as the fallback, so "Finance"
+  is a banknote and a surname is a group of people. Two lists of words about
+  the same thing is one of them quietly disagreeing — the rule `kind.ts`
+  already follows.
+- **A row opens; it does not act.** Pressing a line in Actions, or a task on
+  a team's board, shows what is known about it and changes nothing. The
+  controls that *do* change something — the tick, the swipe — are where they
+  were. "Tap it to fix the typo" is the first thing anybody tries on a task
+  typed into a chat at speed, and until there was somewhere for that press
+  to go, nothing happened.
+- **Correcting a line in Actions writes into the note, and says so first.**
+  In your own notes the task *is* the line: there is nowhere else for a
+  correction to live, and an edited copy kept beside a note that disagrees
+  with it is not a trade this app makes anywhere. The sheet says "this is a
+  line in X; correcting it here corrects it there" above the field, and the
+  painting (`html`) is dropped with the old words — it was a rendering of a
+  sentence that no longer exists.
+- **A team's task belongs to the team, not to whoever typed it.** Anybody in
+  it may correct the wording, the date or whose it is — the same permission
+  that already let anybody tick one. What none of that touches is the
+  message it came from: the chat is the record of what was said and a task
+  is a reading of it, so correcting the reading must never rewrite the
+  sentence.
+- **Brainstorm took the place of "what should I do first?", and the
+  difference is the whole of it.** That button re-ordered a list already on
+  the screen: a fair question, a thin answer, and nobody pressed it twice.
+  The question people actually have about a line in that list is the next
+  one along — *how do I do this* — and answering it means reading their
+  notes, asking what the notes do not say, and then writing the thing. One
+  item at a time, pressed, never automatic.
+- **The questions are the reason the answer is worth anything.** "Chase the
+  landlord" has a history that was never written down: what was already
+  said, whether this is a first ask or a fourth, what would count as done. A
+  model that guesses at those writes a confident letter about the wrong
+  thing, which is worse than no letter. They are skippable — a question
+  nobody wants to answer must never be a gate — and skipping says so in the
+  reply's own "what I could not know".
+- **Two requests, two models, and `effort` is what picks.** Working out what
+  a page does not say is a reading task and goes to the cheap model, which
+  is also the fast one — and that is the half somebody sits and waits for.
+  Writing the thing is not a reading task: `effort: 'max'` is the only place
+  in this app that asks for the largest model, and it prefers Anthropic even
+  when OpenAI is configured, because GPT-4o is the quick model everything
+  else here runs on and this is the one request where a better model is a
+  different outcome rather than a nicer sentence. `output_config` still goes
+  only to the middle model.
+- **A refusal is an answer and is printed as one.** A model asked to solve
+  "sort out the thing" will produce a page of plausible structure rather
+  than admit there is nothing to work from, and a page that costs a read to
+  discover it is empty is how somebody learns not to open this again. The
+  prompt asks for `CANNOT: <one sentence>`; `readSolution` reads it
+  forgivingly and the screen says it in the same voice as a solution. Never
+  turn a refusal into an error.
+- **A solution is a working note, so it lives on the device.** localStorage
+  beside the theme, the folds and the suggestions turned down — twenty of
+  them, newest kept, each capped, and forgotten with everything else when
+  the device changes hands, because it is written out of another person's
+  notes. Which also settles what happens to one in flight when the tab
+  closes: it is lost, and nothing pretends otherwise. A row saying "working
+  on it" for something nothing is working on is worse than starting again.
+- **Putting it down is not stopping it.** The dialog renders nothing while
+  it is minimised and stays mounted, which is what keeps the request and
+  everything typed into it alive; the state moves to the row it is about —
+  "Working on it…", then "Solution". A dialog somebody has to sit in front
+  of for twenty seconds is a dialog they cancel.
+- **`lib/about.ts` is the app's account of itself, and a test keeps it
+  true.** Brainstorm is asked about somebody's work and the work is often
+  this app, so a model that has never heard of it answers with a paragraph
+  of plausible software said with total confidence. Add a feature, add its
+  sentence, add its word to `FEATURES` — a screen with no sentence fails
+  `about.test.ts` rather than quietly becoming something the model invents.
+  Never describe anything that is only planned: a model told about a screen
+  that does not exist will tell somebody to go and press it.
+- **Retrieval for Brainstorm is the same bargain as a question.** The local
+  index picks the notes, `gatherSources` cuts out the passages, and only
+  those go — never the collection, so the cost of thinking about one thing
+  does not grow with how much has been written. The solution names the notes
+  it was written from, for the same reason an answer carries its sources.
 
 ## Checking work
 

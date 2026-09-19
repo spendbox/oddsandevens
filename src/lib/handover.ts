@@ -1,5 +1,6 @@
 'use client'
 
+import { forgetSolutions } from './brainstorm.ts'
 import { forgetDismissed } from './dismissed.ts'
 import { forgetName } from './profile.ts'
 import { forgetSeen } from './team-unread.ts'
@@ -71,6 +72,13 @@ export async function wipeDevice(): Promise<void> {
   await clearAll()
   forgetName()
   forgetDismissed()
+  /*
+    And anything worked out about their work. A solution is written out of
+    somebody's notes and keyed by the ids of those notes: it means nothing
+    to the account arriving, and it is not a thing to leave lying in a
+    browser either.
+  */
+  forgetSolutions()
   // Which team chats had been read is a fact about the last person here.
   forgetSeen()
 }

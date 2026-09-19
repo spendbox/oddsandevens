@@ -530,6 +530,50 @@ export async function setTaskDone(id: string, done: boolean): Promise<Problem> {
   }
 }
 
+/**
+ * Corrects the wording of a task.
+ *
+ * Anybody in the team may, which is what the "members can change tasks"
+ * policy in 0007 has always said — the same permission that lets anybody
+ * tick one. A task is the team's, not its author's: a typo in a job with
+ * your name on it that only the person who typed it can fix is a typo that
+ * stays there until somebody is free.
+ *
+ * What it does not touch is the message it came from. The chat is the
+ * record of what was actually said, and a task is a reading of it; editing
+ * the reading must never rewrite the sentence.
+ */
+export async function setTaskText(id: string, text: string): Promise<Problem> {
+  const db = await getSupabase()
+  if (!db) return OFFLINE
+  const wanted = text.trim()
+  if (!wanted) return 'A task needs some words.'
+  try {
+    const { error } = await db
+      .from('team_tasks')
+      .update({ text: wanted, updated_at: Date.now() })
+      .eq('id', id)
+    return error ? explain(error.message) : undefined
+  } catch {
+    return 'Could not reach the server.'
+  }
+}
+
+/** When it is for, in the words somebody wrote — never a parsed date. */
+export async function setTaskDue(id: string, due: string): Promise<Problem> {
+  const db = await getSupabase()
+  if (!db) return OFFLINE
+  try {
+    const { error } = await db
+      .from('team_tasks')
+      .update({ due: due.trim(), updated_at: Date.now() })
+      .eq('id', id)
+    return error ? explain(error.message) : undefined
+  } catch {
+    return 'Could not reach the server.'
+  }
+}
+
 export async function setTaskAssignee(
   id: string,
   assignee: string | null,

@@ -196,12 +196,22 @@ has what and when it is for. Anybody in the team can tick, untick or delete
 anything — it is shared work — and **Add a task** takes the same @ and the same
 date words as the chat does.
 
+**Press a task to open it.** The wording, when it is for and whose it is are
+all editable in there, by anybody in the team: half of these are typed into a
+chat at speed and have a wrong word or a missing name in them, and a job with
+your name on it that only the person who typed it can fix is a job that stays
+wrong. What none of it touches is the message it came from — the chat is the
+record of what was said, and a task is a reading of it.
+
 **Who can do what.** Whoever made the team is an admin and can never be removed
 from it. Admins add and remove people, hand out admin, and rename or delete the
 team. Tap anybody's name to see them and, if you are an admin, to change any of
 that. Tap the team's name for all your teams — the ones with something new in
 them carry a dot — and the ⚙ for its settings, a link to send people, and
-deleting it, which asks you to type its name first.
+deleting it, which asks you to type its name first. Each team wears its own
+small picture, worked out from what it is called the same way a note's is
+worked out from its title: *Finance* is a banknote, *Hiring* is a group of
+people. It costs nothing and no model has an opinion about it.
 
 **Adding people.** An admin presses **Add** and types their email address. They
 are in the team immediately, and if they have not signed up yet, the team is
@@ -230,7 +240,9 @@ and the cost of a question does not grow with how much you have written.
 
 ## What is still to do
 
-**Actions** is the third tab, and it has read every note you have.
+**Actions** is the second tab, and it has read every note you have. The
+number beside it is how much is outstanding, so you can see whether it is
+worth looking without looking.
 
 Everything is **grouped under the note it came from**, newest note first. Six
 lines from Tuesday's meeting are one piece of work with one set of names and
@@ -254,6 +266,12 @@ Inside a group there are two kinds of thing:
   it away and it says **Not a task**: the guess is turned down and remembered,
   and not one word of what you wrote is touched.
 
+**Press the line itself** and it opens: the words, which note they are in,
+when it is for, and whatever Brainstorm has worked out about it. Opening it
+changes nothing. Correcting the wording in there does change the note — in
+your own notes the task *is* the line, so there is nowhere else for a
+correction to live — and it says so above the box before you type in it.
+
 Any day or date is kept in the words you wrote it in. "Friday" is not turned
 into a date, because which Friday was meant is not something this app knows.
 
@@ -269,10 +287,38 @@ say otherwise. A diary, a page of quotes, a draft: turn it off and that note
 never appears here. Nothing in it is changed, hidden or moved, and a note's **⋯**
 changes its mind either way afterwards.
 
-With a model configured, and only when you press it, **What should I do first?**
-puts the list in an order and says where several rows are really one job. Only
-those lines and the names of the notes they came from are sent — never the
-notes. The list is complete without it.
+### Brainstorm
+
+With a model configured, and only when you press it, **Brainstorm** takes one
+thing off this list and works it out properly.
+
+Pick the thing. It reads your own notes for what bears on it — the local
+index finds them and only the matching passages are sent, never the
+collection — and then **asks you two or three things the notes do not say**:
+what you have already said to them, what would actually count as this being
+done, what the real constraint is. Answer in a sentence each, or skip them.
+
+Then it does the work. Where the task is something that can be written — an
+email, a message, an agenda, an outline, a plan, a script — **it writes it
+out in full**, ready to send, rather than describing what it should contain.
+Under that are the steps to take, and where another outstanding line is
+plainly part of the same job it says so. Anything it needed and was not given
+is left as a marked blank like `[the date]` rather than made up, and a list
+at the end says what it could not know.
+
+**It is allowed to say it cannot.** If there is nothing honest to do with
+what it was given it says that in one sentence instead of returning a page
+of plausible structure. That is a real answer, and it is printed as one.
+
+**You can put it down while it thinks.** The dialog closes, the row it is
+about says *Working on it…*, and when the answer arrives it says *Solution*.
+Press the row to read it. **Keep it as a note** makes it a note of your own.
+
+It also knows what this app is, so "write the announcement for this" or "how
+do I get this in front of people" gets an answer about the app you are
+actually using rather than a paragraph of plausible software.
+
+The list itself is complete without any of this.
 
 ## The World
 
@@ -385,11 +431,12 @@ configuration beyond pointing it at this repository.
 
 ## Turning on the model (optional)
 
-Five things use it, and nothing else: writing up a note from the box,
+A handful of things use it, and nothing else: writing up a note from the box,
 transcribing a recording, writing up what you dictate, answering a question
-about your notes, and putting what is outstanding in an order. All five work
-without it — more roughly, on your device — and none of them runs unless you
-press something.
+about your notes, reading a team's chat message for the work stated in it, and
+Brainstorm. Every one of them works without it — more roughly, or on your
+device, or not at all in Brainstorm's case, which simply is not offered — and
+none of them runs unless you press something.
 
 It is **GPT-4o** for the writing, because it is what most people already have a
 key for and it is inside the free allowance on a new account, and
@@ -416,16 +463,29 @@ so a running server will not pick up a new key. On Vercel it goes in **Project �
 Settings → Environment Variables** under the same name, and the project has to
 be redeployed afterwards for the same reason.
 
-If both keys are set, **OpenAI wins**: `ANTHROPIC_API_KEY` is read only when
-`OPENAI_API_KEY` is empty, so if it still seems to be using Anthropic, the
-OpenAI key is either missing, misspelt, or was added after the server started.
+If both keys are set, **OpenAI wins** everywhere except Brainstorm:
+`ANTHROPIC_API_KEY` is read only when `OPENAI_API_KEY` is empty, so if the
+rest of it still seems to be using Anthropic, the OpenAI key is either
+missing, misspelt, or was added after the server started.
 
-**Which model, and what it costs.** Nothing here is agentic and nothing uses
-tools, so nothing asks for a large model. On the Anthropic side the job picks:
-the small, quick one punctuates dictation and writes up a note from the box,
-and the middle one is used only for the two things that are a judgement rather
-than a reading — answering a question about your notes, and deciding what out
-of forty outstanding lines matters first.
+**Which model, and what it costs.** Almost nothing here is agentic and nothing
+uses tools, so almost nothing asks for a large model. On the Anthropic side the
+job picks: the small, quick one punctuates dictation, writes up a note from the
+box and reads a chat line for the task in it; the middle one is used for the
+things that are a judgement rather than a reading, like answering a question
+about your notes.
+
+**Brainstorm is the exception, and it is deliberate.** Its questions come from
+the cheap, fast model, because working out what a page does not say is a
+reading task and it is the half you sit and wait for. The solution comes from
+the largest — **Opus** — because that request is asked to write the email
+rather than describe it, and there the difference between a good model and a
+very good one is the difference between something worth sending and something
+worth deleting. It is the one thing here that prefers Anthropic even when an
+OpenAI key is set, so **to get Opus, set `ANTHROPIC_API_KEY` as well**; with
+only an OpenAI key, Brainstorm uses GPT-4o and still works. It is also the one
+thing that cannot be triggered by accident: one item, chosen deliberately,
+after answering questions.
 
 The key stays on the server and is never sent to the browser — that is why this
 is the one feature with a server route behind it. Requests are limited to 20 a
@@ -497,6 +557,8 @@ src/lib/tasks.ts        prose that reads like a commitment, by string rules
 src/lib/actions.ts      everything outstanding, gathered from every note
 src/lib/name.ts         a first name out of an email address, or nothing
 src/lib/dismissed.ts    the suggestions you have already said no to
+src/lib/brainstorm.ts   reading a solution back, and keeping it on the device
+src/lib/about.ts        what this app is, written for the model to read
 src/lib/dictation.ts    speech into paragraphs, and cutting it up to send
 src/lib/recorder.ts     keeping the audio, in pieces, with a level meter
 src/lib/transcribe.ts   sending those pieces to be transcribed properly
@@ -522,7 +584,7 @@ src/lib/export.ts       turning a note into markdown or plain text
 src/lib/docx.ts         Word files out, built on zip.ts
 src/lib/when.ts         "3 minutes ago", and the stamp a list prints
 src/app/api/ai/         the one server route: compose, speech, questions,
-                        and putting what is outstanding in an order
+                        reading a chat line, and Brainstorm
 src/components/         the notes screen, the note, and the box
 src/app/s/[id]/         the public page a shared link opens
 src/app/t/[id]/         the page a team's link opens: a name and a way in
@@ -558,10 +620,19 @@ These are real and worth knowing before you rely on them:
   this repository, so every failure path is tested and the interface around it
   is tested against a stubbed route, but a real write-up from a real model is
   not. Try it once before relying on it.
-- **Writing up a note is a model call**, and so is stopping a recording, and so
-  is asking a question. Nothing else in the app costs anything: the names, the
-  pictures, the kinds, the search and the line rules are all worked out on your
-  device.
+- **Writing up a note is a model call**, and so is stopping a recording, asking
+  a question, and Brainstorm. Nothing else in the app costs anything: the names,
+  the pictures, the kinds, the search and the line rules are all worked out on
+  your device.
+- **Brainstorm is the one thing here that uses the largest model**, so it is the
+  one thing with a real per-press cost — one item at a time, pressed
+  deliberately, never automatic, and never in the background. It is also the
+  only part of the app that is simply not offered when there is no key.
+- **A solution that is being worked out does not survive the page closing.**
+  It lives in the tab that asked for it. Closing the browser loses it and the
+  row stops saying anything; pick the thing again and ask. Solutions that have
+  already come back are kept on the device — the newest twenty of them — and
+  are cleared when somebody else signs in, like everything else about you.
 - **The line rules are rules, not understanding.** They read notation and two
   narrow shapes, so a line that meant to be a list and did not say so stays a
   paragraph. That is deliberate: a guess that is right nine times in ten is a
