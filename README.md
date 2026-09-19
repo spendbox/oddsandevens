@@ -179,6 +179,11 @@ by Friday* — and it appears on the team's **Actions** board with Ada's name an
 "Friday" against it. Typing **@** offers the people in the team; pick one and
 the task is theirs.
 
+**A long message is folded.** A chat is something you scroll through, and one
+person pasting four hundred words into it takes the whole screen and pushes
+everybody else's answers off the end. Six lines show, and **Read all of it**
+opens the whole thing in a panel.
+
 **Nothing is invented.** A task has to be something somebody actually typed.
 Your device reads each message with plain rules first, the model is then asked
 to pick lines out rather than think of any, and anything it hands back made of
@@ -193,9 +198,11 @@ name again. An @ in the line always wins over that. You can also correct or
 delete anything you wrote; a corrected message says it was edited.
 
 **The board** has **Outstanding** and **Done** side by side, each showing who
-has what and when it is for. Anybody in the team can tick, untick or delete
-anything — it is shared work — and **Add a task** takes the same @ and the same
-date words as the chat does.
+has what, when it is for, and how long ago it was added — on a shared list
+that last one is what tells you whether you are reading this morning or last
+month. Anybody in the team can tick, untick or delete anything — it is shared
+work — and **Add a task** takes the same @ and the same date words as the chat
+does.
 
 **Press a task to open it.** The wording, when it is for and whose it is are
 all editable in there, by anybody in the team: half of these are typed into a
@@ -254,9 +261,11 @@ worth looking without looking.
 Everything is **grouped under the note it came from**, newest note first. Six
 lines from Tuesday's meeting are one piece of work with one set of names and
 one reason for existing, so they are read under that meeting's name — and the
-name opens the note. **Clear** beside it takes the whole group off in one
-press, which is how people actually finish with a meeting. It asks first, and
-says exactly what it will and will not touch.
+name opens the note, and beside it is how long ago that note was written in —
+a box in a note has no time of its own, so this is the note's, which is the
+honest answer to how old the group is. **Clear** takes the whole group off in
+one press, which is how people actually finish with a meeting. It asks first,
+and says exactly what it will and will not touch.
 
 Inside a group there are two kinds of thing:
 
@@ -386,12 +395,17 @@ Screen**.
 Installed, it opens from your dock or home screen as **Onepad**, in its own
 window with no address bar, and starts with no internet connection at all.
 
+**The bar at the top of your phone** — the time, the battery, the signal —
+takes the app's own paper colour, so an installed Onepad reaches the top of
+the screen instead of sitting inside a coloured band.
+
 **Updates.** An installed app is resumed rather than reopened, so it can go on
-running an old version for weeks. Pad checks for a new one when it opens, every
-half hour while it is open, and whenever you come back to it after a while —
-and then an **Update** button appears next to your account. It never reloads by
-itself, because you might be halfway through a sentence; press it when you are
-ready and it takes a second.
+running an old version for weeks. Onepad checks for a new one when it opens,
+every ten minutes while it is open, and every time you come back to it after a
+couple of minutes away — switching back to it, clicking its window, or coming
+back online. Then an **Update** button appears next to your account. It never
+reloads by itself, because you might be halfway through a sentence; press it
+when you are ready and it takes a second.
 
 ## Running it yourself
 

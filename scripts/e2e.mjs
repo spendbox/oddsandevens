@@ -1309,13 +1309,35 @@ await page.screenshot({ path: `${SHOTS}/03-notes.png` })
       return box.top <= 1 && !!tabs && tabs.bottom > 0 && tabs.bottom < 260
     }),
   )
+  /*
+    And it sticks *below* the bar, not behind it.
+
+    The offset was two hand-written numbers, right on the day they were
+    measured; then the greeting shrank and the tabs grew a count and
+    "Today" began sticking half-hidden behind the row of pills above it.
+    It reads `--pad-header` now, so the test is whether the heading clears
+    the bottom of the bar rather than whether a heading exists at all.
+  */
   log(
-    'and the day a run of notes belongs to sticks with them',
+    'and the day a run of notes belongs to sticks clear of the bar above it',
     await page.evaluate(() => {
+      const header = document.querySelector('header')
+      if (!header) return false
+      const under = Math.round(header.getBoundingClientRect().bottom)
       const heading = [...document.querySelectorAll('h2')].find(
         (h) => h.getBoundingClientRect().top > 0,
       )
-      return !!heading
+      if (!heading) return false
+      // Its whole box, not just its top edge: half a heading showing under
+      // an opaque bar is the thing being tested for.
+      return Math.round(heading.getBoundingClientRect().top) >= under - 1
+    }),
+    await page.evaluate(() => {
+      const header = document.querySelector('header')
+      const heading = [...document.querySelectorAll('h2')].find(
+        (h) => h.getBoundingClientRect().top > 0,
+      )
+      return `bar ends ${Math.round(header?.getBoundingClientRect().bottom ?? 0)}, heading at ${Math.round(heading?.getBoundingClientRect().top ?? 0)}`
     }),
   )
   await page.screenshot({ path: `${SHOTS}/08-days.png` })
@@ -2243,6 +2265,29 @@ const manifest = await page.evaluate(async () => {
   return r.ok ? await r.json() : null
 })
 log('web manifest serves', !!manifest && manifest.name?.includes('Onepad'))
+/*
+  The colour the phone paints its own status bar when the app is installed.
+
+  It was the app's green, which is right for a button and wrong for the
+  strip carrying the time and the battery: the installed app had a green
+  band above a white page, which is a frame around an app rather than an
+  app. It has to be the paper colour, and the meta pair has to carry both
+  themes — a manifest can only answer one.
+*/
+log(
+  'the phone\u2019s own bar takes the app\u2019s paper colour, not its green',
+  manifest?.theme_color === '#ffffff',
+  String(manifest?.theme_color),
+)
+log(
+  'and the dark theme has its own, matching --color-paper',
+  await page.evaluate(() => {
+    const metas = [...document.querySelectorAll('meta[name="theme-color"]')]
+    const dark = metas.find((m) => /dark/.test(m.getAttribute('media') ?? ''))
+    const light = metas.find((m) => /light/.test(m.getAttribute('media') ?? ''))
+    return dark?.getAttribute('content') === '#161719' && light?.getAttribute('content') === '#ffffff'
+  }),
+)
 const swRegistered = await page.evaluate(async () => {
   const regs = await navigator.serviceWorker.getRegistrations()
   return regs.length > 0

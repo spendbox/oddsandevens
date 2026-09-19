@@ -330,18 +330,28 @@ body {
  * other. The offset is the header's height at each width, which is the one
  * number these two rules have to agree on.
  */
+/*
+ * The day a run of notes belongs to, stuck under the bar above it.
+ *
+ * The offset was two hand-written numbers — 8.6rem, and 9.8rem on a wider
+ * screen — and they were right on the day they were measured. Then the
+ * greeting got smaller, the tabs grew a count and the pills moved, and the
+ * headings began sticking halfway behind the row above them: "Today" cut in
+ * half by the sub-menu, which is what a guessed offset always eventually
+ * does.
+ *
+ * `--pad-header` is the height of that bar, measured off it by a
+ * `ResizeObserver` in notes-screen.tsx. The fallback is roughly right rather
+ * than zero, for the same reason the team's bar has one: a heading sitting
+ * slightly low is a blemish, and a heading tucked invisibly behind an opaque
+ * bar is a bug nobody can see the cause of.
+ */
 .pad-day-heading {
   position: sticky;
-  top: 8.6rem;
+  top: var(--pad-header, 8.6rem);
   z-index: 10;
   background: var(--color-paper);
   padding-block: 0.6rem 0.25rem;
-}
-
-@media (min-width: 640px) {
-  .pad-day-heading {
-    top: 9.8rem;
-  }
 }
 
 /*

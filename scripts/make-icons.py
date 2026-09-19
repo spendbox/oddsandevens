@@ -21,22 +21,33 @@ from pathlib import Path
 OUT = Path(__file__).resolve().parent.parent / "public"
 
 # Matches the <linearGradient> in src/app/icon.svg.
-GRAD_FROM = (0x63, 0x66, 0xF1)
-GRAD_TO = (0x4F, 0x46, 0xE5)
+GRAD_FROM = (0x2A, 0x93, 0x67)
+GRAD_TO = (0x17, 0x60, 0x3F)
+# The pad itself, and the one line written on it.
+PAD = (17, 12, 47, 52, 5)  # x0, y0, x1, y1, corner radius, in the 64-unit box
+# A numeral one, drawn on the pad: the flag, the stem, and the foot.
+MARK = [
+    (28.5, 25.5, 32.5, 21.5),
+    (32.5, 21.5, 32.5, 42),
+    (26.5, 42, 38.5, 42),
+]
+LINE_WIDTH = 4.2
 
 # Supersampling factor. The glyph is thin strokes with round caps, and without
 # this the edges stair-step badly at 192px.
 SS = 4
 
 
-def rounded_rect_alpha(x, y, w, h, r):
-    """Coverage of a rounded rectangle at a point, as 0 or 1 (pre-supersample)."""
-    cx = min(max(x, r), w - r)
-    cy = min(max(y, r), h - r)
-    if x < r or x > w - r:
-        if y < r or y > h - r:
-            return 1.0 if (x - cx) ** 2 + (y - cy) ** 2 <= r * r else 0.0
-    return 1.0 if 0 <= x <= w and 0 <= y <= h else 0.0
+def in_rounded_rect(x, y, x0, y0, x1, y1, r):
+    """Whether a point is inside a rounded rectangle (pre-supersample)."""
+    if not (x0 <= x <= x1 and y0 <= y <= y1):
+        return False
+    cx = min(max(x, x0 + r), x1 - r)
+    cy = min(max(y, y0 + r), y1 - r)
+    # Only the four corner squares can fall outside; everything else is in.
+    if (x < x0 + r or x > x1 - r) and (y < y0 + r or y > y1 - r):
+        return (x - cx) ** 2 + (y - cy) ** 2 <= r * r
+    return True
 
 
 def seg_distance(px, py, ax, ay, bx, by):
@@ -53,16 +64,10 @@ def render(size):
     """Returns RGBA bytes for one icon at the given pixel size."""
     scale = size / 64.0
     radius = 15 * scale
-    stroke = (4.5 * scale) / 2.0  # half-width, since we measure from the centre line
+    stroke = (LINE_WIDTH * scale) / 2.0  # half-width, measured from the centre line
 
-    # The three strokes of the cursor glyph, in the same 64-unit coordinates
-    # as icon.svg: a top serif, the stem, and a bottom serif.
-    strokes = [
-        (25, 19, 39, 19),
-        (32, 19, 32, 45),
-        (25, 45, 39, 45),
-    ]
-    strokes = [(a * scale, b * scale, c * scale, d * scale) for a, b, c, d in strokes]
+    pad = tuple(v * scale for v in PAD)
+    mark = [tuple(v * scale for v in seg) for seg in MARK]
 
     rows = []
     for py in range(size):
@@ -74,8 +79,7 @@ def render(size):
                     x = px + (sx + 0.5) / SS
                     y = py + (sy + 0.5) / SS
 
-                    inside = rounded_rect_alpha(x, y, size, size, radius)
-                    if inside <= 0:
+                    if not in_rounded_rect(x, y, 0, 0, size, size, radius):
                         continue
 
                     # Gradient runs corner to corner, matching the SVG's
@@ -85,11 +89,12 @@ def render(size):
                     cg = GRAD_FROM[1] + (GRAD_TO[1] - GRAD_FROM[1]) * t
                     cb = GRAD_FROM[2] + (GRAD_TO[2] - GRAD_FROM[2]) * t
 
-                    on_glyph = any(
-                        seg_distance(x, y, *s) <= stroke for s in strokes
-                    )
-                    if on_glyph:
+                    # The pad, then the one line written on it. Painted in
+                    # that order for the same reason the SVG stacks them.
+                    if in_rounded_rect(x, y, *pad):
                         cr = cg = cb = 255.0
+                        if any(seg_distance(x, y, *seg) <= stroke for seg in mark):
+                            cr, cg, cb = GRAD_TO
 
                     r_acc += cr
                     g_acc += cg
